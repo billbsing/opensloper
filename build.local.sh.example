@@ -1,0 +1,4 @@
+# Copy to build.local.sh (gitignored) to use a toolchain that is not on PATH,
+# for example an fpcupdeluxe install. Sourced by run-tests.sh and build.sh.
+LAZBUILD="$HOME/Packages/fpc_build/lazarus/lazbuild"
+LAZARUS_PCP="$HOME/Packages/fpc_build/config_lazarus"

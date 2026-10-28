@@ -1,0 +1,28 @@
+object MainForm: TMainForm
+  Left = 200
+  Height = 600
+  Top = 150
+  Width = 900
+  Caption = 'OpenSloper'
+  Menu = MainMenu
+  Position = poScreenCenter
+  OnCreate = FormCreate
+  object MainMenu: TMainMenu
+    Left = 24
+    Top = 16
+    object MenuFile: TMenuItem
+      Caption = '&File'
+      object MenuFileQuit: TMenuItem
+        Caption = '&Quit'
+        OnClick = MenuFileQuitClick
+      end
+    end
+    object MenuHelp: TMenuItem
+      Caption = '&Help'
+      object MenuHelpAbout: TMenuItem
+        Caption = '&About OpenSloper'
+        OnClick = MenuHelpAboutClick
+      end
+    end
+  end
+end

@@ -1,0 +1,9 @@
+[submodule "packages/clipper2"]
+	path = packages/clipper2
+	url = https://github.com/AngusJohnson/Clipper2.git
+[submodule "packages/bgrabitmap"]
+	path = packages/bgrabitmap
+	url = https://github.com/bgrabitmap/bgrabitmap.git
+[submodule "packages/console-tools"]
+	path = packages/console-tools
+	url = https://github.com/billbsing/console-tools.git

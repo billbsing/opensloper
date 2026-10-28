@@ -1,8 +1,6 @@
-
-backus/
+# Lazarus / FPC build output
 lib/
-
-# Free Pascal Compiler (FPC) artifacts
+backup/
 *.o
 *.ppu
 *.rst
@@ -10,17 +8,22 @@ lib/
 *.a
 *.compiled
 *.or
+*.res
 
 # Lazarus IDE user session and temporary files
 *.lps
 *.bak
 *.lrs
 
-# Operating system / executable files
+# Built executables
+/opensloper
+/cli/opensloper-cli
+/tests/opensloper_tests
 *.exe
 *.dll
 *.so
 *.dylib
-*.ico
+*.app/
 
-
+# Local toolchain settings (see build.local.sh.example)
+/build.local.sh

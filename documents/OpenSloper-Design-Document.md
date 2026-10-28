@@ -585,10 +585,12 @@ opensloper/
 ├── README.md               what it is, status, build steps, submodule init
 ├── .gitignore              lib/, backup/, *.ppu, *.o, *.compiled, *.lps, binaries
 ├── .gitmodules
-├── run-tests.sh            submodule init, lazbuild tests, run test binary
+├── run-tests.sh            submodule init, lazbuild tests, run test binary, leak check
+├── build.sh                build GUI app and CLI; local toolchain in build.local.sh
 ├── opensloper.lpi / .lpr   main GUI application
 ├── src/
 │   ├── core/               geometry, expressions, model, evaluator, storage (no LCL)
+│   │   └── clipper2/       osclipper2.lpk, builds Clipper2 from the submodule
 │   ├── document/           TPatternDocument, undo/redo commands, notifications
 │   ├── ui/                 forms, canvas, tools, snapping, panels
 │   └── output/             PDF, SVG, DXF, Blender exporters
@@ -598,7 +600,7 @@ opensloper/
 │   ├── clipper2/
 │   ├── bgrabitmap/
 │   └── console-tools/
-├── documents/              internal development: design document, Claude notes
+├── documents/              internal development: design document, known issues, Claude notes
 └── docs/                   user manuals and help; can be published with GitHub Pages
 ```
 

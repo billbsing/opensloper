@@ -13,15 +13,19 @@ The full design is in `documents/OpenSloper-Design-Document.md`. Read it before 
 - `cli/` — `opensloper-cli` (export, check), built on the core and ConsoleTools.
 - `tests/` — FPCUnit test project and regression patterns.
 - `packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.
-- `documents/` — internal development notes and the design document.
+- `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
+- `documents/` — internal development notes, the design document, `known-issues.md` and the GPL unit header (`gpl-header.txt`).
 - `docs/` — user manuals and help.
 
 ## Build and test
 
 ```
 git submodule update --init --recursive
-./run-tests.sh
+./run-tests.sh     # tests, with heaptrc leak check
+./build.sh         # GUI app and CLI
 ```
+
+Toolchain overrides (`LAZBUILD`, `LAZARUS_PCP`, `LCL_WIDGETSET`) go in the gitignored `build.local.sh`; see `build.local.sh.example`.
 
 Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa. Run `run-tests.sh` before every commit.
 
