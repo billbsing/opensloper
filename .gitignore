@@ -1,0 +1,26 @@
+
+backus/
+lib/
+
+# Free Pascal Compiler (FPC) artifacts
+*.o
+*.ppu
+*.rst
+*.rsj
+*.a
+*.compiled
+*.or
+
+# Lazarus IDE user session and temporary files
+*.lps
+*.bak
+*.lrs
+
+# Operating system / executable files
+*.exe
+*.dll
+*.so
+*.dylib
+*.ico
+
+
