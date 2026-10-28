@@ -11,7 +11,9 @@ PCP_ARGS=()
 
 git submodule update --init --recursive
 
-"$LAZBUILD" "${PCP_ARGS[@]}" -q tests/opensloper_tests.lpi
+# -B: lazbuild compares file times to the second, so an edit made in the
+# same second as the last build could otherwise be skipped
+"$LAZBUILD" "${PCP_ARGS[@]}" -q -B tests/opensloper_tests.lpi
 
 HEAPLOG="$(mktemp)"
 RESULTS="$(mktemp)"

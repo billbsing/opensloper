@@ -32,6 +32,32 @@ type
   TEdgeRole = (erConstruction, erOutline);
   TOffsetMode = (omPolar, omCartesian);
   TAlongMode = (amLength, amRatio);
+  TProjectDirection = (pdPerpendicular, pdAngle);
+
+  TEdgePieceKind = (epLine, epCurve);
+
+  // Part of an edge, for finding crossings. A line piece covers
+  // Line.PointAt(T) for TMin <= T <= TMax (infinite for an extended line);
+  // its position along the edge is PosBase + PosScale * T. A curve piece is
+  // the whole curve; its position is the arc length from the start.
+  TEdgePiece = record
+    Kind: TEdgePieceKind;
+    Line: TLine2;
+    TMin, TMax: double;
+    PosBase, PosScale: double;
+    Curve: TCubicBezier;
+  end;
+
+  TEdgePieceArray = array of TEdgePiece;
+
+  // A crossing on an edge; Position is its distance along the edge in mm,
+  // negative before the start of an extended edge
+  TEdgeCrossing = record
+    Point: TVec2;
+    Position: double;
+  end;
+
+  TEdgeCrossingArray = array of TEdgeCrossing;
 
   TDraftObject = class(TEvalNode)
   private
@@ -109,6 +135,9 @@ type
     function PointAtLength(ADistance: Double): TVec2; virtual; abstract;
     // Prefix for derived names: Line or Curve
     function NamePrefix: string; virtual; abstract;
+    // The edge as pieces, with an extended line made infinite and an
+    // extended curve continued along its end tangents
+    function Pieces(Extend: boolean): TEdgePieceArray; virtual; abstract;
     property StartKey: string read FStartKey;
     property EndKey: string read FEndKey;
   end;
@@ -124,6 +153,7 @@ type
     function Compute(Context: TEvalContext): TEvalState; override;
     function Length: Double; override;
     function PointAtLength(ADistance: Double): TVec2; override;
+    function Pieces(Extend: boolean): TEdgePieceArray; override;
     property Line: TLine2 read FLine;
   end;
 
@@ -141,8 +171,71 @@ type
     function Compute(Context: TEvalContext): TEvalState; override;
     function Length: Double; override;
     function PointAtLength(ADistance: Double): TVec2; override;
+    function Pieces(Extend: boolean): TEdgePieceArray; override;
     property Curve: TCubicBezier read FCurve;
   end;
+
+  // Where two edges cross. Pick numbers the crossings from 1 along EdgeA.
+  TIntersectPoint = class(TPointObject)
+  private
+    FEdgeA, FEdgeB: string;
+    FExtendA, FExtendB: boolean;
+    FPick: integer;
+  public
+    constructor Create(const AKey, AEdgeA, AEdgeB: string; AExtendA, AExtendB: boolean;
+      APick: integer);
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property EdgeA: string read FEdgeA;
+    property EdgeB: string read FEdgeB;
+    property ExtendA: boolean read FExtendA;
+    property ExtendB: boolean read FExtendB;
+    property Pick: integer read FPick;
+  end;
+
+  // Where a circle around Centre, with the radius formula, crosses an edge;
+  // a compass step. Pick numbers the crossings from 1 along the edge.
+  TCircleEdgePoint = class(TPointObject)
+  private
+    FCentre, FEdge: string;
+    FExtend: boolean;
+    FPick: integer;
+  public
+    constructor Create(const AKey, ACentre, AEdge: string; AExtend: boolean; APick: integer);
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property Centre: string read FCentre;
+    property Edge: string read FEdge;
+    property Extend: boolean read FExtend;
+    property Pick: integer read FPick;
+  end;
+
+  // From a point onto an edge: the foot of the perpendicular, or along a
+  // line at the angle formula. The nearest result to the point is used.
+  TProjectPoint = class(TPointObject)
+  private
+    FSource, FEdge: string;
+    FDirection: TProjectDirection;
+    FExtend: boolean;
+  public
+    constructor Create(const AKey, ASource, AEdge: string; ADirection: TProjectDirection;
+      AExtend: boolean);
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property Source: string read FSource;
+    property Edge: string read FEdge;
+    property Direction: TProjectDirection read FDirection;
+    property Extend: boolean read FExtend;
+  end;
+
+// Crossings of two lists of pieces, in order along the first, with repeats merged
+function CrossPieces(const PiecesA, PiecesB: TEdgePieceArray): TEdgeCrossingArray;
+// Crossings of two edges, in order along A, with repeats merged
+function CrossEdges(EdgeA: TEdgeObject; ExtendA: boolean; EdgeB: TEdgeObject;
+  ExtendB: boolean): TEdgeCrossingArray;
+// Crossings of a circle with an edge, in order along the edge
+function CrossCircleEdge(const Centre: TVec2; Radius: double; Edge: TEdgeObject;
+  Extend: boolean): TEdgeCrossingArray;
 
 resourcestring
   rsDraftNotAPoint = '%s is not a point';
@@ -151,8 +244,17 @@ resourcestring
   rsDraftPastEnd = 'The distance %s mm is past the end of %s (%s mm long)';
   rsDraftRatioRange = 'The ratio %s is outside 0 to 1';
   rsDraftNegativeHandle = 'A handle length cannot be negative';
+  rsDraftNoCrossing = '%s and %s do not cross';
+  rsDraftPickMissing = 'There are only %d crossings, so crossing %d does not exist';
+  rsDraftCircleMisses = 'The circle does not reach %s';
+  rsDraftNegativeRadius = 'The radius cannot be negative';
+  rsDraftNoFoot = 'No perpendicular from %s meets %s';
+  rsDraftNoProjection = 'A line from %s at %s° does not meet %s';
 
 implementation
+
+uses
+  Math;
 
 function FormatMM(Millimetres: Double): string;
 begin
@@ -464,6 +566,375 @@ end;
 function TCurveObject.PointAtLength(ADistance: Double): TVec2;
 begin
   Result := FCurve.PointAtLength(ADistance);
+end;
+
+function LinePiece(const ALine: TLine2; TMin, TMax, PosBase, PosScale: double): TEdgePiece;
+begin
+  Result := Default(TEdgePiece);
+  Result.Kind := epLine;
+  Result.Line := ALine;
+  Result.TMin := TMin;
+  Result.TMax := TMax;
+  Result.PosBase := PosBase;
+  Result.PosScale := PosScale;
+end;
+
+procedure AddPiece(var Pieces: TEdgePieceArray; const Piece: TEdgePiece);
+begin
+  SetLength(Pieces, Length(Pieces) + 1);
+  Pieces[High(Pieces)] := Piece;
+end;
+
+function TLineObject.Pieces(Extend: boolean): TEdgePieceArray;
+begin
+  Result := nil;
+  if Extend then
+    AddPiece(Result, LinePiece(FLine, NegInfinity, Infinity, 0, FLine.Length))
+  else
+    AddPiece(Result, LinePiece(FLine, 0, 1, 0, FLine.Length));
+end;
+
+function TCurveObject.Pieces(Extend: boolean): TEdgePieceArray;
+var
+  CurvePiece: TEdgePiece;
+  BackAngle, OnAngle: double;
+begin
+  Result := nil;
+  CurvePiece := Default(TEdgePiece);
+  CurvePiece.Kind := epCurve;
+  CurvePiece.Curve := FCurve;
+  AddPiece(Result, CurvePiece);
+  if Extend then
+  begin
+    // Rays of unit-length lines, so T is the distance along them in mm. The
+    // start ray points away from the curve's first handle, the end ray away
+    // from its second.
+    BackAngle := FCurve.StartAngle + 180;
+    AddPiece(Result, LinePiece(Line2(FCurve.P0, PolarPoint(FCurve.P0, 1, BackAngle)),
+      0, Infinity, 0, -1));
+    OnAngle := FCurve.EndAngle + 180;
+    AddPiece(Result, LinePiece(Line2(FCurve.P3, PolarPoint(FCurve.P3, 1, OnAngle)),
+      0, Infinity, FCurve.Length, 1));
+  end;
+end;
+
+// True when T is within a line piece, allowing DefaultTolerance in mm
+function InPiece(const Piece: TEdgePiece; T: double): boolean;
+var
+  Tolerance: double;
+begin
+  Tolerance := DefaultTolerance / Max(Piece.Line.Length, Epsilon);
+  Result := (T >= Piece.TMin - Tolerance) and (T <= Piece.TMax + Tolerance);
+end;
+
+procedure AddCrossing(var Crossings: TEdgeCrossingArray; const APoint: TVec2; APosition: double);
+begin
+  SetLength(Crossings, Length(Crossings) + 1);
+  Crossings[High(Crossings)].Point := APoint;
+  Crossings[High(Crossings)].Position := APosition;
+end;
+
+// Sorts by position and merges crossings at the same point, such as where an
+// extension ray starts at the curve's end
+procedure SortAndMerge(var Crossings: TEdgeCrossingArray);
+var
+  Index, Inner, Count: integer;
+  Item: TEdgeCrossing;
+begin
+  for Index := 1 to High(Crossings) do
+  begin
+    Item := Crossings[Index];
+    Inner := Index - 1;
+    while (Inner >= 0) and (Crossings[Inner].Position > Item.Position) do
+    begin
+      Crossings[Inner + 1] := Crossings[Inner];
+      Dec(Inner);
+    end;
+    Crossings[Inner + 1] := Item;
+  end;
+  Count := 0;
+  for Index := 0 to High(Crossings) do
+    if (Count = 0) or not PointsNear(Crossings[Index].Point, Crossings[Count - 1].Point) then
+    begin
+      Crossings[Count] := Crossings[Index];
+      Inc(Count);
+    end;
+  SetLength(Crossings, Count);
+end;
+
+function CrossPieces(const PiecesA, PiecesB: TEdgePieceArray): TEdgeCrossingArray;
+var
+  PieceA, PieceB: TEdgePiece;
+  Hit: TIntersection;
+  Hits: TIntersectionArray;
+  CurveHit: TIntersection;
+begin
+  Result := nil;
+  for PieceA in PiecesA do
+    for PieceB in PiecesB do
+      if (PieceA.Kind = epLine) and (PieceB.Kind = epLine) then
+      begin
+        if IntersectLines(PieceA.Line, PieceB.Line, True, True, Hit)
+          and InPiece(PieceA, Hit.T1) and InPiece(PieceB, Hit.T2) then
+          AddCrossing(Result, Hit.Point, PieceA.PosBase + PieceA.PosScale * Hit.T1);
+      end
+      else if PieceA.Kind = epLine then
+      begin
+        Hits := IntersectBezierLine(PieceB.Curve, PieceA.Line, True);
+        for CurveHit in Hits do
+          if InPiece(PieceA, CurveHit.T2) then
+            AddCrossing(Result, CurveHit.Point, PieceA.PosBase + PieceA.PosScale * CurveHit.T2);
+      end
+      else if PieceB.Kind = epLine then
+      begin
+        Hits := IntersectBezierLine(PieceA.Curve, PieceB.Line, True);
+        for CurveHit in Hits do
+          if InPiece(PieceB, CurveHit.T2) then
+            AddCrossing(Result, CurveHit.Point, PieceA.Curve.LengthBetween(0, CurveHit.T1));
+      end
+      else
+      begin
+        Hits := IntersectBeziers(PieceA.Curve, PieceB.Curve);
+        for CurveHit in Hits do
+          AddCrossing(Result, CurveHit.Point, PieceA.Curve.LengthBetween(0, CurveHit.T1));
+      end;
+  SortAndMerge(Result);
+end;
+
+function CrossEdges(EdgeA: TEdgeObject; ExtendA: boolean; EdgeB: TEdgeObject;
+  ExtendB: boolean): TEdgeCrossingArray;
+begin
+  Result := CrossPieces(EdgeA.Pieces(ExtendA), EdgeB.Pieces(ExtendB));
+end;
+
+function CrossCircleEdge(const Centre: TVec2; Radius: double; Edge: TEdgeObject;
+  Extend: boolean): TEdgeCrossingArray;
+var
+  Piece: TEdgePiece;
+  Hit: TIntersection;
+begin
+  Result := nil;
+  for Piece in Edge.Pieces(Extend) do
+    if Piece.Kind = epLine then
+    begin
+      for Hit in IntersectLineCircle(Piece.Line, True, Centre, Radius) do
+        if InPiece(Piece, Hit.T1) then
+          AddCrossing(Result, Hit.Point, Piece.PosBase + Piece.PosScale * Hit.T1);
+    end
+    else
+      for Hit in IntersectBezierCircle(Piece.Curve, Centre, Radius) do
+        AddCrossing(Result, Hit.Point, Piece.Curve.LengthBetween(0, Hit.T1));
+  SortAndMerge(Result);
+end;
+
+// The edge for Key, or nil if it is not an edge
+function InputEdge(Context: TEvalContext; const Key: string): TEdgeObject;
+var
+  Found: TEvalNode;
+begin
+  Found := Context.FindNode(Key);
+  if Found is TEdgeObject then
+    Result := TEdgeObject(Found)
+  else
+    Result := nil;
+end;
+
+{ TIntersectPoint }
+
+constructor TIntersectPoint.Create(const AKey, AEdgeA, AEdgeB: string;
+  AExtendA, AExtendB: boolean; APick: integer);
+begin
+  inherited Create(AKey);
+  FEdgeA := AEdgeA;
+  FEdgeB := AEdgeB;
+  FExtendA := AExtendA;
+  FExtendB := AExtendB;
+  FPick := APick;
+end;
+
+function TIntersectPoint.InputKeys: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 2);
+  Result[0] := FEdgeA;
+  Result[1] := FEdgeB;
+end;
+
+function TIntersectPoint.Compute(Context: TEvalContext): TEvalState;
+var
+  First, Second: TEdgeObject;
+  Crossings: TEdgeCrossingArray;
+begin
+  First := InputEdge(Context, FEdgeA);
+  Second := InputEdge(Context, FEdgeB);
+  if First = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeA])));
+  if Second = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeB])));
+  Crossings := CrossEdges(First, FExtendA, Second, FExtendB);
+  if Length(Crossings) = 0 then
+    Exit(Fail(esInvalid, Format(rsDraftNoCrossing, [First.DisplayName, Second.DisplayName])));
+  if FPick > Length(Crossings) then
+    Exit(Fail(esInvalid, Format(rsDraftPickMissing, [Length(Crossings), FPick])));
+  FPosition := Crossings[FPick - 1].Point;
+  Result := esValid;
+end;
+
+{ TCircleEdgePoint }
+
+constructor TCircleEdgePoint.Create(const AKey, ACentre, AEdge: string; AExtend: boolean;
+  APick: integer);
+begin
+  inherited Create(AKey);
+  FCentre := ACentre;
+  FEdge := AEdge;
+  FExtend := AExtend;
+  FPick := APick;
+  AddField('radius');
+end;
+
+function TCircleEdgePoint.InputKeys: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 2);
+  Result[0] := FCentre;
+  Result[1] := FEdge;
+end;
+
+function TCircleEdgePoint.Compute(Context: TEvalContext): TEvalState;
+var
+  CentrePos: TVec2;
+  EdgeObject: TEdgeObject;
+  Radius: double;
+  Crossings: TEdgeCrossingArray;
+begin
+  if not InputPoint(Context, FCentre, CentrePos) then
+    Exit(esError);
+  EdgeObject := InputEdge(Context, FEdge);
+  if EdgeObject = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdge])));
+  if not EvalField(Context, 'radius', Radius) then
+    Exit(esError);
+  if Radius < 0 then
+    Exit(Fail(esInvalid, rsDraftNegativeRadius));
+  Crossings := CrossCircleEdge(CentrePos, Radius, EdgeObject, FExtend);
+  if Length(Crossings) = 0 then
+    Exit(Fail(esInvalid, Format(rsDraftCircleMisses, [EdgeObject.DisplayName])));
+  if FPick > Length(Crossings) then
+    Exit(Fail(esInvalid, Format(rsDraftPickMissing, [Length(Crossings), FPick])));
+  FPosition := Crossings[FPick - 1].Point;
+  Result := esValid;
+end;
+
+{ TProjectPoint }
+
+constructor TProjectPoint.Create(const AKey, ASource, AEdge: string;
+  ADirection: TProjectDirection; AExtend: boolean);
+begin
+  inherited Create(AKey);
+  FSource := ASource;
+  FEdge := AEdge;
+  FDirection := ADirection;
+  FExtend := AExtend;
+  if ADirection = pdAngle then
+    AddField('angle');
+end;
+
+function TProjectPoint.InputKeys: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 2);
+  Result[0] := FSource;
+  Result[1] := FEdge;
+end;
+
+// Feet of perpendiculars from SourcePos onto the pieces
+function PerpendicularFeet(const SourcePos: TVec2; const Pieces: TEdgePieceArray): TVec2Array;
+var
+  Piece: TEdgePiece;
+  T: double;
+  Foot, Tangent: TVec2;
+
+  procedure AddFoot(const APoint: TVec2);
+  begin
+    SetLength(Result, Length(Result) + 1);
+    Result[High(Result)] := APoint;
+  end;
+
+begin
+  Result := nil;
+  for Piece in Pieces do
+    if Piece.Kind = epLine then
+    begin
+      T := Piece.Line.ParamOf(SourcePos);
+      if InPiece(Piece, T) then
+        AddFoot(Piece.Line.PointAt(T));
+    end
+    else
+    begin
+      // The nearest point counts only where the line to it is square to
+      // the curve, not where the curve simply ends
+      T := Piece.Curve.ClosestParam(SourcePos);
+      Foot := Piece.Curve.PointAt(T);
+      Tangent := Piece.Curve.DerivativeAt(T);
+      if (Tangent.Length > Epsilon) and
+        (Abs(Dot(SourcePos - Foot, Tangent * (1 / Tangent.Length))) <= DefaultTolerance) then
+        AddFoot(Foot);
+    end;
+end;
+
+function TProjectPoint.Compute(Context: TEvalContext): TEvalState;
+var
+  SourcePos, BestPos, Candidate: TVec2;
+  EdgeObject: TEdgeObject;
+  AngleValue: double;
+  Candidates: TVec2Array;
+  Crossing: TEdgeCrossing;
+  SourceName: string;
+  ThroughSource: TEdgePieceArray;
+  Index: integer;
+begin
+  if not InputPoint(Context, FSource, SourcePos) then
+    Exit(esError);
+  EdgeObject := InputEdge(Context, FEdge);
+  if EdgeObject = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdge])));
+  SourceName := Context.FindNode(FSource).DisplayName;
+
+  Candidates := nil;
+  if FDirection = pdPerpendicular then
+  begin
+    Candidates := PerpendicularFeet(SourcePos, EdgeObject.Pieces(FExtend));
+    if Length(Candidates) = 0 then
+      Exit(Fail(esInvalid, Format(rsDraftNoFoot, [SourceName, EdgeObject.DisplayName])));
+  end
+  else
+  begin
+    if not EvalField(Context, 'angle', AngleValue) then
+      Exit(esError);
+    // A line through the source point at the angle, extended both ways
+    ThroughSource := nil;
+    AddPiece(ThroughSource, LinePiece(Line2(SourcePos, PolarPoint(SourcePos, 1, AngleValue)),
+      NegInfinity, Infinity, 0, 1));
+    for Crossing in CrossPieces(ThroughSource, EdgeObject.Pieces(FExtend)) do
+    begin
+      SetLength(Candidates, Length(Candidates) + 1);
+      Candidates[High(Candidates)] := Crossing.Point;
+    end;
+    if Length(Candidates) = 0 then
+      Exit(Fail(esInvalid, Format(rsDraftNoProjection,
+        [SourceName, FormatFloat('0.#', AngleValue), EdgeObject.DisplayName])));
+  end;
+
+  BestPos := Candidates[0];
+  for Index := 1 to High(Candidates) do
+  begin
+    Candidate := Candidates[Index];
+    if Distance(SourcePos, Candidate) < Distance(SourcePos, BestPos) then
+      BestPos := Candidate;
+  end;
+  FPosition := BestPos;
+  Result := esValid;
 end;
 
 end.

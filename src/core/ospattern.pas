@@ -87,6 +87,16 @@ type
     function AddOffsetPoint(const AName, BaseId: string; Mode: TOffsetMode; const LengthOrDx, AngleOrDy: string): TOffsetPoint;
     function AddAlongEdgePoint(const AName, EdgeId: string; FromEnd: Boolean;
       Mode: TAlongMode; const Value: string): TAlongEdgePoint;
+    // Where two edges cross; Pick numbers the crossings from 1 along EdgeA
+    function AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
+      ExtendA, ExtendB: boolean; Pick: integer): TIntersectPoint;
+    // Where a circle around CentreId crosses an edge (a compass step)
+    function AddCircleEdgePoint(const AName, CentreId, Radius, EdgeId: string;
+      Extend: boolean; Pick: integer): TCircleEdgePoint;
+    // From SourceId onto an edge, square to it or at the Angle formula
+    // (Angle is ignored for pdPerpendicular)
+    function AddProjectPoint(const AName, SourceId, EdgeId: string;
+      Direction: TProjectDirection; const Angle: string; Extend: boolean): TProjectPoint;
     function AddLine(const StartId, EndId: string; Role: TEdgeRole = erConstruction;
       const AName: string = ''): TLineObject;
     function AddCurve(const StartId, EndId, Angle1, Length1, Angle2, Length2: string;
@@ -131,6 +141,8 @@ resourcestring
   rsPatternNoField = '%s has no formula "%s"';
   rsPatternCannotRename = '%s cannot be renamed';
   rsPatternCannotDelete = '%s cannot be deleted';
+  rsPatternSameEdge = 'An edge cannot cross itself';
+  rsPatternBadPick = 'The crossing number must be 1 or more';
   rsPatternVariableList = 'The variable list is not valid';
   rsPatternVariableBadId = 'A variable has a missing or repeated ID';
   rsPatternVariableBadName = 'Variable name: %s';
@@ -573,6 +585,60 @@ begin
     Exit;
   Result := TAlongEdgePoint.Create('p' + IntToStr(FNextPoint), EdgeId, FromEnd, Mode);
   if not AddPointObject(Result, AName, ['value'], [Value]) then
+    Result := nil;
+end;
+
+function TPattern.AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
+  ExtendA, ExtendB: boolean; Pick: integer): TIntersectPoint;
+begin
+  Result := nil;
+  if not CheckEdgeTarget(EdgeAId) or not CheckEdgeTarget(EdgeBId) then
+    Exit;
+  if EdgeAId = EdgeBId then
+  begin
+    SetError(rsPatternSameEdge);
+    Exit;
+  end;
+  if Pick < 1 then
+  begin
+    SetError(rsPatternBadPick);
+    Exit;
+  end;
+  Result := TIntersectPoint.Create('p' + IntToStr(FNextPoint), EdgeAId, EdgeBId,
+    ExtendA, ExtendB, Pick);
+  if not AddPointObject(Result, AName, [], []) then
+    Result := nil;
+end;
+
+function TPattern.AddCircleEdgePoint(const AName, CentreId, Radius, EdgeId: string;
+  Extend: boolean; Pick: integer): TCircleEdgePoint;
+begin
+  Result := nil;
+  if not CheckPoint(CentreId) or not CheckEdgeTarget(EdgeId) then
+    Exit;
+  if Pick < 1 then
+  begin
+    SetError(rsPatternBadPick);
+    Exit;
+  end;
+  Result := TCircleEdgePoint.Create('p' + IntToStr(FNextPoint), CentreId, EdgeId, Extend, Pick);
+  if not AddPointObject(Result, AName, ['radius'], [Radius]) then
+    Result := nil;
+end;
+
+function TPattern.AddProjectPoint(const AName, SourceId, EdgeId: string;
+  Direction: TProjectDirection; const Angle: string; Extend: boolean): TProjectPoint;
+begin
+  Result := nil;
+  if not CheckPoint(SourceId) or not CheckEdgeTarget(EdgeId) then
+    Exit;
+  Result := TProjectPoint.Create('p' + IntToStr(FNextPoint), SourceId, EdgeId, Direction, Extend);
+  if Direction = pdAngle then
+  begin
+    if not AddPointObject(Result, AName, ['angle'], [Angle]) then
+      Result := nil;
+  end
+  else if not AddPointObject(Result, AName, [], []) then
     Result := nil;
 end;
 

@@ -137,7 +137,8 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 - `TPattern.SetFormula` refuses an edit that would close a cycle, naming both nodes. Loaded files can still contain one: nodes on the cycle become errors and their readers are blocked.
 - `Evaluate` rebuilds the graph and recomputes everything; dirty tracking can come later if dragging needs it.
 - `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 5) wrap these calls. `Delete` is refused while other nodes use the object.
-- Implemented so far: free, offset (polar or dx/dy) and along-edge (length or ratio, from either end) points; lines and cubic curves, with derived names (`Line_A_B`) that follow renamed endpoints until the user names the edge. The other operations come with the canvas (roadmap step 4).
+- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge); lines and cubic curves, with derived names (`Line_A_B`) that follow renamed endpoints until the user names the edge. Curve paths and split edge come next, then the canvas (roadmap step 4).
+- Each edge supplies its geometry as pieces (`TEdgeObject.Pieces`): a line is one piece, infinite when extended; an extended curve adds a ray off each end along its tangent. Every crossing operation works on pieces, so lines and curves are handled alike.
 
 ```pascal
 type
@@ -245,7 +246,7 @@ Six point operations and three edge types cover basic bodice, skirt and trouser 
 | Circle × edge | `centre`, `radius`, `edge`, `extend`, `pick` | Compass step, e.g. shoulder length from neck point onto the shoulder slope line |
 | Project onto edge | `point`, `edge`, `direction` (perpendicular/angle), `angle`, `extend` | Foot of a perpendicular; drop vertically from a point to the hem line |
 
-`extend` treats a line as infinite (or extends a curve along its end tangent), so long construction lines aren't needed just to find an intersection. `pick` is a stored crossing number, so the result stays stable when measurements change.
+`extend` treats a line as infinite (or extends a curve along its end tangent), so long construction lines aren't needed just to find an intersection. `pick` is a stored crossing number, so the result stays stable when measurements change: crossings are numbered from 1 by distance along the first edge (`edgeA`, or the edge for circle × edge), counting from the start of its extension when extended. Project onto edge has no `pick`; it takes the result nearest the point. A perpendicular onto a curve counts only where the line meets the curve square, not where the curve simply ends.
 
 **Edge operations:**
 

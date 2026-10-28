@@ -101,6 +101,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="TestPattern"/>
       </Unit>
+      <Unit>
+        <Filename Value="testoperations.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestOperations"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
