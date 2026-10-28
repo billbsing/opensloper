@@ -26,7 +26,7 @@ unit osNames;
 interface
 
 type
-  TNameTakenFunc = function(const Name: string): Boolean of object;
+  TNameTakenFunc = function(const Name: string): boolean of object;
 
 const
   // Formula functions; names may not use them
@@ -34,12 +34,12 @@ const
     'acos', 'atan2', 'sqrt', 'abs', 'min', 'max', 'round');
 
 // Letters, digits and underscore, not starting with a digit, not reserved
-function IsValidName(const Name: string): Boolean;
-function IsReservedName(const Name: string): Boolean;
-function IsFunctionName(const Name: string): Boolean;
+function IsValidName(const Name: string): boolean;
+function IsReservedName(const Name: string): boolean;
+function IsFunctionName(const Name: string): boolean;
 // IsValidName with a message saying what is wrong
-function CheckName(const Name: string; out ErrorMessage: string): Boolean;
-function SameName(const First, Second: string): Boolean;
+function CheckName(const Name: string; out ErrorMessage: string): boolean;
+function SameName(const First, Second: string): boolean;
 // Name for a copy when Name is taken: trailing digits are stripped and the
 // next free number from 2 is appended (A -> A2, A2 -> A3, Hip2 -> Hip3).
 // Returns Name itself when it is free.
@@ -58,17 +58,17 @@ implementation
 uses
   SysUtils;
 
-function IsNameStart(Character: Char): Boolean;
+function IsNameStart(Character: char): boolean;
 begin
   Result := Character in ['A'..'Z', 'a'..'z', '_'];
 end;
 
-function IsNameChar(Character: Char): Boolean;
+function IsNameChar(Character: char): boolean;
 begin
   Result := Character in ['A'..'Z', 'a'..'z', '_', '0'..'9'];
 end;
 
-function IsFunctionName(const Name: string): Boolean;
+function IsFunctionName(const Name: string): boolean;
 var
   FunctionName: string;
 begin
@@ -78,14 +78,14 @@ begin
   Result := False;
 end;
 
-function IsReservedName(const Name: string): Boolean;
+function IsReservedName(const Name: string): boolean;
 begin
   Result := IsFunctionName(Name);
 end;
 
-function IsValidName(const Name: string): Boolean;
+function IsValidName(const Name: string): boolean;
 var
-  Index: Integer;
+  Index: integer;
 begin
   if (Name = '') or not IsNameStart(Name[1]) then
     Exit(False);
@@ -95,7 +95,7 @@ begin
   Result := not IsReservedName(Name);
 end;
 
-function CheckName(const Name: string; out ErrorMessage: string): Boolean;
+function CheckName(const Name: string; out ErrorMessage: string): boolean;
 begin
   ErrorMessage := '';
   if Name = '' then
@@ -107,7 +107,7 @@ begin
   Result := ErrorMessage = '';
 end;
 
-function SameName(const First, Second: string): Boolean;
+function SameName(const First, Second: string): boolean;
 begin
   Result := SameText(First, Second);
 end;
@@ -115,7 +115,7 @@ end;
 function NextFreeName(const Name: string; IsTaken: TNameTakenFunc): string;
 var
   Stem: string;
-  Number: Integer;
+  Number: integer;
 begin
   if not IsTaken(Name) then
     Exit(Name);
@@ -131,8 +131,8 @@ end;
 
 function NextAutoName(IsTaken: TNameTakenFunc): string;
 var
-  Suffix: Integer;
-  Letter: Char;
+  Suffix: integer;
+  Letter: char;
 begin
   Suffix := 0;
   repeat

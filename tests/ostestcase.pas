@@ -29,10 +29,10 @@ uses
 type
   TOSTestCase = class(TTestCase)
   protected
-    procedure AssertNear(const Msg: string; Expected, Actual: Double;
-      Tolerance: Double = DefaultTolerance);
+    procedure AssertNear(const Msg: string; Expected, Actual: double;
+      Tolerance: double = DefaultTolerance);
     procedure AssertPointsNear(const Msg: string; const Expected, Actual: TVec2;
-      Tolerance: Double = DefaultTolerance);
+      Tolerance: double = DefaultTolerance);
   end;
 
 implementation
@@ -40,14 +40,14 @@ implementation
 uses
   SysUtils;
 
-procedure TOSTestCase.AssertNear(const Msg: string; Expected, Actual: Double;
-  Tolerance: Double);
+procedure TOSTestCase.AssertNear(const Msg: string; Expected, Actual: double;
+  Tolerance: double);
 begin
   AssertEquals(Msg, Expected, Actual, Tolerance);
 end;
 
 procedure TOSTestCase.AssertPointsNear(const Msg: string; const Expected,
-  Actual: TVec2; Tolerance: Double);
+  Actual: TVec2; Tolerance: double);
 begin
   if not PointsNear(Expected, Actual, Tolerance) then
     Fail(Format('%s: expected (%.4f, %.4f) but was (%.4f, %.4f)',

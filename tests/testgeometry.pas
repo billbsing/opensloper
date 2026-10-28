@@ -249,7 +249,7 @@ end;
 procedure TTestGeometry.TestSignedAreaAndOrientation;
 var
   Pts, Rev: TVec2Array;
-  I: Integer;
+  I: integer;
 begin
   Pts := Square;
   AssertNear('anticlockwise area', 10000, SignedArea(Pts));

@@ -456,7 +456,8 @@ begin
     if (S < -0.5) or (S > 1.5) or (T < -0.5) or (T > 1.5) then
       Exit(False);
   end;
-  Result := (S >= -MergeParamTolerance) and (S <= 1 + MergeParamTolerance) and (T >= -MergeParamTolerance) and (T <= 1 + MergeParamTolerance) and (Distance(A.PointAt(EnsureRange(S, 0, 1)), B.PointAt(EnsureRange(T, 0, 1))) <= DefaultTolerance / 10);
+  Result := (S >= -MergeParamTolerance) and (S <= 1 + MergeParamTolerance) and (T >= -MergeParamTolerance) and
+    (T <= 1 + MergeParamTolerance) and (Distance(A.PointAt(EnsureRange(S, 0, 1)), B.PointAt(EnsureRange(T, 0, 1))) <= DefaultTolerance / 10);
   S := EnsureRange(S, 0, 1);
   T := EnsureRange(T, 0, 1);
 end;

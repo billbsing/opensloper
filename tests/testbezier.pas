@@ -177,7 +177,7 @@ procedure TTestBezier.TestFlattenStaysOnCurve;
 var
   C: TCubicBezier;
   S: TCurveSampleArray;
-  I: Integer;
+  I: integer;
   Mid: TVec2;
   Chord: TLine2;
 begin

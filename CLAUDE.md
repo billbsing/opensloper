@@ -14,7 +14,7 @@ The full design is in `documents/OpenSloper-Design-Document.md`. Read it before 
 - `tests/` — FPCUnit test project and regression patterns.
 - `packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
-- `documents/` — internal development notes, the design document, `known-issues.md` and the GPL unit header (`gpl-header.txt`).
+- `documents/` — internal development notes, the design document, `coding-standards.md`, `known-issues.md` and the GPL unit header (`gpl-header.txt`).
 - `docs/` — user manuals and help.
 
 ## Build and test
@@ -23,6 +23,7 @@ The full design is in `documents/OpenSloper-Design-Document.md`. Read it before 
 git submodule update --init --recursive
 ./run-tests.sh     # tests, with heaptrc leak check
 ./build.sh         # GUI app and CLI
+./format.sh        # format sources with jcfsettings.cfg (--check to list only)
 ```
 
 Toolchain overrides (`LAZBUILD`, `LAZARUS_PCP`, `LCL_WIDGETSET`) go in the gitignored `build.local.sh`; see `build.local.sh.example`.
@@ -39,8 +40,7 @@ Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa.
 - Every user change is a `TCommand` with `Execute` and `Undo`; one drag is one undo step.
 - Evaluation failures are states (error, invalid, blocked), never exceptions that escape to the UI.
 - User-visible text goes in `resourcestring` sections.
-- Descriptive names, no single-letter variables or parameters (`Index`, not `I`; `Node`, not `N`). Exceptions: the core math units (`osgeometry`, `osbezier`, `osnumeric`), where single letters read better in formulas, and `tests/`.
-- A parameter takes an `A` prefix when its plain name would clash with a field, property or method (`AName`, `AEdge`, `AValue`); locals use plain descriptive names.
+- Code style (naming, formatting, line length) follows `documents/coding-standards.md`; read it before writing code. Run `./format.sh` before committing.
 - File paths go through `TAppPaths`; build paths with `ConcatPaths` / `PathDelim`, never a hard-coded `/`.
 - Every program lists `osCodePage` first in its uses clause and is compiled with `-FcUTF8`, so strings are UTF-8 throughout.
 - Files are written through `osJSON` (`JSONToText`, `JSONFloat`) for a stable layout; loading reports errors as messages, never exceptions.

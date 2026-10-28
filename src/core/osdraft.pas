@@ -66,9 +66,9 @@ type
     function DisplayName: string; override;
     function TypeName: string; virtual; abstract;
     // Readable properties in formulas, such as x or length (lower case)
-    function HasProperty(const Prop: string): Boolean; virtual; abstract;
+    function HasProperty(const Prop: string): boolean; virtual; abstract;
     // Value of a property from the last good result
-    function PropertyValue(const Prop: string): Double; virtual; abstract;
+    function PropertyValue(const Prop: string): double; virtual; abstract;
     property Name: string read FName write FName;
   end;
 
@@ -77,11 +77,11 @@ type
     FPosition: TVec2;
     // Position of the point with the given key; False with Message set if
     // it is not a point
-    function InputPoint(Context: TEvalContext; const AKey: string; out APosition: TVec2): Boolean;
+    function InputPoint(Context: TEvalContext; const AKey: string; out APosition: TVec2): boolean;
   public
     function TypeName: string; override;
-    function HasProperty(const Prop: string): Boolean; override;
-    function PropertyValue(const Prop: string): Double; override;
+    function HasProperty(const Prop: string): boolean; override;
+    function PropertyValue(const Prop: string): double; override;
     // Last good position
     property Position: TVec2 read FPosition;
   end;
@@ -110,14 +110,14 @@ type
   TAlongEdgePoint = class(TPointObject)
   private
     FEdge: string;
-    FFromEnd: Boolean;
+    FFromEnd: boolean;
     FMode: TAlongMode;
   public
-    constructor Create(const AKey, AEdge: string; AFromEnd: Boolean; AMode: TAlongMode);
+    constructor Create(const AKey, AEdge: string; AFromEnd: boolean; AMode: TAlongMode);
     function InputKeys: TStringArray; override;
     function Compute(Context: TEvalContext): TEvalState; override;
     property Edge: string read FEdge;
-    property FromEnd: Boolean read FFromEnd;
+    property FromEnd: boolean read FFromEnd;
     property Mode: TAlongMode read FMode;
   end;
 
@@ -127,12 +127,12 @@ type
   public
     Role: TEdgeRole;
     // The name follows the endpoints (Line_A_B) until the user renames it
-    NameIsDerived: Boolean;
+    NameIsDerived: boolean;
     constructor Create(const AKey, AStart, AEnd: string);
     function InputKeys: TStringArray; override;
     // Geometry of the last good result
-    function Length: Double; virtual; abstract;
-    function PointAtLength(ADistance: Double): TVec2; virtual; abstract;
+    function Length: double; virtual; abstract;
+    function PointAtLength(ADistance: double): TVec2; virtual; abstract;
     // Prefix for derived names: Line or Curve
     function NamePrefix: string; virtual; abstract;
     // The edge as pieces, with an extended line made infinite and an
@@ -148,11 +148,11 @@ type
   public
     function TypeName: string; override;
     function NamePrefix: string; override;
-    function HasProperty(const Prop: string): Boolean; override;
-    function PropertyValue(const Prop: string): Double; override;
+    function HasProperty(const Prop: string): boolean; override;
+    function PropertyValue(const Prop: string): double; override;
     function Compute(Context: TEvalContext): TEvalState; override;
-    function Length: Double; override;
-    function PointAtLength(ADistance: Double): TVec2; override;
+    function Length: double; override;
+    function PointAtLength(ADistance: double): TVec2; override;
     function Pieces(Extend: boolean): TEdgePieceArray; override;
     property Line: TLine2 read FLine;
   end;
@@ -166,11 +166,11 @@ type
     constructor Create(const AKey, AStart, AEnd: string);
     function TypeName: string; override;
     function NamePrefix: string; override;
-    function HasProperty(const Prop: string): Boolean; override;
-    function PropertyValue(const Prop: string): Double; override;
+    function HasProperty(const Prop: string): boolean; override;
+    function PropertyValue(const Prop: string): double; override;
     function Compute(Context: TEvalContext): TEvalState; override;
-    function Length: Double; override;
-    function PointAtLength(ADistance: Double): TVec2; override;
+    function Length: double; override;
+    function PointAtLength(ADistance: double): TVec2; override;
     function Pieces(Extend: boolean): TEdgePieceArray; override;
     property Curve: TCubicBezier read FCurve;
   end;
@@ -256,7 +256,7 @@ implementation
 uses
   Math;
 
-function FormatMM(Millimetres: Double): string;
+function FormatMM(Millimetres: double): string;
 begin
   Result := FormatFloat('0.#', Millimetres);
 end;
@@ -271,7 +271,7 @@ end;
 { TPointObject }
 
 function TPointObject.InputPoint(Context: TEvalContext; const AKey: string;
-  out APosition: TVec2): Boolean;
+  out APosition: TVec2): boolean;
 var
   Node: TEvalNode;
 begin
@@ -291,12 +291,12 @@ begin
   Result := 'point';
 end;
 
-function TPointObject.HasProperty(const Prop: string): Boolean;
+function TPointObject.HasProperty(const Prop: string): boolean;
 begin
   Result := (Prop = 'x') or (Prop = 'y');
 end;
 
-function TPointObject.PropertyValue(const Prop: string): Double;
+function TPointObject.PropertyValue(const Prop: string): double;
 begin
   if Prop = 'x' then
     Result := FPosition.X
@@ -315,7 +315,7 @@ end;
 
 function TFreePoint.Compute(Context: TEvalContext): TEvalState;
 var
-  XValue, YValue: Double;
+  XValue, YValue: double;
 begin
   if not EvalField(Context, 'x', XValue) or not EvalField(Context, 'y', YValue) then
     Exit(esError);
@@ -352,7 +352,7 @@ end;
 function TOffsetPoint.Compute(Context: TEvalContext): TEvalState;
 var
   BasePos: TVec2;
-  LengthOrDx, AngleOrDy: Double;
+  LengthOrDx, AngleOrDy: double;
 begin
   if not InputPoint(Context, FBase, BasePos) then
     Exit(esError);
@@ -373,7 +373,7 @@ end;
 
 { TAlongEdgePoint }
 
-constructor TAlongEdgePoint.Create(const AKey, AEdge: string; AFromEnd: Boolean;
+constructor TAlongEdgePoint.Create(const AKey, AEdge: string; AFromEnd: boolean;
   AMode: TAlongMode);
 begin
   inherited Create(AKey);
@@ -394,7 +394,7 @@ function TAlongEdgePoint.Compute(Context: TEvalContext): TEvalState;
 var
   Node: TEvalNode;
   EdgeObject: TEdgeObject;
-  Amount, Len, DistanceAlong: Double;
+  Amount, Len, DistanceAlong: double;
 begin
   Node := Context.FindNode(FEdge);
   if not (Node is TEdgeObject) then
@@ -468,12 +468,12 @@ begin
   Result := 'Line';
 end;
 
-function TLineObject.HasProperty(const Prop: string): Boolean;
+function TLineObject.HasProperty(const Prop: string): boolean;
 begin
   Result := (Prop = 'length') or (Prop = 'angle');
 end;
 
-function TLineObject.PropertyValue(const Prop: string): Double;
+function TLineObject.PropertyValue(const Prop: string): double;
 begin
   if Prop = 'length' then
     Result := FLine.Length
@@ -493,12 +493,12 @@ begin
   FLine := Line2(StartPos, EndPos);
 end;
 
-function TLineObject.Length: Double;
+function TLineObject.Length: double;
 begin
   Result := FLine.Length;
 end;
 
-function TLineObject.PointAtLength(ADistance: Double): TVec2;
+function TLineObject.PointAtLength(ADistance: double): TVec2;
 begin
   Result := FLine.PointAtLength(ADistance);
 end;
@@ -524,12 +524,12 @@ begin
   Result := 'Curve';
 end;
 
-function TCurveObject.HasProperty(const Prop: string): Boolean;
+function TCurveObject.HasProperty(const Prop: string): boolean;
 begin
   Result := (Prop = 'length') or (Prop = 'angle1') or (Prop = 'angle2');
 end;
 
-function TCurveObject.PropertyValue(const Prop: string): Double;
+function TCurveObject.PropertyValue(const Prop: string): double;
 begin
   if Prop = 'length' then
     Result := FCurve.Length
@@ -542,15 +542,15 @@ end;
 function TCurveObject.Compute(Context: TEvalContext): TEvalState;
 var
   StartPos, EndPos: TVec2;
-  A1, L1, A2, L2: Double;
+  A1, L1, A2, L2: double;
 begin
   Result := EdgeEnds(Self, Context, StartPos, EndPos);
   case Result of
     esError: Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey + '/' + EndKey])));
     esInvalid: Exit(Fail(esInvalid, rsDraftSamePlace));
   end;
-  if not EvalField(Context, 'angle1', A1) or not EvalField(Context, 'length1', L1)
-    or not EvalField(Context, 'angle2', A2) or not EvalField(Context, 'length2', L2) then
+  if not EvalField(Context, 'angle1', A1) or not EvalField(Context, 'length1', L1) or not EvalField(Context, 'angle2', A2) or
+    not EvalField(Context, 'length2', L2) then
     Exit(esError);
   if (L1 < 0) or (L2 < 0) then
     Exit(Fail(esInvalid, rsDraftNegativeHandle));
@@ -558,12 +558,12 @@ begin
   Result := esValid;
 end;
 
-function TCurveObject.Length: Double;
+function TCurveObject.Length: double;
 begin
   Result := FCurve.Length;
 end;
 
-function TCurveObject.PointAtLength(ADistance: Double): TVec2;
+function TCurveObject.PointAtLength(ADistance: double): TVec2;
 begin
   Result := FCurve.PointAtLength(ADistance);
 end;
@@ -674,8 +674,7 @@ begin
     for PieceB in PiecesB do
       if (PieceA.Kind = epLine) and (PieceB.Kind = epLine) then
       begin
-        if IntersectLines(PieceA.Line, PieceB.Line, True, True, Hit)
-          and InPiece(PieceA, Hit.T1) and InPiece(PieceB, Hit.T2) then
+        if IntersectLines(PieceA.Line, PieceB.Line, True, True, Hit) and InPiece(PieceA, Hit.T1) and InPiece(PieceB, Hit.T2) then
           AddCrossing(Result, Hit.Point, PieceA.PosBase + PieceA.PosScale * Hit.T1);
       end
       else if PieceA.Kind = epLine then

@@ -37,19 +37,19 @@ type
   end;
 
 // Shortest text that reads back as exactly V, with '.' as decimal point
-function FormatJSONFloat(Value: Double): string;
-function JSONFloat(Value: Double): TJSONData;
+function FormatJSONFloat(Value: double): string;
+function JSONFloat(Value: double): TJSONData;
 // Two-space indent, "key": value, members in insertion order, LF line ends
 function JSONToText(Data: TJSONData): string;
 // Parses Text, which must hold a JSON object. The caller frees Obj.
-function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): Boolean;
-function ReadTextFile(const FileName: string; out Text: string; out ErrorMessage: string): Boolean;
-function WriteTextFile(const FileName, Text: string; out ErrorMessage: string): Boolean;
+function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): boolean;
+function ReadTextFile(const FileName: string; out Text: string; out ErrorMessage: string): boolean;
+function WriteTextFile(const FileName, Text: string; out ErrorMessage: string): boolean;
 
 // Typed member access. False when the member is missing or the wrong type.
-function GetJSONString(Obj: TJSONObject; const Name: string; out Value: string): Boolean;
-function GetJSONNumber(Obj: TJSONObject; const Name: string; out Value: Double): Boolean;
-function GetJSONInteger(Obj: TJSONObject; const Name: string; out Value: Integer): Boolean;
+function GetJSONString(Obj: TJSONObject; const Name: string; out Value: string): boolean;
+function GetJSONNumber(Obj: TJSONObject; const Name: string; out Value: double): boolean;
+function GetJSONInteger(Obj: TJSONObject; const Name: string; out Value: integer): boolean;
 
 resourcestring
   rsJSONNotObject = 'The file does not contain a JSON object';
@@ -69,11 +69,11 @@ begin
   Result.ThousandSeparator := #0;
 end;
 
-function FormatJSONFloat(Value: Double): string;
+function FormatJSONFloat(Value: double): string;
 var
   Settings: TFormatSettings;
-  Precision: Integer;
-  Back: Double;
+  Precision: integer;
+  Back: double;
 begin
   if Frac(Value) = 0 then
     if Abs(Value) < 1e15 then
@@ -94,65 +94,65 @@ begin
   Result := FormatJSONFloat(AsFloat);
 end;
 
-function JSONFloat(Value: Double): TJSONData;
+function JSONFloat(Value: double): TJSONData;
 begin
   Result := TOSJSONFloat.Create(Value);
 end;
 
 procedure WriteValue(Data: TJSONData; const Indent: string; Lines: TStrings; var Line: string);
 var
-  Index: Integer;
+  Index: integer;
   Inner: string;
   Obj: TJSONObject;
 begin
   case Data.JSONType of
     jtObject:
+    begin
+      Obj := TJSONObject(Data);
+      if Obj.Count = 0 then
       begin
-        Obj := TJSONObject(Data);
-        if Obj.Count = 0 then
-        begin
-          Line := Line + '{}';
-          Exit;
-        end;
-        Lines.Add(Line + '{');
-        Inner := Indent + '  ';
-        for Index := 0 to Obj.Count - 1 do
-        begin
-          Line := Inner + '"' + StringToJSONString(Obj.Names[Index]) + '": ';
-          WriteValue(Obj.Items[Index], Inner, Lines, Line);
-          if Index < Obj.Count - 1 then
-            Line := Line + ',';
-          Lines.Add(Line);
-        end;
-        Line := Indent + '}';
+        Line := Line + '{}';
+        Exit;
       end;
+      Lines.Add(Line + '{');
+      Inner := Indent + '  ';
+      for Index := 0 to Obj.Count - 1 do
+      begin
+        Line := Inner + '"' + StringToJSONString(Obj.Names[Index]) + '": ';
+        WriteValue(Obj.Items[Index], Inner, Lines, Line);
+        if Index < Obj.Count - 1 then
+          Line := Line + ',';
+        Lines.Add(Line);
+      end;
+      Line := Indent + '}';
+    end;
     jtArray:
+    begin
+      if Data.Count = 0 then
       begin
-        if Data.Count = 0 then
-        begin
-          Line := Line + '[]';
-          Exit;
-        end;
-        Lines.Add(Line + '[');
-        Inner := Indent + '  ';
-        for Index := 0 to Data.Count - 1 do
-        begin
-          Line := Inner;
-          WriteValue(Data.Items[Index], Inner, Lines, Line);
-          if Index < Data.Count - 1 then
-            Line := Line + ',';
-          Lines.Add(Line);
-        end;
-        Line := Indent + ']';
+        Line := Line + '[]';
+        Exit;
       end;
+      Lines.Add(Line + '[');
+      Inner := Indent + '  ';
+      for Index := 0 to Data.Count - 1 do
+      begin
+        Line := Inner;
+        WriteValue(Data.Items[Index], Inner, Lines, Line);
+        if Index < Data.Count - 1 then
+          Line := Line + ',';
+        Lines.Add(Line);
+      end;
+      Line := Indent + ']';
+    end;
     jtNumber:
       if Data is TJSONFloatNumber then
         Line := Line + FormatJSONFloat(Data.AsFloat)
       else
         Line := Line + Data.AsJSON;
-  else
-    // Strings, booleans and null
-    Line := Line + Data.AsJSON;
+    else
+      // Strings, booleans and null
+      Line := Line + Data.AsJSON;
   end;
 end;
 
@@ -160,7 +160,7 @@ function JSONToText(Data: TJSONData): string;
 var
   Lines: TStringList;
   Line: string;
-  Index: Integer;
+  Index: integer;
 begin
   Lines := TStringList.Create;
   try
@@ -175,7 +175,7 @@ begin
   end;
 end;
 
-function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): Boolean;
+function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): boolean;
 var
   Data: TJSONData;
 begin
@@ -200,7 +200,7 @@ begin
   Result := True;
 end;
 
-function ReadTextFile(const FileName: string; out Text: string; out ErrorMessage: string): Boolean;
+function ReadTextFile(const FileName: string; out Text: string; out ErrorMessage: string): boolean;
 var
   Stream: TFileStream;
 begin
@@ -225,7 +225,7 @@ begin
   end;
 end;
 
-function WriteTextFile(const FileName, Text: string; out ErrorMessage: string): Boolean;
+function WriteTextFile(const FileName, Text: string; out ErrorMessage: string): boolean;
 var
   Stream: TFileStream;
 begin
@@ -248,7 +248,7 @@ begin
   end;
 end;
 
-function GetJSONString(Obj: TJSONObject; const Name: string; out Value: string): Boolean;
+function GetJSONString(Obj: TJSONObject; const Name: string; out Value: string): boolean;
 var
   Data: TJSONData;
 begin
@@ -259,7 +259,7 @@ begin
     Value := Data.AsString;
 end;
 
-function GetJSONNumber(Obj: TJSONObject; const Name: string; out Value: Double): Boolean;
+function GetJSONNumber(Obj: TJSONObject; const Name: string; out Value: double): boolean;
 var
   Data: TJSONData;
 begin
@@ -270,7 +270,7 @@ begin
     Value := Data.AsFloat;
 end;
 
-function GetJSONInteger(Obj: TJSONObject; const Name: string; out Value: Integer): Boolean;
+function GetJSONInteger(Obj: TJSONObject; const Name: string; out Value: integer): boolean;
 var
   Data: TJSONData;
 begin

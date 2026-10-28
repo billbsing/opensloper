@@ -29,7 +29,7 @@ uses
 type
   TTestNumeric = class(TOSTestCase)
   private
-    procedure AssertRoots(const Msg: string; const Expected: array of Double;
+    procedure AssertRoots(const Msg: string; const Expected: array of double;
       const Actual: TDoubleArray);
   published
     procedure TestQuadraticTwoRoots;
@@ -50,10 +50,10 @@ implementation
 uses
   SysUtils;
 
-procedure TTestNumeric.AssertRoots(const Msg: string; const Expected: array of Double;
+procedure TTestNumeric.AssertRoots(const Msg: string; const Expected: array of double;
   const Actual: TDoubleArray);
 var
-  I: Integer;
+  I: integer;
 begin
   AssertEquals(Msg + ' count', Length(Expected), Length(Actual));
   for I := 0 to High(Expected) do
@@ -114,7 +114,7 @@ end;
 
 procedure TTestNumeric.TestIntegratePolynomial;
 
-  function F(X: Double): Double;
+  function F(X: double): double;
   begin
     Result := 3 * X * X + 1;
   end;
@@ -126,7 +126,7 @@ end;
 
 procedure TTestNumeric.TestIntegrateSine;
 
-  function F(X: Double): Double;
+  function F(X: double): double;
   begin
     Result := Sin(X);
   end;

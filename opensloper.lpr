@@ -24,10 +24,13 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  osCodePage, Interfaces, Forms,
-  osVersion, osMainForm;
+  osCodePage,
+  Interfaces,
+  Forms,
+  osVersion,
+  osMainForm;
 
-{$R *.res}
+  {$R *.res}
 
 begin
   RequireDerivedFormResource := True;

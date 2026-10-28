@@ -29,7 +29,7 @@ type
   TTestNames = class(TOSTestCase)
   private
     FTaken: TStringList;
-    function Taken(const Name: string): Boolean;
+    function Taken(const Name: string): boolean;
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -58,7 +58,7 @@ begin
   FTaken.Free;
 end;
 
-function TTestNames.Taken(const Name: string): Boolean;
+function TTestNames.Taken(const Name: string): boolean;
 begin
   Result := FTaken.IndexOf(Name) >= 0;
 end;
@@ -127,7 +127,7 @@ end;
 
 procedure TTestNames.TestNextAutoName;
 var
-  C: Char;
+  C: char;
 begin
   AssertEquals('first', 'A', NextAutoName(@Taken));
   FTaken.Add('A');

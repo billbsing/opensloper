@@ -33,7 +33,7 @@ type
     FPattern: TPattern;
     // A at (0, 0) and B at (100, 0), joined by Line_A_B
     procedure Basic(out A, B: TPointObject; out L: TLineObject);
-    procedure AssertAt(const Msg: string; P: TPointObject; X, Y: Double);
+    procedure AssertAt(const Msg: string; P: TPointObject; X, Y: double);
     function Check(Obj: TObject): TObject;
   protected
     procedure SetUp; override;
@@ -101,7 +101,7 @@ begin
   L := TLineObject(Check(FPattern.AddLine(A.Key, B.Key)));
 end;
 
-procedure TTestPattern.AssertAt(const Msg: string; P: TPointObject; X, Y: Double);
+procedure TTestPattern.AssertAt(const Msg: string; P: TPointObject; X, Y: double);
 begin
   AssertTrue(Msg + ' state: ' + P.Message, P.State = esValid);
   AssertPointsNear(Msg, Vec2(X, Y), P.Position);
@@ -441,8 +441,8 @@ var
   A, B: TPointObject;
   L: TLineObject;
   Order: TEvalNodeArray;
-  I, J, K: Integer;
-  Found: Boolean;
+  I, J, K: integer;
+  Found: boolean;
 begin
   Basic(A, B, L);
   FPattern.AddVariable('ease', '@waist / 100');

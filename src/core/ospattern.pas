@@ -38,29 +38,29 @@ type
     FMeasurementNodes: TList;
     FVariables: TList;
     FObjects: TList;
-    FNextPoint, FNextLine, FNextCurve, FNextVariable: Integer;
+    FNextPoint, FNextLine, FNextCurve, FNextVariable: integer;
     FEvaluator: TEvaluator;
     FResolver: TNameResolver;          // objects, variables, measurements
     FVariableResolver: TNameResolver;  // variables and measurements only
     FContext: TEvalContext;
     FLastError: string;
     FLastErrorField: string;
-    FLastErrorPos: Integer;
+    FLastErrorPos: integer;
     FNameExclude: TDraftObject;
-    function GetVariableCount: Integer;
-    function GetVariable(Index: Integer): TVariable;
-    function GetObjectCount: Integer;
-    function GetObject(Index: Integer): TDraftObject;
-    function SetError(const Msg: string; const AField: string = ''; Pos: Integer = 0): Boolean;
-    function ObjectNameTaken(const AName: string): Boolean;
+    function GetVariableCount: integer;
+    function GetVariable(Index: integer): TVariable;
+    function GetObjectCount: integer;
+    function GetObject(Index: integer): TDraftObject;
+    function SetError(const Msg: string; const AField: string = ''; Pos: integer = 0): boolean;
+    function ObjectNameTaken(const AName: string): boolean;
     function ResolverFor(Node: TEvalNode): TNameResolver;
-    function ParseFields(Node: TEvalNode; const Names, Texts: array of string): Boolean;
-    function CheckPoint(const Id: string): Boolean;
-    function CheckEdgeTarget(const Id: string): Boolean;
+    function ParseFields(Node: TEvalNode; const Names, Texts: array of string): boolean;
+    function CheckPoint(const Id: string): boolean;
+    function CheckEdgeTarget(const Id: string): boolean;
     function AddPointObject(APoint: TPointObject; const AName: string;
-      const Names, Texts: array of string): Boolean;
+      const Names, Texts: array of string): boolean;
     function AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
-      const Names, Texts: array of string): Boolean;
+      const Names, Texts: array of string): boolean;
     function DerivedEdgeName(AEdge: TEdgeObject): string;
     procedure UpdateDerivedNames;
     procedure RebuildMeasurementNodes;
@@ -75,8 +75,8 @@ type
     function FindNode(const Key: string): TEvalNode;
     function FindObject(const AName: string): TDraftObject;
     function FindVariable(const AName: string): TVariable;
-    function CheckObjectName(const AName: string; Exclude: TDraftObject; out ErrorMessage: string): Boolean;
-    function CheckVariableName(const AName: string; Exclude: TVariable; out ErrorMessage: string): Boolean;
+    function CheckObjectName(const AName: string; Exclude: TDraftObject; out ErrorMessage: string): boolean;
+    function CheckVariableName(const AName: string; Exclude: TVariable; out ErrorMessage: string): boolean;
 
     // Adding returns nil when refused, with the reason in LastError,
     // LastErrorField and LastErrorPos. An empty point name takes the next
@@ -85,7 +85,7 @@ type
     function AddFreePoint(const AName, XText, YText: string): TFreePoint;
     // LengthOrDx and AngleOrDy are length and angle (omPolar) or dx and dy (omCartesian)
     function AddOffsetPoint(const AName, BaseId: string; Mode: TOffsetMode; const LengthOrDx, AngleOrDy: string): TOffsetPoint;
-    function AddAlongEdgePoint(const AName, EdgeId: string; FromEnd: Boolean;
+    function AddAlongEdgePoint(const AName, EdgeId: string; FromEnd: boolean;
       Mode: TAlongMode; const Value: string): TAlongEdgePoint;
     // Where two edges cross; Pick numbers the crossings from 1 along EdgeA
     function AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
@@ -103,10 +103,10 @@ type
       Role: TEdgeRole = erConstruction; const AName: string = ''): TCurveObject;
 
     // Editing returns False when refused, with the reason in LastError
-    function SetFormula(Node: TEvalNode; const AField, Text: string): Boolean;
-    function Rename(Node: TEvalNode; const NewName: string): Boolean;
+    function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
+    function Rename(Node: TEvalNode; const NewName: string): boolean;
     // Refused while other nodes use Node
-    function Delete(Node: TEvalNode): Boolean;
+    function Delete(Node: TEvalNode): boolean;
     // Nodes that read Node directly
     function UsersOf(Node: TEvalNode): TEvalNodeArray;
     // A formula as the user sees it, with current names
@@ -118,19 +118,19 @@ type
     function SaveVariables: TJSONArray;
     // Replaces the variables. Fails on a malformed list; a formula that does
     // not parse is kept as text and shows as an error.
-    function LoadVariables(Data: TJSONData; out ErrorMessage: string): Boolean;
+    function LoadVariables(Data: TJSONData; out ErrorMessage: string): boolean;
 
     // Not owned. Can be nil or swapped for another person's set.
     property Measurements: TMeasurementSet read FMeasurements write FMeasurements;
     property Resolver: TNameResolver read FResolver;
     property Evaluator: TEvaluator read FEvaluator;
-    property VariableCount: Integer read GetVariableCount;
-    property Variables[Index: Integer]: TVariable read GetVariable;
-    property ObjectCount: Integer read GetObjectCount;
-    property Objects[Index: Integer]: TDraftObject read GetObject;
+    property VariableCount: integer read GetVariableCount;
+    property Variables[Index: integer]: TVariable read GetVariable;
+    property ObjectCount: integer read GetObjectCount;
+    property Objects[Index: integer]: TDraftObject read GetObject;
     property LastError: string read FLastError;
     property LastErrorField: string read FLastErrorField;
-    property LastErrorPos: Integer read FLastErrorPos;
+    property LastErrorPos: integer read FLastErrorPos;
   end;
 
 resourcestring
@@ -157,15 +157,15 @@ type
   TPatternResolver = class(TNameResolver)
   private
     FPattern: TPattern;
-    FAllowObjects: Boolean;
+    FAllowObjects: boolean;
   public
-    constructor Create(APattern: TPattern; AllowObjects: Boolean);
-    function ResolveMeasurement(const AName: string; out Key: string): Boolean; override;
-    function ResolveVariable(const AName: string; out Id: string): Boolean; override;
-    function ResolveObject(const AName: string; out Id: string): Boolean; override;
-    function ResolveProperty(const ObjectId, Prop: string; out CanonicalProp: string): Boolean; override;
-    function VariableName(const Id: string; out AName: string): Boolean; override;
-    function ObjectName(const Id: string; out AName: string): Boolean; override;
+    constructor Create(APattern: TPattern; AllowObjects: boolean);
+    function ResolveMeasurement(const AName: string; out Key: string): boolean; override;
+    function ResolveVariable(const AName: string; out Id: string): boolean; override;
+    function ResolveObject(const AName: string; out Id: string): boolean; override;
+    function ResolveProperty(const ObjectId, Prop: string; out CanonicalProp: string): boolean; override;
+    function VariableName(const Id: string; out AName: string): boolean; override;
+    function ObjectName(const Id: string; out AName: string): boolean; override;
   end;
 
   TPatternContext = class(TEvalContext)
@@ -174,20 +174,20 @@ type
   public
     constructor Create(APattern: TPattern);
     function FindNode(const Key: string): TEvalNode; override;
-    function MeasurementValue(const Key: string; out Value: Double): Boolean; override;
-    function VariableValue(const Id: string; out Value: Double): Boolean; override;
-    function PropertyValue(const ObjectId, Prop: string; out Value: Double): Boolean; override;
+    function MeasurementValue(const Key: string; out Value: double): boolean; override;
+    function VariableValue(const Id: string; out Value: double): boolean; override;
+    function PropertyValue(const ObjectId, Prop: string; out Value: double): boolean; override;
   end;
 
-{ TPatternResolver }
+  { TPatternResolver }
 
-constructor TPatternResolver.Create(APattern: TPattern; AllowObjects: Boolean);
+constructor TPatternResolver.Create(APattern: TPattern; AllowObjects: boolean);
 begin
   FPattern := APattern;
   FAllowObjects := AllowObjects;
 end;
 
-function TPatternResolver.ResolveMeasurement(const AName: string; out Key: string): Boolean;
+function TPatternResolver.ResolveMeasurement(const AName: string; out Key: string): boolean;
 var
   Measurement: TMeasurement;
 begin
@@ -200,7 +200,7 @@ begin
     Key := Measurement.Key;
 end;
 
-function TPatternResolver.ResolveVariable(const AName: string; out Id: string): Boolean;
+function TPatternResolver.ResolveVariable(const AName: string; out Id: string): boolean;
 var
   Variable: TVariable;
 begin
@@ -212,7 +212,7 @@ begin
     Id := '';
 end;
 
-function TPatternResolver.ResolveObject(const AName: string; out Id: string): Boolean;
+function TPatternResolver.ResolveObject(const AName: string; out Id: string): boolean;
 var
   DraftObject: TDraftObject;
 begin
@@ -226,7 +226,7 @@ begin
 end;
 
 function TPatternResolver.ResolveProperty(const ObjectId, Prop: string;
-  out CanonicalProp: string): Boolean;
+  out CanonicalProp: string): boolean;
 var
   Node: TEvalNode;
 begin
@@ -235,7 +235,7 @@ begin
   Result := (Node is TDraftObject) and TDraftObject(Node).HasProperty(CanonicalProp);
 end;
 
-function TPatternResolver.VariableName(const Id: string; out AName: string): Boolean;
+function TPatternResolver.VariableName(const Id: string; out AName: string): boolean;
 var
   Node: TEvalNode;
 begin
@@ -247,7 +247,7 @@ begin
     AName := '';
 end;
 
-function TPatternResolver.ObjectName(const Id: string; out AName: string): Boolean;
+function TPatternResolver.ObjectName(const Id: string; out AName: string): boolean;
 var
   Node: TEvalNode;
 begin
@@ -271,13 +271,13 @@ begin
   Result := FPattern.FindNode(Key);
 end;
 
-function TPatternContext.MeasurementValue(const Key: string; out Value: Double): Boolean;
+function TPatternContext.MeasurementValue(const Key: string; out Value: double): boolean;
 begin
   Value := 0;
   Result := (FPattern.Measurements <> nil) and FPattern.Measurements.TryGetValue(Key, Value);
 end;
 
-function TPatternContext.VariableValue(const Id: string; out Value: Double): Boolean;
+function TPatternContext.VariableValue(const Id: string; out Value: double): boolean;
 var
   Node: TEvalNode;
 begin
@@ -288,7 +288,7 @@ begin
     Value := TVariable(Node).Value;
 end;
 
-function TPatternContext.PropertyValue(const ObjectId, Prop: string; out Value: Double): Boolean;
+function TPatternContext.PropertyValue(const ObjectId, Prop: string; out Value: double): boolean;
 var
   Node: TEvalNode;
 begin
@@ -328,7 +328,7 @@ end;
 
 procedure FreeItems(List: TList);
 var
-  Index: Integer;
+  Index: integer;
 begin
   for Index := 0 to List.Count - 1 do
     TObject(List[Index]).Free;
@@ -348,27 +348,27 @@ begin
   FNextVariable := 1;
 end;
 
-function TPattern.GetVariableCount: Integer;
+function TPattern.GetVariableCount: integer;
 begin
   Result := FVariables.Count;
 end;
 
-function TPattern.GetVariable(Index: Integer): TVariable;
+function TPattern.GetVariable(Index: integer): TVariable;
 begin
   Result := TVariable(FVariables[Index]);
 end;
 
-function TPattern.GetObjectCount: Integer;
+function TPattern.GetObjectCount: integer;
 begin
   Result := FObjects.Count;
 end;
 
-function TPattern.GetObject(Index: Integer): TDraftObject;
+function TPattern.GetObject(Index: integer): TDraftObject;
 begin
   Result := TDraftObject(FObjects[Index]);
 end;
 
-function TPattern.SetError(const Msg: string; const AField: string; Pos: Integer): Boolean;
+function TPattern.SetError(const Msg: string; const AField: string; Pos: integer): boolean;
 begin
   FLastError := Msg;
   FLastErrorField := AField;
@@ -378,7 +378,7 @@ end;
 
 function TPattern.FindNode(const Key: string): TEvalNode;
 var
-  Index: Integer;
+  Index: integer;
 begin
   if (Key <> '') and (Key[1] = '@') then
   begin
@@ -398,7 +398,7 @@ end;
 
 function TPattern.FindObject(const AName: string): TDraftObject;
 var
-  Index: Integer;
+  Index: integer;
 begin
   for Index := 0 to FObjects.Count - 1 do
     if SameName(Objects[Index].Name, AName) then
@@ -408,7 +408,7 @@ end;
 
 function TPattern.FindVariable(const AName: string): TVariable;
 var
-  Index: Integer;
+  Index: integer;
 begin
   for Index := 0 to FVariables.Count - 1 do
     if SameName(Variables[Index].Name, AName) then
@@ -416,7 +416,7 @@ begin
   Result := nil;
 end;
 
-function TPattern.ObjectNameTaken(const AName: string): Boolean;
+function TPattern.ObjectNameTaken(const AName: string): boolean;
 var
   Existing: TDraftObject;
 begin
@@ -425,7 +425,7 @@ begin
 end;
 
 function TPattern.CheckObjectName(const AName: string; Exclude: TDraftObject;
-  out ErrorMessage: string): Boolean;
+  out ErrorMessage: string): boolean;
 var
   Existing: TDraftObject;
 begin
@@ -441,7 +441,7 @@ begin
 end;
 
 function TPattern.CheckVariableName(const AName: string; Exclude: TVariable;
-  out ErrorMessage: string): Boolean;
+  out ErrorMessage: string): boolean;
 var
   Existing: TVariable;
 begin
@@ -465,9 +465,9 @@ begin
 end;
 
 // Parses Texts into the node's fields of the same Names
-function TPattern.ParseFields(Node: TEvalNode; const Names, Texts: array of string): Boolean;
+function TPattern.ParseFields(Node: TEvalNode; const Names, Texts: array of string): boolean;
 var
-  Index: Integer;
+  Index: integer;
   FieldFormula: TFormula;
 begin
   for Index := 0 to High(Names) do
@@ -479,7 +479,7 @@ begin
   Result := True;
 end;
 
-function TPattern.CheckPoint(const Id: string): Boolean;
+function TPattern.CheckPoint(const Id: string): boolean;
 var
   Node: TEvalNode;
 begin
@@ -491,7 +491,7 @@ begin
   Result := True;
 end;
 
-function TPattern.CheckEdgeTarget(const Id: string): Boolean;
+function TPattern.CheckEdgeTarget(const Id: string): boolean;
 var
   Node: TEvalNode;
 begin
@@ -528,7 +528,7 @@ begin
 end;
 
 function TPattern.AddPointObject(APoint: TPointObject; const AName: string;
-  const Names, Texts: array of string): Boolean;
+  const Names, Texts: array of string): boolean;
 var
   Msg, PointName: string;
 begin
@@ -577,7 +577,7 @@ begin
     Result := nil;
 end;
 
-function TPattern.AddAlongEdgePoint(const AName, EdgeId: string; FromEnd: Boolean;
+function TPattern.AddAlongEdgePoint(const AName, EdgeId: string; FromEnd: boolean;
   Mode: TAlongMode; const Value: string): TAlongEdgePoint;
 begin
   Result := nil;
@@ -649,13 +649,12 @@ begin
   StartNode := FindNode(AEdge.StartKey);
   EndNode := FindNode(AEdge.EndKey);
   FNameExclude := AEdge;
-  Result := NextFreeName(AEdge.NamePrefix + '_' + StartNode.DisplayName + '_' + EndNode.DisplayName,
-    @ObjectNameTaken);
+  Result := NextFreeName(AEdge.NamePrefix + '_' + StartNode.DisplayName + '_' + EndNode.DisplayName, @ObjectNameTaken);
   FNameExclude := nil;
 end;
 
 function TPattern.AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
-  const Names, Texts: array of string): Boolean;
+  const Names, Texts: array of string): boolean;
 var
   Msg: string;
 begin
@@ -707,7 +706,7 @@ begin
     Result := nil;
 end;
 
-function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): Boolean;
+function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
 var
   NewFormula: TFormula;
   Ref: TFormulaReference;
@@ -739,14 +738,14 @@ end;
 
 procedure TPattern.UpdateDerivedNames;
 var
-  Index: Integer;
+  Index: integer;
 begin
   for Index := 0 to FObjects.Count - 1 do
     if (Objects[Index] is TEdgeObject) and TEdgeObject(Objects[Index]).NameIsDerived then
       Objects[Index].Name := DerivedEdgeName(TEdgeObject(Objects[Index]));
 end;
 
-function TPattern.Rename(Node: TEvalNode; const NewName: string): Boolean;
+function TPattern.Rename(Node: TEvalNode; const NewName: string): boolean;
 var
   Msg: string;
 begin
@@ -788,7 +787,7 @@ begin
       end;
 end;
 
-function TPattern.Delete(Node: TEvalNode): Boolean;
+function TPattern.Delete(Node: TEvalNode): boolean;
 var
   Users: TEvalNodeArray;
   Names: string;
@@ -828,7 +827,7 @@ var
   Keys: TStringList;
   Node: TEvalNode;
   Ref: TFormulaReference;
-  FieldIndex, KeyIndex: Integer;
+  FieldIndex, KeyIndex: integer;
 begin
   Keys := TStringList.Create;
   try
@@ -851,7 +850,7 @@ end;
 // Measurement nodes, then variables, then objects
 function TPattern.AllNodes: TEvalNodeArray;
 var
-  Index, Count: Integer;
+  Index, Count: integer;
 begin
   Result := nil;
   SetLength(Result, FMeasurementNodes.Count + FVariables.Count + FObjects.Count);
@@ -884,7 +883,7 @@ end;
 
 function TPattern.SaveVariables: TJSONArray;
 var
-  Index: Integer;
+  Index: integer;
   Item: TJSONObject;
 begin
   Result := TJSONArray.Create;
@@ -899,14 +898,14 @@ begin
   end;
 end;
 
-function TPattern.LoadVariables(Data: TJSONData; out ErrorMessage: string): Boolean;
+function TPattern.LoadVariables(Data: TJSONData; out ErrorMessage: string): boolean;
 var
-  Index, IdNumber, Code: Integer;
+  Index, IdNumber, Code: integer;
   Item: TJSONObject;
   Id, VName, Text, Desc, Msg: string;
   Variable: TVariable;
 
-  function Fail(const AMsg: string): Boolean;
+  function Fail(const AMsg: string): boolean;
   begin
     ErrorMessage := AMsg;
     FEvaluator.Rebuild(nil, FContext);

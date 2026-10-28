@@ -95,7 +95,7 @@ end;
 
 procedure TTestMeasurements.TestAddAndFind;
 var
-  V: Double;
+  V: double;
 begin
   FSet.Add('waist', 820, 'Waist circumference');
   FSet.Add('hip', 1010);

@@ -33,7 +33,7 @@ type
   TVariable = class(TEvalNode)
   private
     FName: string;
-    FValue: Double;
+    FValue: double;
   public
     Description: string;
     constructor Create(const AKey: string);
@@ -42,18 +42,18 @@ type
     function Formula: TFormula;
     property Name: string read FName write FName;
     // Last good value; kept while the variable is failing
-    property Value: Double read FValue;
+    property Value: double read FValue;
   end;
 
   // A measurement read by the pattern, such as @waist. Created by TPattern
   // for each key its formulas use.
   TMeasurementNode = class(TEvalNode)
   private
-    FValue: Double;
+    FValue: double;
   public
     function DisplayName: string; override;
     function Compute(Context: TEvalContext): TEvalState; override;
-    property Value: Double read FValue;
+    property Value: double read FValue;
   end;
 
 resourcestring
@@ -64,7 +64,7 @@ implementation
 uses
   SysUtils;
 
-{ TVariable }
+  { TVariable }
 
 constructor TVariable.Create(const AKey: string);
 begin
@@ -84,7 +84,7 @@ end;
 
 function TVariable.Compute(Context: TEvalContext): TEvalState;
 var
-  NewValue: Double;
+  NewValue: double;
 begin
   if not EvalField(Context, 'formula', NewValue) then
     Exit(esError);
@@ -101,7 +101,7 @@ end;
 
 function TMeasurementNode.Compute(Context: TEvalContext): TEvalState;
 var
-  NewValue: Double;
+  NewValue: double;
 begin
   // Key is '@waist'; the context looks up 'waist' in the measurement set
   if not Context.MeasurementValue(Copy(Key, 2, MaxInt), NewValue) then

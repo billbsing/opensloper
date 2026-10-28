@@ -31,7 +31,7 @@ type
     FSet: TMeasurementSet;
     FPattern: TPattern;
     function AddVar(const AName, Formula: string): TVariable;
-    procedure AssertValid(const Msg: string; V: TVariable; Expected: Double);
+    procedure AssertValid(const Msg: string; V: TVariable; Expected: double);
     procedure LoadText(const Text: string);
   protected
     procedure SetUp; override;
@@ -90,7 +90,7 @@ begin
     Fail(Format('Adding #%s = %s failed: %s', [AName, Formula, FPattern.LastError]));
 end;
 
-procedure TTestVariables.AssertValid(const Msg: string; V: TVariable; Expected: Double);
+procedure TTestVariables.AssertValid(const Msg: string; V: TVariable; Expected: double);
 begin
   AssertTrue(Msg + ' state: ' + V.Message, V.State = esValid);
   AssertNear(Msg, Expected, V.Value);

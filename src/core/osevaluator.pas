@@ -54,14 +54,14 @@ type
     FDeps: TEvalNodeArray;
     FDependents: TEvalNodeArray;
     FMissingKey: string;
-    FIndex: Integer;  // position in the evaluator's node list
+    FIndex: integer;  // position in the evaluator's node list
     FFields: array of TFormulaField;
-    function GetFieldCount: Integer;
-    function GetField(Index: Integer): TFormulaField;
+    function GetFieldCount: integer;
+    function GetField(Index: integer): TFormulaField;
   protected
     procedure AddField(const AName: string);
     // Evaluates a field; on failure sets Message and returns False
-    function EvalField(Context: TEvalContext; const AName: string; out Value: Double): Boolean;
+    function EvalField(Context: TEvalContext; const AName: string; out Value: double): boolean;
     // Sets Message and returns AState, for use as "Exit(Fail(esInvalid, ...))"
     function Fail(AState: TEvalState; const Msg: string): TEvalState;
   public
@@ -84,8 +84,8 @@ type
     property Message: string read FMessage;
     property Deps: TEvalNodeArray read FDeps;
     property Dependents: TEvalNodeArray read FDependents;
-    property FieldCount: Integer read GetFieldCount;
-    property Fields[Index: Integer]: TFormulaField read GetField;
+    property FieldCount: integer read GetFieldCount;
+    property Fields[Index: integer]: TFormulaField read GetField;
   end;
 
   TEvaluator = class
@@ -99,7 +99,7 @@ type
     procedure Run(Context: TEvalContext);
     // True when From reads Target, directly or through other nodes. Follows
     // current definitions, so it can be used before Rebuild.
-    class function Reaches(From, Target: TEvalNode; Context: TEvalContext): Boolean;
+    class function Reaches(From, Target: TEvalNode; Context: TEvalContext): boolean;
     // Sorted nodes; nodes in a cycle are left out
     property Order: TEvalNodeArray read FOrder;
   end;
@@ -158,19 +158,19 @@ begin
   inherited Destroy;
 end;
 
-function TEvalNode.GetFieldCount: Integer;
+function TEvalNode.GetFieldCount: integer;
 begin
   Result := Length(FFields);
 end;
 
-function TEvalNode.GetField(Index: Integer): TFormulaField;
+function TEvalNode.GetField(Index: integer): TFormulaField;
 begin
   Result := FFields[Index];
 end;
 
 procedure TEvalNode.AddField(const AName: string);
 var
-  Count: Integer;
+  Count: integer;
 begin
   Count := Length(FFields);
   SetLength(FFields, Count + 1);
@@ -190,7 +190,7 @@ end;
 
 procedure TEvalNode.ReplaceField(const AName: string; Formula: TFormula);
 var
-  Index: Integer;
+  Index: integer;
 begin
   for Index := 0 to High(FFields) do
     if SameText(FFields[Index].Name, AName) then
@@ -203,7 +203,7 @@ begin
 end;
 
 function TEvalNode.EvalField(Context: TEvalContext; const AName: string;
-  out Value: Double): Boolean;
+  out Value: double): boolean;
 var
   FieldFormula: TFormula;
 begin
@@ -247,9 +247,9 @@ procedure TEvaluator.Rebuild(const Nodes: TEvalNodeArray; Context: TEvalContext)
 var
   Node, Dep: TEvalNode;
   DepKey: string;
-  Waiting: array of Integer;
+  Waiting: array of integer;
   Queue: TEvalNodeArray;
-  Index, Head: Integer;
+  Index, Head: integer;
 begin
   FNodes := Copy(Nodes);
   for Index := 0 to High(FNodes) do
@@ -356,11 +356,11 @@ begin
     end;
 end;
 
-class function TEvaluator.Reaches(From, Target: TEvalNode; Context: TEvalContext): Boolean;
+class function TEvaluator.Reaches(From, Target: TEvalNode; Context: TEvalContext): boolean;
 var
   Visited: TList;
 
-  function Visit(Current: TEvalNode): Boolean;
+  function Visit(Current: TEvalNode): boolean;
   var
     DepKey: string;
     Dep: TEvalNode;

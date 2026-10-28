@@ -37,13 +37,13 @@ type
     ftVariable,     // #ease (display form)
     ftObjectRef,    // Line_A_B.length (display form)
     ftIdRef         // {v1} or {l1}.length (stored form)
-  );
+    );
 
   TFormulaToken = record
     Kind: TFormulaTokenKind;
-    Pos, Len: Integer;   // 1-based byte position in the text
-    Op: Char;            // ftOperator
-    Value: Double;       // ftNumber
+    Pos, Len: integer;   // 1-based byte position in the text
+    Op: char;            // ftOperator
+    Value: double;       // ftNumber
     Name: string;        // identifier, measurement key, variable/object name or ID
     Prop: string;        // property after the dot, if any
   end;
@@ -53,7 +53,7 @@ type
 // Splits Text into tokens. On failure ErrorMessage and ErrorPos (1-based)
 // describe the first problem.
 function TokenizeFormula(const Text: string; Form: TFormulaTextForm;
-  out Tokens: TFormulaTokenArray; out ErrorMessage: string; out ErrorPos: Integer): Boolean;
+  out Tokens: TFormulaTokenArray; out ErrorMessage: string; out ErrorPos: integer): boolean;
 
 resourcestring
   rsFormulaUnexpectedChar = 'Unexpected character "%s"';
@@ -68,26 +68,26 @@ implementation
 uses
   SysUtils;
 
-function IsNameStart(Character: Char): Boolean; inline;
+function IsNameStart(Character: char): boolean; inline;
 begin
   Result := Character in ['A'..'Z', 'a'..'z', '_'];
 end;
 
-function IsNameChar(Character: Char): Boolean; inline;
+function IsNameChar(Character: char): boolean; inline;
 begin
   Result := Character in ['A'..'Z', 'a'..'z', '_', '0'..'9'];
 end;
 
-function IsDigit(Character: Char): Boolean; inline;
+function IsDigit(Character: char): boolean; inline;
 begin
   Result := Character in ['0'..'9'];
 end;
 
 // The whole UTF-8 character starting at Text[Position], for error messages
-function CharAt(const Text: string; Position: Integer): string;
+function CharAt(const Text: string; Position: integer): string;
 var
-  ByteCount: Integer;
-  LeadByte: Byte;
+  ByteCount: integer;
+  LeadByte: byte;
 begin
   LeadByte := Ord(Text[Position]);
   if LeadByte < $80 then
@@ -104,17 +104,17 @@ begin
 end;
 
 function TokenizeFormula(const Text: string; Form: TFormulaTextForm;
-  out Tokens: TFormulaTokenArray; out ErrorMessage: string; out ErrorPos: Integer): Boolean;
+  out Tokens: TFormulaTokenArray; out ErrorMessage: string; out ErrorPos: integer): boolean;
 var
-  Position, Len, Count: Integer;
+  Position, Len, Count: integer;
 
-  procedure Fail(const Msg: string; At: Integer);
+  procedure Fail(const Msg: string; At: integer);
   begin
     ErrorMessage := Msg;
     ErrorPos := At;
   end;
 
-  function Add(Kind: TFormulaTokenKind; Start: Integer): Integer;
+  function Add(Kind: TFormulaTokenKind; Start: integer): integer;
   begin
     if Count = Length(Tokens) then
       SetLength(Tokens, Count * 2 + 8);
@@ -128,7 +128,7 @@ var
 
   function ReadName: string;
   var
-    Start: Integer;
+    Start: integer;
   begin
     Start := Position;
     while (Position <= Len) and IsNameChar(Text[Position]) do
@@ -137,7 +137,7 @@ var
   end;
 
   // Reads ".prop" if present. False on a dot without a name.
-  function ReadProperty(out Prop: string): Boolean;
+  function ReadProperty(out Prop: string): boolean;
   begin
     Prop := '';
     Result := True;
@@ -153,10 +153,10 @@ var
     end;
   end;
 
-  function ReadNumber(Start: Integer): Boolean;
+  function ReadNumber(Start: integer): boolean;
   var
-    Code, TokenIndex: Integer;
-    Value: Double;
+    Code, TokenIndex: integer;
+    Value: double;
   begin
     Result := False;
     while (Position <= Len) and IsDigit(Text[Position]) do
@@ -199,8 +199,8 @@ var
   end;
 
 var
-  Start, TokenIndex: Integer;
-  Character: Char;
+  Start, TokenIndex: integer;
+  Character: char;
   Name, Prop: string;
 begin
   Tokens := nil;

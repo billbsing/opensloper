@@ -31,10 +31,10 @@ type
   TSumNode = class(TEvalNode)
   public
     Inputs: TStringArray;
-    Value: Double;
-    Own: Double;
+    Value: double;
+    Own: double;
     FailWith: TEvalState;
-    Computed: Integer;
+    Computed: integer;
     function InputKeys: TStringArray; override;
     function DisplayName: string; override;
     function Compute(Context: TEvalContext): TEvalState; override;
@@ -46,16 +46,16 @@ type
     constructor Create;
     destructor Destroy; override;
     function FindNode(const Key: string): TEvalNode; override;
-    function MeasurementValue(const Key: string; out V: Double): Boolean; override;
-    function VariableValue(const Id: string; out V: Double): Boolean; override;
-    function PropertyValue(const ObjectId, Prop: string; out V: Double): Boolean; override;
+    function MeasurementValue(const Key: string; out V: double): boolean; override;
+    function VariableValue(const Id: string; out V: double): boolean; override;
+    function PropertyValue(const ObjectId, Prop: string; out V: double): boolean; override;
   end;
 
   TTestEvaluator = class(TOSTestCase)
   private
     FContext: TSumContext;
     FEvaluator: TEvaluator;
-    function Node(const Key: string; Own: Double; const Inputs: array of string): TSumNode;
+    function Node(const Key: string; Own: double; const Inputs: array of string): TSumNode;
     function N(const Key: string): TSumNode;
     procedure RunGraph;
   protected
@@ -110,7 +110,7 @@ end;
 
 destructor TSumContext.Destroy;
 var
-  I: Integer;
+  I: integer;
 begin
   for I := 0 to Nodes.Count - 1 do
     TObject(Nodes[I]).Free;
@@ -120,7 +120,7 @@ end;
 
 function TSumContext.FindNode(const Key: string): TEvalNode;
 var
-  I: Integer;
+  I: integer;
 begin
   for I := 0 to Nodes.Count - 1 do
     if TEvalNode(Nodes[I]).Key = Key then
@@ -128,19 +128,19 @@ begin
   Result := nil;
 end;
 
-function TSumContext.MeasurementValue(const Key: string; out V: Double): Boolean;
+function TSumContext.MeasurementValue(const Key: string; out V: double): boolean;
 begin
   V := 0;
   Result := False;
 end;
 
-function TSumContext.VariableValue(const Id: string; out V: Double): Boolean;
+function TSumContext.VariableValue(const Id: string; out V: double): boolean;
 begin
   V := 0;
   Result := False;
 end;
 
-function TSumContext.PropertyValue(const ObjectId, Prop: string; out V: Double): Boolean;
+function TSumContext.PropertyValue(const ObjectId, Prop: string; out V: double): boolean;
 begin
   V := 0;
   Result := False;
@@ -160,10 +160,10 @@ begin
   FContext.Free;
 end;
 
-function TTestEvaluator.Node(const Key: string; Own: Double;
+function TTestEvaluator.Node(const Key: string; Own: double;
   const Inputs: array of string): TSumNode;
 var
-  I: Integer;
+  I: integer;
 begin
   Result := TSumNode.Create(Key);
   Result.Own := Own;
@@ -181,7 +181,7 @@ end;
 procedure TTestEvaluator.RunGraph;
 var
   Nodes: TEvalNodeArray;
-  I: Integer;
+  I: integer;
 begin
   Nodes := nil;
   SetLength(Nodes, FContext.Nodes.Count);
@@ -191,7 +191,7 @@ begin
   FEvaluator.Run(FContext);
 end;
 
-function IndexIn(const Nodes: TEvalNodeArray; Node: TEvalNode): Integer;
+function IndexIn(const Nodes: TEvalNodeArray; Node: TEvalNode): integer;
 begin
   for Result := 0 to High(Nodes) do
     if Nodes[Result] = Node then

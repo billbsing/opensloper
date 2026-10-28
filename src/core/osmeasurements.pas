@@ -39,7 +39,7 @@ type
   private
     FKey: string;
   public
-    Value: Double;       // mm
+    Value: double;       // mm
     Description: string;
     property Key: string read FKey;
   end;
@@ -47,8 +47,8 @@ type
   TMeasurementSet = class
   private
     FItems: TList;
-    function GetCount: Integer;
-    function GetItem(Index: Integer): TMeasurement;
+    function GetCount: integer;
+    function GetItem(Index: integer): TMeasurement;
     function ToJSON: TJSONObject;
   public
     Name: string;
@@ -57,22 +57,22 @@ type
     destructor Destroy; override;
     procedure Clear;
     // Keys are compared without regard to case
-    function IndexOf(const Key: string): Integer;
+    function IndexOf(const Key: string): integer;
     function Find(const Key: string): TMeasurement;
-    function TryGetValue(const Key: string; out Value: Double): Boolean;
+    function TryGetValue(const Key: string; out Value: double): boolean;
     // Checks that Key is valid and not used by another measurement than Exclude
-    function CheckKey(const Key: string; Exclude: TMeasurement; out ErrorMessage: string): Boolean;
+    function CheckKey(const Key: string; Exclude: TMeasurement; out ErrorMessage: string): boolean;
     // Add and Rename raise EMeasurementError for a key that fails CheckKey
-    function Add(const Key: string; Value: Double; const Description: string = ''): TMeasurement;
+    function Add(const Key: string; Value: double; const Description: string = ''): TMeasurement;
     procedure Rename(Measurement: TMeasurement; const NewKey: string);
     procedure Delete(Measurement: TMeasurement);
     function SaveToText: string;
     // On failure the set is left empty and ErrorMessage says why
-    function LoadFromText(const Text: string; out ErrorMessage: string): Boolean;
-    function SaveToFile(const FileName: string; out ErrorMessage: string): Boolean;
-    function LoadFromFile(const FileName: string; out ErrorMessage: string): Boolean;
-    property Count: Integer read GetCount;
-    property Items[Index: Integer]: TMeasurement read GetItem; default;
+    function LoadFromText(const Text: string; out ErrorMessage: string): boolean;
+    function SaveToFile(const FileName: string; out ErrorMessage: string): boolean;
+    function LoadFromFile(const FileName: string; out ErrorMessage: string): boolean;
+    property Count: integer read GetCount;
+    property Items[Index: integer]: TMeasurement read GetItem; default;
   end;
 
 resourcestring
@@ -103,7 +103,7 @@ end;
 
 procedure TMeasurementSet.Clear;
 var
-  Index: Integer;
+  Index: integer;
 begin
   for Index := 0 to FItems.Count - 1 do
     TMeasurement(FItems[Index]).Free;
@@ -112,17 +112,17 @@ begin
   Notes := '';
 end;
 
-function TMeasurementSet.GetCount: Integer;
+function TMeasurementSet.GetCount: integer;
 begin
   Result := FItems.Count;
 end;
 
-function TMeasurementSet.GetItem(Index: Integer): TMeasurement;
+function TMeasurementSet.GetItem(Index: integer): TMeasurement;
 begin
   Result := TMeasurement(FItems[Index]);
 end;
 
-function TMeasurementSet.IndexOf(const Key: string): Integer;
+function TMeasurementSet.IndexOf(const Key: string): integer;
 begin
   for Result := 0 to FItems.Count - 1 do
     if SameName(Items[Result].Key, Key) then
@@ -132,7 +132,7 @@ end;
 
 function TMeasurementSet.Find(const Key: string): TMeasurement;
 var
-  Index: Integer;
+  Index: integer;
 begin
   Index := IndexOf(Key);
   if Index < 0 then
@@ -141,7 +141,7 @@ begin
     Result := Items[Index];
 end;
 
-function TMeasurementSet.TryGetValue(const Key: string; out Value: Double): Boolean;
+function TMeasurementSet.TryGetValue(const Key: string; out Value: double): boolean;
 var
   Measurement: TMeasurement;
 begin
@@ -154,7 +154,7 @@ begin
 end;
 
 function TMeasurementSet.CheckKey(const Key: string; Exclude: TMeasurement;
-  out ErrorMessage: string): Boolean;
+  out ErrorMessage: string): boolean;
 var
   Existing: TMeasurement;
 begin
@@ -169,7 +169,7 @@ begin
   Result := True;
 end;
 
-function TMeasurementSet.Add(const Key: string; Value: Double;
+function TMeasurementSet.Add(const Key: string; Value: double;
   const Description: string): TMeasurement;
 var
   Msg: string;
@@ -202,7 +202,7 @@ function TMeasurementSet.ToJSON: TJSONObject;
 var
   List: TJSONArray;
   Item: TJSONObject;
-  Index: Integer;
+  Index: integer;
 begin
   Result := TJSONObject.Create;
   Result.Add('format', MeasurementFormat);
@@ -234,16 +234,16 @@ begin
   end;
 end;
 
-function TMeasurementSet.LoadFromText(const Text: string; out ErrorMessage: string): Boolean;
+function TMeasurementSet.LoadFromText(const Text: string; out ErrorMessage: string): boolean;
 var
   Obj, Item: TJSONObject;
   List: TJSONData;
   TextValue, Key, Desc: string;
-  Version, Index: Integer;
-  Value: Double;
+  Version, Index: integer;
+  Value: double;
   KeyError: string;
 
-  function Fail(const Msg: string): Boolean;
+  function Fail(const Msg: string): boolean;
   begin
     ErrorMessage := Msg;
     Clear;
@@ -288,12 +288,12 @@ begin
   end;
 end;
 
-function TMeasurementSet.SaveToFile(const FileName: string; out ErrorMessage: string): Boolean;
+function TMeasurementSet.SaveToFile(const FileName: string; out ErrorMessage: string): boolean;
 begin
   Result := WriteTextFile(FileName, SaveToText, ErrorMessage);
 end;
 
-function TMeasurementSet.LoadFromFile(const FileName: string; out ErrorMessage: string): Boolean;
+function TMeasurementSet.LoadFromFile(const FileName: string; out ErrorMessage: string): boolean;
 var
   Text: string;
 begin

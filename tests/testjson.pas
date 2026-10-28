@@ -52,7 +52,7 @@ end;
 
 procedure TTestJSON.TestShortestDecimals;
 var
-  Saved: Char;
+  Saved: char;
 begin
   AssertEquals('720.5', FormatJSONFloat(720.5));
   AssertEquals('0.1', FormatJSONFloat(0.1));
@@ -68,9 +68,9 @@ end;
 
 procedure TTestJSON.TestDecimalsRoundTrip;
 const
-  Values: array[0..4] of Double = (1 / 3, 0.1 + 0.2, 123.456789, 1e-7, 2.5e20);
+  Values: array[0..4] of double = (1 / 3, 0.1 + 0.2, 123.456789, 1e-7, 2.5e20);
 var
-  V, Back: Double;
+  V, Back: double;
   Settings: TFormatSettings;
 begin
   Settings := DefaultFormatSettings;
@@ -162,8 +162,8 @@ procedure TTestJSON.TestTypedAccess;
 var
   Obj: TJSONObject;
   Msg, S: string;
-  D: Double;
-  I: Integer;
+  D: double;
+  I: integer;
 begin
   AssertTrue(ParseJSONObject('{"s": "x", "n": 2.5, "i": 3, "b": true}', Obj, Msg));
   try

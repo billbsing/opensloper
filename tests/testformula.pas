@@ -34,19 +34,19 @@ type
     Objects, Variables, Measurements: TStringList;
     constructor Create;
     destructor Destroy; override;
-    function ResolveMeasurement(const Name: string; out Key: string): Boolean; override;
-    function ResolveVariable(const Name: string; out Id: string): Boolean; override;
-    function ResolveObject(const Name: string; out Id: string): Boolean; override;
-    function ResolveProperty(const ObjectId, Prop: string; out CanonicalProp: string): Boolean; override;
-    function VariableName(const Id: string; out Name: string): Boolean; override;
-    function ObjectName(const Id: string; out Name: string): Boolean; override;
+    function ResolveMeasurement(const Name: string; out Key: string): boolean; override;
+    function ResolveVariable(const Name: string; out Id: string): boolean; override;
+    function ResolveObject(const Name: string; out Id: string): boolean; override;
+    function ResolveProperty(const ObjectId, Prop: string; out CanonicalProp: string): boolean; override;
+    function VariableName(const Id: string; out Name: string): boolean; override;
+    function ObjectName(const Id: string; out Name: string): boolean; override;
   end;
 
   TTestContext = class(TFormulaContext)
   public
-    function MeasurementValue(const Key: string; out Value: Double): Boolean; override;
-    function VariableValue(const Id: string; out Value: Double): Boolean; override;
-    function PropertyValue(const ObjectId, Prop: string; out Value: Double): Boolean; override;
+    function MeasurementValue(const Key: string; out Value: double): boolean; override;
+    function VariableValue(const Id: string; out Value: double): boolean; override;
+    function PropertyValue(const ObjectId, Prop: string; out Value: double): boolean; override;
   end;
 
   TTestFormulaLexer = class(TOSTestCase)
@@ -66,9 +66,9 @@ type
     FResolver: TTestResolver;
     FContext: TTestContext;
     FFormula: TFormula;
-    function Eval(const Text: string): Double;
-    procedure AssertValue(const Text: string; Expected: Double);
-    procedure AssertParseError(const Text, Msg: string; Pos: Integer);
+    function Eval(const Text: string): double;
+    procedure AssertValue(const Text: string; Expected: double);
+    procedure AssertParseError(const Text, Msg: string; Pos: integer);
     procedure AssertEvalError(const Text, Msg: string);
   protected
     procedure SetUp; override;
@@ -107,7 +107,7 @@ implementation
 uses
   SysUtils;
 
-{ TTestResolver }
+  { TTestResolver }
 
 constructor TTestResolver.Create;
 begin
@@ -132,9 +132,9 @@ begin
   inherited Destroy;
 end;
 
-function FindByName(List: TStringList; const Name: string; out Id: string): Boolean;
+function FindByName(List: TStringList; const Name: string; out Id: string): boolean;
 var
-  I: Integer;
+  I: integer;
 begin
   for I := 0 to List.Count - 1 do
     if SameText(List.ValueFromIndex[I], Name) then
@@ -145,9 +145,9 @@ begin
   Result := False;
 end;
 
-function TTestResolver.ResolveMeasurement(const Name: string; out Key: string): Boolean;
+function TTestResolver.ResolveMeasurement(const Name: string; out Key: string): boolean;
 var
-  I: Integer;
+  I: integer;
 begin
   I := Measurements.IndexOf(Name);
   Result := I >= 0;
@@ -155,18 +155,18 @@ begin
     Key := Measurements[I];
 end;
 
-function TTestResolver.ResolveVariable(const Name: string; out Id: string): Boolean;
+function TTestResolver.ResolveVariable(const Name: string; out Id: string): boolean;
 begin
   Result := FindByName(Variables, Name, Id);
 end;
 
-function TTestResolver.ResolveObject(const Name: string; out Id: string): Boolean;
+function TTestResolver.ResolveObject(const Name: string; out Id: string): boolean;
 begin
   Result := FindByName(Objects, Name, Id);
 end;
 
 function TTestResolver.ResolveProperty(const ObjectId, Prop: string;
-  out CanonicalProp: string): Boolean;
+  out CanonicalProp: string): boolean;
 begin
   CanonicalProp := LowerCase(Prop);
   if ObjectId[1] = 'p' then
@@ -175,13 +175,13 @@ begin
     Result := (CanonicalProp = 'length') or (CanonicalProp = 'angle');
 end;
 
-function TTestResolver.VariableName(const Id: string; out Name: string): Boolean;
+function TTestResolver.VariableName(const Id: string; out Name: string): boolean;
 begin
   Name := Variables.Values[Id];
   Result := Name <> '';
 end;
 
-function TTestResolver.ObjectName(const Id: string; out Name: string): Boolean;
+function TTestResolver.ObjectName(const Id: string; out Name: string): boolean;
 begin
   Name := Objects.Values[Id];
   Result := Name <> '';
@@ -189,7 +189,7 @@ end;
 
 { TTestContext }
 
-function TTestContext.MeasurementValue(const Key: string; out Value: Double): Boolean;
+function TTestContext.MeasurementValue(const Key: string; out Value: double): boolean;
 begin
   Result := True;
   if SameText(Key, 'waist') then
@@ -200,7 +200,7 @@ begin
     Result := False;
 end;
 
-function TTestContext.VariableValue(const Id: string; out Value: Double): Boolean;
+function TTestContext.VariableValue(const Id: string; out Value: double): boolean;
 begin
   Result := True;
   if Id = 'v1' then
@@ -211,7 +211,7 @@ begin
     Result := False;
 end;
 
-function TTestContext.PropertyValue(const ObjectId, Prop: string; out Value: Double): Boolean;
+function TTestContext.PropertyValue(const ObjectId, Prop: string; out Value: double): boolean;
 begin
   Result := True;
   if (ObjectId = 'p1') and (Prop = 'x') then
@@ -233,7 +233,7 @@ end;
 function Tokens(const Text: string; Form: TFormulaTextForm): TFormulaTokenArray;
 var
   Msg: string;
-  Pos: Integer;
+  Pos: integer;
 begin
   if not TokenizeFormula(Text, Form, Result, Msg, Pos) then
     raise Exception.CreateFmt('Tokenize failed at %d: %s', [Pos, Msg]);
@@ -290,7 +290,7 @@ procedure TTestFormulaLexer.TestBadNumber;
 var
   T: TFormulaTokenArray;
   Msg: string;
-  Pos: Integer;
+  Pos: integer;
 begin
   AssertFalse('trailing point', TokenizeFormula('1. + 2', ffDisplay, T, Msg, Pos));
   AssertEquals(rsFormulaExpectedDigit, Msg);
@@ -303,7 +303,7 @@ procedure TTestFormulaLexer.TestUnexpectedCharacter;
 var
   T: TFormulaTokenArray;
   Msg: string;
-  Pos: Integer;
+  Pos: integer;
 begin
   AssertFalse(TokenizeFormula('3 $ 4', ffDisplay, T, Msg, Pos));
   AssertEquals(Format(rsFormulaUnexpectedChar, ['$']), Msg);
@@ -314,7 +314,7 @@ procedure TTestFormulaLexer.TestUnexpectedCharacterIsWholeUtf8Char;
 var
   T: TFormulaTokenArray;
   Msg: string;
-  Pos: Integer;
+  Pos: integer;
 begin
   AssertFalse(TokenizeFormula('3 × 4', ffDisplay, T, Msg, Pos));
   AssertEquals(Format(rsFormulaUnexpectedChar, ['×']), Msg);
@@ -324,7 +324,7 @@ procedure TTestFormulaLexer.TestMissingNames;
 var
   T: TFormulaTokenArray;
   Msg: string;
-  Pos: Integer;
+  Pos: integer;
 begin
   AssertFalse('bare @', TokenizeFormula('@ + 1', ffDisplay, T, Msg, Pos));
   AssertEquals(rsFormulaExpectedMeasurement, Msg);
@@ -341,7 +341,7 @@ procedure TTestFormulaLexer.TestFormsDiffer;
 var
   T: TFormulaTokenArray;
   Msg: string;
-  Pos: Integer;
+  Pos: integer;
 begin
   AssertFalse('no braces when typing', TokenizeFormula('{p1}.x', ffDisplay, T, Msg, Pos));
   AssertFalse('no # when stored', TokenizeFormula('#ease', ffStored, T, Msg, Pos));
@@ -363,7 +363,7 @@ begin
   FResolver.Free;
 end;
 
-function TTestFormula.Eval(const Text: string): Double;
+function TTestFormula.Eval(const Text: string): double;
 begin
   if not FFormula.Parse(Text, FResolver) then
     Fail(Format('"%s" did not parse: %s at %d', [Text, FFormula.ErrorMessage, FFormula.ErrorPos]));
@@ -371,12 +371,12 @@ begin
     Fail(Format('"%s" did not evaluate: %s', [Text, FFormula.ErrorMessage]));
 end;
 
-procedure TTestFormula.AssertValue(const Text: string; Expected: Double);
+procedure TTestFormula.AssertValue(const Text: string; Expected: double);
 begin
   AssertNear(Text, Expected, Eval(Text), 1e-9);
 end;
 
-procedure TTestFormula.AssertParseError(const Text, Msg: string; Pos: Integer);
+procedure TTestFormula.AssertParseError(const Text, Msg: string; Pos: integer);
 begin
   AssertFalse(Text + ' parses', FFormula.Parse(Text, FResolver));
   AssertFalse(Text + ' valid', FFormula.Valid);
@@ -386,7 +386,7 @@ end;
 
 procedure TTestFormula.AssertEvalError(const Text, Msg: string);
 var
-  V: Double;
+  V: double;
 begin
   AssertTrue(Text + ' parses', FFormula.Parse(Text, FResolver));
   AssertFalse(Text + ' evaluates', FFormula.Evaluate(FContext, V));
@@ -513,7 +513,7 @@ end;
 procedure TTestFormula.TestStoredRoundTrip;
 var
   Stored: string;
-  V: Double;
+  V: double;
 begin
   AssertTrue(FFormula.Parse('Line_A_B.length * 2 - @hip / 4 + #dart', FResolver));
   Stored := FFormula.StoredText;
@@ -526,7 +526,7 @@ end;
 
 procedure TTestFormula.TestDanglingId;
 var
-  V: Double;
+  V: double;
 begin
   AssertTrue(FFormula.ParseStored('{p99}.x + 1'));
   AssertEquals('display keeps the ID', '{p99}.x + 1', FFormula.DisplayText(FResolver));
@@ -547,7 +547,7 @@ end;
 
 procedure TTestFormula.TestDecimalPointIgnoresLocale;
 var
-  Saved: Char;
+  Saved: char;
 begin
   Saved := DefaultFormatSettings.DecimalSeparator;
   DefaultFormatSettings.DecimalSeparator := ',';
@@ -607,7 +607,7 @@ end;
 
 procedure TTestFormula.TestFailedParseKeepsText;
 var
-  V: Double;
+  V: double;
 begin
   AssertTrue(FFormula.Parse('@waist', FResolver));
   AssertFalse(FFormula.Parse('@waist +', FResolver));
@@ -632,7 +632,7 @@ end;
 
 procedure TTestFormula.TestDisplayErrorPos;
 var
-  V: Double;
+  V: double;
 begin
   // Stored: {l1}.length / ({p1}.x - {p1}.x); the '/' moves when shown with names
   AssertTrue(FFormula.Parse('Line_A_B.length / (A.x - A.x)', FResolver));

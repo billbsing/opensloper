@@ -688,7 +688,8 @@ begin
         if not Resolver.ResolveObject(Tokens[TokenIndex].Name, Id) then
           Exit(Fail(Format(rsFormulaUnknownName, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
         if not Resolver.ResolveProperty(Id, Tokens[TokenIndex].Prop, Prop) then
-          Exit(Fail(Format(rsFormulaUnknownProperty, [Tokens[TokenIndex].Name, Tokens[TokenIndex].Prop]), Tokens[TokenIndex].Pos + Length(Tokens[TokenIndex].Name) + 1));
+          Exit(Fail(Format(rsFormulaUnknownProperty, [Tokens[TokenIndex].Name, Tokens[TokenIndex].Prop]), Tokens[TokenIndex].Pos +
+            Length(Tokens[TokenIndex].Name) + 1));
         Ref.Kind := rkObject;
         Ref.Id := Id;
         Ref.Prop := Prop;
