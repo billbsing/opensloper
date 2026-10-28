@@ -42,10 +42,6 @@ procedure TTestClipper.TestMitredSquareOffset;
 var
   Square, Offset: TPathsD;
 begin
-  // Known issue: with range checks (-Cr) in the calling unit, Clipper2
-  // returns four 10 mm corner squares instead of one 120 mm square. See
-  // documents/known-issues.md. Remove this line once it is fixed.
-  Ignore('Clipper2 offset is wrong when the caller is built with -Cr');
   SetLength(Square, 1);
   Square[0] := MakePathD([0, 0, 100, 0, 100, 100, 0, 100]);
   Offset := InflatePaths(Square, 10, jtMiter, etPolygon);

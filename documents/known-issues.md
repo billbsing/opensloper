@@ -4,33 +4,25 @@
 
 Found 2026-10-28 while setting up the test project.
 
-`InflatePaths` on a 100 × 100 mm square with delta 10 and `jtMiter` should return one 120 × 120 mm square. When the *calling* unit is compiled with range checks (`-Cr`), it returns four 10 × 10 mm squares at the corners instead. The Clipper2 units can be precompiled without any checks and it still happens.
+`InflatePaths` on a 100 × 100 mm square with delta 10 and `jtMiter` should return one 120 × 120 mm square. Depending on unrelated compiler options (range checks or `-gt` in the calling code, `-O1` in Clipper2) it returns four 10 × 10 mm corner pieces instead. Seen with Clipper2 1.5.4 and 2.0.1, FPC 3.2.2 and 3.3.1.
 
-- Same result with Clipper2 1.5.4 and 2.0.1 (`packages/clipper2`), FPC 3.2.2 and FPC 3.3.1.
-- Clipper2 built with `-gt` (trash local variables) also fails; `-Co`, `-Ci`, `-Ct`, `-Sa` and heaptrc do not.
-- Clipper2 built with `-O2` or `-O3` hides it; `-O-` and `-O1` do not.
-- Adding one `WriteLn` inside `InflatePaths` hides it. valgrind reports no errors.
-
-This points at Clipper2 reading memory whose contents depend on stack layout (an uninitialised value, or a managed function result that is not cleared before use) rather than at our code. The FPC build of Clipper2 issues many "function result variable of a managed type does not seem to be initialized" warnings in `Clipper.Core.pas`, which are the first place to look.
-
-Also seen while reading `Clipper.Offset.pas` (`TClipperOffset.ExecuteInternal`): the zero-delta branch copies `group.paths[i]` inside a `j` loop; it should be `group.paths[j]`.
-
-`tests/testclipper.pas` keeps the reproducing test, marked `Ignore` so it shows in every run without blocking commits. Fix upstream, bump the submodule, then remove the `Ignore` line.
-
-Minimal reproduction (compile with `fpc -Cr -Fu<Clipper2Lib>`):
+**Cause.** `GetLowestPolygonInfo` in `Clipper.Offset.pas` uses `MaxDouble` as a "not computed yet" marker:
 
 ```pascal
-program t;
-{$mode objfpc}{$H+}
-uses Clipper, Clipper.Core;
-var Sq, R: TPathsD;
+a := MaxDouble;
+...
+if a = MaxDouble then   // never true on x86_64 Linux
 begin
-  SetLength(Sq, 1);
-  Sq[0] := MakePathD([0, 0, 100, 0, 100, 100, 0, 100]);
-  R := InflatePaths(Sq, 10, jtMiter, etPolygon);
-  WriteLn(Length(R));  // 1 expected; prints 4 with -Cr
-end.
+  a := Area(paths[i]);
+  IsNegArea := a < 0;
+end;
 ```
+
+On FPC for x86_64 Linux, `Extended` is 80-bit, so the untyped constant `MaxDouble` is compared at extended precision and never equals a `Double` holding it. The block never runs and the `out` parameter `IsNegArea` keeps whatever was in that memory. When that junk reads as true, the group is treated as reversed, the polygon is offset inwards and the cleanup union leaves the corner pieces. On Windows x64 `Extended` is `Double`, so Delphi does not show it. `GetBounds(TPathsD)` in `Clipper.Core.pas` uses the same `= MaxDouble` test to detect empty input.
+
+**Fix.** Use a Boolean flag instead of the sentinel and initialise `IsNegArea`; in `GetBounds` test `Result.Left > Result.Right`. The same commit also fixes `group.paths[i]` → `group.paths[j]` in the zero-delta branch of `TClipperOffset.ExecuteInternal`.
+
+The fix is on branch `fix-maxdouble-sentinel` of the fork `github.com/billbsing/Clipper2`, and `packages/clipper2` points at that fork until upstream takes the fix. `tests/testclipper.pas` (`TestMitredSquareOffset`) covers it. Once upstream merges it, point the submodule back at `github.com/AngusJohnson/Clipper2`.
 
 ## fpcupdeluxe Lazarus 4.99 in ~/Packages/fpc_build: lazbuild fails
 
