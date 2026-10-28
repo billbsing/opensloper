@@ -107,6 +107,9 @@ begin
   AssertNear('over 360', 45, NormalizeAngle(405));
   AssertNear('360 is 0', 0, NormalizeAngle(360));
   AssertNear('large negative', 10, NormalizeAngle(-710));
+  // A rounding error just below 0 must not come back as 359.999...
+  AssertNear('tiny negative', 0, NormalizeAngle(-1e-12));
+  AssertNear('just under 360', 0, NormalizeAngle(360 - 1e-12));
 end;
 
 procedure TTestGeometry.TestPointsNearUsesTolerance;

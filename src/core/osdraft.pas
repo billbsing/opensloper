@@ -34,12 +34,23 @@ type
   TAlongMode = (amLength, amRatio);
   TProjectDirection = (pdPerpendicular, pdAngle);
 
+  TSegmentKind = (skLine, skCurve);
+
+  // One straight or curved stretch of an edge's computed geometry
+  TEdgeSegment = record
+    Kind: TSegmentKind;
+    Line: TLine2;
+    Curve: TCubicBezier;
+  end;
+
+  TEdgeSegmentArray = array of TEdgeSegment;
+
   TEdgePieceKind = (epLine, epCurve);
 
   // Part of an edge, for finding crossings. A line piece covers
   // Line.PointAt(T) for TMin <= T <= TMax (infinite for an extended line);
   // its position along the edge is PosBase + PosScale * T. A curve piece is
-  // the whole curve; its position is the arc length from the start.
+  // a whole curve segment; its position is PosBase plus the arc length along it.
   TEdgePiece = record
     Kind: TEdgePieceKind;
     Line: TLine2;
@@ -121,58 +132,112 @@ type
     property Mode: TAlongMode read FMode;
   end;
 
+  // Lines, curves, curve paths and split parts. Each keeps its computed
+  // geometry as segments, so length, positions along it and crossings work
+  // the same for every kind of edge.
   TEdgeObject = class(TDraftObject)
   private
     FStartKey, FEndKey: string;
+  protected
+    // Last good geometry
+    FSegments: TEdgeSegmentArray;
   public
     Role: TEdgeRole;
     // The name follows the endpoints (Line_A_B) until the user renames it
     NameIsDerived: boolean;
     constructor Create(const AKey, AStart, AEnd: string);
     function InputKeys: TStringArray; override;
-    // Geometry of the last good result
-    function Length: double; virtual; abstract;
-    function PointAtLength(ADistance: double): TVec2; virtual; abstract;
-    // Prefix for derived names: Line or Curve
+    // Every edge has length, angle1 (direction of its start handle) and
+    // angle2 (direction of its end handle, pointing back along the edge)
+    function HasProperty(const Prop: string): boolean; override;
+    function PropertyValue(const Prop: string): double; override;
+    function Length: double;
+    function PointAtLength(ADistance: double): TVec2;
+    // Direction of travel where the edge starts and where it ends
+    function StartDirection: double;
+    function EndDirection: double;
+    // The edge as pieces; an extended edge continues along its end tangents
+    function Pieces(Extend: boolean): TEdgePieceArray;
+    // Nearest point on the edge to APoint: its distance from APoint and its
+    // position along the edge
+    function Locate(const APoint: TVec2; out Position, Offset: double): TVec2;
+    // The geometry before and after Position (mm along the edge)
+    procedure SplitAt(Position: double; out First, Second: TEdgeSegmentArray);
+    // Prefix for derived names: Line, Curve or Path
     function NamePrefix: string; virtual; abstract;
-    // The edge as pieces, with an extended line made infinite and an
-    // extended curve continued along its end tangents
-    function Pieces(Extend: boolean): TEdgePieceArray; virtual; abstract;
     property StartKey: string read FStartKey;
     property EndKey: string read FEndKey;
+    property Segments: TEdgeSegmentArray read FSegments;
   end;
 
   TLineObject = class(TEdgeObject)
   private
-    FLine: TLine2;
+    function GetLine: TLine2;
   public
     function TypeName: string; override;
     function NamePrefix: string; override;
+    // Lines also have angle, their direction
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
     function Compute(Context: TEvalContext): TEvalState; override;
-    function Length: double; override;
-    function PointAtLength(ADistance: double): TVec2; override;
-    function Pieces(Extend: boolean): TEdgePieceArray; override;
-    property Line: TLine2 read FLine;
+    property Line: TLine2 read GetLine;
   end;
 
   // Cubic Bézier between two points; handles given by angle1/length1 at the
   // start and angle2/length2 at the end
   TCurveObject = class(TEdgeObject)
   private
-    FCurve: TCubicBezier;
+    function GetCurve: TCubicBezier;
   public
     constructor Create(const AKey, AStart, AEnd: string);
+    function TypeName: string; override;
+    function NamePrefix: string; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property Curve: TCubicBezier read GetCurve;
+  end;
+
+  // A smooth curve through several points (armholes, necklines). Each node
+  // has a tangent angle, the direction of travel there, shared by the
+  // segments either side so the joins are smooth; and handle lengths before
+  // (lengthIn) and after (lengthOut) it. Fields are node1.angle,
+  // node1.lengthOut, node2.lengthIn, node2.angle and so on; the first node
+  // has no lengthIn and the last no lengthOut.
+  TCurvePathObject = class(TEdgeObject)
+  private
+    FNodeKeys: TStringArray;
+  public
+    constructor Create(const AKey: string; const ANodeKeys: array of string);
+    function InputKeys: TStringArray; override;
+    function TypeName: string; override;
+    function NamePrefix: string; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property NodeKeys: TStringArray read FNodeKeys;
+  end;
+
+  // One side of an edge split at a point: Part 1 runs from the edge's start
+  // to the point, Part 2 from the point to the edge's end. Follows the edge
+  // and the point as they change.
+  TSplitPart = class(TEdgeObject)
+  private
+    FSource, FPoint: string;
+    FPart: integer;
+    FStraight: boolean;
+    FPrefix: string;
+  public
+    // AStraight and APrefix come from the source edge: a part of a line is
+    // straight and has the angle property
+    constructor Create(const AKey, ASource, APoint: string; APart: integer;
+      const ASourceStart, ASourceEnd: string; AStraight: boolean; const APrefix: string);
+    function InputKeys: TStringArray; override;
     function TypeName: string; override;
     function NamePrefix: string; override;
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
     function Compute(Context: TEvalContext): TEvalState; override;
-    function Length: double; override;
-    function PointAtLength(ADistance: double): TVec2; override;
-    function Pieces(Extend: boolean): TEdgePieceArray; override;
-    property Curve: TCubicBezier read FCurve;
+    property Source: string read FSource;
+    property Point: string read FPoint;
+    property Part: integer read FPart;
+    property Straight: boolean read FStraight;
   end;
 
   // Where two edges cross. Pick numbers the crossings from 1 along EdgeA.
@@ -250,6 +315,8 @@ resourcestring
   rsDraftNegativeRadius = 'The radius cannot be negative';
   rsDraftNoFoot = 'No perpendicular from %s meets %s';
   rsDraftNoProjection = 'A line from %s at %s° does not meet %s';
+  rsDraftNotOnEdge = '%s is not on %s';
+  rsDraftSplitAtEnd = '%s is at an end of %s, so there is nothing to split';
 
 implementation
 
@@ -421,6 +488,44 @@ begin
   Result := esValid;
 end;
 
+{ Segments }
+
+function LineSegment(const ALine: TLine2): TEdgeSegment;
+begin
+  Result := Default(TEdgeSegment);
+  Result.Kind := skLine;
+  Result.Line := ALine;
+end;
+
+function CurveSegment(const ACurve: TCubicBezier): TEdgeSegment;
+begin
+  Result := Default(TEdgeSegment);
+  Result.Kind := skCurve;
+  Result.Curve := ACurve;
+end;
+
+procedure AddSegment(var Segments: TEdgeSegmentArray; const Segment: TEdgeSegment);
+begin
+  SetLength(Segments, Length(Segments) + 1);
+  Segments[High(Segments)] := Segment;
+end;
+
+function SegmentLength(const Segment: TEdgeSegment): double;
+begin
+  if Segment.Kind = skLine then
+    Result := Segment.Line.Length
+  else
+    Result := Segment.Curve.Length;
+end;
+
+function SegmentPointAtLength(const Segment: TEdgeSegment; ADistance: double): TVec2;
+begin
+  if Segment.Kind = skLine then
+    Result := Segment.Line.PointAtLength(ADistance)
+  else
+    Result := Segment.Curve.PointAtLength(ADistance);
+end;
+
 { TEdgeObject }
 
 constructor TEdgeObject.Create(const AKey, AStart, AEnd: string);
@@ -439,133 +544,70 @@ begin
   Result[1] := FEndKey;
 end;
 
-function EdgeEnds(Edge: TEdgeObject; Context: TEvalContext; out StartPos, EndPos: TVec2): TEvalState;
-var
-  NA, NB: TEvalNode;
-begin
-  StartPos := Vec2(0, 0);
-  EndPos := Vec2(0, 0);
-  NA := Context.FindNode(Edge.StartKey);
-  NB := Context.FindNode(Edge.EndKey);
-  if not (NA is TPointObject) or not (NB is TPointObject) then
-    Exit(esError);
-  StartPos := TPointObject(NA).Position;
-  EndPos := TPointObject(NB).Position;
-  if PointsNear(StartPos, EndPos) then
-    Exit(esInvalid);
-  Result := esValid;
-end;
-
-{ TLineObject }
-
-function TLineObject.TypeName: string;
-begin
-  Result := 'line';
-end;
-
-function TLineObject.NamePrefix: string;
-begin
-  Result := 'Line';
-end;
-
-function TLineObject.HasProperty(const Prop: string): boolean;
-begin
-  Result := (Prop = 'length') or (Prop = 'angle');
-end;
-
-function TLineObject.PropertyValue(const Prop: string): double;
-begin
-  if Prop = 'length' then
-    Result := FLine.Length
-  else
-    Result := FLine.Angle;
-end;
-
-function TLineObject.Compute(Context: TEvalContext): TEvalState;
-var
-  StartPos, EndPos: TVec2;
-begin
-  Result := EdgeEnds(Self, Context, StartPos, EndPos);
-  case Result of
-    esError: Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey + '/' + EndKey])));
-    esInvalid: Exit(Fail(esInvalid, rsDraftSamePlace));
-  end;
-  FLine := Line2(StartPos, EndPos);
-end;
-
-function TLineObject.Length: double;
-begin
-  Result := FLine.Length;
-end;
-
-function TLineObject.PointAtLength(ADistance: double): TVec2;
-begin
-  Result := FLine.PointAtLength(ADistance);
-end;
-
-{ TCurveObject }
-
-constructor TCurveObject.Create(const AKey, AStart, AEnd: string);
-begin
-  inherited Create(AKey, AStart, AEnd);
-  AddField('angle1');
-  AddField('length1');
-  AddField('angle2');
-  AddField('length2');
-end;
-
-function TCurveObject.TypeName: string;
-begin
-  Result := 'curve';
-end;
-
-function TCurveObject.NamePrefix: string;
-begin
-  Result := 'Curve';
-end;
-
-function TCurveObject.HasProperty(const Prop: string): boolean;
+function TEdgeObject.HasProperty(const Prop: string): boolean;
 begin
   Result := (Prop = 'length') or (Prop = 'angle1') or (Prop = 'angle2');
 end;
 
-function TCurveObject.PropertyValue(const Prop: string): double;
+function TEdgeObject.PropertyValue(const Prop: string): double;
 begin
   if Prop = 'length' then
-    Result := FCurve.Length
+    Result := Length
   else if Prop = 'angle1' then
-    Result := FCurve.StartAngle
+    Result := StartDirection
   else
-    Result := FCurve.EndAngle;
+    Result := NormalizeAngle(EndDirection + 180);
 end;
 
-function TCurveObject.Compute(Context: TEvalContext): TEvalState;
+function TEdgeObject.Length: double;
 var
-  StartPos, EndPos: TVec2;
-  A1, L1, A2, L2: double;
+  Segment: TEdgeSegment;
 begin
-  Result := EdgeEnds(Self, Context, StartPos, EndPos);
-  case Result of
-    esError: Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey + '/' + EndKey])));
-    esInvalid: Exit(Fail(esInvalid, rsDraftSamePlace));
+  Result := 0;
+  for Segment in FSegments do
+    Result := Result + SegmentLength(Segment);
+end;
+
+function TEdgeObject.PointAtLength(ADistance: double): TVec2;
+var
+  Index: integer;
+  Remaining, SegLength: double;
+begin
+  if System.Length(FSegments) = 0 then
+    Exit(Vec2(0, 0));
+  Remaining := ADistance;
+  for Index := 0 to High(FSegments) - 1 do
+  begin
+    SegLength := SegmentLength(FSegments[Index]);
+    if Remaining <= SegLength then
+      Exit(SegmentPointAtLength(FSegments[Index], Remaining));
+    Remaining := Remaining - SegLength;
   end;
-  if not EvalField(Context, 'angle1', A1) or not EvalField(Context, 'length1', L1) or not EvalField(Context, 'angle2', A2) or
-    not EvalField(Context, 'length2', L2) then
-    Exit(esError);
-  if (L1 < 0) or (L2 < 0) then
-    Exit(Fail(esInvalid, rsDraftNegativeHandle));
-  FCurve := BezierFromHandles(StartPos, A1, L1, EndPos, A2, L2);
-  Result := esValid;
+  Result := SegmentPointAtLength(FSegments[High(FSegments)], Remaining);
 end;
 
-function TCurveObject.Length: double;
+function TEdgeObject.StartDirection: double;
 begin
-  Result := FCurve.Length;
+  if System.Length(FSegments) = 0 then
+    Exit(0);
+  if FSegments[0].Kind = skLine then
+    Result := FSegments[0].Line.Angle
+  else
+    Result := FSegments[0].Curve.StartAngle;
 end;
 
-function TCurveObject.PointAtLength(ADistance: double): TVec2;
+function TEdgeObject.EndDirection: double;
+var
+  Last: TEdgeSegment;
 begin
-  Result := FCurve.PointAtLength(ADistance);
+  if System.Length(FSegments) = 0 then
+    Exit(0);
+  Last := FSegments[High(FSegments)];
+  if Last.Kind = skLine then
+    Result := Last.Line.Angle
+  else
+    // The end handle points back along the curve
+    Result := NormalizeAngle(Last.Curve.EndAngle + 180);
 end;
 
 function LinePiece(const ALine: TLine2; TMin, TMax, PosBase, PosScale: double): TEdgePiece;
@@ -585,37 +627,398 @@ begin
   Pieces[High(Pieces)] := Piece;
 end;
 
-function TLineObject.Pieces(Extend: boolean): TEdgePieceArray;
+function TEdgeObject.Pieces(Extend: boolean): TEdgePieceArray;
+var
+  Segment: TEdgeSegment;
+  Piece: TEdgePiece;
+  Position, SegLength: double;
+  StartPos, EndPos: TVec2;
 begin
   Result := nil;
-  if Extend then
-    AddPiece(Result, LinePiece(FLine, NegInfinity, Infinity, 0, FLine.Length))
-  else
-    AddPiece(Result, LinePiece(FLine, 0, 1, 0, FLine.Length));
+  Position := 0;
+  for Segment in FSegments do
+  begin
+    SegLength := SegmentLength(Segment);
+    if Segment.Kind = skLine then
+      AddPiece(Result, LinePiece(Segment.Line, 0, 1, Position, SegLength))
+    else
+    begin
+      Piece := Default(TEdgePiece);
+      Piece.Kind := epCurve;
+      Piece.Curve := Segment.Curve;
+      Piece.PosBase := Position;
+      AddPiece(Result, Piece);
+    end;
+    Position := Position + SegLength;
+  end;
+  if Extend and (System.Length(FSegments) > 0) then
+  begin
+    // Rays of unit-length lines, so T is the distance along them in mm: one
+    // back from the start, one on from the end
+    if FSegments[0].Kind = skLine then
+      StartPos := FSegments[0].Line.P1
+    else
+      StartPos := FSegments[0].Curve.P0;
+    if FSegments[High(FSegments)].Kind = skLine then
+      EndPos := FSegments[High(FSegments)].Line.P2
+    else
+      EndPos := FSegments[High(FSegments)].Curve.P3;
+    AddPiece(Result, LinePiece(Line2(StartPos, PolarPoint(StartPos, 1, StartDirection + 180)),
+      0, Infinity, 0, -1));
+    AddPiece(Result, LinePiece(Line2(EndPos, PolarPoint(EndPos, 1, EndDirection)),
+      0, Infinity, Position, 1));
+  end;
 end;
 
-function TCurveObject.Pieces(Extend: boolean): TEdgePieceArray;
+function TEdgeObject.Locate(const APoint: TVec2; out Position, Offset: double): TVec2;
 var
-  CurvePiece: TEdgePiece;
-  BackAngle, OnAngle: double;
+  Index: integer;
+  Before, T, SegOffset, SegPosition: double;
+  Nearest: TVec2;
+  Segment: TEdgeSegment;
+begin
+  Result := Vec2(0, 0);
+  Position := 0;
+  Offset := Infinity;
+  Before := 0;
+  for Index := 0 to High(FSegments) do
+  begin
+    Segment := FSegments[Index];
+    if Segment.Kind = skLine then
+    begin
+      T := EnsureRange(Segment.Line.ParamOf(APoint), 0, 1);
+      Nearest := Segment.Line.PointAt(T);
+      SegPosition := T * Segment.Line.Length;
+    end
+    else
+    begin
+      T := Segment.Curve.ClosestParam(APoint);
+      Nearest := Segment.Curve.PointAt(T);
+      SegPosition := Segment.Curve.LengthBetween(0, T);
+    end;
+    SegOffset := Distance(APoint, Nearest);
+    if SegOffset < Offset then
+    begin
+      Offset := SegOffset;
+      Position := Before + SegPosition;
+      Result := Nearest;
+    end;
+    Before := Before + SegmentLength(Segment);
+  end;
+end;
+
+procedure TEdgeObject.SplitAt(Position: double; out First, Second: TEdgeSegmentArray);
+var
+  Index: integer;
+  Before, SegLength, Local, T: double;
+  Segment: TEdgeSegment;
+  SplitPos: TVec2;
+  CurveA, CurveB: TCubicBezier;
+  Done: boolean;
+begin
+  First := nil;
+  Second := nil;
+  Before := 0;
+  Done := False;
+  for Index := 0 to High(FSegments) do
+  begin
+    Segment := FSegments[Index];
+    SegLength := SegmentLength(Segment);
+    if Done then
+      AddSegment(Second, Segment)
+    else if (Before + SegLength < Position) and (Index < High(FSegments)) then
+      AddSegment(First, Segment)
+    else
+    begin
+      // The split falls in this segment
+      Local := Position - Before;
+      if Segment.Kind = skLine then
+      begin
+        SplitPos := Segment.Line.PointAtLength(Local);
+        if Local > DefaultTolerance then
+          AddSegment(First, LineSegment(Line2(Segment.Line.P1, SplitPos)));
+        if SegLength - Local > DefaultTolerance then
+          AddSegment(Second, LineSegment(Line2(SplitPos, Segment.Line.P2)));
+      end
+      else
+      begin
+        T := Segment.Curve.ParamAtLength(Local);
+        Segment.Curve.Split(T, CurveA, CurveB);
+        if Local > DefaultTolerance then
+          AddSegment(First, CurveSegment(CurveA));
+        if SegLength - Local > DefaultTolerance then
+          AddSegment(Second, CurveSegment(CurveB));
+      end;
+      Done := True;
+    end;
+    Before := Before + SegLength;
+  end;
+end;
+
+// Position of the point with Key, or False if it is not a point
+function PointPosition(Context: TEvalContext; const Key: string; out APosition: TVec2): boolean;
+var
+  Node: TEvalNode;
+begin
+  APosition := Vec2(0, 0);
+  Node := Context.FindNode(Key);
+  Result := Node is TPointObject;
+  if Result then
+    APosition := TPointObject(Node).Position;
+end;
+
+function EdgeEnds(Edge: TEdgeObject; Context: TEvalContext; out StartPos, EndPos: TVec2): TEvalState;
+begin
+  EndPos := Vec2(0, 0);
+  if not PointPosition(Context, Edge.StartKey, StartPos) or not PointPosition(Context, Edge.EndKey, EndPos) then
+    Exit(esError);
+  if PointsNear(StartPos, EndPos) then
+    Exit(esInvalid);
+  Result := esValid;
+end;
+
+{ TLineObject }
+
+function TLineObject.GetLine: TLine2;
+begin
+  if System.Length(FSegments) = 0 then
+    Result := Line2(Vec2(0, 0), Vec2(0, 0))
+  else
+    Result := FSegments[0].Line;
+end;
+
+function TLineObject.TypeName: string;
+begin
+  Result := 'line';
+end;
+
+function TLineObject.NamePrefix: string;
+begin
+  Result := 'Line';
+end;
+
+function TLineObject.HasProperty(const Prop: string): boolean;
+begin
+  Result := (Prop = 'angle') or inherited HasProperty(Prop);
+end;
+
+function TLineObject.PropertyValue(const Prop: string): double;
+begin
+  if Prop = 'angle' then
+    Result := Line.Angle
+  else
+    Result := inherited PropertyValue(Prop);
+end;
+
+function TLineObject.Compute(Context: TEvalContext): TEvalState;
+var
+  StartPos, EndPos: TVec2;
+begin
+  Result := EdgeEnds(Self, Context, StartPos, EndPos);
+  case Result of
+    esError: Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey + '/' + EndKey])));
+    esInvalid: Exit(Fail(esInvalid, rsDraftSamePlace));
+  end;
+  FSegments := nil;
+  AddSegment(FSegments, LineSegment(Line2(StartPos, EndPos)));
+end;
+
+{ TCurveObject }
+
+constructor TCurveObject.Create(const AKey, AStart, AEnd: string);
+begin
+  inherited Create(AKey, AStart, AEnd);
+  AddField('angle1');
+  AddField('length1');
+  AddField('angle2');
+  AddField('length2');
+end;
+
+function TCurveObject.GetCurve: TCubicBezier;
+begin
+  if System.Length(FSegments) = 0 then
+    Result := Default(TCubicBezier)
+  else
+    Result := FSegments[0].Curve;
+end;
+
+function TCurveObject.TypeName: string;
+begin
+  Result := 'curve';
+end;
+
+function TCurveObject.NamePrefix: string;
+begin
+  Result := 'Curve';
+end;
+
+function TCurveObject.Compute(Context: TEvalContext): TEvalState;
+var
+  StartPos, EndPos: TVec2;
+  A1, L1, A2, L2: double;
+begin
+  Result := EdgeEnds(Self, Context, StartPos, EndPos);
+  case Result of
+    esError: Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey + '/' + EndKey])));
+    esInvalid: Exit(Fail(esInvalid, rsDraftSamePlace));
+  end;
+  if not EvalField(Context, 'angle1', A1) or not EvalField(Context, 'length1', L1) or not EvalField(Context, 'angle2', A2) or
+    not EvalField(Context, 'length2', L2) then
+    Exit(esError);
+  if (L1 < 0) or (L2 < 0) then
+    Exit(Fail(esInvalid, rsDraftNegativeHandle));
+  FSegments := nil;
+  AddSegment(FSegments, CurveSegment(BezierFromHandles(StartPos, A1, L1, EndPos, A2, L2)));
+  Result := esValid;
+end;
+
+{ TCurvePathObject }
+
+constructor TCurvePathObject.Create(const AKey: string; const ANodeKeys: array of string);
+var
+  Index: integer;
+  NodeName: string;
+begin
+  inherited Create(AKey, ANodeKeys[0], ANodeKeys[High(ANodeKeys)]);
+  SetLength(FNodeKeys, System.Length(ANodeKeys));
+  for Index := 0 to High(ANodeKeys) do
+  begin
+    FNodeKeys[Index] := ANodeKeys[Index];
+    NodeName := 'node' + IntToStr(Index + 1);
+    if Index > 0 then
+      AddField(NodeName + '.lengthIn');
+    AddField(NodeName + '.angle');
+    if Index < High(ANodeKeys) then
+      AddField(NodeName + '.lengthOut');
+  end;
+end;
+
+function TCurvePathObject.InputKeys: TStringArray;
+begin
+  Result := Copy(FNodeKeys);
+end;
+
+function TCurvePathObject.TypeName: string;
+begin
+  Result := 'path';
+end;
+
+function TCurvePathObject.NamePrefix: string;
+begin
+  Result := 'Path';
+end;
+
+function TCurvePathObject.Compute(Context: TEvalContext): TEvalState;
+var
+  Index: integer;
+  Positions: TVec2Array;
+  Angles, LengthsIn, LengthsOut: array of double;
+  NodeName: string;
+begin
+  Positions := nil;
+  SetLength(Positions, System.Length(FNodeKeys));
+  Angles := nil;
+  SetLength(Angles, System.Length(FNodeKeys));
+  LengthsIn := nil;
+  SetLength(LengthsIn, System.Length(FNodeKeys));
+  LengthsOut := nil;
+  SetLength(LengthsOut, System.Length(FNodeKeys));
+  for Index := 0 to High(FNodeKeys) do
+  begin
+    if not PointPosition(Context, FNodeKeys[Index], Positions[Index]) then
+      Exit(Fail(esError, Format(rsDraftNotAPoint, [FNodeKeys[Index]])));
+    if (Index > 0) and PointsNear(Positions[Index - 1], Positions[Index]) then
+      Exit(Fail(esInvalid, rsDraftSamePlace));
+    NodeName := 'node' + IntToStr(Index + 1);
+    if not EvalField(Context, NodeName + '.angle', Angles[Index]) then
+      Exit(esError);
+    if (Index > 0) and not EvalField(Context, NodeName + '.lengthIn', LengthsIn[Index]) then
+      Exit(esError);
+    if (Index < High(FNodeKeys)) and not EvalField(Context, NodeName + '.lengthOut', LengthsOut[Index]) then
+      Exit(esError);
+    if (LengthsIn[Index] < 0) or (LengthsOut[Index] < 0) then
+      Exit(Fail(esInvalid, rsDraftNegativeHandle));
+  end;
+  FSegments := nil;
+  // The handle into node i+1 points back along its tangent
+  for Index := 0 to High(FNodeKeys) - 1 do
+    AddSegment(FSegments, CurveSegment(BezierFromHandles(Positions[Index], Angles[Index], LengthsOut[Index],
+      Positions[Index + 1], Angles[Index + 1] + 180, LengthsIn[Index + 1])));
+  Result := esValid;
+end;
+
+{ TSplitPart }
+
+constructor TSplitPart.Create(const AKey, ASource, APoint: string; APart: integer;
+  const ASourceStart, ASourceEnd: string; AStraight: boolean; const APrefix: string);
+begin
+  if APart = 1 then
+    inherited Create(AKey, ASourceStart, APoint)
+  else
+    inherited Create(AKey, APoint, ASourceEnd);
+  FSource := ASource;
+  FPoint := APoint;
+  FPart := APart;
+  FStraight := AStraight;
+  FPrefix := APrefix;
+end;
+
+function TSplitPart.InputKeys: TStringArray;
 begin
   Result := nil;
-  CurvePiece := Default(TEdgePiece);
-  CurvePiece.Kind := epCurve;
-  CurvePiece.Curve := FCurve;
-  AddPiece(Result, CurvePiece);
-  if Extend then
-  begin
-    // Rays of unit-length lines, so T is the distance along them in mm. The
-    // start ray points away from the curve's first handle, the end ray away
-    // from its second.
-    BackAngle := FCurve.StartAngle + 180;
-    AddPiece(Result, LinePiece(Line2(FCurve.P0, PolarPoint(FCurve.P0, 1, BackAngle)),
-      0, Infinity, 0, -1));
-    OnAngle := FCurve.EndAngle + 180;
-    AddPiece(Result, LinePiece(Line2(FCurve.P3, PolarPoint(FCurve.P3, 1, OnAngle)),
-      0, Infinity, FCurve.Length, 1));
-  end;
+  SetLength(Result, 2);
+  Result[0] := FSource;
+  Result[1] := FPoint;
+end;
+
+function TSplitPart.TypeName: string;
+begin
+  Result := 'part';
+end;
+
+function TSplitPart.NamePrefix: string;
+begin
+  Result := FPrefix;
+end;
+
+function TSplitPart.HasProperty(const Prop: string): boolean;
+begin
+  Result := (FStraight and (Prop = 'angle')) or inherited HasProperty(Prop);
+end;
+
+function TSplitPart.PropertyValue(const Prop: string): double;
+begin
+  if Prop = 'angle' then
+    Result := StartDirection
+  else
+    Result := inherited PropertyValue(Prop);
+end;
+
+function TSplitPart.Compute(Context: TEvalContext): TEvalState;
+var
+  Node: TEvalNode;
+  SourceEdge: TEdgeObject;
+  SplitPos: TVec2;
+  Position, Offset: double;
+  First, Second: TEdgeSegmentArray;
+begin
+  Node := Context.FindNode(FSource);
+  if not (Node is TEdgeObject) then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FSource])));
+  SourceEdge := TEdgeObject(Node);
+  if not PointPosition(Context, FPoint, SplitPos) then
+    Exit(Fail(esError, Format(rsDraftNotAPoint, [FPoint])));
+  SourceEdge.Locate(SplitPos, Position, Offset);
+  if Offset > DefaultTolerance then
+    Exit(Fail(esInvalid, Format(rsDraftNotOnEdge, [Context.FindNode(FPoint).DisplayName, SourceEdge.DisplayName])));
+  if (Position <= DefaultTolerance) or (Position >= SourceEdge.Length - DefaultTolerance) then
+    Exit(Fail(esInvalid, Format(rsDraftSplitAtEnd, [Context.FindNode(FPoint).DisplayName, SourceEdge.DisplayName])));
+  SourceEdge.SplitAt(Position, First, Second);
+  if FPart = 1 then
+    FSegments := First
+  else
+    FSegments := Second;
+  Result := esValid;
 end;
 
 // True when T is within a line piece, allowing DefaultTolerance in mm
@@ -689,13 +1092,13 @@ begin
         Hits := IntersectBezierLine(PieceA.Curve, PieceB.Line, True);
         for CurveHit in Hits do
           if InPiece(PieceB, CurveHit.T2) then
-            AddCrossing(Result, CurveHit.Point, PieceA.Curve.LengthBetween(0, CurveHit.T1));
+            AddCrossing(Result, CurveHit.Point, PieceA.PosBase + PieceA.Curve.LengthBetween(0, CurveHit.T1));
       end
       else
       begin
         Hits := IntersectBeziers(PieceA.Curve, PieceB.Curve);
         for CurveHit in Hits do
-          AddCrossing(Result, CurveHit.Point, PieceA.Curve.LengthBetween(0, CurveHit.T1));
+          AddCrossing(Result, CurveHit.Point, PieceA.PosBase + PieceA.Curve.LengthBetween(0, CurveHit.T1));
       end;
   SortAndMerge(Result);
 end;
@@ -722,7 +1125,7 @@ begin
     end
     else
       for Hit in IntersectBezierCircle(Piece.Curve, Centre, Radius) do
-        AddCrossing(Result, Hit.Point, Piece.Curve.LengthBetween(0, Hit.T1));
+        AddCrossing(Result, Hit.Point, Piece.PosBase + Piece.Curve.LengthBetween(0, Hit.T1));
   SortAndMerge(Result);
 end;
 

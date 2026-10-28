@@ -102,6 +102,16 @@ type
     function AddCurve(const StartId, EndId, Angle1, Length1, Angle2, Length2: string;
       Role: TEdgeRole = erConstruction; const AName: string = ''): TCurveObject;
 
+    // A smooth curve through NodeIds. Angles are the tangent at each node
+    // (direction of travel); LengthsIn and LengthsOut the handle lengths before
+    // and after it. All arrays have one entry per node; LengthsIn[0] and the
+    // last LengthsOut are ignored.
+    function AddCurvePath(const NodeIds, Angles, LengthsIn, LengthsOut: array of string;
+      Role: TEdgeRole = erConstruction; const AName: string = ''): TCurvePathObject;
+    // Splits an edge at a point on it into two new edges, which follow the
+    // edge and the point. The edge itself stays.
+    function SplitEdge(const EdgeId, PointId: string; out First, Second: TSplitPart): boolean;
+
     // Editing returns False when refused, with the reason in LastError
     function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
     function Rename(Node: TEvalNode; const NewName: string): boolean;
@@ -143,6 +153,9 @@ resourcestring
   rsPatternCannotDelete = '%s cannot be deleted';
   rsPatternSameEdge = 'An edge cannot cross itself';
   rsPatternBadPick = 'The crossing number must be 1 or more';
+  rsPatternPathTooShort = 'A curve path needs at least two points';
+  rsPatternPathRepeats = 'A curve path cannot use the same point twice in a row';
+  rsPatternPathArrays = 'A curve path needs an angle and handle lengths for every point';
   rsPatternVariableList = 'The variable list is not valid';
   rsPatternVariableBadId = 'A variable has a missing or repeated ID';
   rsPatternVariableBadName = 'Variable name: %s';
@@ -704,6 +717,102 @@ begin
     Inc(FNextCurve)
   else
     Result := nil;
+end;
+
+function TPattern.AddCurvePath(const NodeIds, Angles, LengthsIn, LengthsOut: array of string;
+  Role: TEdgeRole; const AName: string): TCurvePathObject;
+var
+  Index, Count: integer;
+  Names, Texts: array of string;
+  NodeName: string;
+
+  procedure AddText(const FieldName, Text: string);
+  begin
+    SetLength(Names, Length(Names) + 1);
+    Names[High(Names)] := FieldName;
+    SetLength(Texts, Length(Texts) + 1);
+    Texts[High(Texts)] := Text;
+  end;
+
+begin
+  Result := nil;
+  Count := Length(NodeIds);
+  if Count < 2 then
+  begin
+    SetError(rsPatternPathTooShort);
+    Exit;
+  end;
+  if (Length(Angles) <> Count) or (Length(LengthsIn) <> Count) or (Length(LengthsOut) <> Count) then
+  begin
+    SetError(rsPatternPathArrays);
+    Exit;
+  end;
+  for Index := 0 to Count - 1 do
+  begin
+    if not CheckPoint(NodeIds[Index]) then
+      Exit;
+    if (Index > 0) and (NodeIds[Index] = NodeIds[Index - 1]) then
+    begin
+      SetError(rsPatternPathRepeats);
+      Exit;
+    end;
+  end;
+  Names := nil;
+  Texts := nil;
+  for Index := 0 to Count - 1 do
+  begin
+    NodeName := 'node' + IntToStr(Index + 1);
+    if Index > 0 then
+      AddText(NodeName + '.lengthIn', LengthsIn[Index]);
+    AddText(NodeName + '.angle', Angles[Index]);
+    if Index < Count - 1 then
+      AddText(NodeName + '.lengthOut', LengthsOut[Index]);
+  end;
+  Result := TCurvePathObject.Create('c' + IntToStr(FNextCurve), NodeIds);
+  if AddEdgeObject(Result, AName, Role, Names, Texts) then
+    Inc(FNextCurve)
+  else
+    Result := nil;
+end;
+
+function TPattern.SplitEdge(const EdgeId, PointId: string; out First, Second: TSplitPart): boolean;
+var
+  Source: TEdgeObject;
+  Straight: boolean;
+  Prefix: string;
+
+  function NewPart(APart: integer): TSplitPart;
+  var
+    Key: string;
+  begin
+    if Straight then
+    begin
+      Key := 'l' + IntToStr(FNextLine);
+      Inc(FNextLine);
+    end
+    else
+    begin
+      Key := 'c' + IntToStr(FNextCurve);
+      Inc(FNextCurve);
+    end;
+    Result := TSplitPart.Create(Key, EdgeId, PointId, APart, Source.StartKey, Source.EndKey, Straight, Prefix);
+    // Each part is its own edge: it gets a derived name and joins the pattern
+    Result.Name := DerivedEdgeName(Result);
+    Result.Role := Source.Role;
+    FObjects.Add(Result);
+  end;
+
+begin
+  First := nil;
+  Second := nil;
+  if not CheckEdgeTarget(EdgeId) or not CheckPoint(PointId) then
+    Exit(False);
+  Source := TEdgeObject(FindNode(EdgeId));
+  Straight := (Source is TLineObject) or ((Source is TSplitPart) and TSplitPart(Source).Straight);
+  Prefix := Source.NamePrefix;
+  First := NewPart(1);
+  Second := NewPart(2);
+  Result := True;
 end;
 
 function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boolean;

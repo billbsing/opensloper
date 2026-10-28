@@ -137,8 +137,9 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 - `TPattern.SetFormula` refuses an edit that would close a cycle, naming both nodes. Loaded files can still contain one: nodes on the cycle become errors and their readers are blocked.
 - `Evaluate` rebuilds the graph and recomputes everything; dirty tracking can come later if dragging needs it.
 - `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 5) wrap these calls. `Delete` is refused while other nodes use the object.
-- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge); lines and cubic curves, with derived names (`Line_A_B`) that follow renamed endpoints until the user names the edge. Curve paths and split edge come next, then the canvas (roadmap step 4).
-- Each edge supplies its geometry as pieces (`TEdgeObject.Pieces`): a line is one piece, infinite when extended; an extended curve adds a ray off each end along its tangent. Every crossing operation works on pieces, so lines and curves are handled alike.
+- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge) and all edge operations (line, curve, curve path, split edge), with derived names (`Line_A_B`, `Path_A_C`) that follow renamed endpoints until the user names the edge. The canvas comes next (roadmap step 4).
+- Every edge keeps its computed geometry as segments (straight or cubic), so length, positions along it, splitting and crossings work the same for every kind of edge. For crossings an edge supplies pieces (`TEdgeObject.Pieces`), one per segment, plus a ray off each end along its tangent when extended; an extended line is therefore its infinite line.
+- Split edge creates two new edges (`Line_A_P`, `Line_P_B`) that follow the source edge and the point; the source stays. A part is invalid while the point is off the edge or at one of its ends. Parts of a line stay straight and keep `.angle`.
 
 ```pascal
 type
@@ -232,7 +233,7 @@ Six point operations and three edge types cover basic bodice, skirt and trouser 
 
 - Units in mm; angles in degrees, 0° pointing right, positive anticlockwise (as Valentina); the canvas flips y for screen drawing
 - Common fields on every object: `id`, `name`, `type`, `layer`, `visible`, `notes`
-- Readable properties: point `.x`, `.y`; edge `.length`, `.angle` (lines), `.angle1` / `.angle2` (curve ends)
+- Readable properties: point `.x`, `.y`; every edge `.length`, `.angle1` (direction of the start handle) and `.angle2` (direction of the end handle, pointing back along the edge); straight edges also `.angle`
 - Functions: `sin cos tan asin acos atan2 sqrt abs min max round`
 
 **Point operations:**
@@ -254,7 +255,7 @@ Six point operations and three edge types cover basic bodice, skirt and trouser 
 | --- | --- | --- |
 | Line | `start`, `end`, `role` | Straight seams, construction lines |
 | Curve (cubic Bézier) | `start`, `end`, `angle1`, `length1`, `angle2`, `length2`, `role` | Single smooth curves: hip curve, side seam shaping |
-| Curve path | `nodes[]` of `point`, `angle`, `lengthIn`, `lengthOut`; `role` | Armholes, necklines, crotch curves; one shared tangent per node keeps joins smooth |
+| Curve path | `nodes[]` of `point`, `angle`, `lengthIn`, `lengthOut`; `role` | Armholes, necklines, crotch curves; one shared tangent per node keeps joins smooth. `angle` is the direction of travel at the node; formula fields are named `node2.angle`, `node2.lengthIn` and so on |
 | Split edge | `edge`, `point` (on the edge, typically from Along edge or Intersect edges) | Two parametric edges; needed for dart rotation and slash-and-spread |
 
 Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1 = @neck/6`).

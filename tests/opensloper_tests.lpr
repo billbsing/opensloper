@@ -35,6 +35,7 @@ uses
   TestVariables,
   TestPattern,
   TestOperations,
+  TestEdges,
   TestAppPaths,
   TestClipper;
 

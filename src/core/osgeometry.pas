@@ -33,6 +33,8 @@ const
   Epsilon = 1e-12;
   // A line or curve this close to a circle (in mm) touches it once
   TangentTolerance = 1e-9;
+  // Angles this close below 360 degrees are taken as 0
+  AngleSnap = 1e-9;
 
 type
   TVec2 = record
@@ -230,7 +232,8 @@ begin
   Result := FMod(AngleDeg, 360);
   if Result < 0 then
     Result := Result + 360;
-  if Result >= 360 then
+  // A rounding error just below 0 (or 360) would otherwise read 359.999...
+  if Result >= 360 - AngleSnap then
     Result := 0;
 end;
 
