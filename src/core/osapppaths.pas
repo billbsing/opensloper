@@ -33,7 +33,7 @@ type
     class function CacheDir: string;
     class function DefaultDocumentsDir: string;
     // True when portable.ini sits beside the executable
-    class function IsPortable: Boolean;
+    class function IsPortable: boolean;
     // Creates Dir if missing and returns it; folders are made on first use
     class function ForceDir(const Dir: string): string;
     // XDG rule: EnvValue when it is an absolute path, else Home + Fallback
@@ -146,7 +146,7 @@ begin
   Result := ConcatPaths([HomeDir, 'Documents', AppName]);
 end;
 
-class function TAppPaths.IsPortable: Boolean;
+class function TAppPaths.IsPortable: boolean;
 begin
   Result := FileExists(ConcatPaths([ExeDir, PortableFileName]));
 end;

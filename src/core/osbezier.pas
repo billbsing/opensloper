@@ -35,7 +35,7 @@ const
 
 type
   TCurveSample = record
-    T: Double;
+    T: double;
     Point: TVec2;
   end;
 
@@ -44,44 +44,41 @@ type
   // Start P0, control points P1 and P2, end P3; parameter T runs 0 to 1
   TCubicBezier = record
     P0, P1, P2, P3: TVec2;
-    function PointAt(T: Double): TVec2;
-    function DerivativeAt(T: Double): TVec2;
-    function SecondDerivativeAt(T: Double): TVec2;
-    function Length: Double;
-    function LengthBetween(T0, T1: Double): Double;
+    function PointAt(T: double): TVec2;
+    function DerivativeAt(T: double): TVec2;
+    function SecondDerivativeAt(T: double): TVec2;
+    function Length: double;
+    function LengthBetween(T0, T1: double): double;
     // Parameter at arc length S from the start, clamped to the curve
-    function ParamAtLength(S: Double): Double;
-    function PointAtLength(S: Double): TVec2;
+    function ParamAtLength(S: double): double;
+    function PointAtLength(S: double): TVec2;
     // Direction of the start handle (angle1) and end handle (angle2)
-    function StartAngle: Double;
-    function EndAngle: Double;
-    procedure Split(T: Double; out First, Second: TCubicBezier);
+    function StartAngle: double;
+    function EndAngle: double;
+    procedure Split(T: double; out First, Second: TCubicBezier);
     function Bounds: TRect2;
     // Polyline whose points lie on the curve, within Tolerance of it
-    function Flatten(Tolerance: Double): TCurveSampleArray;
+    function Flatten(Tolerance: double): TCurveSampleArray;
     // Parameter of the nearest point on the curve to P
-    function ClosestParam(const P: TVec2): Double;
+    function ClosestParam(const P: TVec2): double;
     function Reversed: TCubicBezier;
     function Translated(const D: TVec2): TCubicBezier;
-    function Rotated(const Pivot: TVec2; AngleDeg: Double): TCubicBezier;
+    function Rotated(const Pivot: TVec2; AngleDeg: double): TCubicBezier;
     function Mirrored(const A, B: TVec2): TCubicBezier;
   end;
 
 function CubicBezier(const P0, P1, P2, P3: TVec2): TCubicBezier;
 // Curve from Start to Finish whose handles leave Start at Angle1 with length
 // Length1 and leave Finish at Angle2 with length Length2
-function BezierFromHandles(const Start: TVec2; Angle1, Length1: Double;
-  const Finish: TVec2; Angle2, Length2: Double): TCubicBezier;
+function BezierFromHandles(const Start: TVec2; Angle1, Length1: double; const Finish: TVec2; Angle2, Length2: double): TCubicBezier;
 
 // Crossings of a curve with a line, sorted by curve parameter (T1); T2 is the
 // line parameter. Empty when the curve lies along the line.
-function IntersectBezierLine(const C: TCubicBezier; const L: TLine2;
-  ExtendLine: Boolean): TIntersectionArray;
+function IntersectBezierLine(const C: TCubicBezier; const L: TLine2; ExtendLine: boolean): TIntersectionArray;
 // Crossings of two curves, sorted by the first curve's parameter
 function IntersectBeziers(const A, B: TCubicBezier): TIntersectionArray;
 // Crossings of a curve with a circle, sorted by curve parameter
-function IntersectBezierCircle(const C: TCubicBezier; const Centre: TVec2;
-  Radius: Double): TIntersectionArray;
+function IntersectBezierCircle(const C: TCubicBezier; const Centre: TVec2; Radius: double): TIntersectionArray;
 
 implementation
 
@@ -95,42 +92,41 @@ const
   // Parameter tolerance when merging duplicate crossings
   MergeParamTolerance = 1e-7;
 
-{ TCubicBezier }
+  { TCubicBezier }
 
-function TCubicBezier.PointAt(T: Double): TVec2;
+function TCubicBezier.PointAt(T: double): TVec2;
 var
-  U, B0, B1, B2, B3: Double;
+  U, B0, B1, B2, B3: double;
 begin
   U := 1 - T;
   B0 := U * U * U;
   B1 := 3 * U * U * T;
   B2 := 3 * U * T * T;
   B3 := T * T * T;
-  Result := Vec2(B0 * P0.X + B1 * P1.X + B2 * P2.X + B3 * P3.X,
-    B0 * P0.Y + B1 * P1.Y + B2 * P2.Y + B3 * P3.Y);
+  Result := Vec2(B0 * P0.X + B1 * P1.X + B2 * P2.X + B3 * P3.X, B0 * P0.Y + B1 * P1.Y + B2 * P2.Y + B3 * P3.Y);
 end;
 
-function TCubicBezier.DerivativeAt(T: Double): TVec2;
+function TCubicBezier.DerivativeAt(T: double): TVec2;
 var
-  U: Double;
+  U: double;
 begin
   U := 1 - T;
   Result := (P1 - P0) * (3 * U * U) + (P2 - P1) * (6 * U * T) + (P3 - P2) * (3 * T * T);
 end;
 
-function TCubicBezier.SecondDerivativeAt(T: Double): TVec2;
+function TCubicBezier.SecondDerivativeAt(T: double): TVec2;
 begin
   Result := (P2 - P1 * 2 + P0) * (6 * (1 - T)) + (P3 - P2 * 2 + P1) * (6 * T);
 end;
 
-function TCubicBezier.Length: Double;
+function TCubicBezier.Length: double;
 begin
   Result := LengthBetween(0, 1);
 end;
 
-function TCubicBezier.LengthBetween(T0, T1: Double): Double;
+function TCubicBezier.LengthBetween(T0, T1: double): double;
 
-  function Speed(T: Double): Double;
+  function Speed(T: double): double;
   begin
     Result := DerivativeAt(T).Length;
   end;
@@ -139,10 +135,10 @@ begin
   Result := Integrate(@Speed, T0, T1, LengthTolerance);
 end;
 
-function TCubicBezier.ParamAtLength(S: Double): Double;
+function TCubicBezier.ParamAtLength(S: double): double;
 var
-  Total, Lo, Hi, T, F, D, Next: Double;
-  I: Integer;
+  Total, Lo, Hi, T, F, D, Next: double;
+  I: integer;
 begin
   Total := Length;
   if (S <= 0) or (Total < Epsilon) then
@@ -174,12 +170,12 @@ begin
   Result := T;
 end;
 
-function TCubicBezier.PointAtLength(S: Double): TVec2;
+function TCubicBezier.PointAtLength(S: double): TVec2;
 begin
   Result := PointAt(ParamAtLength(S));
 end;
 
-function TCubicBezier.StartAngle: Double;
+function TCubicBezier.StartAngle: double;
 begin
   // A zero-length handle has no direction; use the next control point
   if not PointsNear(P1, P0, Epsilon) then
@@ -190,7 +186,7 @@ begin
     Result := AngleBetween(P0, P3);
 end;
 
-function TCubicBezier.EndAngle: Double;
+function TCubicBezier.EndAngle: double;
 begin
   if not PointsNear(P2, P3, Epsilon) then
     Result := AngleBetween(P3, P2)
@@ -200,7 +196,7 @@ begin
     Result := AngleBetween(P3, P0);
 end;
 
-procedure TCubicBezier.Split(T: Double; out First, Second: TCubicBezier);
+procedure TCubicBezier.Split(T: double; out First, Second: TCubicBezier);
 var
   A, B, C, AB, BC, Mid: TVec2;
 begin
@@ -226,11 +222,11 @@ function TCubicBezier.Bounds: TRect2;
   end;
 
   // Extremes along one axis are where the derivative is zero
-  procedure IncludeExtremes(C0, C1, C2, C3: Double);
+  procedure IncludeExtremes(C0, C1, C2, C3: double);
   var
-    E, F, G: Double;
+    E, F, G: double;
     Roots: TDoubleArray;
-    T: Double;
+    T: double;
   begin
     E := C1 - C0;
     F := C2 - C1;
@@ -250,11 +246,11 @@ begin
   IncludeExtremes(P0.Y, P1.Y, P2.Y, P3.Y);
 end;
 
-function TCubicBezier.Flatten(Tolerance: Double): TCurveSampleArray;
+function TCubicBezier.Flatten(Tolerance: double): TCurveSampleArray;
 var
-  Count: Integer;
+  Count: integer;
 
-  procedure Add(T: Double; const P: TVec2);
+  procedure Add(T: double; const P: TVec2);
   begin
     if Count = System.Length(Result) then
       SetLength(Result, Count * 2 + 16);
@@ -264,15 +260,14 @@ var
   end;
 
   // Adds the end of the piece; its start is already in the list
-  procedure Subdivide(const C: TCubicBezier; T0, T1: Double; Depth: Integer);
+  procedure Subdivide(const C: TCubicBezier; T0, T1: double; Depth: integer);
   var
     Chord: TLine2;
-    Flat: Boolean;
+    Flat: boolean;
     First, Second: TCubicBezier;
   begin
     Chord := Line2(C.P0, C.P3);
-    Flat := (Distance(Chord.ClosestPoint(C.P1, False), C.P1) <= Tolerance)
-      and (Distance(Chord.ClosestPoint(C.P2, False), C.P2) <= Tolerance);
+    Flat := (Distance(Chord.ClosestPoint(C.P1, False), C.P1) <= Tolerance) and (Distance(Chord.ClosestPoint(C.P2, False), C.P2) <= Tolerance);
     if Flat or (Depth >= MaxFlattenDepth) then
       Add(T1, C.P3)
     else
@@ -291,11 +286,11 @@ begin
   SetLength(Result, Count);
 end;
 
-function TCubicBezier.ClosestParam(const P: TVec2): Double;
+function TCubicBezier.ClosestParam(const P: TVec2): double;
 var
   Samples: TCurveSampleArray;
-  I, J: Integer;
-  BestT, BestDist, T, Dist, F, DF: Double;
+  I, J: integer;
+  BestT, BestDist, T, Dist, F, DF: double;
   Seg: TLine2;
   Q, D1: TVec2;
 begin
@@ -344,16 +339,14 @@ begin
   Result := CubicBezier(P0 + D, P1 + D, P2 + D, P3 + D);
 end;
 
-function TCubicBezier.Rotated(const Pivot: TVec2; AngleDeg: Double): TCubicBezier;
+function TCubicBezier.Rotated(const Pivot: TVec2; AngleDeg: double): TCubicBezier;
 begin
-  Result := CubicBezier(RotatePoint(P0, Pivot, AngleDeg), RotatePoint(P1, Pivot, AngleDeg),
-    RotatePoint(P2, Pivot, AngleDeg), RotatePoint(P3, Pivot, AngleDeg));
+  Result := CubicBezier(RotatePoint(P0, Pivot, AngleDeg), RotatePoint(P1, Pivot, AngleDeg), RotatePoint(P2, Pivot, AngleDeg), RotatePoint(P3, Pivot, AngleDeg));
 end;
 
 function TCubicBezier.Mirrored(const A, B: TVec2): TCubicBezier;
 begin
-  Result := CubicBezier(MirrorPoint(P0, A, B), MirrorPoint(P1, A, B),
-    MirrorPoint(P2, A, B), MirrorPoint(P3, A, B));
+  Result := CubicBezier(MirrorPoint(P0, A, B), MirrorPoint(P1, A, B), MirrorPoint(P2, A, B), MirrorPoint(P3, A, B));
 end;
 
 { Functions }
@@ -366,20 +359,18 @@ begin
   Result.P3 := P3;
 end;
 
-function BezierFromHandles(const Start: TVec2; Angle1, Length1: Double;
-  const Finish: TVec2; Angle2, Length2: Double): TCubicBezier;
+function BezierFromHandles(const Start: TVec2; Angle1, Length1: double; const Finish: TVec2; Angle2, Length2: double): TCubicBezier;
 begin
-  Result := CubicBezier(Start, PolarPoint(Start, Length1, Angle1),
-    PolarPoint(Finish, Length2, Angle2), Finish);
+  Result := CubicBezier(Start, PolarPoint(Start, Length1, Angle1), PolarPoint(Finish, Length2, Angle2), Finish);
 end;
 
 // Sorts by T1 and drops crossings that are the same point found twice, for
 // example where two flattened segments share an end
 procedure MergeIntersections(var Hits: TIntersectionArray);
 var
-  I, N: Integer;
-  DT: Double;
-  Duplicate: Boolean;
+  I, N: integer;
+  DT: double;
+  Duplicate: boolean;
 begin
   SortIntersections(Hits);
   N := 0;
@@ -391,8 +382,7 @@ begin
       // A curve can pass through the same point twice at different
       // parameters, so a near point alone is not a duplicate
       DT := Abs(Hits[I].T1 - Hits[N - 1].T1);
-      Duplicate := (DT <= MergeParamTolerance)
-        or ((DT <= 1e-4) and PointsNear(Hits[I].Point, Hits[N - 1].Point, DefaultTolerance / 10));
+      Duplicate := (DT <= MergeParamTolerance) or ((DT <= 1e-4) and PointsNear(Hits[I].Point, Hits[N - 1].Point, DefaultTolerance / 10));
     end;
     if not Duplicate then
     begin
@@ -403,11 +393,10 @@ begin
   SetLength(Hits, N);
 end;
 
-function IntersectBezierLine(const C: TCubicBezier; const L: TLine2;
-  ExtendLine: Boolean): TIntersectionArray;
+function IntersectBezierLine(const C: TCubicBezier; const L: TLine2; ExtendLine: boolean): TIntersectionArray;
 var
   Dir: TVec2;
-  D0, D1, D2, D3, T, LineT, CurveTol, LineTol: Double;
+  D0, D1, D2, D3, T, LineT, CurveTol, LineTol: double;
   Roots: TDoubleArray;
   P: TVec2;
 begin
@@ -424,8 +413,7 @@ begin
   D3 := Cross(Dir, C.P3 - L.P1);
   if Max(Max(Abs(D0), Abs(D1)), Max(Abs(D2), Abs(D3))) < Epsilon then
     Exit; // the curve lies along the line
-  Roots := SolveCubic(-D0 + 3 * D1 - 3 * D2 + D3, 3 * D0 - 6 * D1 + 3 * D2,
-    -3 * D0 + 3 * D1, D0);
+  Roots := SolveCubic(-D0 + 3 * D1 - 3 * D2 + D3, 3 * D0 - 6 * D1 + 3 * D2, -3 * D0 + 3 * D1, D0);
 
   CurveTol := DefaultTolerance / Max(C.Length, Epsilon);
   LineTol := DefaultTolerance / L.Length;
@@ -442,11 +430,11 @@ begin
 end;
 
 // Newton on A(s) - B(t) = 0. False if it does not converge inside both curves.
-function RefineCurveCrossing(const A, B: TCubicBezier; var S, T: Double): Boolean;
+function RefineCurveCrossing(const A, B: TCubicBezier; var S, T: double): boolean;
 var
-  I: Integer;
+  I: integer;
   F, DA, DB, NegF, NegDB: TVec2;
-  Det, DS, DT: Double;
+  Det, DS, DT: double;
 begin
   for I := 1 to NewtonIterations do
   begin
@@ -468,10 +456,7 @@ begin
     if (S < -0.5) or (S > 1.5) or (T < -0.5) or (T > 1.5) then
       Exit(False);
   end;
-  Result := (S >= -MergeParamTolerance) and (S <= 1 + MergeParamTolerance)
-    and (T >= -MergeParamTolerance) and (T <= 1 + MergeParamTolerance)
-    and (Distance(A.PointAt(EnsureRange(S, 0, 1)), B.PointAt(EnsureRange(T, 0, 1)))
-      <= DefaultTolerance / 10);
+  Result := (S >= -MergeParamTolerance) and (S <= 1 + MergeParamTolerance) and (T >= -MergeParamTolerance) and (T <= 1 + MergeParamTolerance) and (Distance(A.PointAt(EnsureRange(S, 0, 1)), B.PointAt(EnsureRange(T, 0, 1))) <= DefaultTolerance / 10);
   S := EnsureRange(S, 0, 1);
   T := EnsureRange(T, 0, 1);
 end;
@@ -479,9 +464,9 @@ end;
 function IntersectBeziers(const A, B: TCubicBezier): TIntersectionArray;
 var
   SA, SB: TCurveSampleArray;
-  I, J: Integer;
+  I, J: integer;
   Hit: TIntersection;
-  S, T: Double;
+  S, T: double;
 begin
   Result := nil;
   // Find crossings of the two polylines, then refine each on the curves
@@ -489,8 +474,7 @@ begin
   SB := B.Flatten(CoarseFlatness);
   for I := 1 to High(SA) do
     for J := 1 to High(SB) do
-      if IntersectLines(Line2(SA[I - 1].Point, SA[I].Point),
-        Line2(SB[J - 1].Point, SB[J].Point), False, False, Hit) then
+      if IntersectLines(Line2(SA[I - 1].Point, SA[I].Point), Line2(SB[J - 1].Point, SB[J].Point), False, False, Hit) then
       begin
         S := SA[I - 1].T + (SA[I].T - SA[I - 1].T) * EnsureRange(Hit.T1, 0, 1);
         T := SB[J - 1].T + (SB[J].T - SB[J - 1].T) * EnsureRange(Hit.T2, 0, 1);
@@ -500,25 +484,22 @@ begin
   MergeIntersections(Result);
 end;
 
-function IntersectBezierCircle(const C: TCubicBezier; const Centre: TVec2;
-  Radius: Double): TIntersectionArray;
+function IntersectBezierCircle(const C: TCubicBezier; const Centre: TVec2; Radius: double): TIntersectionArray;
 var
   Samples: TCurveSampleArray;
   SegHits: TIntersectionArray;
-  I, J, K: Integer;
-  T, G, DG: Double;
+  I, J, K: integer;
+  T, G, DG: double;
   Q, D1: TVec2;
 begin
   Result := nil;
   Samples := C.Flatten(CoarseFlatness);
   for I := 1 to High(Samples) do
   begin
-    SegHits := IntersectLineCircle(Line2(Samples[I - 1].Point, Samples[I].Point),
-      False, Centre, Radius);
+    SegHits := IntersectLineCircle(Line2(Samples[I - 1].Point, Samples[I].Point), False, Centre, Radius);
     for J := 0 to High(SegHits) do
     begin
-      T := Samples[I - 1].T + (Samples[I].T - Samples[I - 1].T)
-        * EnsureRange(SegHits[J].T1, 0, 1);
+      T := Samples[I - 1].T + (Samples[I].T - Samples[I - 1].T) * EnsureRange(SegHits[J].T1, 0, 1);
       // Newton on |B(t) - centre|² - r² = 0
       for K := 1 to NewtonIterations do
       begin

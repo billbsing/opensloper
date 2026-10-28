@@ -17,12 +17,12 @@
 }
 
 // Formulas: parsing, references, evaluation and name/ID conversion.
-//
+
 // Users type names (Line_A_B.length + #ease_waist + @waist / 4). Parse
 // resolves them and keeps the stored ID form ({l1}.length + {v1} + @waist / 4),
 // which survives renames. DisplayText turns IDs back into current names.
 // Measurements are referred to by their stable key in both forms.
-//
+
 // Syntax: numbers, + - * / ^ (right-associative, binds tighter than unary
 // minus), brackets, and the functions sin cos tan asin acos atan2 sqrt abs
 // min max round. Angles are in degrees. Failures are reported through
@@ -52,21 +52,21 @@ type
   // Maps names to IDs and back, for the pattern being edited
   TNameResolver = class
   public
-    function ResolveMeasurement(const Name: string; out Key: string): Boolean; virtual; abstract;
-    function ResolveVariable(const Name: string; out Id: string): Boolean; virtual; abstract;
-    function ResolveObject(const Name: string; out Id: string): Boolean; virtual; abstract;
+    function ResolveMeasurement(const Name: string; out Key: string): boolean; virtual; abstract;
+    function ResolveVariable(const Name: string; out Id: string): boolean; virtual; abstract;
+    function ResolveObject(const Name: string; out Id: string): boolean; virtual; abstract;
     // Prop is valid for the object; CanonicalProp is its stored spelling
-    function ResolveProperty(const ObjectId, Prop: string; out CanonicalProp: string): Boolean; virtual; abstract;
-    function VariableName(const Id: string; out Name: string): Boolean; virtual; abstract;
-    function ObjectName(const Id: string; out Name: string): Boolean; virtual; abstract;
+    function ResolveProperty(const ObjectId, Prop: string; out CanonicalProp: string): boolean; virtual; abstract;
+    function VariableName(const Id: string; out Name: string): boolean; virtual; abstract;
+    function ObjectName(const Id: string; out Name: string): boolean; virtual; abstract;
   end;
 
   // Supplies values when a formula is evaluated
   TFormulaContext = class
   public
-    function MeasurementValue(const Key: string; out Value: Double): Boolean; virtual; abstract;
-    function VariableValue(const Id: string; out Value: Double): Boolean; virtual; abstract;
-    function PropertyValue(const ObjectId, Prop: string; out Value: Double): Boolean; virtual; abstract;
+    function MeasurementValue(const Key: string; out Value: double): boolean; virtual; abstract;
+    function VariableValue(const Id: string; out Value: double): boolean; virtual; abstract;
+    function PropertyValue(const ObjectId, Prop: string; out Value: double): boolean; virtual; abstract;
   end;
 
   TFormulaNode = class;
@@ -75,42 +75,42 @@ type
   private
     FStoredText: string;
     FTokens: TFormulaTokenArray;   // positions refer to FStoredText
-    FTokenRefs: array of Integer;  // reference index per token, or -1
+    FTokenRefs: array of integer;  // reference index per token, or -1
     FReferences: TFormulaReferenceArray;
     FRoot: TFormulaNode;
-    FValid: Boolean;
+    FValid: boolean;
     FErrorMessage: string;
-    FErrorPos: Integer;
-    FErrorToken: Integer;
+    FErrorPos: integer;
+    FErrorToken: integer;
     procedure Clear;
-    function DoParse(const Text: string; Form: TFormulaTextForm; Resolver: TNameResolver): Boolean;
+    function DoParse(const Text: string; Form: TFormulaTextForm; Resolver: TNameResolver): boolean;
     function BuildDisplay(Resolver: TNameResolver; out TokenPos: TFormulaTokenArray): string;
-    procedure SetError(const Msg: string; Pos, Token: Integer);
+    procedure SetError(const Msg: string; Pos, Token: integer);
   public
     destructor Destroy; override;
     // Parses what the user typed. On failure the formula is invalid, keeps
     // Text as typed and sets ErrorMessage and ErrorPos (in Text).
-    function Parse(const Text: string; Resolver: TNameResolver): Boolean;
+    function Parse(const Text: string; Resolver: TNameResolver): boolean;
     // Parses the stored ID form, as read from a file
-    function ParseStored(const Text: string): Boolean;
-    function Evaluate(Context: TFormulaContext; out Value: Double): Boolean;
+    function ParseStored(const Text: string): boolean;
+    function Evaluate(Context: TFormulaContext; out Value: double): boolean;
     function DisplayText(Resolver: TNameResolver): string;
     // ErrorPos converted to a position in DisplayText
-    function DisplayErrorPos(Resolver: TNameResolver): Integer;
+    function DisplayErrorPos(Resolver: TNameResolver): integer;
     // A plain number, optionally negative: can be changed by dragging
-    function IsLiteral: Boolean;
+    function IsLiteral: boolean;
     property StoredText: string read FStoredText;
     property References: TFormulaReferenceArray read FReferences;
-    property Valid: Boolean read FValid;
+    property Valid: boolean read FValid;
     property ErrorMessage: string read FErrorMessage;
     // 1-based position of the problem, or 0 when it concerns the whole formula
-    property ErrorPos: Integer read FErrorPos;
+    property ErrorPos: integer read FErrorPos;
   end;
 
   TFormulaNode = class
   public
-    Token: Integer;  // token index, for error positions
-    function Eval(Formula: TFormula; Context: TFormulaContext): Double; virtual; abstract;
+    Token: integer;  // token index, for error positions
+    function Eval(Formula: TFormula; Context: TFormulaContext): double; virtual; abstract;
   end;
 
 resourcestring
@@ -148,42 +148,42 @@ const
   FunctionNames: array[TFormulaFunction] of string = ('sin', 'cos', 'tan',
     'asin', 'acos', 'atan2', 'sqrt', 'abs', 'min', 'max', 'round');
   // Minimum and maximum number of arguments; -1 means no maximum
-  FunctionMinArgs: array[TFormulaFunction] of Integer = (1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 1);
-  FunctionMaxArgs: array[TFormulaFunction] of Integer = (1, 1, 1, 1, 1, 2, 1, 1, -1, -1, 1);
+  FunctionMinArgs: array[TFormulaFunction] of integer = (1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 1);
+  FunctionMaxArgs: array[TFormulaFunction] of integer = (1, 1, 1, 1, 1, 2, 1, 1, -1, -1, 1);
 
 type
   // Raised inside evaluation and parsing only; TFormula turns it into an error state
   EFormulaError = class(Exception)
   public
-    Token: Integer;
-    constructor Create(const Msg: string; AToken: Integer);
+    Token: integer;
+    constructor Create(const Msg: string; AToken: integer);
   end;
 
   TNumberNode = class(TFormulaNode)
   public
-    Value: Double;
-    function Eval(Formula: TFormula; Context: TFormulaContext): Double; override;
+    Value: double;
+    function Eval(Formula: TFormula; Context: TFormulaContext): double; override;
   end;
 
   TReferenceNode = class(TFormulaNode)
   public
-    Index: Integer;
-    function Eval(Formula: TFormula; Context: TFormulaContext): Double; override;
+    Index: integer;
+    function Eval(Formula: TFormula; Context: TFormulaContext): double; override;
   end;
 
   TNegateNode = class(TFormulaNode)
   public
     Operand: TFormulaNode;
     destructor Destroy; override;
-    function Eval(Formula: TFormula; Context: TFormulaContext): Double; override;
+    function Eval(Formula: TFormula; Context: TFormulaContext): double; override;
   end;
 
   TBinaryNode = class(TFormulaNode)
   public
-    Op: Char;
+    Op: char;
     Left, Right: TFormulaNode;
     destructor Destroy; override;
-    function Eval(Formula: TFormula; Context: TFormulaContext): Double; override;
+    function Eval(Formula: TFormula; Context: TFormulaContext): double; override;
   end;
 
   TFunctionNode = class(TFormulaNode)
@@ -191,7 +191,7 @@ type
     Func: TFormulaFunction;
     Args: array of TFormulaNode;
     destructor Destroy; override;
-    function Eval(Formula: TFormula; Context: TFormulaContext): Double; override;
+    function Eval(Formula: TFormula; Context: TFormulaContext): double; override;
   end;
 
   // Recursive descent over the token list:
@@ -204,9 +204,9 @@ type
   private
     FText: string;
     FTokens: TFormulaTokenArray;
-    FTokenRefs: array of Integer;
-    FPos: Integer;
-    function AtOp(AOp: Char): Boolean;
+    FTokenRefs: array of integer;
+    FPos: integer;
+    function AtOp(AOp: char): boolean;
     function ParseExpr: TFormulaNode;
     function ParseTerm: TFormulaNode;
     function ParseUnary: TFormulaNode;
@@ -215,11 +215,10 @@ type
     function ParseFunction: TFormulaNode;
     procedure Error(const Msg: string);
   public
-    function Parse(const Text: string; const Tokens: TFormulaTokenArray;
-      const TokenRefs: array of Integer): TFormulaNode;
+    function Parse(const Text: string; const Tokens: TFormulaTokenArray; const TokenRefs: array of integer): TFormulaNode;
   end;
 
-function FindFunction(const Name: string; out Func: TFormulaFunction): Boolean;
+function FindFunction(const Name: string; out Func: TFormulaFunction): boolean;
 var
   Candidate: TFormulaFunction;
 begin
@@ -241,14 +240,14 @@ begin
   end;
 end;
 
-function SameReference(const First, Second: TFormulaReference): Boolean;
+function SameReference(const First, Second: TFormulaReference): boolean;
 begin
   Result := (First.Kind = Second.Kind) and SameText(First.Id, Second.Id) and SameText(First.Prop, Second.Prop);
 end;
 
 { EFormulaError }
 
-constructor EFormulaError.Create(const Msg: string; AToken: Integer);
+constructor EFormulaError.Create(const Msg: string; AToken: integer);
 begin
   inherited Create(Msg);
   Token := AToken;
@@ -256,15 +255,15 @@ end;
 
 { Nodes }
 
-function TNumberNode.Eval(Formula: TFormula; Context: TFormulaContext): Double;
+function TNumberNode.Eval(Formula: TFormula; Context: TFormulaContext): double;
 begin
   Result := Value;
 end;
 
-function TReferenceNode.Eval(Formula: TFormula; Context: TFormulaContext): Double;
+function TReferenceNode.Eval(Formula: TFormula; Context: TFormulaContext): double;
 var
   Ref: TFormulaReference;
-  Ok: Boolean;
+  Ok: boolean;
 begin
   Ok := False;
   Ref := Formula.FReferences[Index];
@@ -283,7 +282,7 @@ begin
   inherited Destroy;
 end;
 
-function TNegateNode.Eval(Formula: TFormula; Context: TFormulaContext): Double;
+function TNegateNode.Eval(Formula: TFormula; Context: TFormulaContext): double;
 begin
   Result := -Operand.Eval(Formula, Context);
 end;
@@ -295,9 +294,9 @@ begin
   inherited Destroy;
 end;
 
-function TBinaryNode.Eval(Formula: TFormula; Context: TFormulaContext): Double;
+function TBinaryNode.Eval(Formula: TFormula; Context: TFormulaContext): double;
 var
-  LeftValue, RightValue: Double;
+  LeftValue, RightValue: double;
 begin
   LeftValue := Left.Eval(Formula, Context);
   RightValue := Right.Eval(Formula, Context);
@@ -306,11 +305,11 @@ begin
     '-': Result := LeftValue - RightValue;
     '*': Result := LeftValue * RightValue;
     '/':
-      begin
-        if RightValue = 0 then
-          raise EFormulaError.Create(rsFormulaDivideByZero, Token);
-        Result := LeftValue / RightValue;
-      end;
+    begin
+      if RightValue = 0 then
+        raise EFormulaError.Create(rsFormulaDivideByZero, Token);
+      Result := LeftValue / RightValue;
+    end;
     '^': Result := Power(LeftValue, RightValue);
   end;
 end;
@@ -324,10 +323,10 @@ begin
   inherited Destroy;
 end;
 
-function TFunctionNode.Eval(Formula: TFormula; Context: TFormulaContext): Double;
+function TFunctionNode.Eval(Formula: TFormula; Context: TFormulaContext): double;
 var
-  Values: array of Double;
-  Index: Integer;
+  Values: array of double;
+  Index: integer;
 begin
   Values := nil;
   SetLength(Values, Length(Args));
@@ -338,34 +337,34 @@ begin
     ffCos: Result := Cos(DegToRad(Values[0]));
     ffTan: Result := Tan(DegToRad(Values[0]));
     ffAsin, ffAcos:
-      begin
-        if (Values[0] < -1) or (Values[0] > 1) then
-          raise EFormulaError.Create(Format(rsFormulaOutOfDomain, [FunctionNames[Func]]), Token);
-        if Func = ffAsin then
-          Result := RadToDeg(ArcSin(Values[0]))
-        else
-          Result := RadToDeg(ArcCos(Values[0]));
-      end;
+    begin
+      if (Values[0] < -1) or (Values[0] > 1) then
+        raise EFormulaError.Create(Format(rsFormulaOutOfDomain, [FunctionNames[Func]]), Token);
+      if Func = ffAsin then
+        Result := RadToDeg(ArcSin(Values[0]))
+      else
+        Result := RadToDeg(ArcCos(Values[0]));
+    end;
     ffAtan2: Result := RadToDeg(ArcTan2(Values[0], Values[1]));
     ffSqrt:
-      begin
-        if Values[0] < 0 then
-          raise EFormulaError.Create(rsFormulaSqrtNegative, Token);
-        Result := Sqrt(Values[0]);
-      end;
+    begin
+      if Values[0] < 0 then
+        raise EFormulaError.Create(rsFormulaSqrtNegative, Token);
+      Result := Sqrt(Values[0]);
+    end;
     ffAbs: Result := Abs(Values[0]);
     ffMin:
-      begin
-        Result := Values[0];
-        for Index := 1 to High(Values) do
-          Result := Min(Result, Values[Index]);
-      end;
+    begin
+      Result := Values[0];
+      for Index := 1 to High(Values) do
+        Result := Min(Result, Values[Index]);
+    end;
     ffMax:
-      begin
-        Result := Values[0];
-        for Index := 1 to High(Values) do
-          Result := Max(Result, Values[Index]);
-      end;
+    begin
+      Result := Values[0];
+      for Index := 1 to High(Values) do
+        Result := Max(Result, Values[Index]);
+    end;
     // Half away from zero, as people expect; Pascal's Round rounds half to even
     ffRound: Result := Sign(Values[0]) * Floor(Abs(Values[0]) + 0.5);
   end;
@@ -378,16 +377,14 @@ begin
   raise EFormulaError.Create(Msg, FPos);
 end;
 
-function TFormulaParser.AtOp(AOp: Char): Boolean;
+function TFormulaParser.AtOp(AOp: char): boolean;
 begin
-  Result := (FPos <= High(FTokens)) and (FTokens[FPos].Kind = ftOperator)
-    and (FTokens[FPos].Op = AOp);
+  Result := (FPos <= High(FTokens)) and (FTokens[FPos].Kind = ftOperator) and (FTokens[FPos].Op = AOp);
 end;
 
-function TFormulaParser.Parse(const Text: string; const Tokens: TFormulaTokenArray;
-  const TokenRefs: array of Integer): TFormulaNode;
+function TFormulaParser.Parse(const Text: string; const Tokens: TFormulaTokenArray; const TokenRefs: array of integer): TFormulaNode;
 var
-  Index: Integer;
+  Index: integer;
 begin
   FText := Text;
   FTokens := Tokens;
@@ -507,19 +504,19 @@ begin
   Tok := FTokens[FPos];
   case Tok.Kind of
     ftNumber:
-      begin
-        Result := TNumberNode.Create;
-        Result.Token := FPos;
-        TNumberNode(Result).Value := Tok.Value;
-        Inc(FPos);
-      end;
+    begin
+      Result := TNumberNode.Create;
+      Result.Token := FPos;
+      TNumberNode(Result).Value := Tok.Value;
+      Inc(FPos);
+    end;
     ftMeasurement, ftVariable, ftObjectRef, ftIdRef:
-      begin
-        Result := TReferenceNode.Create;
-        Result.Token := FPos;
-        TReferenceNode(Result).Index := FTokenRefs[FPos];
-        Inc(FPos);
-      end;
+    begin
+      Result := TReferenceNode.Create;
+      Result.Token := FPos;
+      TReferenceNode(Result).Index := FTokenRefs[FPos];
+      Inc(FPos);
+    end;
     ftName:
       Result := ParseFunction;
     ftOperator:
@@ -536,8 +533,8 @@ begin
       end
       else
         Error(rsFormulaExpectedValue);
-  else
-    Error(rsFormulaExpectedValue);
+    else
+      Error(rsFormulaExpectedValue);
   end;
 end;
 
@@ -545,7 +542,7 @@ function TFormulaParser.ParseFunction: TFormulaNode;
 var
   Node: TFunctionNode;
   Func: TFormulaFunction;
-  NameToken, ArgCount: Integer;
+  NameToken, ArgCount: integer;
 begin
   // Names were checked by TFormula, so this is a known function
   FindFunction(FTokens[FPos].Name, Func);
@@ -571,8 +568,7 @@ begin
       Error(rsFormulaExpectedClose);
     Inc(FPos);
     ArgCount := Length(Node.Args);
-    if (ArgCount < FunctionMinArgs[Func])
-      or ((FunctionMaxArgs[Func] >= 0) and (ArgCount > FunctionMaxArgs[Func])) then
+    if (ArgCount < FunctionMinArgs[Func]) or ((FunctionMaxArgs[Func] >= 0) and (ArgCount > FunctionMaxArgs[Func])) then
     begin
       FPos := NameToken;
       if FunctionMaxArgs[Func] < 0 then
@@ -607,43 +603,42 @@ begin
   FErrorToken := -1;
 end;
 
-procedure TFormula.SetError(const Msg: string; Pos, Token: Integer);
+procedure TFormula.SetError(const Msg: string; Pos, Token: integer);
 begin
   FErrorMessage := Msg;
   FErrorPos := Pos;
   FErrorToken := Token;
 end;
 
-function TFormula.Parse(const Text: string; Resolver: TNameResolver): Boolean;
+function TFormula.Parse(const Text: string; Resolver: TNameResolver): boolean;
 begin
   Result := DoParse(Text, ffDisplay, Resolver);
 end;
 
-function TFormula.ParseStored(const Text: string): Boolean;
+function TFormula.ParseStored(const Text: string): boolean;
 begin
   Result := DoParse(Text, ffStored, nil);
 end;
 
-function TFormula.DoParse(const Text: string; Form: TFormulaTextForm;
-  Resolver: TNameResolver): Boolean;
+function TFormula.DoParse(const Text: string; Form: TFormulaTextForm; Resolver: TNameResolver): boolean;
 var
   Tokens: TFormulaTokenArray;
   Msg, Key, Id, Prop, Name, Stored: string;
-  ErrPos, TokenIndex, StoredPos, Last: Integer;
+  ErrPos, TokenIndex, StoredPos, Last: integer;
   Ref: TFormulaReference;
   Func: TFormulaFunction;
   Parser: TFormulaParser;
 
-  function Fail(const AMsg: string; APos: Integer): Boolean;
+  function Fail(const AMsg: string; APos: integer): boolean;
   begin
     SetError(AMsg, APos, -1);
     FStoredText := Text;
     Result := False;
   end;
 
-  function AddReference(const NewRef: TFormulaReference): Integer;
+  function AddReference(const NewRef: TFormulaReference): integer;
   var
-    ExistingIndex: Integer;
+    ExistingIndex: integer;
   begin
     for ExistingIndex := 0 to High(FReferences) do
       if SameReference(FReferences[ExistingIndex], NewRef) then
@@ -668,48 +663,47 @@ begin
     Ref := Default(TFormulaReference);
     case Tokens[TokenIndex].Kind of
       ftMeasurement:
-        begin
-          Ref.Kind := rkMeasurement;
-          if Form = ffStored then
-            Ref.Id := Tokens[TokenIndex].Name
-          else if Resolver.ResolveMeasurement(Tokens[TokenIndex].Name, Key) then
-            Ref.Id := Key
-          else
-            Exit(Fail(Format(rsFormulaUnknownMeasurement, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
-          FTokenRefs[TokenIndex] := AddReference(Ref);
-        end;
+      begin
+        Ref.Kind := rkMeasurement;
+        if Form = ffStored then
+          Ref.Id := Tokens[TokenIndex].Name
+        else if Resolver.ResolveMeasurement(Tokens[TokenIndex].Name, Key) then
+          Ref.Id := Key
+        else
+          Exit(Fail(Format(rsFormulaUnknownMeasurement, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
+        FTokenRefs[TokenIndex] := AddReference(Ref);
+      end;
       ftVariable:
-        begin
-          if not Resolver.ResolveVariable(Tokens[TokenIndex].Name, Id) then
-            Exit(Fail(Format(rsFormulaUnknownVariable, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
-          Ref.Kind := rkVariable;
-          Ref.Id := Id;
-          FTokenRefs[TokenIndex] := AddReference(Ref);
-        end;
+      begin
+        if not Resolver.ResolveVariable(Tokens[TokenIndex].Name, Id) then
+          Exit(Fail(Format(rsFormulaUnknownVariable, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
+        Ref.Kind := rkVariable;
+        Ref.Id := Id;
+        FTokenRefs[TokenIndex] := AddReference(Ref);
+      end;
       ftObjectRef:
-        begin
-          if Form = ffStored then
-            Exit(Fail(rsFormulaNamesNotIds, Tokens[TokenIndex].Pos));
-          if not Resolver.ResolveObject(Tokens[TokenIndex].Name, Id) then
-            Exit(Fail(Format(rsFormulaUnknownName, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
-          if not Resolver.ResolveProperty(Id, Tokens[TokenIndex].Prop, Prop) then
-            Exit(Fail(Format(rsFormulaUnknownProperty, [Tokens[TokenIndex].Name, Tokens[TokenIndex].Prop]),
-              Tokens[TokenIndex].Pos + Length(Tokens[TokenIndex].Name) + 1));
-          Ref.Kind := rkObject;
-          Ref.Id := Id;
-          Ref.Prop := Prop;
-          FTokenRefs[TokenIndex] := AddReference(Ref);
-        end;
+      begin
+        if Form = ffStored then
+          Exit(Fail(rsFormulaNamesNotIds, Tokens[TokenIndex].Pos));
+        if not Resolver.ResolveObject(Tokens[TokenIndex].Name, Id) then
+          Exit(Fail(Format(rsFormulaUnknownName, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
+        if not Resolver.ResolveProperty(Id, Tokens[TokenIndex].Prop, Prop) then
+          Exit(Fail(Format(rsFormulaUnknownProperty, [Tokens[TokenIndex].Name, Tokens[TokenIndex].Prop]), Tokens[TokenIndex].Pos + Length(Tokens[TokenIndex].Name) + 1));
+        Ref.Kind := rkObject;
+        Ref.Id := Id;
+        Ref.Prop := Prop;
+        FTokenRefs[TokenIndex] := AddReference(Ref);
+      end;
       ftIdRef:
-        begin
-          if Tokens[TokenIndex].Prop = '' then
-            Ref.Kind := rkVariable
-          else
-            Ref.Kind := rkObject;
-          Ref.Id := Tokens[TokenIndex].Name;
-          Ref.Prop := LowerCase(Tokens[TokenIndex].Prop);
-          FTokenRefs[TokenIndex] := AddReference(Ref);
-        end;
+      begin
+        if Tokens[TokenIndex].Prop = '' then
+          Ref.Kind := rkVariable
+        else
+          Ref.Kind := rkObject;
+        Ref.Id := Tokens[TokenIndex].Name;
+        Ref.Prop := LowerCase(Tokens[TokenIndex].Prop);
+        FTokenRefs[TokenIndex] := AddReference(Ref);
+      end;
       ftName:
         if not FindFunction(Tokens[TokenIndex].Name, Func) then
         begin
@@ -770,7 +764,7 @@ begin
   Result := True;
 end;
 
-function TFormula.Evaluate(Context: TFormulaContext; out Value: Double): Boolean;
+function TFormula.Evaluate(Context: TFormulaContext; out Value: double): boolean;
 var
   SavedMask: TFPUExceptionMask;
 begin
@@ -788,8 +782,7 @@ begin
   // infinity or NaN, caught below. Unmasked, x87 exceptions (used by Power)
   // can be raised later, outside this method.
   SavedMask := GetExceptionMask;
-  SetExceptionMask(SavedMask + [exInvalidOp, exDenormalized, exZeroDivide,
-    exOverflow, exUnderflow, exPrecision]);
+  SetExceptionMask(SavedMask + [exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
   try
     try
       Value := FRoot.Eval(Self, Context);
@@ -820,10 +813,9 @@ begin
   end;
 end;
 
-function TFormula.BuildDisplay(Resolver: TNameResolver;
-  out TokenPos: TFormulaTokenArray): string;
+function TFormula.BuildDisplay(Resolver: TNameResolver; out TokenPos: TFormulaTokenArray): string;
 var
-  TokenIndex, Last: Integer;
+  TokenIndex, Last: integer;
   Ref: TFormulaReference;
   Name, Piece: string;
 begin
@@ -870,7 +862,7 @@ begin
   Result := BuildDisplay(Resolver, TokenPos);
 end;
 
-function TFormula.DisplayErrorPos(Resolver: TNameResolver): Integer;
+function TFormula.DisplayErrorPos(Resolver: TNameResolver): integer;
 var
   TokenPos: TFormulaTokenArray;
 begin
@@ -880,10 +872,9 @@ begin
   Result := TokenPos[FErrorToken].Pos;
 end;
 
-function TFormula.IsLiteral: Boolean;
+function TFormula.IsLiteral: boolean;
 begin
-  Result := FValid and ((FRoot is TNumberNode)
-    or ((FRoot is TNegateNode) and (TNegateNode(FRoot).Operand is TNumberNode)));
+  Result := FValid and ((FRoot is TNumberNode) or ((FRoot is TNegateNode) and (TNegateNode(FRoot).Operand is TNumberNode)));
 end;
 
 end.

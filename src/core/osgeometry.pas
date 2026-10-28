@@ -36,25 +36,25 @@ const
 
 type
   TVec2 = record
-    X, Y: Double;
-    function Length: Double;
+    X, Y: double;
+    function Length: double;
     class operator +(const A, B: TVec2): TVec2;
     class operator -(const A, B: TVec2): TVec2;
     class operator -(const A: TVec2): TVec2;
-    class operator *(const A: TVec2; S: Double): TVec2;
+    class operator *(const A: TVec2; S: double): TVec2;
   end;
 
   TVec2Array = array of TVec2;
 
   TRect2 = record
-    MinX, MinY, MaxX, MaxY: Double;
+    MinX, MinY, MaxX, MaxY: double;
   end;
 
   // A crossing found by an intersection function. T1 is the parameter on the
   // first line or curve argument, T2 on the second (0 when it is a circle).
   TIntersection = record
     Point: TVec2;
-    T1, T2: Double;
+    T1, T2: double;
   end;
 
   TIntersectionArray = array of TIntersection;
@@ -62,60 +62,58 @@ type
   // Line from P1 (T = 0) to P2 (T = 1)
   TLine2 = record
     P1, P2: TVec2;
-    function Length: Double;
-    function Angle: Double;
-    function PointAt(T: Double): TVec2;
-    function PointAtLength(D: Double): TVec2;
+    function Length: double;
+    function Angle: double;
+    function PointAt(T: double): TVec2;
+    function PointAtLength(D: double): TVec2;
     // Parameter of the foot of the perpendicular from P on the infinite line
-    function ParamOf(const P: TVec2): Double;
-    function ClosestPoint(const P: TVec2; Extend: Boolean): TVec2;
+    function ParamOf(const P: TVec2): double;
+    function ClosestPoint(const P: TVec2; Extend: boolean): TVec2;
   end;
 
-function Vec2(AX, AY: Double): TVec2; inline;
+function Vec2(AX, AY: double): TVec2; inline;
 function Line2(const A, B: TVec2): TLine2; inline;
-function Dot(const A, B: TVec2): Double; inline;
-function Cross(const A, B: TVec2): Double; inline;
-function Lerp(const A, B: TVec2; T: Double): TVec2;
-function Distance(const A, B: TVec2): Double;
-function PointsNear(const A, B: TVec2; Tolerance: Double = DefaultTolerance): Boolean;
+function Dot(const A, B: TVec2): double; inline;
+function Cross(const A, B: TVec2): double; inline;
+function Lerp(const A, B: TVec2; T: double): TVec2;
+function Distance(const A, B: TVec2): double;
+function PointsNear(const A, B: TVec2; Tolerance: double = DefaultTolerance): boolean;
 
 // Angle in degrees normalised to [0, 360)
-function NormalizeAngle(AngleDeg: Double): Double;
+function NormalizeAngle(AngleDeg: double): double;
 // Point at Len from Origin in direction AngleDeg
-function PolarPoint(const Origin: TVec2; Len, AngleDeg: Double): TVec2;
+function PolarPoint(const Origin: TVec2; Len, AngleDeg: double): TVec2;
 // Angle of the direction from A to B, in degrees in [0, 360)
-function AngleBetween(const A, B: TVec2): Double;
+function AngleBetween(const A, B: TVec2): double;
 
-function RotatePoint(const P, Pivot: TVec2; AngleDeg: Double): TVec2;
+function RotatePoint(const P, Pivot: TVec2; AngleDeg: double): TVec2;
 // Mirror P across the infinite line through A and B
 function MirrorPoint(const P, A, B: TVec2): TVec2;
 
 // Intersection of two lines. Without Extend a line is limited to its ends
 // (within DefaultTolerance). False when parallel or not crossing.
-function IntersectLines(const A, B: TLine2; ExtendA, ExtendB: Boolean;
-  out Hit: TIntersection): Boolean;
+function IntersectLines(const A, B: TLine2; ExtendA, ExtendB: boolean; out Hit: TIntersection): boolean;
 // Crossings of a line and a circle, sorted by T1 (the line parameter)
-function IntersectLineCircle(const L: TLine2; Extend: Boolean;
-  const Centre: TVec2; Radius: Double): TIntersectionArray;
+function IntersectLineCircle(const L: TLine2; Extend: boolean; const Centre: TVec2; Radius: double): TIntersectionArray;
 
 // Positive when the points run anticlockwise
-function SignedArea(const Pts: TVec2Array): Double;
-function IsClockwise(const Pts: TVec2Array): Boolean;
+function SignedArea(const Pts: TVec2Array): double;
+function IsClockwise(const Pts: TVec2Array): boolean;
 // Non-zero winding rule; points exactly on the boundary may go either way
-function PointInPolygon(const P: TVec2; const Pts: TVec2Array): Boolean;
-function PolylineLength(const Pts: TVec2Array): Double;
+function PointInPolygon(const P: TVec2; const Pts: TVec2Array): boolean;
+function PolylineLength(const Pts: TVec2Array): double;
 
 procedure SortIntersections(var Hits: TIntersectionArray);
-procedure AddIntersection(var Hits: TIntersectionArray; const P: TVec2; T1, T2: Double);
+procedure AddIntersection(var Hits: TIntersectionArray; const P: TVec2; T1, T2: double);
 
 implementation
 
 uses
   Math;
 
-{ TVec2 }
+  { TVec2 }
 
-function TVec2.Length: Double;
+function TVec2.Length: double;
 begin
   Result := Hypot(X, Y);
 end;
@@ -138,7 +136,7 @@ begin
   Result.Y := -A.Y;
 end;
 
-class operator TVec2.*(const A: TVec2; S: Double): TVec2;
+class operator TVec2.*(const A: TVec2; S: double): TVec2;
 begin
   Result.X := A.X * S;
   Result.Y := A.Y * S;
@@ -146,30 +144,30 @@ end;
 
 { TLine2 }
 
-function TLine2.Length: Double;
+function TLine2.Length: double;
 begin
   Result := Distance(P1, P2);
 end;
 
-function TLine2.Angle: Double;
+function TLine2.Angle: double;
 begin
   Result := AngleBetween(P1, P2);
 end;
 
-function TLine2.PointAt(T: Double): TVec2;
+function TLine2.PointAt(T: double): TVec2;
 begin
   Result := Lerp(P1, P2, T);
 end;
 
-function TLine2.PointAtLength(D: Double): TVec2;
+function TLine2.PointAtLength(D: double): TVec2;
 begin
   Result := PolarPoint(P1, D, Angle);
 end;
 
-function TLine2.ParamOf(const P: TVec2): Double;
+function TLine2.ParamOf(const P: TVec2): double;
 var
   D: TVec2;
-  LenSq: Double;
+  LenSq: double;
 begin
   D := P2 - P1;
   LenSq := Dot(D, D);
@@ -178,9 +176,9 @@ begin
   Result := Dot(P - P1, D) / LenSq;
 end;
 
-function TLine2.ClosestPoint(const P: TVec2; Extend: Boolean): TVec2;
+function TLine2.ClosestPoint(const P: TVec2; Extend: boolean): TVec2;
 var
-  T: Double;
+  T: double;
 begin
   T := ParamOf(P);
   if not Extend then
@@ -190,7 +188,7 @@ end;
 
 { Functions }
 
-function Vec2(AX, AY: Double): TVec2;
+function Vec2(AX, AY: double): TVec2;
 begin
   Result.X := AX;
   Result.Y := AY;
@@ -202,32 +200,32 @@ begin
   Result.P2 := B;
 end;
 
-function Dot(const A, B: TVec2): Double;
+function Dot(const A, B: TVec2): double;
 begin
   Result := A.X * B.X + A.Y * B.Y;
 end;
 
-function Cross(const A, B: TVec2): Double;
+function Cross(const A, B: TVec2): double;
 begin
   Result := A.X * B.Y - A.Y * B.X;
 end;
 
-function Lerp(const A, B: TVec2; T: Double): TVec2;
+function Lerp(const A, B: TVec2; T: double): TVec2;
 begin
   Result := Vec2(A.X + (B.X - A.X) * T, A.Y + (B.Y - A.Y) * T);
 end;
 
-function Distance(const A, B: TVec2): Double;
+function Distance(const A, B: TVec2): double;
 begin
   Result := (B - A).Length;
 end;
 
-function PointsNear(const A, B: TVec2; Tolerance: Double): Boolean;
+function PointsNear(const A, B: TVec2; Tolerance: double): boolean;
 begin
   Result := Distance(A, B) <= Tolerance;
 end;
 
-function NormalizeAngle(AngleDeg: Double): Double;
+function NormalizeAngle(AngleDeg: double): double;
 begin
   Result := FMod(AngleDeg, 360);
   if Result < 0 then
@@ -236,22 +234,22 @@ begin
     Result := 0;
 end;
 
-function PolarPoint(const Origin: TVec2; Len, AngleDeg: Double): TVec2;
+function PolarPoint(const Origin: TVec2; Len, AngleDeg: double): TVec2;
 var
-  Rad: Double;
+  Rad: double;
 begin
   Rad := DegToRad(AngleDeg);
   Result := Vec2(Origin.X + Len * Cos(Rad), Origin.Y + Len * Sin(Rad));
 end;
 
-function AngleBetween(const A, B: TVec2): Double;
+function AngleBetween(const A, B: TVec2): double;
 begin
   Result := NormalizeAngle(RadToDeg(ArcTan2(B.Y - A.Y, B.X - A.X)));
 end;
 
-function RotatePoint(const P, Pivot: TVec2; AngleDeg: Double): TVec2;
+function RotatePoint(const P, Pivot: TVec2; AngleDeg: double): TVec2;
 var
-  S, C: Double;
+  S, C: double;
   D: TVec2;
 begin
   SinCos(DegToRad(AngleDeg), S, C);
@@ -268,9 +266,9 @@ begin
 end;
 
 // Parameter tolerance equivalent to DefaultTolerance along a line
-function ParamTolerance(const L: TLine2): Double;
+function ParamTolerance(const L: TLine2): double;
 var
-  Len: Double;
+  Len: double;
 begin
   Len := L.Length;
   if Len < Epsilon then
@@ -279,16 +277,15 @@ begin
     Result := DefaultTolerance / Len;
 end;
 
-function InRange01(T, Tol: Double): Boolean;
+function InRange01(T, Tol: double): boolean;
 begin
   Result := (T >= -Tol) and (T <= 1 + Tol);
 end;
 
-function IntersectLines(const A, B: TLine2; ExtendA, ExtendB: Boolean;
-  out Hit: TIntersection): Boolean;
+function IntersectLines(const A, B: TLine2; ExtendA, ExtendB: boolean; out Hit: TIntersection): boolean;
 var
   DA, DB, Diff: TVec2;
-  Denom: Double;
+  Denom: double;
 begin
   Hit := Default(TIntersection);
   DA := A.P2 - A.P1;
@@ -308,13 +305,12 @@ begin
   Result := True;
 end;
 
-function IntersectLineCircle(const L: TLine2; Extend: Boolean;
-  const Centre: TVec2; Radius: Double): TIntersectionArray;
+function IntersectLineCircle(const L: TLine2; Extend: boolean; const Centre: TVec2; Radius: double): TIntersectionArray;
 var
   D, F: TVec2;
-  A, B, C, Disc, Root, Tol: Double;
+  A, B, C, Disc, Root, Tol: double;
 
-  procedure Add(T: Double);
+  procedure Add(T: double);
   begin
     if Extend or InRange01(T, Tol) then
       AddIntersection(Result, L.PointAt(T), T, 0);
@@ -343,9 +339,9 @@ begin
   end;
 end;
 
-function SignedArea(const Pts: TVec2Array): Double;
+function SignedArea(const Pts: TVec2Array): double;
 var
-  I, J: Integer;
+  I, J: integer;
 begin
   Result := 0;
   if Length(Pts) < 3 then
@@ -359,14 +355,14 @@ begin
   Result := Result / 2;
 end;
 
-function IsClockwise(const Pts: TVec2Array): Boolean;
+function IsClockwise(const Pts: TVec2Array): boolean;
 begin
   Result := SignedArea(Pts) < 0;
 end;
 
-function PointInPolygon(const P: TVec2; const Pts: TVec2Array): Boolean;
+function PointInPolygon(const P: TVec2; const Pts: TVec2Array): boolean;
 var
-  I, J, Winding: Integer;
+  I, J, Winding: integer;
   A, B: TVec2;
 begin
   Winding := 0;
@@ -389,9 +385,9 @@ begin
   Result := Winding <> 0;
 end;
 
-function PolylineLength(const Pts: TVec2Array): Double;
+function PolylineLength(const Pts: TVec2Array): double;
 var
-  I: Integer;
+  I: integer;
 begin
   Result := 0;
   for I := 1 to High(Pts) do
@@ -400,7 +396,7 @@ end;
 
 procedure SortIntersections(var Hits: TIntersectionArray);
 var
-  I, J: Integer;
+  I, J: integer;
   Tmp: TIntersection;
 begin
   // Insertion sort: the lists are a handful of items
@@ -417,9 +413,9 @@ begin
   end;
 end;
 
-procedure AddIntersection(var Hits: TIntersectionArray; const P: TVec2; T1, T2: Double);
+procedure AddIntersection(var Hits: TIntersectionArray; const P: TVec2; T1, T2: double);
 var
-  N: Integer;
+  N: integer;
 begin
   N := Length(Hits);
   SetLength(Hits, N + 1);

@@ -26,15 +26,15 @@ unit osNumeric;
 interface
 
 type
-  TDoubleArray = array of Double;
-  TRealFunction = function(X: Double): Double is nested;
+  TDoubleArray = array of double;
+  TRealFunction = function(X: double): double is nested;
 
 // Real roots of A x² + B x + C = 0, ascending; falls back to linear when A is 0
-function SolveQuadratic(A, B, C: Double): TDoubleArray;
+function SolveQuadratic(A, B, C: double): TDoubleArray;
 // Real roots of A x³ + B x² + C x + D = 0, ascending, repeated roots once
-function SolveCubic(A, B, C, D: Double): TDoubleArray;
+function SolveCubic(A, B, C, D: double): TDoubleArray;
 // Integral of F over [Lo, Hi] to within about Tolerance
-function Integrate(F: TRealFunction; Lo, Hi: Double; Tolerance: Double = 1e-9): Double;
+function Integrate(F: TRealFunction; Lo, Hi: double; Tolerance: double = 1e-9): double;
 
 implementation
 
@@ -45,15 +45,14 @@ const
   // Coefficients smaller than this, relative to the largest, count as zero
   RelativeZero = 1e-12;
   // Five-point Gauss-Legendre nodes and weights on [-1, 1]
-  GLNodes: array[0..4] of Double = (0, -0.5384693101056831, 0.5384693101056831,
-    -0.9061798459386640, 0.9061798459386640);
-  GLWeights: array[0..4] of Double = (0.5688888888888889, 0.4786286704993665,
+  GLNodes: array[0..4] of double = (0, -0.5384693101056831, 0.5384693101056831, -0.9061798459386640, 0.9061798459386640);
+  GLWeights: array[0..4] of double = (0.5688888888888889, 0.4786286704993665,
     0.4786286704993665, 0.2369268850561891, 0.2369268850561891);
   MaxIntegrateDepth = 30;
 
-procedure AddRoot(var Roots: TDoubleArray; X: Double);
+procedure AddRoot(var Roots: TDoubleArray; X: double);
 var
-  N: Integer;
+  N: integer;
 begin
   N := Length(Roots);
   SetLength(Roots, N + 1);
@@ -62,8 +61,8 @@ end;
 
 procedure SortAndMerge(var Roots: TDoubleArray);
 var
-  I, J, N: Integer;
-  Tmp: Double;
+  I, J, N: integer;
+  Tmp: double;
 begin
   for I := 1 to High(Roots) do
   begin
@@ -86,9 +85,9 @@ begin
   SetLength(Roots, N);
 end;
 
-function SolveQuadratic(A, B, C: Double): TDoubleArray;
+function SolveQuadratic(A, B, C: double): TDoubleArray;
 var
-  Disc, Q, Scale: Double;
+  Disc, Q, Scale: double;
 begin
   Result := nil;
   Scale := Max(Abs(A), Max(Abs(B), Abs(C)));
@@ -117,10 +116,10 @@ begin
   SortAndMerge(Result);
 end;
 
-function PolishCubicRoot(A, B, C, D, X: Double): Double;
+function PolishCubicRoot(A, B, C, D, X: double): double;
 var
-  I: Integer;
-  F, DF: Double;
+  I: integer;
+  F, DF: double;
 begin
   Result := X;
   for I := 1 to 4 do
@@ -132,15 +131,14 @@ begin
     Result := Result - F / DF;
   end;
   // Keep the unpolished value if polishing made it worse (near double roots)
-  if Abs(((A * Result + B) * Result + C) * Result + D) >
-     Abs(((A * X + B) * X + C) * X + D) then
+  if Abs(((A * Result + B) * Result + C) * Result + D) > Abs(((A * X + B) * X + C) * X + D) then
     Result := X;
 end;
 
-function SolveCubic(A, B, C, D: Double): TDoubleArray;
+function SolveCubic(A, B, C, D: double): TDoubleArray;
 var
-  Scale, P, Q, Disc, Shift, R, Phi, U: Double;
-  K: Integer;
+  Scale, P, Q, Disc, Shift, R, Phi, U: double;
+  K: integer;
 begin
   Result := nil;
   Scale := Max(Max(Abs(A), Abs(B)), Max(Abs(C), Abs(D)));
@@ -169,8 +167,7 @@ begin
   else if Disc > 0 then
   begin
     U := Sqrt(Disc);
-    AddRoot(Result, Power(Abs(-Q / 2 + U), 1 / 3) * Sign(-Q / 2 + U)
-      + Power(Abs(-Q / 2 - U), 1 / 3) * Sign(-Q / 2 - U) - Shift);
+    AddRoot(Result, Power(Abs(-Q / 2 + U), 1 / 3) * Sign(-Q / 2 + U) + Power(Abs(-Q / 2 - U), 1 / 3) * Sign(-Q / 2 - U) - Shift);
   end
   else
   begin
@@ -186,10 +183,10 @@ begin
   SortAndMerge(Result);
 end;
 
-function GaussLegendre(F: TRealFunction; Lo, Hi: Double): Double;
+function GaussLegendre(F: TRealFunction; Lo, Hi: double): double;
 var
-  I: Integer;
-  Mid, Half: Double;
+  I: integer;
+  Mid, Half: double;
 begin
   Mid := (Lo + Hi) / 2;
   Half := (Hi - Lo) / 2;
@@ -199,21 +196,19 @@ begin
   Result := Result * Half;
 end;
 
-function IntegrateRange(F: TRealFunction; Lo, Hi, Whole, Tolerance: Double;
-  Depth: Integer): Double;
+function IntegrateRange(F: TRealFunction; Lo, Hi, Whole, Tolerance: double; Depth: integer): double;
 var
-  Mid, Left, Right: Double;
+  Mid, Left, Right: double;
 begin
   Mid := (Lo + Hi) / 2;
   Left := GaussLegendre(F, Lo, Mid);
   Right := GaussLegendre(F, Mid, Hi);
   if (Depth >= MaxIntegrateDepth) or (Abs(Left + Right - Whole) <= Tolerance) then
     Exit(Left + Right);
-  Result := IntegrateRange(F, Lo, Mid, Left, Tolerance / 2, Depth + 1)
-    + IntegrateRange(F, Mid, Hi, Right, Tolerance / 2, Depth + 1);
+  Result := IntegrateRange(F, Lo, Mid, Left, Tolerance / 2, Depth + 1) + IntegrateRange(F, Mid, Hi, Right, Tolerance / 2, Depth + 1);
 end;
 
-function Integrate(F: TRealFunction; Lo, Hi: Double; Tolerance: Double): Double;
+function Integrate(F: TRealFunction; Lo, Hi: double; Tolerance: double): double;
 begin
   if Lo = Hi then
     Exit(0);

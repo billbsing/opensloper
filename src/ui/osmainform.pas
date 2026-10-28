@@ -49,22 +49,16 @@ implementation
 uses
   osVersion;
 
-{$R *.lfm}
+  {$R *.lfm}
 
 resourcestring
   rsMenuFile = '&File';
   rsMenuFileQuit = '&Quit';
   rsMenuHelp = '&Help';
   rsMenuHelpAbout = '&About OpenSloper';
-  rsAboutText = '%s %s'#10#10
-    + 'Parametric sewing pattern drafting.'#10#10
-    + 'This program is free software: you can redistribute it and/or modify '
-    + 'it under the terms of the GNU General Public License as published by '
-    + 'the Free Software Foundation, either version 3 of the License, or '
-    + '(at your option) any later version.'#10#10
-    + 'This program comes with ABSOLUTELY NO WARRANTY.';
+  rsAboutText = '%s %s'#10#10 + 'Parametric sewing pattern drafting.'#10#10 + 'This program is free software: you can redistribute it and/or modify ' + 'it under the terms of the GNU General Public License as published by ' + 'the Free Software Foundation, either version 3 of the License, or ' + '(at your option) any later version.'#10#10 + 'This program comes with ABSOLUTELY NO WARRANTY.';
 
-{ TMainForm }
+  { TMainForm }
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
