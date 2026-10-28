@@ -62,6 +62,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="osAppPaths"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/osnumeric.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osNumeric"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/osbezier.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osBezier"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

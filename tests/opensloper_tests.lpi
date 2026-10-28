@@ -56,6 +56,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="TestClipper"/>
       </Unit>
+      <Unit>
+        <Filename Value="testnumeric.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestNumeric"/>
+      </Unit>
+      <Unit>
+        <Filename Value="testbezier.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestBezier"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

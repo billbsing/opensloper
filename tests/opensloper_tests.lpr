@@ -22,7 +22,7 @@ program opensloper_tests;
 
 uses
   Classes, consoletestrunner,
-  TestGeometry, TestAppPaths, TestClipper;
+  TestGeometry, TestNumeric, TestBezier, TestAppPaths, TestClipper;
 
 var
   App: TTestRunner;
