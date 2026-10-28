@@ -64,8 +64,8 @@ type
     function CheckKey(const Key: string; Exclude: TMeasurement; out ErrorMessage: string): Boolean;
     // Add and Rename raise EMeasurementError for a key that fails CheckKey
     function Add(const Key: string; Value: Double; const Description: string = ''): TMeasurement;
-    procedure Rename(M: TMeasurement; const NewKey: string);
-    procedure Delete(M: TMeasurement);
+    procedure Rename(Measurement: TMeasurement; const NewKey: string);
+    procedure Delete(Measurement: TMeasurement);
     function SaveToText: string;
     // On failure the set is left empty and ErrorMessage says why
     function LoadFromText(const Text: string; out ErrorMessage: string): Boolean;
@@ -103,10 +103,10 @@ end;
 
 procedure TMeasurementSet.Clear;
 var
-  I: Integer;
+  Index: Integer;
 begin
-  for I := 0 to FItems.Count - 1 do
-    TMeasurement(FItems[I]).Free;
+  for Index := 0 to FItems.Count - 1 do
+    TMeasurement(FItems[Index]).Free;
   FItems.Clear;
   Name := '';
   Notes := '';
@@ -132,23 +132,23 @@ end;
 
 function TMeasurementSet.Find(const Key: string): TMeasurement;
 var
-  I: Integer;
+  Index: Integer;
 begin
-  I := IndexOf(Key);
-  if I < 0 then
+  Index := IndexOf(Key);
+  if Index < 0 then
     Result := nil
   else
-    Result := Items[I];
+    Result := Items[Index];
 end;
 
 function TMeasurementSet.TryGetValue(const Key: string; out Value: Double): Boolean;
 var
-  M: TMeasurement;
+  Measurement: TMeasurement;
 begin
-  M := Find(Key);
-  Result := M <> nil;
+  Measurement := Find(Key);
+  Result := Measurement <> nil;
   if Result then
-    Value := M.Value
+    Value := Measurement.Value
   else
     Value := 0;
 end;
@@ -156,12 +156,12 @@ end;
 function TMeasurementSet.CheckKey(const Key: string; Exclude: TMeasurement;
   out ErrorMessage: string): Boolean;
 var
-  M: TMeasurement;
+  Existing: TMeasurement;
 begin
   if not CheckName(Key, ErrorMessage) then
     Exit(False);
-  M := Find(Key);
-  if (M <> nil) and (M <> Exclude) then
+  Existing := Find(Key);
+  if (Existing <> nil) and (Existing <> Exclude) then
   begin
     ErrorMessage := Format(rsNameTaken, [Key]);
     Exit(False);
@@ -183,26 +183,26 @@ begin
   FItems.Add(Result);
 end;
 
-procedure TMeasurementSet.Rename(M: TMeasurement; const NewKey: string);
+procedure TMeasurementSet.Rename(Measurement: TMeasurement; const NewKey: string);
 var
   Msg: string;
 begin
-  if not CheckKey(NewKey, M, Msg) then
+  if not CheckKey(NewKey, Measurement, Msg) then
     raise EMeasurementError.Create(Msg);
-  M.FKey := NewKey;
+  Measurement.FKey := NewKey;
 end;
 
-procedure TMeasurementSet.Delete(M: TMeasurement);
+procedure TMeasurementSet.Delete(Measurement: TMeasurement);
 begin
-  if FItems.Remove(M) >= 0 then
-    M.Free;
+  if FItems.Remove(Measurement) >= 0 then
+    Measurement.Free;
 end;
 
 function TMeasurementSet.ToJSON: TJSONObject;
 var
   List: TJSONArray;
   Item: TJSONObject;
-  I: Integer;
+  Index: Integer;
 begin
   Result := TJSONObject.Create;
   Result.Add('format', MeasurementFormat);
@@ -212,12 +212,12 @@ begin
   Result.Add('notes', Notes);
   List := TJSONArray.Create;
   Result.Add('measurements', List);
-  for I := 0 to Count - 1 do
+  for Index := 0 to Count - 1 do
   begin
     Item := TJSONObject.Create;
-    Item.Add('key', Items[I].Key);
-    Item.Add('value', JSONFloat(Items[I].Value));
-    Item.Add('description', Items[I].Description);
+    Item.Add('key', Items[Index].Key);
+    Item.Add('value', JSONFloat(Items[Index].Value));
+    Item.Add('description', Items[Index].Description);
     List.Add(Item);
   end;
 end;
@@ -238,8 +238,8 @@ function TMeasurementSet.LoadFromText(const Text: string; out ErrorMessage: stri
 var
   Obj, Item: TJSONObject;
   List: TJSONData;
-  S, Key, Desc: string;
-  Version, I: Integer;
+  TextValue, Key, Desc: string;
+  Version, Index: Integer;
   Value: Double;
   KeyError: string;
 
@@ -255,24 +255,24 @@ begin
   if not ParseJSONObject(Text, Obj, ErrorMessage) then
     Exit(False);
   try
-    if not GetJSONString(Obj, 'format', S) or (S <> MeasurementFormat) then
+    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> MeasurementFormat) then
       Exit(Fail(rsMeasurementWrongFormat));
     if not GetJSONInteger(Obj, 'version', Version) then
       Exit(Fail(rsMeasurementWrongFormat));
     if Version > MeasurementVersion then
       Exit(Fail(Format(rsMeasurementNewerVersion, [Version])));
-    if GetJSONString(Obj, 'units', S) and (S <> 'mm') then
-      Exit(Fail(Format(rsMeasurementUnits, [S])));
+    if GetJSONString(Obj, 'units', TextValue) and (TextValue <> 'mm') then
+      Exit(Fail(Format(rsMeasurementUnits, [TextValue])));
     GetJSONString(Obj, 'name', Name);
     GetJSONString(Obj, 'notes', Notes);
     List := Obj.Find('measurements');
     if (List = nil) or (List.JSONType <> jtArray) then
       Exit(Fail(rsMeasurementList));
-    for I := 0 to List.Count - 1 do
+    for Index := 0 to List.Count - 1 do
     begin
-      if List.Items[I].JSONType <> jtObject then
+      if List.Items[Index].JSONType <> jtObject then
         Exit(Fail(Format(rsMeasurementMissing, ['key'])));
-      Item := TJSONObject(List.Items[I]);
+      Item := TJSONObject(List.Items[Index]);
       if not GetJSONString(Item, 'key', Key) then
         Exit(Fail(Format(rsMeasurementMissing, ['key'])));
       if not CheckKey(Key, nil, KeyError) then

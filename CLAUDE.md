@@ -39,6 +39,8 @@ Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa.
 - Every user change is a `TCommand` with `Execute` and `Undo`; one drag is one undo step.
 - Evaluation failures are states (error, invalid, blocked), never exceptions that escape to the UI.
 - User-visible text goes in `resourcestring` sections.
+- Descriptive names, no single-letter variables or parameters (`Index`, not `I`; `Node`, not `N`). Exceptions: the core math units (`osgeometry`, `osbezier`, `osnumeric`), where single letters read better in formulas, and `tests/`.
+- A parameter takes an `A` prefix when its plain name would clash with a field, property or method (`AName`, `AEdge`, `AValue`); locals use plain descriptive names.
 - File paths go through `TAppPaths`; build paths with `ConcatPaths` / `PathDelim`, never a hard-coded `/`.
 - Every program lists `osCodePage` first in its uses clause and is compiled with `-FcUTF8`, so strings are UTF-8 throughout.
 - Files are written through `osJSON` (`JSONToText`, `JSONFloat`) for a stable layout; loading reports errors as messages, never exceptions.

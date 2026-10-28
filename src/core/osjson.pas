@@ -37,8 +37,8 @@ type
   end;
 
 // Shortest text that reads back as exactly V, with '.' as decimal point
-function FormatJSONFloat(V: Double): string;
-function JSONFloat(V: Double): TJSONData;
+function FormatJSONFloat(Value: Double): string;
+function JSONFloat(Value: Double): TJSONData;
 // Two-space indent, "key": value, members in insertion order, LF line ends
 function JSONToText(Data: TJSONData): string;
 // Parses Text, which must hold a JSON object. The caller frees Obj.
@@ -69,22 +69,22 @@ begin
   Result.ThousandSeparator := #0;
 end;
 
-function FormatJSONFloat(V: Double): string;
+function FormatJSONFloat(Value: Double): string;
 var
   Settings: TFormatSettings;
   Precision: Integer;
   Back: Double;
 begin
-  if Frac(V) = 0 then
-    if Abs(V) < 1e15 then
-      Exit(IntToStr(Trunc(V)));
+  if Frac(Value) = 0 then
+    if Abs(Value) < 1e15 then
+      Exit(IntToStr(Trunc(Value)));
   Settings := JSONFormatSettings;
   for Precision := 15 to 17 do
   begin
-    Result := FloatToStrF(V, ffGeneral, Precision, 0, Settings);
+    Result := FloatToStrF(Value, ffGeneral, Precision, 0, Settings);
     // StrToFloat returns Extended; compare as Double or 0.1 never matches
     Back := StrToFloat(Result, Settings);
-    if Back = V then
+    if Back = Value then
       Exit;
   end;
 end;
@@ -94,14 +94,14 @@ begin
   Result := FormatJSONFloat(AsFloat);
 end;
 
-function JSONFloat(V: Double): TJSONData;
+function JSONFloat(Value: Double): TJSONData;
 begin
-  Result := TOSJSONFloat.Create(V);
+  Result := TOSJSONFloat.Create(Value);
 end;
 
 procedure WriteValue(Data: TJSONData; const Indent: string; Lines: TStrings; var Line: string);
 var
-  I: Integer;
+  Index: Integer;
   Inner: string;
   Obj: TJSONObject;
 begin
@@ -116,11 +116,11 @@ begin
         end;
         Lines.Add(Line + '{');
         Inner := Indent + '  ';
-        for I := 0 to Obj.Count - 1 do
+        for Index := 0 to Obj.Count - 1 do
         begin
-          Line := Inner + '"' + StringToJSONString(Obj.Names[I]) + '": ';
-          WriteValue(Obj.Items[I], Inner, Lines, Line);
-          if I < Obj.Count - 1 then
+          Line := Inner + '"' + StringToJSONString(Obj.Names[Index]) + '": ';
+          WriteValue(Obj.Items[Index], Inner, Lines, Line);
+          if Index < Obj.Count - 1 then
             Line := Line + ',';
           Lines.Add(Line);
         end;
@@ -135,11 +135,11 @@ begin
         end;
         Lines.Add(Line + '[');
         Inner := Indent + '  ';
-        for I := 0 to Data.Count - 1 do
+        for Index := 0 to Data.Count - 1 do
         begin
           Line := Inner;
-          WriteValue(Data.Items[I], Inner, Lines, Line);
-          if I < Data.Count - 1 then
+          WriteValue(Data.Items[Index], Inner, Lines, Line);
+          if Index < Data.Count - 1 then
             Line := Line + ',';
           Lines.Add(Line);
         end;
@@ -160,7 +160,7 @@ function JSONToText(Data: TJSONData): string;
 var
   Lines: TStringList;
   Line: string;
-  I: Integer;
+  Index: Integer;
 begin
   Lines := TStringList.Create;
   try
@@ -168,8 +168,8 @@ begin
     WriteValue(Data, '', Lines, Line);
     Lines.Add(Line);
     Result := '';
-    for I := 0 to Lines.Count - 1 do
-      Result := Result + Lines[I] + #10;
+    for Index := 0 to Lines.Count - 1 do
+      Result := Result + Lines[Index] + #10;
   finally
     Lines.Free;
   end;
@@ -184,9 +184,9 @@ begin
   try
     Data := GetJSON(Text);
   except
-    on E: Exception do
+    on Failure: Exception do
     begin
-      ErrorMessage := Format(rsJSONSyntax, [E.Message]);
+      ErrorMessage := Format(rsJSONSyntax, [Failure.Message]);
       Exit(False);
     end;
   end;
@@ -217,9 +217,9 @@ begin
     end;
     Result := True;
   except
-    on E: Exception do
+    on Failure: Exception do
     begin
-      ErrorMessage := Format(rsFileRead, [FileName, E.Message]);
+      ErrorMessage := Format(rsFileRead, [FileName, Failure.Message]);
       Result := False;
     end;
   end;
@@ -240,9 +240,9 @@ begin
     end;
     Result := True;
   except
-    on E: Exception do
+    on Failure: Exception do
     begin
-      ErrorMessage := Format(rsFileWrite, [FileName, E.Message]);
+      ErrorMessage := Format(rsFileWrite, [FileName, Failure.Message]);
       Result := False;
     end;
   end;

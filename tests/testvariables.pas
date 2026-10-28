@@ -23,15 +23,16 @@ unit TestVariables;
 interface
 
 uses
-  fpcunit, testregistry, osTestCase, osEvalTypes, osMeasurements, osVariables;
+  fpcunit, testregistry, osTestCase, osEvalTypes, osMeasurements, osVariables, osPattern;
 
 type
   TTestVariables = class(TOSTestCase)
   private
     FSet: TMeasurementSet;
-    FVars: TVariableList;
-    function AddVar(const Name, Formula: string): TVariable;
+    FPattern: TPattern;
+    function AddVar(const AName, Formula: string): TVariable;
     procedure AssertValid(const Msg: string; V: TVariable; Expected: Double);
+    procedure LoadText(const Text: string);
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -43,6 +44,7 @@ type
     procedure TestNameChecks;
     procedure TestBadFormulaRefused;
     procedure TestUnknownMeasurementRefused;
+    procedure TestVariablesCannotUseObjects;
     procedure TestSelfReferenceRefused;
     procedure TestCycleRefused;
     procedure TestRefusedEditKeepsOldFormula;
@@ -64,28 +66,28 @@ type
 implementation
 
 uses
-  SysUtils, fpjson, osNames, osFormula, osJSON;
+  SysUtils, fpjson, osNames, osFormula, osEvaluator, osJSON;
 
 procedure TTestVariables.SetUp;
 begin
   FSet := TMeasurementSet.Create;
   FSet.Add('waist', 720);
   FSet.Add('hip', 960);
-  FVars := TVariableList.Create;
-  FVars.Measurements := FSet;
+  FPattern := TPattern.Create;
+  FPattern.Measurements := FSet;
 end;
 
 procedure TTestVariables.TearDown;
 begin
-  FVars.Free;
+  FPattern.Free;
   FSet.Free;
 end;
 
-function TTestVariables.AddVar(const Name, Formula: string): TVariable;
+function TTestVariables.AddVar(const AName, Formula: string): TVariable;
 begin
-  Result := FVars.Add(Name, Formula);
+  Result := FPattern.AddVariable(AName, Formula);
   if Result = nil then
-    Fail(Format('Adding #%s = %s failed: %s', [Name, Formula, FVars.LastError]));
+    Fail(Format('Adding #%s = %s failed: %s', [AName, Formula, FPattern.LastError]));
 end;
 
 procedure TTestVariables.AssertValid(const Msg: string; V: TVariable; Expected: Double);
@@ -94,11 +96,25 @@ begin
   AssertNear(Msg, Expected, V.Value);
 end;
 
+procedure TTestVariables.LoadText(const Text: string);
+var
+  Data: TJSONData;
+  Err: string;
+begin
+  Data := GetJSON(Text);
+  try
+    if not FPattern.LoadVariables(Data, Err) then
+      Fail('Load failed: ' + Err);
+  finally
+    Data.Free;
+  end;
+end;
+
 procedure TTestVariables.TestAddAssignsIds;
 begin
-  AssertEquals('v1', AddVar('ease_waist', '20').Id);
-  AssertEquals('v2', AddVar('ease_hip', '30').Id);
-  AssertEquals(2, FVars.Count);
+  AssertEquals('v1', AddVar('ease_waist', '20').Key);
+  AssertEquals('v2', AddVar('ease_hip', '30').Key);
+  AssertEquals(2, FPattern.VariableCount);
 end;
 
 procedure TTestVariables.TestEvaluateChain;
@@ -107,7 +123,7 @@ var
 begin
   A := AddVar('ease', '20');
   B := AddVar('front_waist', '@waist / 4 + #ease');
-  FVars.Evaluate;
+  FPattern.Evaluate;
   AssertValid('ease', A, 20);
   AssertValid('front_waist', B, 200);
 end;
@@ -116,12 +132,12 @@ procedure TTestVariables.TestOrderDoesNotMatter;
 var
   A, B, C: TVariable;
 begin
-  // A is first in the list but ends up reading C, added last
+  // a is first in the list but ends up reading c, added last
   A := AddVar('a', '1');
   B := AddVar('b', '#a * 10');
   C := AddVar('c', '5');
-  AssertTrue(FVars.LastError, FVars.SetFormula(A, '#c + 1'));
-  FVars.Evaluate;
+  AssertTrue(FPattern.LastError, FPattern.SetFormula(A, 'formula', '#c + 1'));
+  FPattern.Evaluate;
   AssertValid('c', C, 5);
   AssertValid('a', A, 6);
   AssertValid('b', B, 60);
@@ -134,7 +150,7 @@ begin
   AddVar('ease', '20');
   B := AddVar('front', '@waist/4 + #EASE');
   AssertEquals('stored', '@waist/4 + {v1}', B.Formula.StoredText);
-  AssertEquals('display', '@waist/4 + #ease', FVars.FormulaText(B));
+  AssertEquals('display', '@waist/4 + #ease', FPattern.FormulaText(B, 'formula'));
 end;
 
 procedure TTestVariables.TestNameChecks;
@@ -142,28 +158,38 @@ var
   Msg: string;
 begin
   AddVar('ease', '20');
-  AssertFalse('duplicate', FVars.CheckName('Ease', nil, Msg));
+  AssertFalse('duplicate', FPattern.CheckVariableName('Ease', nil, Msg));
   AssertEquals(Format(rsNameTaken, ['Ease']), Msg);
-  AssertFalse('invalid', FVars.CheckName('2nd', nil, Msg));
-  AssertFalse('reserved', FVars.CheckName('max', nil, Msg));
-  AssertNull('add refused', FVars.Add('ease', '1'));
-  AssertEquals(Format(rsNameTaken, ['ease']), FVars.LastError);
-  // Measurements and variables are separate namespaces
-  AssertNotNull('same name as a measurement', FVars.Add('waist', '1'));
+  AssertFalse('invalid', FPattern.CheckVariableName('2nd', nil, Msg));
+  AssertFalse('reserved', FPattern.CheckVariableName('max', nil, Msg));
+  AssertNull('add refused', FPattern.AddVariable('ease', '1'));
+  AssertEquals(Format(rsNameTaken, ['ease']), FPattern.LastError);
+  // Measurements, variables and objects are separate namespaces
+  AssertNotNull('same name as a measurement', FPattern.AddVariable('waist', '1'));
+  AssertNotNull('same name as a point', FPattern.AddFreePoint('ease', '0', '0'));
 end;
 
 procedure TTestVariables.TestBadFormulaRefused;
 begin
-  AssertNull(FVars.Add('ease', '20 +'));
-  AssertEquals(rsFormulaEndsTooSoon, FVars.LastError);
-  AssertEquals('position', 5, FVars.LastErrorPos);
-  AssertEquals('nothing added', 0, FVars.Count);
+  AssertNull(FPattern.AddVariable('ease', '20 +'));
+  AssertEquals(rsFormulaEndsTooSoon, FPattern.LastError);
+  AssertEquals('field', 'formula', FPattern.LastErrorField);
+  AssertEquals('position', 5, FPattern.LastErrorPos);
+  AssertEquals('nothing added', 0, FPattern.VariableCount);
+  AssertEquals('ID not used up', 'v1', AddVar('ease', '20').Key);
 end;
 
 procedure TTestVariables.TestUnknownMeasurementRefused;
 begin
-  AssertNull(FVars.Add('ease', '@chest / 10'));
-  AssertEquals(Format(rsFormulaUnknownMeasurement, ['chest']), FVars.LastError);
+  AssertNull(FPattern.AddVariable('ease', '@chest / 10'));
+  AssertEquals(Format(rsFormulaUnknownMeasurement, ['chest']), FPattern.LastError);
+end;
+
+procedure TTestVariables.TestVariablesCannotUseObjects;
+begin
+  FPattern.AddFreePoint('A', '0', '0');
+  AssertNull(FPattern.AddVariable('ease', 'A.x + 1'));
+  AssertEquals(Format(rsFormulaUnknownName, ['A']), FPattern.LastError);
 end;
 
 procedure TTestVariables.TestSelfReferenceRefused;
@@ -171,21 +197,21 @@ var
   A: TVariable;
 begin
   A := AddVar('a', '1');
-  AssertFalse(FVars.SetFormula(A, '#a + 1'));
-  AssertEquals(Format(rsVariableUsesItself, ['a']), FVars.LastError);
+  AssertFalse(FPattern.SetFormula(A, 'formula', '#a + 1'));
+  AssertEquals(Format(rsPatternUsesItself, ['#a']), FPattern.LastError);
 end;
 
 procedure TTestVariables.TestCycleRefused;
 var
-  A, B, C: TVariable;
+  A, B: TVariable;
 begin
   A := AddVar('a', '1');
   B := AddVar('b', '#a + 1');
-  C := AddVar('c', '#b + 1');
-  AssertFalse(FVars.SetFormula(A, '#c * 2'));
-  AssertEquals(Format(rsVariableCycle, ['a', 'c', 'c', 'a']), FVars.LastError);
-  AssertTrue('unrelated edit still fine', FVars.SetFormula(B, '7'));
-  AssertTrue('and now a may read c', FVars.SetFormula(A, '#c * 2'));
+  AddVar('c', '#b + 1');
+  AssertFalse(FPattern.SetFormula(A, 'formula', '#c * 2'));
+  AssertEquals(Format(rsPatternCycle, ['#a', '#c', '#c', '#a']), FPattern.LastError);
+  AssertTrue('unrelated edit still fine', FPattern.SetFormula(B, 'formula', '7'));
+  AssertTrue('and now a may read c', FPattern.SetFormula(A, 'formula', '#c * 2'));
 end;
 
 procedure TTestVariables.TestRefusedEditKeepsOldFormula;
@@ -193,9 +219,9 @@ var
   A: TVariable;
 begin
   A := AddVar('a', '@hip / 2');
-  AssertFalse(FVars.SetFormula(A, '@hip /'));
-  AssertEquals('@hip / 2', FVars.FormulaText(A));
-  FVars.Evaluate;
+  AssertFalse(FPattern.SetFormula(A, 'formula', '@hip /'));
+  AssertEquals('@hip / 2', FPattern.FormulaText(A, 'formula'));
+  FPattern.Evaluate;
   AssertValid('a', A, 480);
 end;
 
@@ -205,11 +231,11 @@ var
 begin
   A := AddVar('ease', '20');
   B := AddVar('front', '#ease * 2');
-  AssertTrue(FVars.Rename(A, 'ease_waist'));
-  AssertEquals('#ease_waist * 2', FVars.FormulaText(B));
-  AssertFalse('onto another name', FVars.Rename(A, 'FRONT'));
-  AssertTrue('change of case only', FVars.Rename(A, 'Ease_Waist'));
-  FVars.Evaluate;
+  AssertTrue(FPattern.Rename(A, 'ease_waist'));
+  AssertEquals('#ease_waist * 2', FPattern.FormulaText(B, 'formula'));
+  AssertFalse('onto another name', FPattern.Rename(A, 'FRONT'));
+  AssertTrue('change of case only', FPattern.Rename(A, 'Ease_Waist'));
+  FPattern.Evaluate;
   AssertValid('front', B, 40);
 end;
 
@@ -220,17 +246,17 @@ begin
   A := AddVar('ease', '20');
   B := AddVar('front', '#ease * 2');
   AddVar('back', '#ease * 3');
-  AssertFalse(FVars.Delete(A));
-  AssertEquals(Format(rsVariableInUse, ['ease', '#front, #back']), FVars.LastError);
-  AssertTrue('unused one can go', FVars.Delete(B));
-  AssertEquals(2, FVars.Count);
+  AssertFalse(FPattern.Delete(A));
+  AssertEquals(Format(rsPatternInUse, ['#ease', '#front, #back']), FPattern.LastError);
+  AssertTrue('unused one can go', FPattern.Delete(B));
+  AssertEquals(2, FPattern.VariableCount);
 end;
 
 procedure TTestVariables.TestIdsNotReused;
 begin
   AddVar('a', '1');
-  FVars.Delete(AddVar('b', '2'));
-  AssertEquals('v3', AddVar('c', '3').Id);
+  FPattern.Delete(AddVar('b', '2'));
+  AssertEquals('v3', AddVar('c', '3').Key);
 end;
 
 procedure TTestVariables.TestErrorAndBlockedStates;
@@ -240,11 +266,11 @@ begin
   A := AddVar('a', '1 / (@hip - 960)');
   B := AddVar('b', '#a + 1');
   C := AddVar('c', '@waist');
-  FVars.Evaluate;
+  FPattern.Evaluate;
   AssertTrue('a error', A.State = esError);
   AssertEquals(rsFormulaDivideByZero, A.Message);
   AssertTrue('b blocked', B.State = esBlocked);
-  AssertEquals(Format(rsVariableBlocked, ['a']), B.Message);
+  AssertEquals(Format(rsEvalBlocked, ['#a']), B.Message);
   AssertValid('unaffected', C, 720);
 end;
 
@@ -254,9 +280,9 @@ var
 begin
   A := AddVar('a', '1 / (@hip - 960)');
   B := AddVar('b', '#a + 1');
-  FVars.Evaluate;
+  FPattern.Evaluate;
   FSet.Find('hip').Value := 961;
-  FVars.Evaluate;
+  FPattern.Evaluate;
   AssertValid('a', A, 1);
   AssertValid('b', B, 2);
   AssertEquals('message cleared', '', B.Message);
@@ -267,10 +293,10 @@ var
   A: TVariable;
 begin
   A := AddVar('a', 'sqrt(@hip - 951)');
-  FVars.Evaluate;
+  FPattern.Evaluate;
   AssertValid('a', A, 3);
   FSet.Find('hip').Value := 900;
-  FVars.Evaluate;
+  FPattern.Evaluate;
   AssertTrue('error', A.State = esError);
   AssertNear('last good value kept', 3, A.Value);
 end;
@@ -279,20 +305,24 @@ procedure TTestVariables.TestOtherMeasurementSet;
 var
   A: TVariable;
   Other: TMeasurementSet;
+  M: TEvalNode;
 begin
   A := AddVar('a', '@hip / 4');
   Other := TMeasurementSet.Create;
   try
     Other.Add('hip', 1000);
-    FVars.Measurements := Other;
-    FVars.Evaluate;
+    FPattern.Measurements := Other;
+    FPattern.Evaluate;
     AssertValid('other person', A, 250);
     Other.Delete(Other.Find('hip'));
-    FVars.Evaluate;
-    AssertTrue('missing measurement', A.State = esError);
-    AssertEquals(Format(rsFormulaNoValue, ['@hip']), A.Message);
+    FPattern.Evaluate;
+    M := FPattern.FindNode('@hip');
+    AssertTrue('measurement node fails', M.State = esError);
+    AssertEquals(Format(rsMeasurementNotInSet, ['hip']), M.Message);
+    AssertTrue('variable blocked', A.State = esBlocked);
+    AssertEquals(Format(rsEvalBlocked, ['@hip']), A.Message);
   finally
-    FVars.Measurements := FSet;
+    FPattern.Measurements := FSet;
     Other.Free;
   end;
 end;
@@ -302,23 +332,22 @@ var
   A: TVariable;
 begin
   A := AddVar('a', '@hip / 4');
-  FVars.Measurements := nil;
-  FVars.Evaluate;
-  AssertTrue(A.State = esError);
-  AssertNull('cannot type measurements', FVars.Add('b', '@hip'));
+  FPattern.Measurements := nil;
+  FPattern.Evaluate;
+  AssertTrue(A.State = esBlocked);
+  AssertNull('cannot type measurements', FPattern.AddVariable('b', '@hip'));
 end;
 
 procedure TTestVariables.TestSaveAndLoad;
 var
   Arr: TJSONArray;
-  Text, Err: string;
-  Loaded: TVariableList;
+  Loaded: TPattern;
+  Err: string;
 begin
   AddVar('ease', '20').Description := 'Waist ease';
   AddVar('front', '@waist/4 + #ease');
-  Arr := FVars.SaveToJSON;
+  Arr := FPattern.SaveVariables;
   try
-    Text := JSONToText(Arr);
     AssertEquals(
       '['#10 +
       '  {'#10 +
@@ -333,14 +362,15 @@ begin
       '    "formula": "@waist/4 + {v1}",'#10 +
       '    "description": ""'#10 +
       '  }'#10 +
-      ']'#10, Text);
-    Loaded := TVariableList.Create;
+      ']'#10, JSONToText(Arr));
+    Loaded := TPattern.Create;
     try
       Loaded.Measurements := FSet;
-      AssertTrue(Err, Loaded.LoadFromJSON(Arr, Err));
+      AssertTrue(Err, Loaded.LoadVariables(Arr, Err));
       Loaded.Evaluate;
-      AssertValid('front', Loaded.FindByName('front'), 200);
-      AssertEquals('display', '@waist/4 + #ease', Loaded.FormulaText(Loaded.FindByName('front')));
+      AssertValid('front', Loaded.FindVariable('front'), 200);
+      AssertEquals('display', '@waist/4 + #ease',
+        Loaded.FormulaText(Loaded.FindVariable('front'), 'formula'));
     finally
       Loaded.Free;
     end;
@@ -349,28 +379,16 @@ begin
   end;
 end;
 
-function ParseArray(const Text: string): TJSONData;
-begin
-  Result := GetJSON(Text);
-end;
-
 procedure TTestVariables.TestLoadKeepsBadFormula;
 var
-  Data: TJSONData;
-  Err: string;
   V: TVariable;
   Saved: TJSONArray;
 begin
-  Data := ParseArray('[{"id": "v1", "name": "a", "formula": "1 +"}]');
-  try
-    AssertTrue(Err, FVars.LoadFromJSON(Data, Err));
-  finally
-    Data.Free;
-  end;
-  V := FVars.FindByName('a');
-  FVars.Evaluate;
+  LoadText('[{"id": "v1", "name": "a", "formula": "1 +"}]');
+  V := FPattern.FindVariable('a');
+  FPattern.Evaluate;
   AssertTrue('error state', V.State = esError);
-  Saved := FVars.SaveToJSON;
+  Saved := FPattern.SaveVariables;
   try
     AssertEquals('text kept', '1 +', TJSONObject(Saved.Items[0]).Strings['formula']);
   finally
@@ -379,25 +397,17 @@ begin
 end;
 
 procedure TTestVariables.TestLoadedCycleIsAnError;
-var
-  Data: TJSONData;
-  Err: string;
 begin
-  Data := ParseArray('[{"id": "v1", "name": "a", "formula": "{v2} + 1"},' +
+  LoadText('[{"id": "v1", "name": "a", "formula": "{v2} + 1"},' +
     ' {"id": "v2", "name": "b", "formula": "{v1} * 2"},' +
     ' {"id": "v3", "name": "c", "formula": "3"},' +
     ' {"id": "v4", "name": "d", "formula": "{v1}"}]');
-  try
-    AssertTrue(Err, FVars.LoadFromJSON(Data, Err));
-  finally
-    Data.Free;
-  end;
-  FVars.Evaluate;
-  AssertTrue('a', FVars.FindByName('a').State = esError);
-  AssertEquals(rsVariableInCycle, FVars.FindByName('a').Message);
-  AssertTrue('b', FVars.FindByName('b').State = esError);
-  AssertValid('c', FVars.FindByName('c'), 3);
-  AssertTrue('d reads the cycle', FVars.FindByName('d').State in [esError, esBlocked]);
+  FPattern.Evaluate;
+  AssertTrue('a', FPattern.FindVariable('a').State = esError);
+  AssertEquals(rsEvalCycle, FPattern.FindVariable('a').Message);
+  AssertTrue('b', FPattern.FindVariable('b').State = esError);
+  AssertValid('c', FPattern.FindVariable('c'), 3);
+  AssertTrue('d reads the cycle', FPattern.FindVariable('d').State = esBlocked);
 end;
 
 procedure TTestVariables.TestLoadErrors;
@@ -407,40 +417,32 @@ var
 
   procedure Check(const Text, Msg: string);
   begin
-    Data := ParseArray(Text);
+    Data := GetJSON(Text);
     try
-      AssertFalse(Text, FVars.LoadFromJSON(Data, Err));
+      AssertFalse(Text, FPattern.LoadVariables(Data, Err));
       AssertEquals(Text, Msg, Err);
-      AssertEquals('emptied', 0, FVars.Count);
+      AssertEquals('emptied', 0, FPattern.VariableCount);
     finally
       Data.Free;
     end;
   end;
 
 begin
-  Check('{"id": "v1"}', rsVariableList);
-  Check('[{"name": "a", "formula": "1"}]', rsVariableBadId);
+  Check('{"id": "v1"}', rsPatternVariableList);
+  Check('[{"name": "a", "formula": "1"}]', rsPatternVariableBadId);
   Check('[{"id": "v1", "name": "a", "formula": "1"}, {"id": "v1", "name": "b", "formula": "1"}]',
-    rsVariableBadId);
+    rsPatternVariableBadId);
   Check('[{"id": "v1", "name": "a b", "formula": "1"}]',
-    Format(rsVariableBadName, [Format(rsNameInvalid, ['a b'])]));
+    Format(rsPatternVariableBadName, [Format(rsNameInvalid, ['a b'])]));
   Check('[{"id": "v1", "name": "a", "formula": "1"}, {"id": "v2", "name": "A", "formula": "1"}]',
-    Format(rsVariableBadName, [Format(rsNameTaken, ['A'])]));
-  Check('[{"id": "v1", "name": "a"}]', Format(rsVariableNoFormula, ['a']));
+    Format(rsPatternVariableBadName, [Format(rsNameTaken, ['A'])]));
+  Check('[{"id": "v1", "name": "a"}]', Format(rsPatternVariableNoFormula, ['a']));
 end;
 
 procedure TTestVariables.TestNewIdsAfterLoad;
-var
-  Data: TJSONData;
-  Err: string;
 begin
-  Data := ParseArray('[{"id": "v7", "name": "a", "formula": "1"}, {"id": "v3", "name": "b", "formula": "2"}]');
-  try
-    AssertTrue(Err, FVars.LoadFromJSON(Data, Err));
-  finally
-    Data.Free;
-  end;
-  AssertEquals('v8', AddVar('c', '3').Id);
+  LoadText('[{"id": "v7", "name": "a", "formula": "1"}, {"id": "v3", "name": "b", "formula": "2"}]');
+  AssertEquals('v8', AddVar('c', '3').Key);
 end;
 
 initialization

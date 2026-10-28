@@ -91,6 +91,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="TestVariables"/>
       </Unit>
+      <Unit>
+        <Filename Value="testevaluator.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestEvaluator"/>
+      </Unit>
+      <Unit>
+        <Filename Value="testpattern.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestPattern"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

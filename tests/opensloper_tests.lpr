@@ -23,7 +23,8 @@ program opensloper_tests;
 uses
   osCodePage, Classes, consoletestrunner,
   TestGeometry, TestNumeric, TestBezier, TestNames, TestFormula, TestJSON,
-  TestMeasurements, TestVariables, TestAppPaths, TestClipper;
+  TestMeasurements, TestEvaluator, TestVariables, TestPattern, TestAppPaths,
+  TestClipper;
 
 var
   App: TTestRunner;

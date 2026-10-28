@@ -130,50 +130,41 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 
 **Dragging.** Parameters that are plain numbers update when dragged. Formula-driven parameters are locked by default, with an optional override offset (`@waist/4 + #ease + 13.5`) to keep the parametric intent. The evaluator reports which parameters are literal and which are formulas.
 
+**Implementation** (`osEvaluator`, `osPattern`):
+
+- Node keys are object and variable IDs (`p1`, `l1`, `v1`); measurements are `@key`. `TPattern` creates a measurement node for each key its formulas use, so a key missing from the current set is one error ("@chest is not in the measurement set") and everything reading it is blocked.
+- A node's dependencies are its inputs (`InputKeys`, e.g. an offset's base point) plus every reference in its formula fields. A reference to an ID that no longer exists makes the node an error ("Uses p9, which no longer exists").
+- `TPattern.SetFormula` refuses an edit that would close a cycle, naming both nodes. Loaded files can still contain one: nodes on the cycle become errors and their readers are blocked.
+- `Evaluate` rebuilds the graph and recomputes everything; dirty tracking can come later if dragging needs it.
+- `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 5) wrap these calls. `Delete` is refused while other nodes use the object.
+- Implemented so far: free, offset (polar or dx/dy) and along-edge (length or ratio, from either end) points; lines and cubic curves, with derived names (`Line_A_B`) that follow renamed endpoints until the user names the edge. The other operations come with the canvas (roadmap step 4).
+
 ```pascal
 type
   TEvalState = (esValid, esDirty, esError, esInvalid, esBlocked);
 
   TEvalNode = class
   public
-    Id: TNodeId;
-    State: TEvalState;
-    Message: string;
-    Deps: TNodeList;         // what I read from
-    Dependents: TNodeList;   // what reads from me
-    procedure CollectDeps(Resolver: TNameResolver); virtual; abstract;
-    function Evaluate(Ctx: TEvalContext): TEvalState; virtual; abstract;
+    function InputKeys: TStringArray; virtual;        // direct inputs
+    function DependencyKeys: TStringArray;            // inputs + formula references
+    function DisplayName: string; virtual; abstract;
+    // Called only when every dependency is valid; on failure returns
+    // esError or esInvalid with Message set and keeps the last good result
+    function Compute(Context: TEvalContext): TEvalState; virtual; abstract;
+    function Field(const Name: string): TFormula;     // named formula fields
+    property Key: string;
+    property State: TEvalState;
+    property Message: string;
+    property Deps, Dependents: TEvalNodeArray;
   end;
 
   TEvaluator = class
-  private
-    FOrder: TNodeList;       // topologically sorted
   public
-    procedure Rebuild;       // collect deps, rebuild dependents, sort
-    procedure MarkDirty(Node: TEvalNode);
-    function WouldCreateCycle(Node, NewDep: TEvalNode): Boolean;
-    procedure Run;
+    procedure Rebuild(const Nodes: TEvalNodeArray; Context: TEvalContext);  // deps + Kahn sort
+    procedure Run(Context: TEvalContext);    // blocked if an input failed, else Compute
+    class function Reaches(From, Target: TEvalNode; Context: TEvalContext): Boolean;
+    property Order: TEvalNodeArray;
   end;
-
-procedure TEvaluator.Run;
-var
-  N, D, BlockedBy: TEvalNode;
-begin
-  for N in FOrder do
-    if N.State = esDirty then
-    begin
-      BlockedBy := nil;
-      for D in N.Deps do
-        if D.State <> esValid then begin BlockedBy := D; Break; end;
-      if BlockedBy <> nil then
-      begin
-        N.State := esBlocked;
-        N.Message := 'Blocked by ' + BlockedBy.DisplayName;
-      end
-      else
-        N.State := N.Evaluate(Ctx);
-    end;
-end;
 ```
 
 ## Names and IDs

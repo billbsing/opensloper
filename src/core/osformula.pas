@@ -206,7 +206,7 @@ type
     FTokens: TFormulaTokenArray;
     FTokenRefs: array of Integer;
     FPos: Integer;
-    function AtOp(C: Char): Boolean;
+    function AtOp(AOp: Char): Boolean;
     function ParseExpr: TFormulaNode;
     function ParseTerm: TFormulaNode;
     function ParseUnary: TFormulaNode;
@@ -221,12 +221,12 @@ type
 
 function FindFunction(const Name: string; out Func: TFormulaFunction): Boolean;
 var
-  F: TFormulaFunction;
+  Candidate: TFormulaFunction;
 begin
-  for F := Low(F) to High(F) do
-    if SameText(FunctionNames[F], Name) then
+  for Candidate := Low(Candidate) to High(Candidate) do
+    if SameText(FunctionNames[Candidate], Name) then
     begin
-      Func := F;
+      Func := Candidate;
       Exit(True);
     end;
   Result := False;
@@ -241,9 +241,9 @@ begin
   end;
 end;
 
-function SameReference(const A, B: TFormulaReference): Boolean;
+function SameReference(const First, Second: TFormulaReference): Boolean;
 begin
-  Result := (A.Kind = B.Kind) and SameText(A.Id, B.Id) and SameText(A.Prop, B.Prop);
+  Result := (First.Kind = Second.Kind) and SameText(First.Id, Second.Id) and SameText(First.Prop, Second.Prop);
 end;
 
 { EFormulaError }
@@ -297,21 +297,21 @@ end;
 
 function TBinaryNode.Eval(Formula: TFormula; Context: TFormulaContext): Double;
 var
-  A, B: Double;
+  LeftValue, RightValue: Double;
 begin
-  A := Left.Eval(Formula, Context);
-  B := Right.Eval(Formula, Context);
+  LeftValue := Left.Eval(Formula, Context);
+  RightValue := Right.Eval(Formula, Context);
   case Op of
-    '+': Result := A + B;
-    '-': Result := A - B;
-    '*': Result := A * B;
+    '+': Result := LeftValue + RightValue;
+    '-': Result := LeftValue - RightValue;
+    '*': Result := LeftValue * RightValue;
     '/':
       begin
-        if B = 0 then
+        if RightValue = 0 then
           raise EFormulaError.Create(rsFormulaDivideByZero, Token);
-        Result := A / B;
+        Result := LeftValue / RightValue;
       end;
-    '^': Result := Power(A, B);
+    '^': Result := Power(LeftValue, RightValue);
   end;
 end;
 
@@ -326,48 +326,48 @@ end;
 
 function TFunctionNode.Eval(Formula: TFormula; Context: TFormulaContext): Double;
 var
-  V: array of Double;
-  I: Integer;
+  Values: array of Double;
+  Index: Integer;
 begin
-  V := nil;
-  SetLength(V, Length(Args));
-  for I := 0 to High(Args) do
-    V[I] := Args[I].Eval(Formula, Context);
+  Values := nil;
+  SetLength(Values, Length(Args));
+  for Index := 0 to High(Args) do
+    Values[Index] := Args[Index].Eval(Formula, Context);
   case Func of
-    ffSin: Result := Sin(DegToRad(V[0]));
-    ffCos: Result := Cos(DegToRad(V[0]));
-    ffTan: Result := Tan(DegToRad(V[0]));
+    ffSin: Result := Sin(DegToRad(Values[0]));
+    ffCos: Result := Cos(DegToRad(Values[0]));
+    ffTan: Result := Tan(DegToRad(Values[0]));
     ffAsin, ffAcos:
       begin
-        if (V[0] < -1) or (V[0] > 1) then
+        if (Values[0] < -1) or (Values[0] > 1) then
           raise EFormulaError.Create(Format(rsFormulaOutOfDomain, [FunctionNames[Func]]), Token);
         if Func = ffAsin then
-          Result := RadToDeg(ArcSin(V[0]))
+          Result := RadToDeg(ArcSin(Values[0]))
         else
-          Result := RadToDeg(ArcCos(V[0]));
+          Result := RadToDeg(ArcCos(Values[0]));
       end;
-    ffAtan2: Result := RadToDeg(ArcTan2(V[0], V[1]));
+    ffAtan2: Result := RadToDeg(ArcTan2(Values[0], Values[1]));
     ffSqrt:
       begin
-        if V[0] < 0 then
+        if Values[0] < 0 then
           raise EFormulaError.Create(rsFormulaSqrtNegative, Token);
-        Result := Sqrt(V[0]);
+        Result := Sqrt(Values[0]);
       end;
-    ffAbs: Result := Abs(V[0]);
+    ffAbs: Result := Abs(Values[0]);
     ffMin:
       begin
-        Result := V[0];
-        for I := 1 to High(V) do
-          Result := Min(Result, V[I]);
+        Result := Values[0];
+        for Index := 1 to High(Values) do
+          Result := Min(Result, Values[Index]);
       end;
     ffMax:
       begin
-        Result := V[0];
-        for I := 1 to High(V) do
-          Result := Max(Result, V[I]);
+        Result := Values[0];
+        for Index := 1 to High(Values) do
+          Result := Max(Result, Values[Index]);
       end;
     // Half away from zero, as people expect; Pascal's Round rounds half to even
-    ffRound: Result := Sign(V[0]) * Floor(Abs(V[0]) + 0.5);
+    ffRound: Result := Sign(Values[0]) * Floor(Abs(Values[0]) + 0.5);
   end;
 end;
 
@@ -378,23 +378,23 @@ begin
   raise EFormulaError.Create(Msg, FPos);
 end;
 
-function TFormulaParser.AtOp(C: Char): Boolean;
+function TFormulaParser.AtOp(AOp: Char): Boolean;
 begin
   Result := (FPos <= High(FTokens)) and (FTokens[FPos].Kind = ftOperator)
-    and (FTokens[FPos].Op = C);
+    and (FTokens[FPos].Op = AOp);
 end;
 
 function TFormulaParser.Parse(const Text: string; const Tokens: TFormulaTokenArray;
   const TokenRefs: array of Integer): TFormulaNode;
 var
-  I: Integer;
+  Index: Integer;
 begin
   FText := Text;
   FTokens := Tokens;
   FTokenRefs := nil;
   SetLength(FTokenRefs, Length(TokenRefs));
-  for I := 0 to High(TokenRefs) do
-    FTokenRefs[I] := TokenRefs[I];
+  for Index := 0 to High(TokenRefs) do
+    FTokenRefs[Index] := TokenRefs[Index];
   FPos := 0;
   Result := ParseExpr;
   if FPos <= High(FTokens) then
@@ -545,7 +545,7 @@ function TFormulaParser.ParseFunction: TFormulaNode;
 var
   Node: TFunctionNode;
   Func: TFormulaFunction;
-  NameToken, N: Integer;
+  NameToken, ArgCount: Integer;
 begin
   // Names were checked by TFormula, so this is a known function
   FindFunction(FTokens[FPos].Name, Func);
@@ -559,10 +559,10 @@ begin
       Error(Format(rsFormulaExpectedBracket, [FunctionNames[Func]]));
     Inc(FPos);
     repeat
-      N := Length(Node.Args);
-      SetLength(Node.Args, N + 1);
-      Node.Args[N] := nil;
-      Node.Args[N] := ParseExpr;
+      ArgCount := Length(Node.Args);
+      SetLength(Node.Args, ArgCount + 1);
+      Node.Args[ArgCount] := nil;
+      Node.Args[ArgCount] := ParseExpr;
       if not AtOp(',') then
         Break;
       Inc(FPos);
@@ -570,9 +570,9 @@ begin
     if not AtOp(')') then
       Error(rsFormulaExpectedClose);
     Inc(FPos);
-    N := Length(Node.Args);
-    if (N < FunctionMinArgs[Func])
-      or ((FunctionMaxArgs[Func] >= 0) and (N > FunctionMaxArgs[Func])) then
+    ArgCount := Length(Node.Args);
+    if (ArgCount < FunctionMinArgs[Func])
+      or ((FunctionMaxArgs[Func] >= 0) and (ArgCount > FunctionMaxArgs[Func])) then
     begin
       FPos := NameToken;
       if FunctionMaxArgs[Func] < 0 then
@@ -629,7 +629,7 @@ function TFormula.DoParse(const Text: string; Form: TFormulaTextForm;
 var
   Tokens: TFormulaTokenArray;
   Msg, Key, Id, Prop, Name, Stored: string;
-  ErrPos, I, J, Last: Integer;
+  ErrPos, TokenIndex, StoredPos, Last: Integer;
   Ref: TFormulaReference;
   Func: TFormulaFunction;
   Parser: TFormulaParser;
@@ -641,16 +641,16 @@ var
     Result := False;
   end;
 
-  function AddReference(const R: TFormulaReference): Integer;
+  function AddReference(const NewRef: TFormulaReference): Integer;
   var
-    K: Integer;
+    ExistingIndex: Integer;
   begin
-    for K := 0 to High(FReferences) do
-      if SameReference(FReferences[K], R) then
-        Exit(K);
+    for ExistingIndex := 0 to High(FReferences) do
+      if SameReference(FReferences[ExistingIndex], NewRef) then
+        Exit(ExistingIndex);
     Result := Length(FReferences);
     SetLength(FReferences, Result + 1);
-    FReferences[Result] := R;
+    FReferences[Result] := NewRef;
   end;
 
 begin
@@ -662,65 +662,65 @@ begin
 
   // Resolve names and collect references
   SetLength(FTokenRefs, Length(Tokens));
-  for I := 0 to High(Tokens) do
+  for TokenIndex := 0 to High(Tokens) do
   begin
-    FTokenRefs[I] := -1;
+    FTokenRefs[TokenIndex] := -1;
     Ref := Default(TFormulaReference);
-    case Tokens[I].Kind of
+    case Tokens[TokenIndex].Kind of
       ftMeasurement:
         begin
           Ref.Kind := rkMeasurement;
           if Form = ffStored then
-            Ref.Id := Tokens[I].Name
-          else if Resolver.ResolveMeasurement(Tokens[I].Name, Key) then
+            Ref.Id := Tokens[TokenIndex].Name
+          else if Resolver.ResolveMeasurement(Tokens[TokenIndex].Name, Key) then
             Ref.Id := Key
           else
-            Exit(Fail(Format(rsFormulaUnknownMeasurement, [Tokens[I].Name]), Tokens[I].Pos));
-          FTokenRefs[I] := AddReference(Ref);
+            Exit(Fail(Format(rsFormulaUnknownMeasurement, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
+          FTokenRefs[TokenIndex] := AddReference(Ref);
         end;
       ftVariable:
         begin
-          if not Resolver.ResolveVariable(Tokens[I].Name, Id) then
-            Exit(Fail(Format(rsFormulaUnknownVariable, [Tokens[I].Name]), Tokens[I].Pos));
+          if not Resolver.ResolveVariable(Tokens[TokenIndex].Name, Id) then
+            Exit(Fail(Format(rsFormulaUnknownVariable, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
           Ref.Kind := rkVariable;
           Ref.Id := Id;
-          FTokenRefs[I] := AddReference(Ref);
+          FTokenRefs[TokenIndex] := AddReference(Ref);
         end;
       ftObjectRef:
         begin
           if Form = ffStored then
-            Exit(Fail(rsFormulaNamesNotIds, Tokens[I].Pos));
-          if not Resolver.ResolveObject(Tokens[I].Name, Id) then
-            Exit(Fail(Format(rsFormulaUnknownName, [Tokens[I].Name]), Tokens[I].Pos));
-          if not Resolver.ResolveProperty(Id, Tokens[I].Prop, Prop) then
-            Exit(Fail(Format(rsFormulaUnknownProperty, [Tokens[I].Name, Tokens[I].Prop]),
-              Tokens[I].Pos + Length(Tokens[I].Name) + 1));
+            Exit(Fail(rsFormulaNamesNotIds, Tokens[TokenIndex].Pos));
+          if not Resolver.ResolveObject(Tokens[TokenIndex].Name, Id) then
+            Exit(Fail(Format(rsFormulaUnknownName, [Tokens[TokenIndex].Name]), Tokens[TokenIndex].Pos));
+          if not Resolver.ResolveProperty(Id, Tokens[TokenIndex].Prop, Prop) then
+            Exit(Fail(Format(rsFormulaUnknownProperty, [Tokens[TokenIndex].Name, Tokens[TokenIndex].Prop]),
+              Tokens[TokenIndex].Pos + Length(Tokens[TokenIndex].Name) + 1));
           Ref.Kind := rkObject;
           Ref.Id := Id;
           Ref.Prop := Prop;
-          FTokenRefs[I] := AddReference(Ref);
+          FTokenRefs[TokenIndex] := AddReference(Ref);
         end;
       ftIdRef:
         begin
-          if Tokens[I].Prop = '' then
+          if Tokens[TokenIndex].Prop = '' then
             Ref.Kind := rkVariable
           else
             Ref.Kind := rkObject;
-          Ref.Id := Tokens[I].Name;
-          Ref.Prop := LowerCase(Tokens[I].Prop);
-          FTokenRefs[I] := AddReference(Ref);
+          Ref.Id := Tokens[TokenIndex].Name;
+          Ref.Prop := LowerCase(Tokens[TokenIndex].Prop);
+          FTokenRefs[TokenIndex] := AddReference(Ref);
         end;
       ftName:
-        if not FindFunction(Tokens[I].Name, Func) then
+        if not FindFunction(Tokens[TokenIndex].Name, Func) then
         begin
-          Name := Tokens[I].Name;
+          Name := Tokens[TokenIndex].Name;
           if Form = ffStored then
-            Exit(Fail(rsFormulaNamesNotIds, Tokens[I].Pos));
+            Exit(Fail(rsFormulaNamesNotIds, Tokens[TokenIndex].Pos));
           if Resolver.ResolveObject(Name, Id) then
-            Exit(Fail(Format(rsFormulaNeedsProperty, [Name, Name, Name]), Tokens[I].Pos));
+            Exit(Fail(Format(rsFormulaNeedsProperty, [Name, Name, Name]), Tokens[TokenIndex].Pos));
           if Resolver.ResolveVariable(Name, Id) then
-            Exit(Fail(Format(rsFormulaMissingHash, [Name, Name]), Tokens[I].Pos));
-          Exit(Fail(Format(rsFormulaUnknownName, [Name]), Tokens[I].Pos));
+            Exit(Fail(Format(rsFormulaMissingHash, [Name, Name]), Tokens[TokenIndex].Pos));
+          Exit(Fail(Format(rsFormulaUnknownName, [Name]), Tokens[TokenIndex].Pos));
         end;
     end;
   end;
@@ -731,13 +731,13 @@ begin
     try
       FRoot := Parser.Parse(Text, Tokens, FTokenRefs);
     except
-      on E: EFormulaError do
+      on ParseError: EFormulaError do
       begin
-        if E.Token <= High(Tokens) then
-          ErrPos := Tokens[E.Token].Pos
+        if ParseError.Token <= High(Tokens) then
+          ErrPos := Tokens[ParseError.Token].Pos
         else
           ErrPos := Length(TrimRight(Text)) + 1; // ran out of tokens
-        Msg := E.Message;
+        Msg := ParseError.Message;
         FReferences := nil;
         FTokenRefs := nil;
         Exit(Fail(Msg, ErrPos));
@@ -750,17 +750,17 @@ begin
   // Build the stored form, keeping the user's spacing and number spelling
   Stored := '';
   Last := 1;
-  for I := 0 to High(Tokens) do
+  for TokenIndex := 0 to High(Tokens) do
   begin
-    Stored := Stored + Copy(Text, Last, Tokens[I].Pos - Last);
-    J := Length(Stored) + 1;
-    if FTokenRefs[I] >= 0 then
-      Stored := Stored + ReferenceStoredText(FReferences[FTokenRefs[I]])
+    Stored := Stored + Copy(Text, Last, Tokens[TokenIndex].Pos - Last);
+    StoredPos := Length(Stored) + 1;
+    if FTokenRefs[TokenIndex] >= 0 then
+      Stored := Stored + ReferenceStoredText(FReferences[FTokenRefs[TokenIndex]])
     else
-      Stored := Stored + Copy(Text, Tokens[I].Pos, Tokens[I].Len);
-    Last := Tokens[I].Pos + Tokens[I].Len;
-    Tokens[I].Len := Length(Stored) + 1 - J;
-    Tokens[I].Pos := J;
+      Stored := Stored + Copy(Text, Tokens[TokenIndex].Pos, Tokens[TokenIndex].Len);
+    Last := Tokens[TokenIndex].Pos + Tokens[TokenIndex].Len;
+    Tokens[TokenIndex].Len := Length(Stored) + 1 - StoredPos;
+    Tokens[TokenIndex].Pos := StoredPos;
   end;
   Stored := Stored + Copy(Text, Last, MaxInt);
 
@@ -801,13 +801,13 @@ begin
       end;
       Result := True;
     except
-      on E: EFormulaError do
+      on Failure: EFormulaError do
       begin
         Value := 0;
-        SetError(E.Message, FTokens[E.Token].Pos, E.Token);
+        SetError(Failure.Message, FTokens[Failure.Token].Pos, Failure.Token);
         Result := False;
       end;
-      on E: EMathError do
+      on Failure: EMathError do
       begin
         Value := 0;
         SetError(rsFormulaNotANumber, 0, -1);
@@ -823,7 +823,7 @@ end;
 function TFormula.BuildDisplay(Resolver: TNameResolver;
   out TokenPos: TFormulaTokenArray): string;
 var
-  I, Last: Integer;
+  TokenIndex, Last: Integer;
   Ref: TFormulaReference;
   Name, Piece: string;
 begin
@@ -832,13 +832,13 @@ begin
     Exit(FStoredText);
   Result := '';
   Last := 1;
-  for I := 0 to High(FTokens) do
+  for TokenIndex := 0 to High(FTokens) do
   begin
-    Result := Result + Copy(FStoredText, Last, FTokens[I].Pos - Last);
-    TokenPos[I].Pos := Length(Result) + 1;
-    if FTokenRefs[I] >= 0 then
+    Result := Result + Copy(FStoredText, Last, FTokens[TokenIndex].Pos - Last);
+    TokenPos[TokenIndex].Pos := Length(Result) + 1;
+    if FTokenRefs[TokenIndex] >= 0 then
     begin
-      Ref := FReferences[FTokenRefs[I]];
+      Ref := FReferences[FTokenRefs[TokenIndex]];
       case Ref.Kind of
         rkMeasurement: Piece := '@' + Ref.Id;
         // An ID with no current name (deleted object) stays in ID form
@@ -855,10 +855,10 @@ begin
       end;
     end
     else
-      Piece := Copy(FStoredText, FTokens[I].Pos, FTokens[I].Len);
+      Piece := Copy(FStoredText, FTokens[TokenIndex].Pos, FTokens[TokenIndex].Len);
     Result := Result + Piece;
-    TokenPos[I].Len := Length(Piece);
-    Last := FTokens[I].Pos + FTokens[I].Len;
+    TokenPos[TokenIndex].Len := Length(Piece);
+    Last := FTokens[TokenIndex].Pos + FTokens[TokenIndex].Len;
   end;
   Result := Result + Copy(FStoredText, Last, MaxInt);
 end;

@@ -66,9 +66,9 @@ begin
       end;
       Parser.Validate;
     except
-      on E: EArgumentParserException do
+      on Failure: EArgumentParserException do
       begin
-        WriteLn(StdErr, E.Message);
+        WriteLn(StdErr, Failure.Message);
         ExitCode := 1;
         Exit;
       end;

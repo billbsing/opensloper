@@ -68,45 +68,45 @@ implementation
 uses
   SysUtils;
 
-function IsNameStart(C: Char): Boolean; inline;
+function IsNameStart(Character: Char): Boolean; inline;
 begin
-  Result := C in ['A'..'Z', 'a'..'z', '_'];
+  Result := Character in ['A'..'Z', 'a'..'z', '_'];
 end;
 
-function IsNameChar(C: Char): Boolean; inline;
+function IsNameChar(Character: Char): Boolean; inline;
 begin
-  Result := C in ['A'..'Z', 'a'..'z', '_', '0'..'9'];
+  Result := Character in ['A'..'Z', 'a'..'z', '_', '0'..'9'];
 end;
 
-function IsDigit(C: Char): Boolean; inline;
+function IsDigit(Character: Char): Boolean; inline;
 begin
-  Result := C in ['0'..'9'];
+  Result := Character in ['0'..'9'];
 end;
 
-// The whole UTF-8 character starting at Text[P], for error messages
-function CharAt(const Text: string; P: Integer): string;
+// The whole UTF-8 character starting at Text[Position], for error messages
+function CharAt(const Text: string; Position: Integer): string;
 var
-  N: Integer;
-  B: Byte;
+  ByteCount: Integer;
+  LeadByte: Byte;
 begin
-  B := Ord(Text[P]);
-  if B < $80 then
-    N := 1
-  else if B and $E0 = $C0 then
-    N := 2
-  else if B and $F0 = $E0 then
-    N := 3
-  else if B and $F8 = $F0 then
-    N := 4
+  LeadByte := Ord(Text[Position]);
+  if LeadByte < $80 then
+    ByteCount := 1
+  else if LeadByte and $E0 = $C0 then
+    ByteCount := 2
+  else if LeadByte and $F0 = $E0 then
+    ByteCount := 3
+  else if LeadByte and $F8 = $F0 then
+    ByteCount := 4
   else
-    N := 1;
-  Result := Copy(Text, P, N);
+    ByteCount := 1;
+  Result := Copy(Text, Position, ByteCount);
 end;
 
 function TokenizeFormula(const Text: string; Form: TFormulaTextForm;
   out Tokens: TFormulaTokenArray; out ErrorMessage: string; out ErrorPos: Integer): Boolean;
 var
-  P, Len, Count: Integer;
+  Position, Len, Count: Integer;
 
   procedure Fail(const Msg: string; At: Integer);
   begin
@@ -121,7 +121,7 @@ var
     Tokens[Count] := Default(TFormulaToken);
     Tokens[Count].Kind := Kind;
     Tokens[Count].Pos := Start;
-    Tokens[Count].Len := P - Start;
+    Tokens[Count].Len := Position - Start;
     Result := Count;
     Inc(Count);
   end;
@@ -130,10 +130,10 @@ var
   var
     Start: Integer;
   begin
-    Start := P;
-    while (P <= Len) and IsNameChar(Text[P]) do
-      Inc(P);
-    Result := Copy(Text, Start, P - Start);
+    Start := Position;
+    while (Position <= Len) and IsNameChar(Text[Position]) do
+      Inc(Position);
+    Result := Copy(Text, Start, Position - Start);
   end;
 
   // Reads ".prop" if present. False on a dot without a name.
@@ -141,12 +141,12 @@ var
   begin
     Prop := '';
     Result := True;
-    if (P <= Len) and (Text[P] = '.') then
+    if (Position <= Len) and (Text[Position] = '.') then
     begin
-      Inc(P);
-      if (P > Len) or not IsNameStart(Text[P]) then
+      Inc(Position);
+      if (Position > Len) or not IsNameStart(Text[Position]) then
       begin
-        Fail(rsFormulaExpectedProperty, P);
+        Fail(rsFormulaExpectedProperty, Position);
         Exit(False);
       end;
       Prop := ReadName;
@@ -155,52 +155,52 @@ var
 
   function ReadNumber(Start: Integer): Boolean;
   var
-    Code, I: Integer;
-    V: Double;
+    Code, TokenIndex: Integer;
+    Value: Double;
   begin
     Result := False;
-    while (P <= Len) and IsDigit(Text[P]) do
-      Inc(P);
-    if (P <= Len) and (Text[P] = '.') then
+    while (Position <= Len) and IsDigit(Text[Position]) do
+      Inc(Position);
+    if (Position <= Len) and (Text[Position] = '.') then
     begin
-      Inc(P);
-      if (P > Len) or not IsDigit(Text[P]) then
+      Inc(Position);
+      if (Position > Len) or not IsDigit(Text[Position]) then
       begin
-        Fail(rsFormulaExpectedDigit, P);
+        Fail(rsFormulaExpectedDigit, Position);
         Exit;
       end;
-      while (P <= Len) and IsDigit(Text[P]) do
-        Inc(P);
+      while (Position <= Len) and IsDigit(Text[Position]) do
+        Inc(Position);
     end;
-    if (P <= Len) and (Text[P] in ['e', 'E']) then
+    if (Position <= Len) and (Text[Position] in ['e', 'E']) then
     begin
-      Inc(P);
-      if (P <= Len) and (Text[P] in ['+', '-']) then
-        Inc(P);
-      if (P > Len) or not IsDigit(Text[P]) then
+      Inc(Position);
+      if (Position <= Len) and (Text[Position] in ['+', '-']) then
+        Inc(Position);
+      if (Position > Len) or not IsDigit(Text[Position]) then
       begin
-        Fail(rsFormulaExpectedDigit, P);
+        Fail(rsFormulaExpectedDigit, Position);
         Exit;
       end;
-      while (P <= Len) and IsDigit(Text[P]) do
-        Inc(P);
+      while (Position <= Len) and IsDigit(Text[Position]) do
+        Inc(Position);
     end;
     // Val always uses '.' as the decimal separator, whatever the locale
-    Val(Copy(Text, Start, P - Start), V, Code);
+    Val(Copy(Text, Start, Position - Start), Value, Code);
     if Code <> 0 then
     begin
       Fail(rsFormulaExpectedDigit, Start + Code - 1);
       Exit;
     end;
     // Add may grow Tokens, so take the index before indexing
-    I := Add(ftNumber, Start);
-    Tokens[I].Value := V;
+    TokenIndex := Add(ftNumber, Start);
+    Tokens[TokenIndex].Value := Value;
     Result := True;
   end;
 
 var
-  Start, I: Integer;
-  C: Char;
+  Start, TokenIndex: Integer;
+  Character: Char;
   Name, Prop: string;
 begin
   Tokens := nil;
@@ -208,80 +208,80 @@ begin
   ErrorPos := 0;
   Count := 0;
   Len := Length(Text);
-  P := 1;
+  Position := 1;
   Result := False;
-  while P <= Len do
+  while Position <= Len do
   begin
-    C := Text[P];
-    Start := P;
-    if C in [' ', #9, #10, #13] then
-      Inc(P)
-    else if IsDigit(C) or ((C = '.') and (P < Len) and IsDigit(Text[P + 1])) then
+    Character := Text[Position];
+    Start := Position;
+    if Character in [' ', #9, #10, #13] then
+      Inc(Position)
+    else if IsDigit(Character) or ((Character = '.') and (Position < Len) and IsDigit(Text[Position + 1])) then
     begin
       if not ReadNumber(Start) then
         Exit;
     end
-    else if C in ['+', '-', '*', '/', '^', '(', ')', ','] then
+    else if Character in ['+', '-', '*', '/', '^', '(', ')', ','] then
     begin
-      Inc(P);
-      I := Add(ftOperator, Start);
-      Tokens[I].Op := C;
+      Inc(Position);
+      TokenIndex := Add(ftOperator, Start);
+      Tokens[TokenIndex].Op := Character;
     end
-    else if C = '@' then
+    else if Character = '@' then
     begin
-      Inc(P);
-      if (P > Len) or not IsNameStart(Text[P]) then
+      Inc(Position);
+      if (Position > Len) or not IsNameStart(Text[Position]) then
       begin
-        Fail(rsFormulaExpectedMeasurement, P);
+        Fail(rsFormulaExpectedMeasurement, Position);
         Exit;
       end;
       Name := ReadName;
-      I := Add(ftMeasurement, Start);
-      Tokens[I].Name := Name;
+      TokenIndex := Add(ftMeasurement, Start);
+      Tokens[TokenIndex].Name := Name;
     end
-    else if (C = '#') and (Form = ffDisplay) then
+    else if (Character = '#') and (Form = ffDisplay) then
     begin
-      Inc(P);
-      if (P > Len) or not IsNameStart(Text[P]) then
+      Inc(Position);
+      if (Position > Len) or not IsNameStart(Text[Position]) then
       begin
-        Fail(rsFormulaExpectedVariable, P);
+        Fail(rsFormulaExpectedVariable, Position);
         Exit;
       end;
       Name := ReadName;
-      I := Add(ftVariable, Start);
-      Tokens[I].Name := Name;
+      TokenIndex := Add(ftVariable, Start);
+      Tokens[TokenIndex].Name := Name;
     end
-    else if (C = '{') and (Form = ffStored) then
+    else if (Character = '{') and (Form = ffStored) then
     begin
-      Inc(P);
+      Inc(Position);
       Name := ReadName;
-      if (Name = '') or (P > Len) or (Text[P] <> '}') then
+      if (Name = '') or (Position > Len) or (Text[Position] <> '}') then
       begin
         Fail(rsFormulaBadId, Start);
         Exit;
       end;
-      Inc(P);
+      Inc(Position);
       if not ReadProperty(Prop) then
         Exit;
-      I := Add(ftIdRef, Start);
-      Tokens[I].Name := Name;
-      Tokens[I].Prop := Prop;
+      TokenIndex := Add(ftIdRef, Start);
+      Tokens[TokenIndex].Name := Name;
+      Tokens[TokenIndex].Prop := Prop;
     end
-    else if IsNameStart(C) then
+    else if IsNameStart(Character) then
     begin
       Name := ReadName;
       if not ReadProperty(Prop) then
         Exit;
       if Prop = '' then
-        I := Add(ftName, Start)
+        TokenIndex := Add(ftName, Start)
       else
-        I := Add(ftObjectRef, Start);
-      Tokens[I].Name := Name;
-      Tokens[I].Prop := Prop;
+        TokenIndex := Add(ftObjectRef, Start);
+      Tokens[TokenIndex].Name := Name;
+      Tokens[TokenIndex].Prop := Prop;
     end
     else
     begin
-      Fail(Format(rsFormulaUnexpectedChar, [CharAt(Text, P)]), P);
+      Fail(Format(rsFormulaUnexpectedChar, [CharAt(Text, Position)]), Position);
       Exit;
     end;
   end;

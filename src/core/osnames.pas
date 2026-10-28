@@ -39,7 +39,7 @@ function IsReservedName(const Name: string): Boolean;
 function IsFunctionName(const Name: string): Boolean;
 // IsValidName with a message saying what is wrong
 function CheckName(const Name: string; out ErrorMessage: string): Boolean;
-function SameName(const A, B: string): Boolean;
+function SameName(const First, Second: string): Boolean;
 // Name for a copy when Name is taken: trailing digits are stripped and the
 // next free number from 2 is appended (A -> A2, A2 -> A3, Hip2 -> Hip3).
 // Returns Name itself when it is free.
@@ -58,22 +58,22 @@ implementation
 uses
   SysUtils;
 
-function IsNameStart(C: Char): Boolean;
+function IsNameStart(Character: Char): Boolean;
 begin
-  Result := C in ['A'..'Z', 'a'..'z', '_'];
+  Result := Character in ['A'..'Z', 'a'..'z', '_'];
 end;
 
-function IsNameChar(C: Char): Boolean;
+function IsNameChar(Character: Char): Boolean;
 begin
-  Result := C in ['A'..'Z', 'a'..'z', '_', '0'..'9'];
+  Result := Character in ['A'..'Z', 'a'..'z', '_', '0'..'9'];
 end;
 
 function IsFunctionName(const Name: string): Boolean;
 var
-  F: string;
+  FunctionName: string;
 begin
-  for F in FormulaFunctionNames do
-    if SameText(F, Name) then
+  for FunctionName in FormulaFunctionNames do
+    if SameText(FunctionName, Name) then
       Exit(True);
   Result := False;
 end;
@@ -85,12 +85,12 @@ end;
 
 function IsValidName(const Name: string): Boolean;
 var
-  I: Integer;
+  Index: Integer;
 begin
   if (Name = '') or not IsNameStart(Name[1]) then
     Exit(False);
-  for I := 2 to Length(Name) do
-    if not IsNameChar(Name[I]) then
+  for Index := 2 to Length(Name) do
+    if not IsNameChar(Name[Index]) then
       Exit(False);
   Result := not IsReservedName(Name);
 end;
@@ -107,45 +107,45 @@ begin
   Result := ErrorMessage = '';
 end;
 
-function SameName(const A, B: string): Boolean;
+function SameName(const First, Second: string): Boolean;
 begin
-  Result := SameText(A, B);
+  Result := SameText(First, Second);
 end;
 
 function NextFreeName(const Name: string; IsTaken: TNameTakenFunc): string;
 var
   Stem: string;
-  N: Integer;
+  Number: Integer;
 begin
   if not IsTaken(Name) then
     Exit(Name);
   Stem := Name;
   while (Length(Stem) > 1) and (Stem[Length(Stem)] in ['0'..'9']) do
     SetLength(Stem, Length(Stem) - 1);
-  N := 2;
+  Number := 2;
   repeat
-    Result := Stem + IntToStr(N);
-    Inc(N);
+    Result := Stem + IntToStr(Number);
+    Inc(Number);
   until not IsTaken(Result);
 end;
 
 function NextAutoName(IsTaken: TNameTakenFunc): string;
 var
-  Round: Integer;
-  C: Char;
+  Suffix: Integer;
+  Letter: Char;
 begin
-  Round := 0;
+  Suffix := 0;
   repeat
-    for C := 'A' to 'Z' do
+    for Letter := 'A' to 'Z' do
     begin
-      if Round = 0 then
-        Result := C
+      if Suffix = 0 then
+        Result := Letter
       else
-        Result := C + IntToStr(Round);
+        Result := Letter + IntToStr(Suffix);
       if not IsTaken(Result) then
         Exit;
     end;
-    Inc(Round);
+    Inc(Suffix);
   until False;
 end;
 

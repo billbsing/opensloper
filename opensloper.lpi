@@ -112,6 +112,21 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="osCodePage"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/osevaluator.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osEvaluator"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/osdraft.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osDraft"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/ospattern.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osPattern"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
