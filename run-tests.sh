@@ -14,14 +14,23 @@ git submodule update --init --recursive
 "$LAZBUILD" "${PCP_ARGS[@]}" -q tests/opensloper_tests.lpi
 
 HEAPLOG="$(mktemp)"
-trap 'rm -f "$HEAPLOG"' EXIT
+RESULTS="$(mktemp)"
+trap 'rm -f "$HEAPLOG" "$RESULTS"' EXIT
 rm -f "$HEAPLOG"
-status=0
-HEAPTRC="log=$HEAPLOG" ./tests/opensloper_tests --all --format=plain "$@" || status=$?
+set +e
+HEAPTRC="log=$HEAPLOG" ./tests/opensloper_tests --all --format=plain "$@" 2>&1 | tee "$RESULTS"
+status=${PIPESTATUS[0]}
+set -e
 
 if [ "$status" -ne 0 ]; then
   echo "Tests failed (exit $status)" >&2
   exit "$status"
+fi
+# The runner can stop early (an exception outside a test) and still exit 0,
+# so require its summary too
+if ! grep -q '^Number of errors: *0$' "$RESULTS" || ! grep -q '^Number of failures: *0$' "$RESULTS"; then
+  echo "Tests did not finish or did not pass" >&2
+  exit 1
 fi
 if ! grep -q '^0 unfreed memory blocks' "$HEAPLOG" 2>/dev/null; then
   cat "$HEAPLOG" >&2 2>/dev/null || echo "No heaptrc report was written" >&2

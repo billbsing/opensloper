@@ -72,6 +72,21 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="osBezier"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/osnames.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osNames"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/osformulalexer.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osFormulaLexer"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/osformula.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osFormula"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

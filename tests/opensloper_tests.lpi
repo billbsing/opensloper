@@ -66,6 +66,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="TestBezier"/>
       </Unit>
+      <Unit>
+        <Filename Value="testnames.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestNames"/>
+      </Unit>
+      <Unit>
+        <Filename Value="testformula.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestFormula"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

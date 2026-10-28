@@ -25,7 +25,6 @@ The project uses Lazarus/Free Pascal and is licensed GPLv3 or later.
 | Lazarus LCL / FCL | GUI, JSON (`fpjson`), XML (`DOM`, `XMLRead`), SQLite (SQLdb) | Modified LGPL with static-linking exception |
 | Clipper2 | Polygon offsetting and booleans for seam allowance | Boost |
 | BGRABitmap | Antialiased canvas drawing, SVG | Modified LGPL |
-| TFPExpressionParser or custom parser | Formula evaluation | FCL |
 | fpvectorial (optional) | DXF/SVG/PDF export helpers | Modified LGPL |
 
 Licence decisions:
@@ -181,7 +180,7 @@ end;
 
 References are stored as IDs and shown as names, so renaming an object changes one field and never breaks a formula.
 
-**Formulas.** The user types names (`Line_A_B.length + @waist/4`) with autocomplete. On commit the parser resolves each name and stores the ID form (`{l1}.length + @waist/4`); unknown names are rejected at entry. Formula fields, tooltips and error messages convert IDs back to current names for display.
+**Formulas.** The user types names (`Line_A_B.length + @waist/4 + #ease`) with autocomplete. On commit the parser resolves each name and stores the ID form (`{l1}.length + @waist/4 + {v1}`): objects as `{id}.property`, variables as `{id}`, measurements by their stable key. Unknown names are rejected at entry. Formula fields, tooltips and error messages convert IDs back to current names for display.
 
 **IDs.** Short and readable (`p12`, `l7`), unique within the pattern, never reused after deletion. Measurements are the exception: patterns refer to them by a stable key such as `waist`, so any measurement file with the same keys works.
 
@@ -206,31 +205,32 @@ References are stored as IDs and shown as names, so renaming an object changes o
 
 ## Formula engine
 
-Decision: start with TFPExpressionParser behind a `TFormula` interface, with a custom tokenizer in front; a custom parser can replace it later without changes elsewhere.
+Decision: a small recursive-descent parser of our own (`osFormula`), on a custom tokenizer (`osFormulaLexer`). TFPExpressionParser was planned first, but a probe on FPC 3.2.2 showed its error positions refer to translated text, it lets comparisons, `if()`, `mod`, `and`/`or` and strings through, and it reports errors as exceptions; our syntax is small enough that our own parser is less code than wrapping it.
 
-**Why a translation layer is needed.** TFPExpressionParser expects plain identifiers registered before parsing, does not readily report which names a formula uses, has radian-based trig, and gives limited error positions. Our syntax uses `@waist`, `#ease` and `{l1}.length`, degrees, and needs a dependency list.
+**Syntax:** numbers (`12`, `0.5`, `.5`, `1e3`; `.` is always the decimal point), `+ - * /`, `^` (right-associative and tighter than unary minus, so `-2^2 = -4`), brackets, and the functions `sin cos tan asin acos atan2 sqrt abs min max round`. Angles are in degrees; `atan2(y, x)` returns degrees in (-180, 180]; `round` rounds halves away from zero; `min` and `max` take two or more values. References: `@measurement`, `#variable`, `Object.property`.
 
 **Pipeline:**
 
-1. Custom tokenizer reads the formula: resolves names to IDs, collects references for the dependency graph, reports unknown names with their position.
-2. Tokens are mapped to plain identifiers (`@waist` → `m_waist`, `#ease` → `v_ease`, `{l1}.length` → `o_l1_length`), registered as variables.
-3. TFPExpressionParser parses once and evaluates on each run.
-4. Degree-based `sin`, `cos`, `tan`, `asin`, `acos`, `atan2` are registered as custom functions.
+1. The tokenizer reads the display form the user types, or the stored ID form from a file, and reports spelling errors with their position.
+2. `TFormula` resolves names through a `TNameResolver`, collects the references for the dependency graph and rejects unknown names, objects without a property and unknown properties.
+3. The parser builds an expression tree once; evaluation walks it with values from a `TFormulaContext`.
+4. The stored form keeps the user's spacing and number spelling; only references change.
 
-The tokenizer is needed regardless (it drives name/ID conversion), so it carries over if the engine is replaced by a custom recursive-descent parser.
+**Failures are states.** Parse errors give a message and a 1-based position in the text as typed. Evaluation errors (division by zero, square root of a negative, `asin` out of range, missing value, overflow) set `ErrorMessage` and `ErrorPos`; `DisplayErrorPos` maps the position into the display text. FPU exceptions are masked during evaluation, because x87 exceptions from `Power` can surface outside the method; infinite or NaN results become errors. A formula that fails to parse keeps its text, so a file round-trips unchanged.
 
 ```pascal
 TFormula = class
-  function Parse(const Text: string; Resolver: TNameResolver): Boolean;
-  function References: TNodeIdArray;       // for the dependency graph
-  function Evaluate(Ctx: TEvalContext): Double;
-  function DisplayText(Resolver: TNameResolver): string;  // IDs -> names
+  function Parse(const Text: string; Resolver: TNameResolver): Boolean;  // display form
+  function ParseStored(const Text: string): Boolean;                     // ID form, from a file
+  function Evaluate(Context: TFormulaContext; out Value: Double): Boolean;
+  function DisplayText(Resolver: TNameResolver): string;                 // IDs -> names
+  function IsLiteral: Boolean;                                           // plain number, draggable
+  property StoredText: string;
+  property References: TFormulaReferenceArray;                           // for the dependency graph
   property ErrorMessage: string;
   property ErrorPos: Integer;
 end;
 ```
-
-To confirm against the FPC version in use: identifier rules, integer/float handling, and access to the parse tree.
 
 ## Operation set
 
@@ -409,12 +409,12 @@ JSON rules:
   "units": "mm",
   "measurements": "bill.measurements.json",
   "increments": [
-    { "name": "#ease_waist", "formula": "20" }
+    { "id": "v1", "name": "ease_waist", "formula": "20" }
   ],
   "objects": [
     { "id": "p1", "type": "point", "name": "A", "x": "0", "y": "0" },
     { "id": "p2", "type": "pointAtDistanceAngle", "name": "B",
-      "base": "p1", "length": "@waist/4 + #ease_waist", "angle": "0" },
+      "base": "p1", "length": "@waist/4 + {v1}", "angle": "0" },
     { "id": "l1", "type": "line", "start": "p1", "end": "p2" }
   ],
   "pieces": []
@@ -671,6 +671,6 @@ Open questions:
 
 - [x] Evaluator details: settled, see Evaluator
 - [x] Operation set: settled, see Operation set, including transforms
-- [x] Expression engine: settled, TFPExpressionParser behind TFormula; see Formula engine
+- [x] Expression engine: settled, our own recursive-descent parser behind TFormula (TFPExpressionParser was dropped after a probe); see Formula engine
 - [x] Project name: settled, OpenSloper (opensloper.com available; reserve domain and GitHub name; file extensions .sloper for patterns, .slm for measurements)
 - [x] Undo granularity: settled, see Key design decisions item 7
