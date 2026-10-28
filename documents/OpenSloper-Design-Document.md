@@ -612,7 +612,7 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 | Package | Path | Use | Licence |
 | --- | --- | --- | --- |
-| Clipper2 | `packages/clipper2` | Seam allowance offsetting and polygon booleans | Boost |
+| Clipper2 | `packages/clipper2` | Seam allowance offsetting and polygon booleans; from the fork [github.com/billbsing/Clipper2](https://github.com/billbsing/Clipper2), which carries our fixes | Boost |
 | BGRABitmap | `packages/bgrabitmap` | Antialiased canvas drawing, SVG | Modified LGPL |
 | ConsoleTools | `packages/console-tools` | Argument parsing and coloured, word-wrapped help for command-line tools | MIT |
 
@@ -620,6 +620,7 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 - Each package is added to the project search path or as a `.lpk` dependency
 - Updates are deliberate: a submodule bump is its own commit
+- Clipper2 comes from our fork, which carries fixes upstream has not merged (see `documents/known-issues.md`); upstream changes are pulled into the fork deliberately, and fixes are still offered upstream as pull requests
 - README and `run-tests.sh` include `git submodule update --init --recursive`, so builds never run with missing packages
 - Every package must be GPLv3-compatible and carry an explicit licence file
 

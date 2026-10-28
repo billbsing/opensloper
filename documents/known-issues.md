@@ -22,7 +22,7 @@ On FPC for x86_64 Linux, `Extended` is 80-bit, so the untyped constant `MaxDoubl
 
 **Fix.** Use a Boolean flag instead of the sentinel and initialise `IsNegArea`; in `GetBounds` test `Result.Left > Result.Right`. The same commit also fixes `group.paths[i]` → `group.paths[j]` in the zero-delta branch of `TClipperOffset.ExecuteInternal`.
 
-The fix is on branch `fix-maxdouble-sentinel` of the fork `github.com/billbsing/Clipper2`, and `packages/clipper2` points at that fork until upstream takes the fix. `tests/testclipper.pas` (`TestMitredSquareOffset`) covers it. Once upstream merges it, point the submodule back at `github.com/AngusJohnson/Clipper2`.
+Fixed in our fork `github.com/billbsing/Clipper2` (branch `fix-maxdouble-sentinel`), which `packages/clipper2` uses. Upstream has a large backlog, so we stay on the fork rather than wait for a merge; the fix can still be offered upstream as a pull request. `tests/testclipper.pas` (`TestMitredSquareOffset`) covers it.
 
 ## fpcupdeluxe Lazarus 4.99 in ~/Packages/fpc_build: lazbuild fails
 
