@@ -1,6 +1,6 @@
 [submodule "packages/clipper2"]
 	path = packages/clipper2
-	url = https://github.com/AngusJohnson/Clipper2.git
+	url = https://github.com/billbsing/Clipper2.git
 [submodule "packages/bgrabitmap"]
 	path = packages/bgrabitmap
 	url = https://github.com/bgrabitmap/bgrabitmap.git
