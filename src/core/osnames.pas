@@ -37,6 +37,8 @@ const
 function IsValidName(const Name: string): Boolean;
 function IsReservedName(const Name: string): Boolean;
 function IsFunctionName(const Name: string): Boolean;
+// IsValidName with a message saying what is wrong
+function CheckName(const Name: string; out ErrorMessage: string): Boolean;
 function SameName(const A, B: string): Boolean;
 // Name for a copy when Name is taken: trailing digits are stripped and the
 // next free number from 2 is appended (A -> A2, A2 -> A3, Hip2 -> Hip3).
@@ -44,6 +46,12 @@ function SameName(const A, B: string): Boolean;
 function NextFreeName(const Name: string; IsTaken: TNameTakenFunc): string;
 // Next automatic point name: A to Z, then A1 to Z1, A2 and so on
 function NextAutoName(IsTaken: TNameTakenFunc): string;
+
+resourcestring
+  rsNameEmpty = 'The name is empty';
+  rsNameInvalid = '"%s" is not a valid name: use letters, digits and underscore, not starting with a digit';
+  rsNameReserved = '"%s" is a function name and cannot be used';
+  rsNameTaken = '"%s" is already used';
 
 implementation
 
@@ -85,6 +93,18 @@ begin
     if not IsNameChar(Name[I]) then
       Exit(False);
   Result := not IsReservedName(Name);
+end;
+
+function CheckName(const Name: string; out ErrorMessage: string): Boolean;
+begin
+  ErrorMessage := '';
+  if Name = '' then
+    ErrorMessage := rsNameEmpty
+  else if IsReservedName(Name) then
+    ErrorMessage := Format(rsNameReserved, [Name])
+  else if not IsValidName(Name) then
+    ErrorMessage := Format(rsNameInvalid, [Name]);
+  Result := ErrorMessage = '';
 end;
 
 function SameName(const A, B: string): Boolean;

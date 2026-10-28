@@ -25,7 +25,7 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  SysUtils, ConsoleTools, osVersion;
+  osCodePage, SysUtils, ConsoleTools, osVersion;
 
 resourcestring
   rsDescription = 'Export and check OpenSloper patterns.';

@@ -24,7 +24,7 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  Interfaces, Forms,
+  osCodePage, Interfaces, Forms,
   osVersion, osMainForm;
 
 {$R *.res}

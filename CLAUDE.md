@@ -40,6 +40,8 @@ Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa.
 - Evaluation failures are states (error, invalid, blocked), never exceptions that escape to the UI.
 - User-visible text goes in `resourcestring` sections.
 - File paths go through `TAppPaths`; build paths with `ConcatPaths` / `PathDelim`, never a hard-coded `/`.
+- Every program lists `osCodePage` first in its uses clause and is compiled with `-FcUTF8`, so strings are UTF-8 throughout.
+- Files are written through `osJSON` (`JSONToText`, `JSONFloat`) for a stable layout; loading reports errors as messages, never exceptions.
 - Shortcuts use `ssModifier`, not a hard-coded Ctrl.
 
 ## Testing

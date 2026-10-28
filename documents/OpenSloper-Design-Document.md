@@ -43,7 +43,7 @@ A pattern is a graph of draft objects whose positions come from measurements, va
 | Concept | What it is | Notes |
 | --- | --- | --- |
 | Measurement set | A person's body measurements, e.g. `@waist`, `@back_length` | Own file; one set drives many patterns. A size table (several sets) enables grading later |
-| Variable (increment) | Pattern-level value, e.g. `#ease_waist = 20` | Holds design decisions; may use formulas |
+| Variable (increment) | Pattern-level value, e.g. `#ease_waist = 20` | Holds design decisions; formulas may use measurements and other variables (not draft objects, which would tie variables to geometry) |
 | Point | A position defined by an operation, its references and formulas | Never stored as fixed coordinates, except free points |
 | Operation | How a point is placed: offset, along line, intersection, perpendicular, midpoint/ratio | Inferred from snapping where possible |
 | Edge | Line, Bézier curve or arc between points | Curve handles have angle and length formulas |
@@ -399,8 +399,31 @@ JSON rules:
 - Top-level `format` and `version` fields from the first file
 - Stable IDs for every object; references by ID
 - Formulas stored as strings, evaluated on load
-- Consistent key order and pretty-printing on save
+- Consistent key order and pretty-printing on save: two-space indent, `"key": value`, LF line ends, numbers in the shortest form that reads back exactly (`720`, `432.5`), `.` as decimal point
+- Text is UTF-8; every program lists `osCodePage` first so non-ASCII names and notes survive
 - Measurements in separate files from patterns
+- A file that fails to load reports why and leaves nothing half-loaded; a formula that does not parse is kept as text and shows as an error
+
+Measurement file (`.slm`); values are in mm, keys follow the name rules and are what patterns refer to (`@waist`):
+
+```json
+{
+  "format": "measurements",
+  "version": 1,
+  "units": "mm",
+  "name": "Bill",
+  "notes": "Measured over a T-shirt",
+  "measurements": [
+    {
+      "key": "waist",
+      "value": 820,
+      "description": "Waist circumference"
+    }
+  ]
+}
+```
+
+Pattern file (shape still to be settled with storage, roadmap step 5):
 
 ```json
 {
@@ -409,7 +432,7 @@ JSON rules:
   "units": "mm",
   "measurements": "bill.measurements.json",
   "increments": [
-    { "id": "v1", "name": "ease_waist", "formula": "20" }
+    { "id": "v1", "name": "ease_waist", "formula": "20", "description": "" }
   ],
   "objects": [
     { "id": "p1", "type": "point", "name": "A", "x": "0", "y": "0" },

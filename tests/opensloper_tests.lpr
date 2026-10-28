@@ -21,9 +21,9 @@ program opensloper_tests;
 {$mode ObjFPC}{$H+}
 
 uses
-  Classes, consoletestrunner,
-  TestGeometry, TestNumeric, TestBezier, TestNames, TestFormula, TestAppPaths,
-  TestClipper;
+  osCodePage, Classes, consoletestrunner,
+  TestGeometry, TestNumeric, TestBezier, TestNames, TestFormula, TestJSON,
+  TestMeasurements, TestVariables, TestAppPaths, TestClipper;
 
 var
   App: TTestRunner;

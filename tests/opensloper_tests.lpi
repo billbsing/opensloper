@@ -76,6 +76,21 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="TestFormula"/>
       </Unit>
+      <Unit>
+        <Filename Value="testjson.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestJSON"/>
+      </Unit>
+      <Unit>
+        <Filename Value="testmeasurements.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestMeasurements"/>
+      </Unit>
+      <Unit>
+        <Filename Value="testvariables.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TestVariables"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -105,7 +120,7 @@
       </Debugging>
     </Linking>
     <Other>
-      <CustomOptions Value="-Sa"/>
+      <CustomOptions Value="-Sa -FcUTF8"/>
     </Other>
   </CompilerOptions>
 </CONFIG>

@@ -87,6 +87,31 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="osFormula"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/osjson.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osJSON"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/osevaltypes.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osEvalTypes"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/osmeasurements.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osMeasurements"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/osvariables.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osVariables"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/oscodepage.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="osCodePage"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -109,6 +134,9 @@
         </Win32>
       </Options>
     </Linking>
+    <Other>
+      <CustomOptions Value="-FcUTF8"/>
+    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions>
