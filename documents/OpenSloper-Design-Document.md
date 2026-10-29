@@ -366,7 +366,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
   Values are rounded to 0.1 mm. The canvas shows a marker for the kind of snap, a dotted guide to the point it lines up with, and the line being drawn, and the status bar says what a click will make ("New point 30 mm right of B").
 - **Lines and curves** take two clicks. Both new end points and the edge are one undo step, and drawing carries on from the end point. New edges are outlines. A curve starts with handles along the chord, a third of its length, ready to shape in the properties.
 - **Properties panel** (`Sloper.UI.Properties`): the selected object's type, name, formulas (shown with names, with readable captions such as "Point 2 handle in") and role, and what it computes to. Enter or leaving a field commits one undo step; Escape puts the text back. A refused formula keeps its text, shows the reason in red and puts the cursor at the problem. The role drop-down is also one undo step.
-- **Next:** point label modes (the canvas still labels every point), the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
+- **Next:** the property grid layout below, point label modes (the canvas still labels every point), the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -414,6 +414,14 @@ A problems panel lists each issue in plain words (e.g. "Front: gap between Line\
 Labels never print unless explicitly turned on in the print screen.
 
 **Objects panel.** A side panel lists every point, edge, piece and annotation with its name, operation, formulas, computed position and state (valid, error, invalid, blocked), with search and filter. Selecting in the panel selects and zooms on the canvas, and the reverse. The panel is where names and data are read and edited, so the canvas doesn't need to show them; formula fields use name autocomplete, so hidden labels never make formulas harder to write.
+
+**Property grid.** The properties panel lays out each field on one row, name on the left and value on the right, like the Castle Game Engine inspector, instead of a caption above each field. This keeps the whole selection visible in a narrow panel.
+
+- A splitter between the two columns can be dragged to share the width between names and values. Its position is kept between sessions.
+- A name too long for its column is cut with an ellipsis and shown in full as a tooltip.
+- Read-only rows (type, computed values) use the same layout with plain text in the value column.
+- A refused formula's reason shows in red on a row under its field, across both columns.
+- Editing behaviour is unchanged: Enter or leaving a field commits one undo step, and Escape puts the text back.
 
 ## File format and storage
 
