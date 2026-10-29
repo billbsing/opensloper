@@ -38,6 +38,8 @@ uses
   Sloper.Tests.Operations,
   Sloper.Tests.Edges,
   Sloper.Tests.PatternFile,
+  Sloper.Tests.PatternCheck,
+  Sloper.Tests.Regression,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;
 

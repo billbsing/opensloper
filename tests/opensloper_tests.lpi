@@ -116,6 +116,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.PatternFile"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.patterncheck.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.PatternCheck"/>
+      </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.regression.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Regression"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

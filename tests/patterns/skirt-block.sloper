@@ -1,0 +1,456 @@
+{
+  "format": "pattern",
+  "version": 1,
+  "units": "mm",
+  "notes": "Straight skirt block, half back and front. A regression pattern: it uses every operation.",
+  "measurementFile": "skirt-small.slm",
+  "variables": [
+    {
+      "id": "v1",
+      "name": "hip_ease",
+      "formula": "40",
+      "description": "Total ease at the hip"
+    },
+    {
+      "id": "v2",
+      "name": "waist_ease",
+      "formula": "10",
+      "description": "Total ease at the waist"
+    },
+    {
+      "id": "v3",
+      "name": "suppression",
+      "formula": "(@hip + {v1} - @waist - {v2}) / 2",
+      "description": "Waist shaping for the half skirt: side seam, back dart and front dart"
+    },
+    {
+      "id": "v4",
+      "name": "side_take",
+      "formula": "{v3} / 4",
+      "description": "Taken in at the side, on each panel"
+    },
+    {
+      "id": "v5",
+      "name": "back_dart",
+      "formula": "{v3} * 0.3",
+      "description": "Back dart width"
+    },
+    {
+      "id": "v6",
+      "name": "front_dart",
+      "formula": "{v3} * 0.2",
+      "description": "Front dart width"
+    }
+  ],
+  "objects": [
+    {
+      "id": "p1",
+      "type": "freePoint",
+      "name": "A",
+      "x": "0",
+      "y": "0"
+    },
+    {
+      "id": "p2",
+      "type": "offsetPoint",
+      "name": "B",
+      "base": "p1",
+      "mode": "polar",
+      "length": "@waist_to_hip",
+      "angle": "270"
+    },
+    {
+      "id": "p3",
+      "type": "offsetPoint",
+      "name": "C",
+      "base": "p1",
+      "mode": "polar",
+      "length": "@skirt_length",
+      "angle": "270"
+    },
+    {
+      "id": "p4",
+      "type": "offsetPoint",
+      "name": "D",
+      "base": "p1",
+      "mode": "polar",
+      "length": "@hip / 2 + {v1} / 2",
+      "angle": "0"
+    },
+    {
+      "id": "l1",
+      "type": "line",
+      "name": "Waist_line",
+      "start": "p1",
+      "end": "p4",
+      "role": "construction"
+    },
+    {
+      "id": "p5",
+      "type": "offsetPoint",
+      "name": "E",
+      "base": "p2",
+      "mode": "polar",
+      "length": "{l1}.length",
+      "angle": "0"
+    },
+    {
+      "id": "l2",
+      "type": "line",
+      "name": "Hip_line",
+      "start": "p2",
+      "end": "p5",
+      "role": "construction"
+    },
+    {
+      "id": "p6",
+      "type": "offsetPoint",
+      "name": "F",
+      "base": "p3",
+      "mode": "polar",
+      "length": "{l1}.length",
+      "angle": "0"
+    },
+    {
+      "id": "l3",
+      "type": "line",
+      "name": "Hem",
+      "start": "p3",
+      "end": "p6",
+      "role": "outline"
+    },
+    {
+      "id": "l4",
+      "type": "line",
+      "name": "Centre_back",
+      "start": "p1",
+      "end": "p3",
+      "role": "outline"
+    },
+    {
+      "id": "l5",
+      "type": "line",
+      "name": "Centre_front",
+      "start": "p4",
+      "end": "p6",
+      "role": "outline"
+    },
+    {
+      "id": "p7",
+      "type": "alongEdgePoint",
+      "name": "G",
+      "edge": "l2",
+      "from": "start",
+      "mode": "length",
+      "value": "{l2}.length / 2 - 10"
+    },
+    {
+      "id": "p8",
+      "type": "projectPoint",
+      "name": "H",
+      "point": "p7",
+      "edge": "l1",
+      "direction": "perpendicular",
+      "extend": false
+    },
+    {
+      "id": "p9",
+      "type": "projectPoint",
+      "name": "J",
+      "point": "p7",
+      "edge": "l3",
+      "direction": "perpendicular",
+      "extend": false
+    },
+    {
+      "id": "p10",
+      "type": "offsetPoint",
+      "name": "L",
+      "base": "p8",
+      "mode": "cartesian",
+      "dx": "-{v4}",
+      "dy": "12"
+    },
+    {
+      "id": "p11",
+      "type": "offsetPoint",
+      "name": "M",
+      "base": "p8",
+      "mode": "cartesian",
+      "dx": "{v4}",
+      "dy": "12"
+    },
+    {
+      "id": "c1",
+      "type": "curve",
+      "name": "Back_waist",
+      "start": "p1",
+      "end": "p10",
+      "angle1": "0",
+      "length1": "60",
+      "angle2": "183",
+      "length2": "60",
+      "role": "construction"
+    },
+    {
+      "id": "c2",
+      "type": "curve",
+      "name": "Front_waist",
+      "start": "p4",
+      "end": "p11",
+      "angle1": "180",
+      "length1": "60",
+      "angle2": "357",
+      "length2": "60",
+      "role": "construction"
+    },
+    {
+      "id": "p12",
+      "type": "alongEdgePoint",
+      "name": "N",
+      "edge": "c1",
+      "from": "start",
+      "mode": "ratio",
+      "value": "0.5"
+    },
+    {
+      "id": "p13",
+      "type": "offsetPoint",
+      "name": "O",
+      "base": "p12",
+      "mode": "polar",
+      "length": "140",
+      "angle": "270"
+    },
+    {
+      "id": "p14",
+      "type": "circleEdgePoint",
+      "name": "P",
+      "centre": "p12",
+      "edge": "c1",
+      "extend": false,
+      "pick": 1,
+      "radius": "{v5} / 2"
+    },
+    {
+      "id": "p15",
+      "type": "circleEdgePoint",
+      "name": "Q",
+      "centre": "p12",
+      "edge": "c1",
+      "extend": false,
+      "pick": 2,
+      "radius": "{v5} / 2"
+    },
+    {
+      "id": "l6",
+      "type": "line",
+      "start": "p14",
+      "end": "p13",
+      "role": "outline"
+    },
+    {
+      "id": "l7",
+      "type": "line",
+      "start": "p15",
+      "end": "p13",
+      "role": "outline"
+    },
+    {
+      "id": "c3",
+      "type": "splitPart",
+      "edge": "c1",
+      "point": "p14",
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": "c4",
+      "type": "splitPart",
+      "edge": "c1",
+      "point": "p14",
+      "part": 2,
+      "role": "construction"
+    },
+    {
+      "id": "c5",
+      "type": "splitPart",
+      "edge": "c4",
+      "point": "p15",
+      "part": 1,
+      "role": "construction"
+    },
+    {
+      "id": "c6",
+      "type": "splitPart",
+      "edge": "c4",
+      "point": "p15",
+      "part": 2,
+      "role": "outline"
+    },
+    {
+      "id": "p16",
+      "type": "alongEdgePoint",
+      "name": "S",
+      "edge": "c2",
+      "from": "end",
+      "mode": "length",
+      "value": "{c2}.length / 2"
+    },
+    {
+      "id": "p17",
+      "type": "offsetPoint",
+      "name": "S2",
+      "base": "p16",
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "-10"
+    },
+    {
+      "id": "l8",
+      "type": "line",
+      "name": "Front_dart_centre",
+      "start": "p16",
+      "end": "p17",
+      "role": "construction"
+    },
+    {
+      "id": "p18",
+      "type": "offsetPoint",
+      "name": "T",
+      "base": "p2",
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "90"
+    },
+    {
+      "id": "p19",
+      "type": "offsetPoint",
+      "name": "U",
+      "base": "p18",
+      "mode": "polar",
+      "length": "{l1}.length",
+      "angle": "0"
+    },
+    {
+      "id": "l9",
+      "type": "line",
+      "name": "Front_dart_level",
+      "start": "p18",
+      "end": "p19",
+      "role": "construction"
+    },
+    {
+      "id": "p20",
+      "type": "intersectPoint",
+      "name": "R",
+      "edgeA": "l8",
+      "edgeB": "l9",
+      "extendA": true,
+      "extendB": false,
+      "pick": 1
+    },
+    {
+      "id": "p21",
+      "type": "circleEdgePoint",
+      "name": "V",
+      "centre": "p16",
+      "edge": "c2",
+      "extend": false,
+      "pick": 1,
+      "radius": "{v6} / 2"
+    },
+    {
+      "id": "p22",
+      "type": "circleEdgePoint",
+      "name": "W",
+      "centre": "p16",
+      "edge": "c2",
+      "extend": false,
+      "pick": 2,
+      "radius": "{v6} / 2"
+    },
+    {
+      "id": "l10",
+      "type": "line",
+      "start": "p21",
+      "end": "p20",
+      "role": "outline"
+    },
+    {
+      "id": "l11",
+      "type": "line",
+      "start": "p22",
+      "end": "p20",
+      "role": "outline"
+    },
+    {
+      "id": "c7",
+      "type": "splitPart",
+      "edge": "c2",
+      "point": "p21",
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": "c8",
+      "type": "splitPart",
+      "edge": "c2",
+      "point": "p21",
+      "part": 2,
+      "role": "construction"
+    },
+    {
+      "id": "c9",
+      "type": "splitPart",
+      "edge": "c8",
+      "point": "p22",
+      "part": 1,
+      "role": "construction"
+    },
+    {
+      "id": "c10",
+      "type": "splitPart",
+      "edge": "c8",
+      "point": "p22",
+      "part": 2,
+      "role": "outline"
+    },
+    {
+      "id": "c11",
+      "type": "curvePath",
+      "name": "Back_side",
+      "nodes": [
+        {
+          "point": "p10",
+          "angle": "275",
+          "lengthOut": "@waist_to_hip / 3"
+        },
+        {
+          "point": "p7",
+          "angle": "270",
+          "lengthIn": "@waist_to_hip / 3",
+          "lengthOut": "50"
+        },
+        {
+          "point": "p9",
+          "angle": "270",
+          "lengthIn": "50"
+        }
+      ],
+      "role": "outline"
+    },
+    {
+      "id": "c12",
+      "type": "curve",
+      "name": "Front_side",
+      "start": "p11",
+      "end": "p7",
+      "angle1": "265",
+      "length1": "@waist_to_hip / 3",
+      "angle2": "90",
+      "length2": "@waist_to_hip / 3",
+      "role": "outline"
+    }
+  ]
+}

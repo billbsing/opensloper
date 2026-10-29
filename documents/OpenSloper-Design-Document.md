@@ -437,7 +437,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`):
 
 (Shown compacted; the writer puts every member on its own line.)
 
-- `measurementFile` is the measurement set last used with the pattern, as the user chose it. The document layer resolves and loads it; the core only keeps the text.
+- `measurementFile` is the measurement set last used with the pattern, written with `/` separators and relative to the pattern's folder unless absolute. `MeasurementFilePath` turns it into a path; the core never loads it by itself.
 - `variables` and `objects` are in creation order. An object's direct inputs (`base`, `edge`, `start`, a path's node points and so on) must name an object earlier in the file. Creation order guarantees this, because inputs exist before the object and cannot be deleted while it uses them. Formulas may refer to any ID; a missing one shows as an error when evaluated.
 - Each object has `id`, `type` and `name`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
@@ -606,6 +606,11 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 
 **Regression patterns.** A few sample patterns (skirt block, bodice block) with two or three measurement sets each, and their expected computed coordinates stored as JSON. Each test evaluates a pattern and compares results, so any change that silently alters a draft fails.
 
+- In `tests/patterns/`: `<pattern>.sloper`, `<set>.slm`, and one `<pattern>.<set>.expected.json` per case. The test runs every expected file it finds.
+- An expected file is the report from `opensloper-cli check --json` (`Sloper.Core.PatternCheck`): each variable's value and each object's state with its position or length, rounded to 1e-6 mm. Values are compared within 1e-5 mm, the other members exactly.
+- A new or deliberately changed pattern gets its expected file from the CLI, after its values are checked by hand. `tests/patterns/README.md` has the commands.
+- So far: a straight skirt block that uses every operation, with a small and a large measurement set. A bodice block comes once pieces exist.
+
 **Habits:**
 
 - Core tests written alongside, or before, geometry and formula code
@@ -665,7 +670,7 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 **Command-line tools** (using the LCL-free core and ConsoleTools):
 
 - `opensloper-cli export`: regenerate PDFs for a pattern and one or more measurement files
-- `opensloper-cli check`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI
+- `opensloper-cli check PATTERN [-m FILE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors and invalid objects, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
 
 **ConsoleTools improvements noted:**
 

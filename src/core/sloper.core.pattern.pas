@@ -64,7 +64,6 @@ type
       const Names, Texts: array of string): boolean;
     function DerivedEdgeName(AEdge: TEdgeObject): string;
     procedure RebuildMeasurementNodes;
-    function AllNodes: TEvalNodeArray;
   public
     Notes: string;
     // The measurement file last used with the pattern, as the user chose it;
@@ -128,6 +127,8 @@ type
 
     // Rebuilds the graph and computes everything
     procedure Evaluate;
+    // Measurements the pattern uses (after Evaluate), then variables, then objects
+    function AllNodes: TEvalNodeArray;
 
     // For loaders: add a variable or object that already has its stored ID
     // and formulas, taking ownership. Nothing is checked; the loader checks
@@ -960,7 +961,6 @@ begin
   end;
 end;
 
-// Measurement nodes, then variables, then objects
 function TPattern.AllNodes: TEvalNodeArray;
 var
   Index, Count: integer;

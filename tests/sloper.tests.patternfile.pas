@@ -55,6 +55,7 @@ type
     procedure TestFailedLoadEmptiesPattern;
     procedure TestSaveAndLoadFile;
     procedure TestMissingFile;
+    procedure TestMeasurementFilePath;
   end;
 
 implementation
@@ -435,6 +436,22 @@ var
 begin
   AssertFalse(LoadPatternFromFile(FLoaded, ConcatPaths([GetTempDir, 'no-such-file.sloper']), Err));
   AssertTrue('message names the file', Pos('no-such-file.sloper', Err) > 0);
+end;
+
+procedure TTestPatternFile.TestMeasurementFilePath;
+begin
+  AssertEquals('none', '', MeasurementFilePath(FPattern, ConcatPaths(['dir', 'skirt.sloper'])));
+  FPattern.MeasurementFile := 'bill.slm';
+  AssertEquals('beside the pattern', ConcatPaths(['dir', 'bill.slm']),
+    MeasurementFilePath(FPattern, ConcatPaths(['dir', 'skirt.sloper'])));
+  AssertEquals('pattern in the current folder', 'bill.slm', MeasurementFilePath(FPattern, 'skirt.sloper'));
+  FPattern.MeasurementFile := 'sets/bill.slm';
+  AssertEquals('stored with /', ConcatPaths(['dir', 'sets', 'bill.slm']),
+    MeasurementFilePath(FPattern, ConcatPaths(['dir', 'skirt.sloper'])));
+  {$IFDEF UNIX}
+  FPattern.MeasurementFile := '/home/bill/bill.slm';
+  AssertEquals('absolute', '/home/bill/bill.slm', MeasurementFilePath(FPattern, ConcatPaths(['dir', 'skirt.sloper'])));
+  {$ENDIF}
 end;
 
 initialization

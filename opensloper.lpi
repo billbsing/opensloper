@@ -132,6 +132,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.PatternFile"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.patterncheck.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.PatternCheck"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

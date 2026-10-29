@@ -40,6 +40,10 @@ function SavePatternToText(Pattern: TPattern): string;
 function LoadPatternFromText(Pattern: TPattern; const Text: string; out ErrorMessage: string): boolean;
 function SavePatternToFile(Pattern: TPattern; const FileName: string; out ErrorMessage: string): boolean;
 function LoadPatternFromFile(Pattern: TPattern; const FileName: string; out ErrorMessage: string): boolean;
+// The pattern's measurement file as a path: relative to the folder of
+// PatternFileName unless absolute. Stored with "/" on every platform. Empty
+// when the pattern names none.
+function MeasurementFilePath(Pattern: TPattern; const PatternFileName: string): string;
 
 resourcestring
   rsPatternFileWrongFormat = 'This is not a pattern file';
@@ -654,6 +658,18 @@ begin
   if not ReadTextFile(FileName, Text, ErrorMessage) then
     Exit(False);
   Result := LoadPatternFromText(Pattern, Text, ErrorMessage);
+end;
+
+function MeasurementFilePath(Pattern: TPattern; const PatternFileName: string): string;
+var
+  Folder: string;
+begin
+  if Pattern.MeasurementFile = '' then
+    Exit('');
+  Result := SetDirSeparators(Pattern.MeasurementFile);
+  Folder := ExtractFileDir(PatternFileName);
+  if (Result[1] <> PathDelim) and (ExtractFileDrive(Result) = '') and (Folder <> '') then
+    Result := ConcatPaths([Folder, Result]);
 end;
 
 end.
