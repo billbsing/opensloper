@@ -40,6 +40,7 @@ uses
   Sloper.Tests.PatternFile,
   Sloper.Tests.PatternCheck,
   Sloper.Tests.Regression,
+  Sloper.Tests.Document,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;
 

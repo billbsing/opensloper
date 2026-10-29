@@ -86,6 +86,15 @@ The central rule: only definitions are saved and undone; computed geometry is al
 5. **IDs separate from names.** Internal IDs never change; user-facing names can be renamed freely.
 6. **Operation registry.** Each operation type is a class that declares its inputs and parameters and evaluates itself. Adding a tool means writing one class, adding its `Add…` call to `TPattern`, and giving it a file type in `Sloper.Core.PatternFile`.
 7. **Commands for undo/redo.** Every user change is a `TCommand` with `Execute` and `Undo`; the UI listens for change notifications. One drag is one undo step: the start value is recorded on mouse-down, the model updates live during the drag without creating commands, and a single command is committed on mouse-up; Escape cancels and restores the start value. Repeated arrow-key nudges of the same object within about a second merge into one step, as do consecutive spin box or slider changes to the same field. Formula fields commit one step on Enter or loss of focus, not per keystroke.
+
+   Implementation (`Sloper.Document.PatternDocument`):
+   - **Changes.** A command is a `TPatternChange` holding the pattern's saved text from before and after. The UI opens a change with `BeginChange`, edits `Pattern` through its normal API (calling `LiveUpdate` while dragging), then calls `EndChange`, or `CancelChange` for Escape. `Commit(Success)` wraps a single edit.
+   - **Why text.** Undo restores exactly the earlier definitions, with the same IDs, for every editing call, without writing an inverse for each.
+   - **Holding objects.** Undo, redo, cancel and load replace the pattern's objects with new instances (`dcObjectsReplaced`), so the UI holds objects by ID, never by reference, across changes.
+   - **Merging.** `EndChange(MergeKey)` joins the last step when it has the same key and came within `MergeSeconds` (1 s) of it, e.g. `nudge:p3`. A merged step that cancels out is dropped. A step the file was saved after is never merged into, so the saved state stays reachable.
+   - **Limits and the modified flag.** At most `UndoLimit` steps are kept (500). The document is modified when the undo position differs from the one at the last save, or when the measurement set changed.
+   - **The measurement set** belongs to the document, not the history: undo never swaps it back. On save it is stored relative to the pattern's folder; while the pattern is unsaved it is stored as an absolute path.
+   - **Notifications.** Listeners receive a set of `dcPattern`, `dcObjectsReplaced`, `dcMeasurements`, `dcHistory` and `dcFile`.
 8. **Storage kept apart from the model.** `TPattern` knows nothing about JSON; `Sloper.Core.PatternFile` reads and writes it through `TPattern`'s loader hooks (`InsertVariable`, `InsertObject`, `UpdateDerivedNames`). With only one format there is no storage interface; one can be extracted if a second format is added.
 
 ```pascal
@@ -135,7 +144,7 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 - `TPattern.SetFormula` refuses an edit that would close a cycle, naming both nodes. Loaded files can still contain one: nodes on the cycle become errors and their readers are blocked.
 - `Evaluate` rebuilds the graph and recomputes everything; dirty tracking can come later if dragging needs it.
 - `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 4) wrap these calls. `Delete` is refused while other nodes use the object.
-- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge) and all edge operations (line, curve, curve path, split edge), with derived names (`Line_A_B`, `Path_A_C`) that follow renamed endpoints until the user names the edge. Pattern files are saved and loaded (`Sloper.Core.PatternFile`, see File format and storage); undo commands come next (roadmap step 4).
+- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge) and all edge operations (line, curve, curve path, split edge), with derived names (`Line_A_B`, `Path_A_C`) that follow renamed endpoints until the user names the edge. Pattern files are saved and loaded (`Sloper.Core.PatternFile`, see File format and storage); undo and redo work through `TPatternDocument` (see Key design decisions item 7). The canvas comes next (roadmap step 5).
 - Every edge keeps its computed geometry as segments (straight or cubic), so length, positions along it, splitting and crossings work the same for every kind of edge. For crossings an edge supplies pieces (`TEdgeObject.Pieces`), one per segment, plus a ray off each end along its tangent when extended; an extended line is therefore its infinite line.
 - Split edge creates two new edges (`Line_A_P`, `Line_P_B`) that follow the source edge and the point; the source stays. A part is invalid while the point is off the edge or at one of its ends. Parts of a line stay straight and keep `.angle`.
 
@@ -701,7 +710,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 1. Geometry core unit (points, lines, Béziers, intersections) with unit tests, no UI
 2. Measurement sets, variables and the formula engine
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
-4. JSON save/load and undo/redo commands (save/load done)
+4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the five core operations, snap-inferred
 6. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
 7. True-scale tiled PDF printing

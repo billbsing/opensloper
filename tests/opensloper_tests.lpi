@@ -126,6 +126,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Regression"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.document.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Document"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
