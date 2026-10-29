@@ -41,6 +41,8 @@ uses
   Sloper.Tests.PatternCheck,
   Sloper.Tests.Regression,
   Sloper.Tests.Document,
+  Sloper.Tests.Drag,
+  Sloper.Tests.CanvasModel,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;
 

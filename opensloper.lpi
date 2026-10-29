@@ -142,6 +142,26 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Document.PatternDocument"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.drag.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Drag"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.view.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.View"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.scene.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.Scene"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.canvas.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.Canvas"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

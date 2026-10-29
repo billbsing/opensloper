@@ -1,21 +1,107 @@
 object MainForm: TMainForm
   Left = 200
-  Height = 600
-  Top = 150
-  Width = 900
+  Height = 700
+  Top = 120
+  Width = 1100
   Caption = 'OpenSloper'
   Menu = MainMenu
   Position = poScreenCenter
   LCLVersion = '4.99.0.0'
+  OnCloseQuery = FormCloseQuery
   OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  OnShow = FormShow
+  object StatusBar: TStatusBar
+    Left = 0
+    Height = 23
+    Top = 677
+    Width = 1100
+    Panels = <
+      item
+        Width = 190
+      end
+      item
+        Width = 150
+      end
+      item
+        Width = 200
+      end
+      item
+        Width = 50
+      end>
+    SimplePanel = False
+  end
   object MainMenu: TMainMenu
     Left = 24
     Top = 16
     object MenuFile: TMenuItem
       Caption = '&File'
+      object MenuFileNew: TMenuItem
+        Caption = '&New'
+        OnClick = MenuFileNewClick
+      end
+      object MenuFileOpen: TMenuItem
+        Caption = '&Open...'
+        OnClick = MenuFileOpenClick
+      end
+      object MenuFileSave: TMenuItem
+        Caption = '&Save'
+        OnClick = MenuFileSaveClick
+      end
+      object MenuFileSaveAs: TMenuItem
+        Caption = 'Save &As...'
+        OnClick = MenuFileSaveAsClick
+      end
+      object MenuFileSep1: TMenuItem
+        Caption = '-'
+      end
+      object MenuFileMeasurements: TMenuItem
+        Caption = '&Measurements...'
+        OnClick = MenuFileMeasurementsClick
+      end
+      object MenuFileSep2: TMenuItem
+        Caption = '-'
+      end
       object MenuFileQuit: TMenuItem
         Caption = '&Quit'
         OnClick = MenuFileQuitClick
+      end
+    end
+    object MenuEdit: TMenuItem
+      Caption = '&Edit'
+      object MenuEditUndo: TMenuItem
+        Caption = '&Undo'
+        OnClick = MenuEditUndoClick
+      end
+      object MenuEditRedo: TMenuItem
+        Caption = '&Redo'
+        OnClick = MenuEditRedoClick
+      end
+      object MenuEditSep1: TMenuItem
+        Caption = '-'
+      end
+      object MenuEditDelete: TMenuItem
+        Caption = '&Delete'
+        OnClick = MenuEditDeleteClick
+      end
+    end
+    object MenuView: TMenuItem
+      Caption = '&View'
+      object MenuViewZoomIn: TMenuItem
+        Caption = 'Zoom &In'
+        OnClick = MenuViewZoomInClick
+      end
+      object MenuViewZoomOut: TMenuItem
+        Caption = 'Zoom &Out'
+        OnClick = MenuViewZoomOutClick
+      end
+      object MenuViewFit: TMenuItem
+        Caption = '&Fit Pattern'
+        OnClick = MenuViewFitClick
+      end
+      object MenuViewTrueSize: TMenuItem
+        Caption = '&True Size'
+        OnClick = MenuViewTrueSizeClick
       end
     end
     object MenuHelp: TMenuItem
@@ -25,5 +111,18 @@ object MainForm: TMainForm
         OnClick = MenuHelpAboutClick
       end
     end
+  end
+  object OpenDialog: TOpenDialog
+    Left = 104
+    Top = 16
+  end
+  object SaveDialog: TSaveDialog
+    Options = [ofOverwritePrompt, ofEnableSizing, ofViewDetail]
+    Left = 184
+    Top = 16
+  end
+  object MeasurementsDialog: TOpenDialog
+    Left = 264
+    Top = 16
   end
 end

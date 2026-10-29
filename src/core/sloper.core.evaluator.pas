@@ -54,6 +54,7 @@ type
     FDeps: TEvalNodeArray;
     FDependents: TEvalNodeArray;
     FMissingKey: string;
+    FHasResult: boolean;
     FIndex: integer;  // position in the evaluator's node list
     FFields: array of TFormulaField;
     function GetFieldCount: integer;
@@ -82,6 +83,8 @@ type
     property Key: string read FKey;
     property State: TEvalState read FState;
     property Message: string read FMessage;
+    // True once the node has been computed; a failing node then keeps its last good result
+    property HasResult: boolean read FHasResult;
     property Deps: TEvalNodeArray read FDeps;
     property Dependents: TEvalNodeArray read FDependents;
     property FieldCount: integer read GetFieldCount;
@@ -335,7 +338,10 @@ begin
       Node.FMessage := '';
       Node.FState := Node.Compute(Context);
       if Node.FState = esValid then
+      begin
         Node.FMessage := '';
+        Node.FHasResult := True;
+      end;
     end;
   end;
 

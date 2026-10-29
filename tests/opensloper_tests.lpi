@@ -131,6 +131,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Document"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.drag.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Drag"/>
+      </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.canvasmodel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.CanvasModel"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -140,7 +150,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document"/>
+      <OtherUnitFiles Value="../src/core;../src/document;../src/ui"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <CodeGeneration>

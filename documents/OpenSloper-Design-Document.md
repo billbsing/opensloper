@@ -347,6 +347,16 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 
 **Borrowed from Inkscape:** node editor with draggable Bézier handles, smart snapping with visual hints, layers, smooth pan/zoom, and a properties panel where formulas for the selection are edited.
 
+**Canvas so far** (`Sloper.UI.Canvas`, with the LCL-free `Sloper.UI.View`, `Sloper.UI.Scene` and `Sloper.Core.Drag`):
+
+- **Drawing:** BGRABitmap on an adaptive mm grid. Outline edges are solid ink; construction edges are thin, grey and dashed. Errors are red and blocked objects orange. Failing objects are faded at their last good result, and objects never computed are not drawn.
+- **Navigation:** the wheel scrolls and Shift+wheel scrolls sideways. Ctrl/Cmd+wheel zooms about the cursor. Middle-drag or Space+drag pans. Ctrl/Cmd+0 fits the pattern and Ctrl/Cmd+1 shows it at true size (the screen's pixels per inch).
+- **Selection:** click selects a point or edge (points win when they overlap) and Shift adds. Hover highlights, and shows a failing object's message in the status bar.
+- **Dragging points:** only fields that are plain numbers change (free x/y, offset length/angle or dx/dy, along-edge value), rounded to 0.1 mm, 0.1° or 0.0001. A point placed by a formula or by other objects is refused, with the reason shown. One drag is one undo step; Escape cancels it.
+- **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
+- **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
+- **Next:** drawing tools with snap-inferred operations, and the properties panel.
+
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
 1. Build a planar graph from outline edges only; split edges where they cross.
