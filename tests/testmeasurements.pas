@@ -82,7 +82,7 @@ end;
 
 procedure TTestMeasurements.TearDown;
 begin
-  FSet.Free;
+  FreeAndNil(FSet);
 end;
 
 procedure TTestMeasurements.AssertLoadFails(const Text, Msg: string);
@@ -199,7 +199,7 @@ begin
       AssertEquals('UTF-8 name', 'Ärmel test', Other.Name);
       AssertNear('value', 820, Other.Find('waist').Value);
     finally
-      Other.Free;
+      FreeAndNil(Other);
     end;
   finally
     DeleteFile(FileName);

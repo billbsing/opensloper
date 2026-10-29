@@ -278,7 +278,7 @@ end;
 
 destructor TNegateNode.Destroy;
 begin
-  Operand.Free;
+  FreeAndNil(Operand);
   inherited Destroy;
 end;
 
@@ -289,8 +289,8 @@ end;
 
 destructor TBinaryNode.Destroy;
 begin
-  Left.Free;
-  Right.Free;
+  FreeAndNil(Left);
+  FreeAndNil(Right);
   inherited Destroy;
 end;
 
@@ -316,10 +316,10 @@ end;
 
 destructor TFunctionNode.Destroy;
 var
-  Arg: TFormulaNode;
+  Index: integer;
 begin
-  for Arg in Args do
-    Arg.Free;
+  for Index := 0 to High(Args) do
+    FreeAndNil(Args[Index]);
   inherited Destroy;
 end;
 
@@ -396,7 +396,7 @@ begin
   Result := ParseExpr;
   if FPos <= High(FTokens) then
   begin
-    Result.Free;
+    FreeAndNil(Result);
     Error(Format(rsFormulaUnexpected, [Copy(FText, FTokens[FPos].Pos, FTokens[FPos].Len)]));
   end;
 end;
@@ -417,7 +417,7 @@ begin
     try
       Node.Right := ParseTerm;
     except
-      Result.Free;
+      FreeAndNil(Result);
       raise;
     end;
   end;
@@ -439,7 +439,7 @@ begin
     try
       Node.Right := ParseUnary;
     except
-      Result.Free;
+      FreeAndNil(Result);
       raise;
     end;
   end;
@@ -464,7 +464,7 @@ begin
     try
       Node.Operand := ParseUnary();
     except
-      Node.Free;
+      FreeAndNil(Node);
       raise;
     end;
     Exit(Node);
@@ -489,7 +489,7 @@ begin
     try
       Node.Right := ParseUnary;
     except
-      Result.Free;
+      FreeAndNil(Result);
       raise;
     end;
   end;
@@ -526,7 +526,7 @@ begin
         Result := ParseExpr;
         if not AtOp(')') then
         begin
-          Result.Free;
+          FreeAndNil(Result);
           Error(rsFormulaExpectedClose);
         end;
         Inc(FPos);
@@ -577,7 +577,7 @@ begin
         Error(Format(rsFormulaArgCount, [FunctionNames[Func], FunctionMinArgs[Func]]));
     end;
   except
-    Node.Free;
+    FreeAndNil(Node);
     raise;
   end;
   Result := Node;
@@ -739,7 +739,7 @@ begin
       end;
     end;
   finally
-    Parser.Free;
+    FreeAndNil(Parser);
   end;
 
   // Build the stored form, keeping the user's spacing and number spelling

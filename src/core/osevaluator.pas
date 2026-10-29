@@ -151,10 +151,10 @@ end;
 
 destructor TEvalNode.Destroy;
 var
-  Entry: TFormulaField;
+  Index: integer;
 begin
-  for Entry in FFields do
-    Entry.Formula.Free;
+  for Index := 0 to High(FFields) do
+    FreeAndNil(FFields[Index].Formula);
   inherited Destroy;
 end;
 
@@ -195,7 +195,7 @@ begin
   for Index := 0 to High(FFields) do
     if SameText(FFields[Index].Name, AName) then
     begin
-      FFields[Index].Formula.Free;
+      FreeAndNil(FFields[Index].Formula);
       FFields[Index].Formula := Formula;
       Exit;
     end;
@@ -387,7 +387,7 @@ begin
   try
     Result := Visit(From);
   finally
-    Visited.Free;
+    FreeAndNil(Visited);
   end;
 end;
 

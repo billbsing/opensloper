@@ -329,13 +329,13 @@ end;
 destructor TPattern.Destroy;
 begin
   Clear;
-  FMeasurementNodes.Free;
-  FVariables.Free;
-  FObjects.Free;
-  FEvaluator.Free;
-  FResolver.Free;
-  FVariableResolver.Free;
-  FContext.Free;
+  FreeAndNil(FMeasurementNodes);
+  FreeAndNil(FVariables);
+  FreeAndNil(FObjects);
+  FreeAndNil(FEvaluator);
+  FreeAndNil(FResolver);
+  FreeAndNil(FVariableResolver);
+  FreeAndNil(FContext);
   inherited Destroy;
 end;
 
@@ -553,12 +553,12 @@ begin
   end
   else if not CheckObjectName(PointName, nil, Msg) then
   begin
-    APoint.Free;
+    FreeAndNil(APoint);
     Exit(SetError(Msg));
   end;
   if not ParseFields(APoint, Names, Texts) then
   begin
-    APoint.Free;
+    FreeAndNil(APoint);
     Exit(False);
   end;
   Inc(FNextPoint);
@@ -673,14 +673,14 @@ var
 begin
   if not CheckPoint(AEdge.StartKey) or not CheckPoint(AEdge.EndKey) then
   begin
-    AEdge.Free;
+    FreeAndNil(AEdge);
     Exit(False);
   end;
   if AName <> '' then
   begin
     if not CheckObjectName(AName, nil, Msg) then
     begin
-      AEdge.Free;
+      FreeAndNil(AEdge);
       Exit(SetError(Msg));
     end;
     AEdge.Name := AName;
@@ -690,7 +690,7 @@ begin
     AEdge.Name := DerivedEdgeName(AEdge);
   if not ParseFields(AEdge, Names, Texts) then
   begin
-    AEdge.Free;
+    FreeAndNil(AEdge);
     Exit(False);
   end;
   AEdge.Role := ARole;
@@ -841,7 +841,7 @@ begin
     NewFormula := nil;
     Result := True;
   finally
-    NewFormula.Free;
+    FreeAndNil(NewFormula);
   end;
 end;
 
@@ -922,7 +922,7 @@ begin
     FVariables.Remove(Node)
   else
     FObjects.Remove(Node);
-  Node.Free;
+  FreeAndNil(Node);
   Result := True;
 end;
 
@@ -952,7 +952,7 @@ begin
     for KeyIndex := 0 to Keys.Count - 1 do
       FMeasurementNodes.Add(TMeasurementNode.Create(Keys[KeyIndex]));
   finally
-    Keys.Free;
+    FreeAndNil(Keys);
   end;
 end;
 

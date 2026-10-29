@@ -23,6 +23,7 @@ program opensloper_tests;
 uses
   osCodePage,
   Classes,
+  SysUtils,
   consoletestrunner,
   TestGeometry,
   TestNumeric,
@@ -51,6 +52,6 @@ begin
     App.Title := 'OpenSloper tests';
     App.Run;
   finally
-    App.Free;
+    FreeAndNil(App);
   end;
 end.

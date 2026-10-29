@@ -80,6 +80,6 @@ begin
     WriteLn(StdErr, Format(rsNotImplemented, [Parser.GetArgumentValueAsString('command')]));
     ExitCode := 2;
   finally
-    Parser.Free;
+    FreeAndNil(Parser);
   end;
 end.

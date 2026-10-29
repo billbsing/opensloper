@@ -88,8 +88,8 @@ end;
 
 procedure TTestEdges.TearDown;
 begin
-  FPattern.Free;
-  FSet.Free;
+  FreeAndNil(FPattern);
+  FreeAndNil(FSet);
 end;
 
 function TTestEdges.Check(Obj: TObject): TObject;

@@ -79,8 +79,8 @@ end;
 
 procedure TTestVariables.TearDown;
 begin
-  FPattern.Free;
-  FSet.Free;
+  FreeAndNil(FPattern);
+  FreeAndNil(FSet);
 end;
 
 function TTestVariables.AddVar(const AName, Formula: string): TVariable;
@@ -106,7 +106,7 @@ begin
     if not FPattern.LoadVariables(Data, Err) then
       Fail('Load failed: ' + Err);
   finally
-    Data.Free;
+    FreeAndNil(Data);
   end;
 end;
 
@@ -323,7 +323,7 @@ begin
     AssertEquals(Format(rsEvalBlocked, ['@hip']), A.Message);
   finally
     FPattern.Measurements := FSet;
-    Other.Free;
+    FreeAndNil(Other);
   end;
 end;
 
@@ -372,10 +372,10 @@ begin
       AssertEquals('display', '@waist/4 + #ease',
         Loaded.FormulaText(Loaded.FindVariable('front'), 'formula'));
     finally
-      Loaded.Free;
+      FreeAndNil(Loaded);
     end;
   finally
-    Arr.Free;
+    FreeAndNil(Arr);
   end;
 end;
 
@@ -392,7 +392,7 @@ begin
   try
     AssertEquals('text kept', '1 +', TJSONObject(Saved.Items[0]).Strings['formula']);
   finally
-    Saved.Free;
+    FreeAndNil(Saved);
   end;
 end;
 
@@ -423,7 +423,7 @@ var
       AssertEquals(Text, Msg, Err);
       AssertEquals('emptied', 0, FPattern.VariableCount);
     finally
-      Data.Free;
+      FreeAndNil(Data);
     end;
   end;
 

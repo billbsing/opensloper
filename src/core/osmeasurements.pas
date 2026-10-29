@@ -97,7 +97,7 @@ end;
 destructor TMeasurementSet.Destroy;
 begin
   Clear;
-  FItems.Free;
+  FreeAndNil(FItems);
   inherited Destroy;
 end;
 
@@ -195,7 +195,7 @@ end;
 procedure TMeasurementSet.Delete(Measurement: TMeasurement);
 begin
   if FItems.Remove(Measurement) >= 0 then
-    Measurement.Free;
+    FreeAndNil(Measurement);
 end;
 
 function TMeasurementSet.ToJSON: TJSONObject;
@@ -230,7 +230,7 @@ begin
   try
     Result := JSONToText(Obj);
   finally
-    Obj.Free;
+    FreeAndNil(Obj);
   end;
 end;
 
@@ -284,7 +284,7 @@ begin
     end;
     Result := True;
   finally
-    Obj.Free;
+    FreeAndNil(Obj);
   end;
 end;
 

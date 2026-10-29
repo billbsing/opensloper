@@ -171,7 +171,7 @@ begin
     for Index := 0 to Lines.Count - 1 do
       Result := Result + Lines[Index] + #10;
   finally
-    Lines.Free;
+    FreeAndNil(Lines);
   end;
 end;
 
@@ -192,7 +192,7 @@ begin
   end;
   if not (Data is TJSONObject) then
   begin
-    Data.Free;
+    FreeAndNil(Data);
     ErrorMessage := rsJSONNotObject;
     Exit(False);
   end;
@@ -213,7 +213,7 @@ begin
       if Length(Text) > 0 then
         Stream.ReadBuffer(Text[1], Length(Text));
     finally
-      Stream.Free;
+      FreeAndNil(Stream);
     end;
     Result := True;
   except
@@ -236,7 +236,7 @@ begin
       if Length(Text) > 0 then
         Stream.WriteBuffer(Text[1], Length(Text));
     finally
-      Stream.Free;
+      FreeAndNil(Stream);
     end;
     Result := True;
   except

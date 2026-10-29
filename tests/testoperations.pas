@@ -80,8 +80,8 @@ end;
 
 procedure TTestOperations.TearDown;
 begin
-  FPattern.Free;
-  FSet.Free;
+  FreeAndNil(FPattern);
+  FreeAndNil(FSet);
 end;
 
 function TTestOperations.Check(Obj: TObject): TObject;

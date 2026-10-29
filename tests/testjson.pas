@@ -109,7 +109,7 @@ begin
       '  }'#10 +
       '}'#10, JSONToText(Obj));
   finally
-    Obj.Free;
+    FreeAndNil(Obj);
   end;
 end;
 
@@ -121,7 +121,7 @@ begin
   try
     AssertEquals('{'#10'  "list": [],'#10'  "obj": {}'#10'}'#10, JSONToText(Obj));
   finally
-    Obj.Free;
+    FreeAndNil(Obj);
   end;
 end;
 
@@ -138,10 +138,10 @@ begin
       AssertTrue(GetJSONString(Back, 'text', S));
       AssertEquals('Say "hi"'#10'Ärmel', S);
     finally
-      Back.Free;
+      FreeAndNil(Back);
     end;
   finally
-    Obj.Free;
+    FreeAndNil(Obj);
   end;
 end;
 
@@ -178,7 +178,7 @@ begin
     AssertFalse('missing', GetJSONNumber(Obj, 'zz', D));
     AssertFalse('boolean is not a number', GetJSONNumber(Obj, 'b', D));
   finally
-    Obj.Free;
+    FreeAndNil(Obj);
   end;
 end;
 

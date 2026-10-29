@@ -46,6 +46,7 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 - Every unit starts with the GPLv3 header from `documents/gpl-header.txt`, then a short comment saying what the unit is for.
 - Units start with `{$mode ObjFPC}{$H+}`.
 - Comments explain why, or what is not obvious; they don't restate the code.
+- Free objects with `FreeAndNil(Obj)`, never `Obj.Free` or `Obj.Destroy`, so a reference is either `nil` or a live instance (see [Modern Object Pascal](https://castle-engine.io/modern_pascal)). It does not clear other copies of the reference. The one exception is a typecast list item (`TObject(List[Index]).Free`), which cannot be passed to `FreeAndNil`; clear the list straight after.
 - Recursion inside a function needs brackets: in ObjFPC mode a bare `ParseUnary` inside `ParseUnary` means the result variable, so write `ParseUnary()`.
 - Don't index an array with a call that can grow it (`Tokens[Add(...)] := ...`): Free Pascal may take the array's address before the call reallocates it. Store the index first.
 - Compare floats with a tolerance, and never compare a `double` with an untyped float constant such as `MaxDouble`: on x86_64 Linux the constant is evaluated as 80-bit `Extended` and never equals the `double` (see `documents/known-issues.md`).

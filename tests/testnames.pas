@@ -47,6 +47,9 @@ type
 
 implementation
 
+uses
+  SysUtils;
+
 procedure TTestNames.SetUp;
 begin
   FTaken := TStringList.Create;
@@ -55,7 +58,7 @@ end;
 
 procedure TTestNames.TearDown;
 begin
-  FTaken.Free;
+  FreeAndNil(FTaken);
 end;
 
 function TTestNames.Taken(const Name: string): boolean;

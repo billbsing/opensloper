@@ -126,9 +126,9 @@ end;
 
 destructor TTestResolver.Destroy;
 begin
-  Objects.Free;
-  Variables.Free;
-  Measurements.Free;
+  FreeAndNil(Objects);
+  FreeAndNil(Variables);
+  FreeAndNil(Measurements);
   inherited Destroy;
 end;
 
@@ -358,9 +358,9 @@ end;
 
 procedure TTestFormula.TearDown;
 begin
-  FFormula.Free;
-  FContext.Free;
-  FResolver.Free;
+  FreeAndNil(FFormula);
+  FreeAndNil(FContext);
+  FreeAndNil(FResolver);
 end;
 
 function TTestFormula.Eval(const Text: string): double;

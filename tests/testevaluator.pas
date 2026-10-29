@@ -114,7 +114,7 @@ var
 begin
   for I := 0 to Nodes.Count - 1 do
     TObject(Nodes[I]).Free;
-  Nodes.Free;
+  FreeAndNil(Nodes);
   inherited Destroy;
 end;
 
@@ -156,8 +156,8 @@ end;
 
 procedure TTestEvaluator.TearDown;
 begin
-  FEvaluator.Free;
-  FContext.Free;
+  FreeAndNil(FEvaluator);
+  FreeAndNil(FContext);
 end;
 
 function TTestEvaluator.Node(const Key: string; Own: double;
