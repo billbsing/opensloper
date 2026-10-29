@@ -37,6 +37,7 @@ uses
   Sloper.Tests.Pattern,
   Sloper.Tests.Operations,
   Sloper.Tests.Edges,
+  Sloper.Tests.PatternFile,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;
 

@@ -71,7 +71,7 @@ Layers (dependencies point down):
 - **UI (LCL):** canvas view (BGRABitmap, pan, zoom), interaction tools (select, add point, curve, piece), snapping engine (turns snaps into operations), panels (formulas, measurements, layers)
 - **Output:** tiled PDF, SVG and DXF, Blender export (later); reads computed geometry from the core
 - **Document:** TPatternDocument (owns the model), undo/redo commands, change notifications
-- **Core (pure Pascal, no LCL):** geometry, expressions, model, evaluator, piece builder (Clipper2 seam allowance), storage (IPatternStorage, JSON)
+- **Core (pure Pascal, no LCL):** geometry, expressions, model, evaluator, piece builder (Clipper2 seam allowance), storage (JSON pattern and measurement files)
 
 The UI changes the model only through document commands, and exporters read computed geometry directly from the core, so a new output format never touches drafting code.
 
@@ -84,17 +84,15 @@ The central rule: only definitions are saved and undone; computed geometry is al
 3. **Ordered, incremental evaluation.** The graph is topologically sorted. A change marks the object and everything downstream dirty; only those are re-evaluated. Formula edits that create a cycle are rejected with a clear message.
 4. **Failures are states, not crashes.** If an operation cannot be evaluated (e.g. two lines no longer intersect), the object and its dependents become invalid and are highlighted in red. The pattern stays editable.
 5. **IDs separate from names.** Internal IDs never change; user-facing names can be renamed freely.
-6. **Operation registry.** Each operation type is a class that declares its inputs and parameters, evaluates itself, and saves/loads itself. Adding a tool means writing and registering one class.
+6. **Operation registry.** Each operation type is a class that declares its inputs and parameters and evaluates itself. Adding a tool means writing one class, adding its `Add…` call to `TPattern`, and giving it a file type in `Sloper.Core.PatternFile`.
 7. **Commands for undo/redo.** Every user change is a `TCommand` with `Execute` and `Undo`; the UI listens for change notifications. One drag is one undo step: the start value is recorded on mouse-down, the model updates live during the drag without creating commands, and a single command is committed on mouse-up; Escape cancels and restores the start value. Repeated arrow-key nudges of the same object within about a second merge into one step, as do consecutive spin box or slider changes to the same field. Formula fields commit one step on Enter or loss of focus, not per keystroke.
-8. **Storage behind an interface.** `IPatternStorage` with `Load`/`Save`, so the core never depends on a file format.
+8. **Storage kept apart from the model.** `TPattern` knows nothing about JSON; `Sloper.Core.PatternFile` reads and writes it through `TPattern`'s loader hooks (`InsertVariable`, `InsertObject`, `UpdateDerivedNames`). With only one format there is no storage interface; one can be extracted if a second format is added.
 
 ```pascal
 TPointOperation = class
   function Inputs: TObjectRefArray; virtual; abstract;
   function Params: TFormulaArray; virtual; abstract;
   function Evaluate(Ctx: TEvalContext; out Pt: TVec2): Boolean; virtual; abstract;
-  procedure SaveTo(Node: TJSONObject); virtual; abstract;
-  procedure LoadFrom(Node: TJSONObject); virtual; abstract;
 end;
 
 TOffsetPoint = class(TPointOperation)   // distance + angle from a base point
@@ -136,8 +134,8 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 - A node's dependencies are its inputs (`InputKeys`, e.g. an offset's base point) plus every reference in its formula fields. A reference to an ID that no longer exists makes the node an error ("Uses p9, which no longer exists").
 - `TPattern.SetFormula` refuses an edit that would close a cycle, naming both nodes. Loaded files can still contain one: nodes on the cycle become errors and their readers are blocked.
 - `Evaluate` rebuilds the graph and recomputes everything; dirty tracking can come later if dragging needs it.
-- `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 5) wrap these calls. `Delete` is refused while other nodes use the object.
-- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge) and all edge operations (line, curve, curve path, split edge), with derived names (`Line_A_B`, `Path_A_C`) that follow renamed endpoints until the user names the edge. The canvas comes next (roadmap step 4).
+- `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 4) wrap these calls. `Delete` is refused while other nodes use the object.
+- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge) and all edge operations (line, curve, curve path, split edge), with derived names (`Line_A_B`, `Path_A_C`) that follow renamed endpoints until the user names the edge. Pattern files are saved and loaded (`Sloper.Core.PatternFile`, see File format and storage); undo commands come next (roadmap step 4).
 - Every edge keeps its computed geometry as segments (straight or cubic), so length, positions along it, splitting and crossings work the same for every kind of edge. For crossings an edge supplies pieces (`TEdgeObject.Pieces`), one per segment, plus a ray off each end along its tangent when extended; an extended line is therefore its infinite line.
 - Split edge creates two new edges (`Line_A_P`, `Line_P_B`) that follow the source edge and the point; the source stays. A part is invalid while the point is off the edge or at one of its ends. Parts of a line stay straight and keep `.angle`.
 
@@ -270,7 +268,7 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 **Deferred to phase two:** bisector; circle × circle; arcs (approximated by curve paths at first); tangent from a point to a curve.
 
 ```json
-{ "id": "p5", "type": "circleEdge", "name": "SP",
+{ "id": "p5", "type": "circleEdgePoint", "name": "SP",
   "centre": "p3", "radius": "@shoulder_length",
   "edge": "l4", "extend": true, "pick": 1 }
 
@@ -416,26 +414,50 @@ Measurement file (`.slm`); values are in mm, keys follow the name rules and are 
 }
 ```
 
-Pattern file (shape still to be settled with storage, roadmap step 5):
+Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`):
 
 ```json
 {
   "format": "pattern",
   "version": 1,
   "units": "mm",
-  "measurements": "bill.measurements.json",
-  "increments": [
+  "notes": "",
+  "measurementFile": "bill.slm",
+  "variables": [
     { "id": "v1", "name": "ease_waist", "formula": "20", "description": "" }
   ],
   "objects": [
-    { "id": "p1", "type": "point", "name": "A", "x": "0", "y": "0" },
-    { "id": "p2", "type": "pointAtDistanceAngle", "name": "B",
-      "base": "p1", "length": "@waist/4 + {v1}", "angle": "0" },
-    { "id": "l1", "type": "line", "start": "p1", "end": "p2" }
-  ],
-  "pieces": []
+    { "id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0" },
+    { "id": "p2", "type": "offsetPoint", "name": "B",
+      "base": "p1", "mode": "polar", "length": "@waist/4 + {v1}", "angle": "0" },
+    { "id": "l1", "type": "line", "start": "p1", "end": "p2", "role": "outline" }
+  ]
 }
 ```
+
+(Shown compacted; the writer puts every member on its own line.)
+
+- `measurementFile` is the measurement set last used with the pattern, as the user chose it. The document layer resolves and loads it; the core only keeps the text.
+- `variables` and `objects` are in creation order. An object's direct inputs (`base`, `edge`, `start`, a path's node points and so on) must name an object earlier in the file. Creation order guarantees this, because inputs exist before the object and cannot be deleted while it uses them. Formulas may refer to any ID; a missing one shows as an error when evaluated.
+- Each object has `id`, `type` and `name`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
+- Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
+- New IDs continue above the highest loaded number for each letter (`p`, `l`, `c`, `v`).
+- Loading checks IDs (valid, unique across variables and objects), names, types, inputs and options, and fails with a message naming the object (`Object l2 uses p9, which is not defined before it`), leaving the pattern empty.
+
+| `type` | Members besides `id`, `type`, `name` |
+| --- | --- |
+| `freePoint` | `x`, `y` |
+| `offsetPoint` | `base`, `mode` (`polar`/`cartesian`), `length` + `angle` or `dx` + `dy` |
+| `alongEdgePoint` | `edge`, `from` (`start`/`end`), `mode` (`length`/`ratio`), `value` |
+| `intersectPoint` | `edgeA`, `edgeB`, `extendA`, `extendB`, `pick` |
+| `circleEdgePoint` | `centre`, `edge`, `extend`, `pick`, `radius` |
+| `projectPoint` | `point`, `edge`, `direction` (`perpendicular`/`angle`), `extend`, `angle` (only for `angle`) |
+| `line` | `start`, `end`, `role` |
+| `curve` | `start`, `end`, `angle1`, `length1`, `angle2`, `length2`, `role` |
+| `curvePath` | `nodes[]` of `point`, `angle`, `lengthIn` (not on the first), `lengthOut` (not on the last); `role` |
+| `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
+
+Pieces and seams are added to the file when they exist in the model.
 
 ## Printing
 
@@ -669,13 +691,13 @@ The only requirement now is the **seam** concept in the core model, which also d
 
 ## Roadmap and open questions
 
-The app becomes personally useful at step 7; community release follows if it proves easy to use.
+Save/load and undo come before the canvas, so the canvas is built on document commands from the start and saved patterns can serve as regression tests. The app becomes personally useful at step 7; community release follows if it proves easy to use.
 
 1. Geometry core unit (points, lines, Béziers, intersections) with unit tests, no UI
 2. Measurement sets, variables and the formula engine
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
-4. Canvas with pan/zoom and the five core operations, snap-inferred
-5. JSON save/load and undo/redo commands
+4. JSON save/load and undo/redo commands (save/load done)
+5. Canvas with pan/zoom and the five core operations, snap-inferred
 6. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
 7. True-scale tiled PDF printing
 8. Import Valentina/Seamly2D measurement files; SVG export

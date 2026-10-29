@@ -293,6 +293,11 @@ type
     property Extend: boolean read FExtend;
   end;
 
+// True for a line, or a part of one: straight, with the angle property
+function IsStraightEdge(Edge: TEdgeObject): boolean;
+// Part 1 or 2 of Source split at the point with key APoint
+function NewSplitPart(const AKey: string; Source: TEdgeObject; const APoint: string; APart: integer): TSplitPart;
+
 // Crossings of two lists of pieces, in order along the first, with repeats merged
 function CrossPieces(const PiecesA, PiecesB: TEdgePieceArray): TEdgeCrossingArray;
 // Crossings of two edges, in order along A, with repeats merged
@@ -945,6 +950,17 @@ begin
     AddSegment(FSegments, CurveSegment(BezierFromHandles(Positions[Index], Angles[Index], LengthsOut[Index],
       Positions[Index + 1], Angles[Index + 1] + 180, LengthsIn[Index + 1])));
   Result := esValid;
+end;
+
+function IsStraightEdge(Edge: TEdgeObject): boolean;
+begin
+  Result := (Edge is TLineObject) or ((Edge is TSplitPart) and TSplitPart(Edge).Straight);
+end;
+
+function NewSplitPart(const AKey: string; Source: TEdgeObject; const APoint: string; APart: integer): TSplitPart;
+begin
+  Result := TSplitPart.Create(AKey, Source.Key, APoint, APart, Source.StartKey, Source.EndKey,
+    IsStraightEdge(Source), Source.NamePrefix);
 end;
 
 { TSplitPart }

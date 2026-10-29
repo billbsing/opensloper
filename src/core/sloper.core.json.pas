@@ -50,6 +50,7 @@ function WriteTextFile(const FileName, Text: string; out ErrorMessage: string): 
 function GetJSONString(Obj: TJSONObject; const Name: string; out Value: string): boolean;
 function GetJSONNumber(Obj: TJSONObject; const Name: string; out Value: double): boolean;
 function GetJSONInteger(Obj: TJSONObject; const Name: string; out Value: integer): boolean;
+function GetJSONBoolean(Obj: TJSONObject; const Name: string; out Value: boolean): boolean;
 
 resourcestring
   rsJSONNotObject = 'The file does not contain a JSON object';
@@ -279,6 +280,17 @@ begin
   Result := (Data <> nil) and (Data.JSONType = jtNumber) and not (Data is TJSONFloatNumber);
   if Result then
     Value := Data.AsInteger;
+end;
+
+function GetJSONBoolean(Obj: TJSONObject; const Name: string; out Value: boolean): boolean;
+var
+  Data: TJSONData;
+begin
+  Value := False;
+  Data := Obj.Find(Name);
+  Result := (Data <> nil) and (Data.JSONType = jtBoolean);
+  if Result then
+    Value := Data.AsBoolean;
 end;
 
 end.

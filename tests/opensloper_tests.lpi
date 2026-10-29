@@ -111,6 +111,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Edges"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.patternfile.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.PatternFile"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

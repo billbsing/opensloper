@@ -28,7 +28,7 @@ unit Sloper.Core.Pattern;
 interface
 
 uses
-  Classes, SysUtils, fpjson, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
+  Classes, SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
   Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft;
 
 type
@@ -47,6 +47,7 @@ type
     FLastErrorField: string;
     FLastErrorPos: integer;
     FNameExclude: TDraftObject;
+    procedure KeepIdsAbove(const Key: string);
     function GetVariableCount: integer;
     function GetVariable(Index: integer): TVariable;
     function GetObjectCount: integer;
@@ -62,10 +63,13 @@ type
     function AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
       const Names, Texts: array of string): boolean;
     function DerivedEdgeName(AEdge: TEdgeObject): string;
-    procedure UpdateDerivedNames;
     procedure RebuildMeasurementNodes;
     function AllNodes: TEvalNodeArray;
   public
+    Notes: string;
+    // The measurement file last used with the pattern, as the user chose it;
+    // the document resolves it. Not loaded here.
+    MeasurementFile: string;
     constructor Create;
     destructor Destroy; override;
     procedure Clear;
@@ -125,10 +129,14 @@ type
     // Rebuilds the graph and computes everything
     procedure Evaluate;
 
-    function SaveVariables: TJSONArray;
-    // Replaces the variables. Fails on a malformed list; a formula that does
-    // not parse is kept as text and shows as an error.
-    function LoadVariables(Data: TJSONData; out ErrorMessage: string): boolean;
+    // For loaders: add a variable or object that already has its stored ID
+    // and formulas, taking ownership. Nothing is checked; the loader checks
+    // IDs, names and inputs. New IDs are kept above the inserted ones.
+    procedure InsertVariable(Variable: TVariable);
+    procedure InsertObject(DraftObject: TDraftObject);
+    // Recomputes the names of edges named after their ends; called after
+    // loading, since a loaded edge's ends come first
+    procedure UpdateDerivedNames;
 
     // Not owned. Can be nil or swapped for another person's set.
     property Measurements: TMeasurementSet read FMeasurements write FMeasurements;
@@ -156,15 +164,11 @@ resourcestring
   rsPatternPathTooShort = 'A curve path needs at least two points';
   rsPatternPathRepeats = 'A curve path cannot use the same point twice in a row';
   rsPatternPathArrays = 'A curve path needs an angle and handle lengths for every point';
-  rsPatternVariableList = 'The variable list is not valid';
-  rsPatternVariableBadId = 'A variable has a missing or repeated ID';
-  rsPatternVariableBadName = 'Variable name: %s';
-  rsPatternVariableNoFormula = 'Variable "%s" has no formula';
 
 implementation
 
 uses
-  Sloper.Core.Names, Sloper.Core.JSON;
+  Sloper.Core.Names;
 
 type
   TPatternResolver = class(TNameResolver)
@@ -359,6 +363,8 @@ begin
   FNextLine := 1;
   FNextCurve := 1;
   FNextVariable := 1;
+  Notes := '';
+  MeasurementFile := '';
 end;
 
 function TPattern.GetVariableCount: integer;
@@ -779,7 +785,6 @@ function TPattern.SplitEdge(const EdgeId, PointId: string; out First, Second: TS
 var
   Source: TEdgeObject;
   Straight: boolean;
-  Prefix: string;
 
   function NewPart(APart: integer): TSplitPart;
   var
@@ -795,7 +800,7 @@ var
       Key := 'c' + IntToStr(FNextCurve);
       Inc(FNextCurve);
     end;
-    Result := TSplitPart.Create(Key, EdgeId, PointId, APart, Source.StartKey, Source.EndKey, Straight, Prefix);
+    Result := NewSplitPart(Key, Source, PointId, APart);
     // Each part is its own edge: it gets a derived name and joins the pattern
     Result.Name := DerivedEdgeName(Result);
     Result.Role := Source.Role;
@@ -808,8 +813,7 @@ begin
   if not CheckEdgeTarget(EdgeId) or not CheckPoint(PointId) then
     Exit(False);
   Source := TEdgeObject(FindNode(EdgeId));
-  Straight := (Source is TLineObject) or ((Source is TSplitPart) and TSplitPart(Source).Straight);
-  Prefix := Source.NamePrefix;
+  Straight := IsStraightEdge(Source);
   First := NewPart(1);
   Second := NewPart(2);
   Result := True;
@@ -990,74 +994,42 @@ begin
   FEvaluator.Run(FContext);
 end;
 
-function TPattern.SaveVariables: TJSONArray;
+// Moves the counter for Key's letter past Key's number (p7 -> next point p8)
+procedure TPattern.KeepIdsAbove(const Key: string);
 var
-  Index: integer;
-  Item: TJSONObject;
+  IdNumber, Code: integer;
 begin
-  Result := TJSONArray.Create;
-  for Index := 0 to VariableCount - 1 do
-  begin
-    Item := TJSONObject.Create;
-    Item.Add('id', Variables[Index].Key);
-    Item.Add('name', Variables[Index].Name);
-    Item.Add('formula', Variables[Index].Formula.StoredText);
-    Item.Add('description', Variables[Index].Description);
-    Result.Add(Item);
+  if Length(Key) < 2 then
+    Exit;
+  Val(Copy(Key, 2, MaxInt), IdNumber, Code);
+  if (Code <> 0) or (IdNumber < 1) then
+    Exit;
+  case Key[1] of
+    'p':
+      if IdNumber >= FNextPoint then
+        FNextPoint := IdNumber + 1;
+    'l':
+      if IdNumber >= FNextLine then
+        FNextLine := IdNumber + 1;
+    'c':
+      if IdNumber >= FNextCurve then
+        FNextCurve := IdNumber + 1;
+    'v':
+      if IdNumber >= FNextVariable then
+        FNextVariable := IdNumber + 1;
   end;
 end;
 
-function TPattern.LoadVariables(Data: TJSONData; out ErrorMessage: string): boolean;
-var
-  Index, IdNumber, Code: integer;
-  Item: TJSONObject;
-  Id, VName, Text, Desc, Msg: string;
-  Variable: TVariable;
-
-  function Fail(const AMsg: string): boolean;
-  begin
-    ErrorMessage := AMsg;
-    FEvaluator.Rebuild(nil, FContext);
-    FreeItems(FVariables);
-    FNextVariable := 1;
-    Result := False;
-  end;
-
+procedure TPattern.InsertVariable(Variable: TVariable);
 begin
-  ErrorMessage := '';
-  FEvaluator.Rebuild(nil, FContext);
-  FreeItems(FVariables);
-  FNextVariable := 1;
-  if (Data = nil) or (Data.JSONType <> jtArray) then
-    Exit(Fail(rsPatternVariableList));
-  for Index := 0 to Data.Count - 1 do
-  begin
-    if Data.Items[Index].JSONType <> jtObject then
-      Exit(Fail(rsPatternVariableList));
-    Item := TJSONObject(Data.Items[Index]);
-    if not GetJSONString(Item, 'id', Id) or (Id = '') or (FindNode(Id) <> nil) then
-      Exit(Fail(rsPatternVariableBadId));
-    if not GetJSONString(Item, 'name', VName) then
-      VName := '';
-    if not CheckVariableName(VName, nil, Msg) then
-      Exit(Fail(Format(rsPatternVariableBadName, [Msg])));
-    if not GetJSONString(Item, 'formula', Text) then
-      Exit(Fail(Format(rsPatternVariableNoFormula, [VName])));
-    GetJSONString(Item, 'description', Desc);
-    Variable := TVariable.Create(Id);
-    Variable.Name := VName;
-    Variable.Description := Desc;
-    Variable.Formula.ParseStored(Text);
-    FVariables.Add(Variable);
-    // Keep new IDs above every loaded one
-    if (Length(Id) > 1) and (Id[1] = 'v') then
-    begin
-      Val(Copy(Id, 2, MaxInt), IdNumber, Code);
-      if (Code = 0) and (IdNumber >= FNextVariable) then
-        FNextVariable := IdNumber + 1;
-    end;
-  end;
-  Result := True;
+  FVariables.Add(Variable);
+  KeepIdsAbove(Variable.Key);
+end;
+
+procedure TPattern.InsertObject(DraftObject: TDraftObject);
+begin
+  FObjects.Add(DraftObject);
+  KeepIdsAbove(DraftObject.Key);
 end;
 
 end.

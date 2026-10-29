@@ -66,7 +66,13 @@ type
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.Names, Sloper.Core.Formula, Sloper.Core.Evaluator, Sloper.Core.JSON;
+  SysUtils, Sloper.Core.Names, Sloper.Core.Formula, Sloper.Core.Evaluator, Sloper.Core.PatternFile;
+
+// A pattern file holding only the given variable list
+function PatternWithVariables(const VariablesText: string): string;
+begin
+  Result := '{"format": "pattern", "version": 1, "variables": ' + VariablesText + '}';
+end;
 
 procedure TTestVariables.SetUp;
 begin
@@ -98,16 +104,10 @@ end;
 
 procedure TTestVariables.LoadText(const Text: string);
 var
-  Data: TJSONData;
   Err: string;
 begin
-  Data := GetJSON(Text);
-  try
-    if not FPattern.LoadVariables(Data, Err) then
-      Fail('Load failed: ' + Err);
-  finally
-    FreeAndNil(Data);
-  end;
+  if not LoadPatternFromText(FPattern, PatternWithVariables(Text), Err) then
+    Fail('Load failed: ' + Err);
 end;
 
 procedure TTestVariables.TestAddAssignsIds;
@@ -340,60 +340,34 @@ end;
 
 procedure TTestVariables.TestSaveAndLoad;
 var
-  Arr: TJSONArray;
   Loaded: TPattern;
   Err: string;
 begin
   AddVar('ease', '20').Description := 'Waist ease';
   AddVar('front', '@waist/4 + #ease');
-  Arr := FPattern.SaveVariables;
+  Loaded := TPattern.Create;
   try
-    AssertEquals(
-      '['#10 +
-      '  {'#10 +
-      '    "id": "v1",'#10 +
-      '    "name": "ease",'#10 +
-      '    "formula": "20",'#10 +
-      '    "description": "Waist ease"'#10 +
-      '  },'#10 +
-      '  {'#10 +
-      '    "id": "v2",'#10 +
-      '    "name": "front",'#10 +
-      '    "formula": "@waist/4 + {v1}",'#10 +
-      '    "description": ""'#10 +
-      '  }'#10 +
-      ']'#10, JSONToText(Arr));
-    Loaded := TPattern.Create;
-    try
-      Loaded.Measurements := FSet;
-      AssertTrue(Err, Loaded.LoadVariables(Arr, Err));
-      Loaded.Evaluate;
-      AssertValid('front', Loaded.FindVariable('front'), 200);
-      AssertEquals('display', '@waist/4 + #ease',
-        Loaded.FormulaText(Loaded.FindVariable('front'), 'formula'));
-    finally
-      FreeAndNil(Loaded);
-    end;
+    Loaded.Measurements := FSet;
+    AssertTrue(Err, LoadPatternFromText(Loaded, SavePatternToText(FPattern), Err));
+    Loaded.Evaluate;
+    AssertValid('front', Loaded.FindVariable('front'), 200);
+    AssertEquals('description', 'Waist ease', Loaded.FindVariable('ease').Description);
+    AssertEquals('display', '@waist/4 + #ease',
+      Loaded.FormulaText(Loaded.FindVariable('front'), 'formula'));
   finally
-    FreeAndNil(Arr);
+    FreeAndNil(Loaded);
   end;
 end;
 
 procedure TTestVariables.TestLoadKeepsBadFormula;
 var
   V: TVariable;
-  Saved: TJSONArray;
 begin
   LoadText('[{"id": "v1", "name": "a", "formula": "1 +"}]');
   V := FPattern.FindVariable('a');
   FPattern.Evaluate;
   AssertTrue('error state', V.State = esError);
-  Saved := FPattern.SaveVariables;
-  try
-    AssertEquals('text kept', '1 +', TJSONObject(Saved.Items[0]).Strings['formula']);
-  finally
-    FreeAndNil(Saved);
-  end;
+  AssertTrue('text kept', Pos('"formula": "1 +"', SavePatternToText(FPattern)) > 0);
 end;
 
 procedure TTestVariables.TestLoadedCycleIsAnError;
@@ -412,31 +386,25 @@ end;
 
 procedure TTestVariables.TestLoadErrors;
 var
-  Data: TJSONData;
   Err: string;
 
   procedure Check(const Text, Msg: string);
   begin
-    Data := GetJSON(Text);
-    try
-      AssertFalse(Text, FPattern.LoadVariables(Data, Err));
-      AssertEquals(Text, Msg, Err);
-      AssertEquals('emptied', 0, FPattern.VariableCount);
-    finally
-      FreeAndNil(Data);
-    end;
+    AssertFalse(Text, LoadPatternFromText(FPattern, PatternWithVariables(Text), Err));
+    AssertEquals(Text, Msg, Err);
+    AssertEquals('emptied', 0, FPattern.VariableCount);
   end;
 
 begin
-  Check('{"id": "v1"}', rsPatternVariableList);
-  Check('[{"name": "a", "formula": "1"}]', rsPatternVariableBadId);
+  Check('{"id": "v1"}', Format(rsPatternFileList, ['variables']));
+  Check('[{"name": "a", "formula": "1"}]', Format(rsPatternFileBadId, [1, 'variables']));
   Check('[{"id": "v1", "name": "a", "formula": "1"}, {"id": "v1", "name": "b", "formula": "1"}]',
-    rsPatternVariableBadId);
+    Format(rsPatternFileBadId, [2, 'variables']));
   Check('[{"id": "v1", "name": "a b", "formula": "1"}]',
-    Format(rsPatternVariableBadName, [Format(rsNameInvalid, ['a b'])]));
+    Format(rsPatternVariableBadName, ['v1', Format(rsNameInvalid, ['a b'])]));
   Check('[{"id": "v1", "name": "a", "formula": "1"}, {"id": "v2", "name": "A", "formula": "1"}]',
-    Format(rsPatternVariableBadName, [Format(rsNameTaken, ['A'])]));
-  Check('[{"id": "v1", "name": "a"}]', Format(rsPatternVariableNoFormula, ['a']));
+    Format(rsPatternVariableBadName, ['v2', Format(rsNameTaken, ['A'])]));
+  Check('[{"id": "v1", "name": "a"}]', Format(rsPatternVariableMissing, ['v1', 'formula']));
 end;
 
 procedure TTestVariables.TestNewIdsAfterLoad;
