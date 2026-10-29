@@ -346,7 +346,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 2. Sort edges around each node by outgoing angle (curve tangents, not chords).
 3. Prune dangling nodes, then walk faces by always taking the next edge clockwise.
 4. Discard the outer face; pick the face containing the click (point-in-polygon).
-5. Use signed area to force clockwise order.
+5. Normalise the found path to clockwise internally using signed area, setting each edge's reversed flag automatically. The user never draws, clicks or orders anything in a particular direction; lines and curves can be drawn either way round.
 
 Handling the edge cases:
 
@@ -636,7 +636,7 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 - Each package is added to the project search path or as a `.lpk` dependency
 - Updates are deliberate: a submodule bump is its own commit
-- Clipper2 comes from our fork, which carries fixes upstream has not merged (see `documents/known-issues.md`); upstream changes are pulled into the fork deliberately, and fixes are still offered upstream as pull requests
+- Clipper2 comes from our fork of the original AngusJohnson/Clipper2, which carries our fixes (see `documents/known-issues.md`). That repo was archived in October 2026; development moved to PolyClipping/Clipper2, which is becoming C++ only, so the fork stays on the original. When we need to change Clipper2's behaviour, it becomes our own Pascal-only Clipper2 (Boost licence, keeping Angus Johnson's notices)
 - README and `run-tests.sh` include `git submodule update --init --recursive`, so builds never run with missing packages
 - Every package must be GPLv3-compatible and carry an explicit licence file
 
