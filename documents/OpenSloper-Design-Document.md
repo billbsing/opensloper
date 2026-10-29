@@ -144,7 +144,7 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 - `TPattern.SetFormula` refuses an edit that would close a cycle, naming both nodes. Loaded files can still contain one: nodes on the cycle become errors and their readers are blocked.
 - `Evaluate` rebuilds the graph and recomputes everything; dirty tracking can come later if dragging needs it.
 - `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 4) wrap these calls. `Delete` is refused while other nodes use the object.
-- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge) and all edge operations (line, curve, curve path, split edge), with derived names (`Line_A_B`, `Path_A_C`) that follow renamed endpoints until the user names the edge. Pattern files are saved and loaded (`Sloper.Core.PatternFile`, see File format and storage); undo and redo work through `TPatternDocument` (see Key design decisions item 7). The canvas comes next (roadmap step 5).
+- Implemented so far: all six point operations (free, offset, along edge, intersect edges, circle × edge, project onto edge) and all edge operations (line, curve, curve path, split edge), with derived names (`Line_A_B`, `Path_A_C`) that follow renamed endpoints until the user names the edge. Pattern files are saved and loaded (`Sloper.Core.PatternFile`, see File format and storage); undo and redo work through `TPatternDocument` (see Key design decisions item 7). The canvas is under way (roadmap step 5; see Drafting experience).
 - Every edge keeps its computed geometry as segments (straight or cubic), so length, positions along it, splitting and crossings work the same for every kind of edge. For crossings an edge supplies pieces (`TEdgeObject.Pieces`), one per segment, plus a ray off each end along its tangent when extended; an extended line is therefore its infinite line.
 - Split edge creates two new edges (`Line_A_P`, `Line_P_B`) that follow the source edge and the point; the source stays. A part is invalid while the point is off the edge or at one of its ends. Parts of a line stay straight and keep `.angle`.
 
@@ -366,7 +366,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
   Values are rounded to 0.1 mm. The canvas shows a marker for the kind of snap, a dotted guide to the point it lines up with, and the line being drawn, and the status bar says what a click will make ("New point 30 mm right of B").
 - **Lines and curves** take two clicks. Both new end points and the edge are one undo step, and drawing carries on from the end point. New edges are outlines. A curve starts with handles along the chord, a third of its length, ready to shape in the properties.
 - **Properties panel** (`Sloper.UI.Properties`): the selected object's type, name, formulas (shown with names, with readable captions such as "Point 2 handle in") and role, and what it computes to. Enter or leaving a field commits one undo step; Escape puts the text back. A refused formula keeps its text, shows the reason in red and puts the cursor at the problem. The role drop-down is also one undo step.
-- **Next:** variables and measurements panels, and a node editor for curve handles.
+- **Next:** point label modes (the canvas still labels every point), the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -402,6 +402,18 @@ Direction and dependency arrows appear only on hover, selection or piece creatio
 - Piece edges whose reversed flag breaks the path direction
 
 A problems panel lists each issue in plain words (e.g. "Front: gap between Line\_C\_D and Curve\_D\_E"); clicking one zooms to it. A warning count in the status bar flags issues without forcing the overlay on.
+
+**Point labels.** Labels are hidden by default so the drawing stays clean; they appear only when they help the current step:
+
+| Mode | What shows | When to use |
+| --- | --- | --- |
+| Contextual (default) | Labels on hover and selection; on points a tool is asking for (e.g. candidate base points while placing an offset point); on the inputs and dependents of the selected object | Normal drafting |
+| All | Every point and edge label | Checking or explaining a whole draft; also while a shortcut key is held |
+| None | No labels, small point markers only | Reviewing the shape of the design |
+
+Labels never print unless explicitly turned on in the print screen.
+
+**Objects panel.** A side panel lists every point, edge, piece and annotation with its name, operation, formulas, computed position and state (valid, error, invalid, blocked), with search and filter. Selecting in the panel selects and zooms on the canvas, and the reverse. The panel is where names and data are read and edited, so the canvas doesn't need to show them; formula fields use name autocomplete, so hidden labels never make formulas harder to write.
 
 ## File format and storage
 
