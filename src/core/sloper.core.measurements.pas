@@ -26,7 +26,7 @@ unit Sloper.Core.Measurements;
 interface
 
 uses
-  Classes, SysUtils, fpjson;
+  SysUtils, Generics.Collections, fpjson;
 
 const
   MeasurementFormat = 'measurements';
@@ -44,9 +44,14 @@ type
     property Key: string read FKey;
   end;
 
+  TMeasurementList = specialize TObjectList<TMeasurement>;
+  TMeasurementMap = specialize TDictionary<string, TMeasurement>;
+
   TMeasurementSet = class
   private
-    FItems: TList;
+    FItems: TMeasurementList;
+    // Measurements by key in lower case, for Find
+    FByKey: TMeasurementMap;
     function GetCount: integer;
     function GetItem(Index: integer): TMeasurement;
     function ToJSON: TJSONObject;
@@ -91,22 +96,21 @@ uses
 
 constructor TMeasurementSet.Create;
 begin
-  FItems := TList.Create;
+  FItems := TMeasurementList.Create;
+  FByKey := TMeasurementMap.Create;
 end;
 
 destructor TMeasurementSet.Destroy;
 begin
   Clear;
+  FreeAndNil(FByKey);
   FreeAndNil(FItems);
   inherited Destroy;
 end;
 
 procedure TMeasurementSet.Clear;
-var
-  Index: integer;
 begin
-  for Index := 0 to FItems.Count - 1 do
-    TMeasurement(FItems[Index]).Free;
+  FByKey.Clear;
   FItems.Clear;
   Name := '';
   Notes := '';
@@ -119,26 +123,26 @@ end;
 
 function TMeasurementSet.GetItem(Index: integer): TMeasurement;
 begin
-  Result := TMeasurement(FItems[Index]);
+  Result := FItems[Index];
 end;
 
 function TMeasurementSet.IndexOf(const Key: string): integer;
+var
+  Measurement: TMeasurement;
 begin
-  for Result := 0 to FItems.Count - 1 do
-    if SameName(Items[Result].Key, Key) then
-      Exit;
-  Result := -1;
+  Measurement := Find(Key);
+  if Measurement = nil then
+    Result := -1
+  else
+    Result := FItems.IndexOf(Measurement);
 end;
 
+// Keys follow the name rules (ASCII letters, digits, underscore), so
+// LowerCase gives the same result as SameName
 function TMeasurementSet.Find(const Key: string): TMeasurement;
-var
-  Index: integer;
 begin
-  Index := IndexOf(Key);
-  if Index < 0 then
-    Result := nil
-  else
-    Result := Items[Index];
+  if not FByKey.TryGetValue(LowerCase(Key), Result) then
+    Result := nil;
 end;
 
 function TMeasurementSet.TryGetValue(const Key: string; out Value: double): boolean;
@@ -181,6 +185,7 @@ begin
   Result.Value := Value;
   Result.Description := Description;
   FItems.Add(Result);
+  FByKey.Add(LowerCase(Key), Result);
 end;
 
 procedure TMeasurementSet.Rename(Measurement: TMeasurement; const NewKey: string);
@@ -189,13 +194,19 @@ var
 begin
   if not CheckKey(NewKey, Measurement, Msg) then
     raise EMeasurementError.Create(Msg);
+  FByKey.Remove(LowerCase(Measurement.FKey));
   Measurement.FKey := NewKey;
+  FByKey.Add(LowerCase(NewKey), Measurement);
 end;
 
 procedure TMeasurementSet.Delete(Measurement: TMeasurement);
 begin
-  if FItems.Remove(Measurement) >= 0 then
-    FreeAndNil(Measurement);
+  // The list owns its measurements, so removing frees it
+  if FItems.IndexOf(Measurement) >= 0 then
+  begin
+    FByKey.Remove(LowerCase(Measurement.Key));
+    FItems.Remove(Measurement);
+  end;
 end;
 
 function TMeasurementSet.ToJSON: TJSONObject;

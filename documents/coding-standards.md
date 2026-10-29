@@ -46,6 +46,7 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 - Every unit starts with the GPLv3 header from `documents/gpl-header.txt`, then a short comment saying what the unit is for.
 - Units start with `{$mode ObjFPC}{$H+}`.
 - Comments explain why, or what is not obvious; they don't restate the code.
+- Collections use `Generics.Collections`: `specialize TObjectList<T>` for lists that own their items, `specialize TDictionary<string, T>` for lookups by key, instead of `TList` with casts. Declare the specialization as a named type (`TDraftObjectList = specialize TObjectList<TDraftObject>`). Removing from an owning list frees the item; use `ExtractIndex` to take one out without freeing it.
 - Free objects with `FreeAndNil(Obj)`, never `Obj.Free` or `Obj.Destroy`, so a reference is either `nil` or a live instance (see [Modern Object Pascal](https://castle-engine.io/modern_pascal)). It does not clear other copies of the reference. The one exception is a typecast list item (`TObject(List[Index]).Free`), which cannot be passed to `FreeAndNil`; clear the list straight after.
 - Recursion inside a function needs brackets: in ObjFPC mode a bare `ParseUnary` inside `ParseUnary` means the result variable, so write `ParseUnary()`.
 - Don't index an array with a call that can grow it (`Tokens[Add(...)] := ...`): Free Pascal may take the array's address before the call reallocates it. Store the index first.

@@ -317,6 +317,7 @@ begin
     Other.Delete(Other.Find('hip'));
     FPattern.Evaluate;
     M := FPattern.FindNode('@hip');
+    AssertSame('found in any case', M, FPattern.FindNode('@HIP'));
     AssertTrue('measurement node fails', M.State = esError);
     AssertEquals(Format(rsMeasurementNotInSet, ['hip']), M.Message);
     AssertTrue('variable blocked', A.State = esBlocked);

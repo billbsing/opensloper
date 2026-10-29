@@ -425,13 +425,19 @@ procedure TTestPattern.TestDeleteInUseRefused;
 var
   A, B: TPointObject;
   L: TLineObject;
+  PointKey, LineKey: string;
 begin
   Basic(A, B, L);
+  PointKey := B.Key;
+  LineKey := L.Key;
   AssertFalse(FPattern.Delete(B));
   AssertEquals(Format(rsPatternInUse, ['B', 'Line_A_B']), FPattern.LastError);
   AssertTrue('line first', FPattern.Delete(L));
+  AssertNull('line not found', FPattern.FindNode(LineKey));
   AssertTrue('then the point', FPattern.Delete(B));
+  AssertNull('point not found', FPattern.FindNode(PointKey));
   AssertEquals(1, FPattern.ObjectCount);
+  AssertSame('A still found', A, FPattern.FindNode(A.Key));
   FPattern.Evaluate;
   AssertAt('A still fine', A, 0, 0);
 end;

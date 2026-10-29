@@ -28,16 +28,23 @@ unit Sloper.Core.Pattern;
 interface
 
 uses
-  Classes, SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
+  Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
   Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft;
 
 type
+  TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
+  TVariableList = specialize TObjectList<TVariable>;
+  TDraftObjectList = specialize TObjectList<TDraftObject>;
+  TEvalNodeMap = specialize TDictionary<string, TEvalNode>;
+
   TPattern = class
   private
     FMeasurements: TMeasurementSet;
-    FMeasurementNodes: TList;
-    FVariables: TList;
-    FObjects: TList;
+    FMeasurementNodes: TMeasurementNodeList;
+    FVariables: TVariableList;
+    FObjects: TDraftObjectList;
+    // Every node by key, for FindNode; measurement keys in lower case
+    FNodes: TEvalNodeMap;
     FNextPoint, FNextLine, FNextCurve, FNextVariable: integer;
     FEvaluator: TEvaluator;
     FResolver: TNameResolver;          // objects, variables, measurements
@@ -48,6 +55,8 @@ type
     FLastErrorPos: integer;
     FNameExclude: TDraftObject;
     procedure KeepIdsAbove(const Key: string);
+    procedure AddVariableNode(Variable: TVariable);
+    procedure AddObjectNode(DraftObject: TDraftObject);
     function GetVariableCount: integer;
     function GetVariable(Index: integer): TVariable;
     function GetObjectCount: integer;
@@ -321,9 +330,10 @@ end;
 
 constructor TPattern.Create;
 begin
-  FMeasurementNodes := TList.Create;
-  FVariables := TList.Create;
-  FObjects := TList.Create;
+  FMeasurementNodes := TMeasurementNodeList.Create;
+  FVariables := TVariableList.Create;
+  FObjects := TDraftObjectList.Create;
+  FNodes := TEvalNodeMap.Create;
   FEvaluator := TEvaluator.Create;
   FResolver := TPatternResolver.Create(Self, True);
   FVariableResolver := TPatternResolver.Create(Self, False);
@@ -337,6 +347,7 @@ begin
   FreeAndNil(FMeasurementNodes);
   FreeAndNil(FVariables);
   FreeAndNil(FObjects);
+  FreeAndNil(FNodes);
   FreeAndNil(FEvaluator);
   FreeAndNil(FResolver);
   FreeAndNil(FVariableResolver);
@@ -344,22 +355,14 @@ begin
   inherited Destroy;
 end;
 
-procedure FreeItems(List: TList);
-var
-  Index: integer;
-begin
-  for Index := 0 to List.Count - 1 do
-    TObject(List[Index]).Free;
-  List.Clear;
-end;
-
 procedure TPattern.Clear;
 begin
   // The evaluator holds node references; drop them first
   FEvaluator.Rebuild(nil, FContext);
-  FreeItems(FMeasurementNodes);
-  FreeItems(FVariables);
-  FreeItems(FObjects);
+  FNodes.Clear;
+  FMeasurementNodes.Clear;
+  FVariables.Clear;
+  FObjects.Clear;
   FNextPoint := 1;
   FNextLine := 1;
   FNextCurve := 1;
@@ -375,7 +378,7 @@ end;
 
 function TPattern.GetVariable(Index: integer): TVariable;
 begin
-  Result := TVariable(FVariables[Index]);
+  Result := FVariables[Index];
 end;
 
 function TPattern.GetObjectCount: integer;
@@ -385,7 +388,7 @@ end;
 
 function TPattern.GetObject(Index: integer): TDraftObject;
 begin
-  Result := TDraftObject(FObjects[Index]);
+  Result := FObjects[Index];
 end;
 
 function TPattern.SetError(const Msg: string; const AField: string; Pos: integer): boolean;
@@ -396,24 +399,28 @@ begin
   Result := False;
 end;
 
+// IDs are compared exactly; measurement keys (@waist) without regard to case
 function TPattern.FindNode(const Key: string): TEvalNode;
 var
-  Index: integer;
+  MapKey: string;
 begin
+  MapKey := Key;
   if (Key <> '') and (Key[1] = '@') then
-  begin
-    for Index := 0 to FMeasurementNodes.Count - 1 do
-      if SameText(TEvalNode(FMeasurementNodes[Index]).Key, Key) then
-        Exit(TEvalNode(FMeasurementNodes[Index]));
-    Exit(nil);
-  end;
-  for Index := 0 to FObjects.Count - 1 do
-    if Objects[Index].Key = Key then
-      Exit(Objects[Index]);
-  for Index := 0 to FVariables.Count - 1 do
-    if Variables[Index].Key = Key then
-      Exit(Variables[Index]);
-  Result := nil;
+    MapKey := LowerCase(Key);
+  if not FNodes.TryGetValue(MapKey, Result) then
+    Result := nil;
+end;
+
+procedure TPattern.AddVariableNode(Variable: TVariable);
+begin
+  FVariables.Add(Variable);
+  FNodes.Add(Variable.Key, Variable);
+end;
+
+procedure TPattern.AddObjectNode(DraftObject: TDraftObject);
+begin
+  FObjects.Add(DraftObject);
+  FNodes.Add(DraftObject.Key, DraftObject);
 end;
 
 function TPattern.FindObject(const AName: string): TDraftObject;
@@ -544,7 +551,7 @@ begin
   Inc(FNextVariable);
   Result.Name := AName;
   Result.Description := Description;
-  FVariables.Add(Result);
+  AddVariableNode(Result);
 end;
 
 function TPattern.AddPointObject(APoint: TPointObject; const AName: string;
@@ -570,7 +577,7 @@ begin
   end;
   Inc(FNextPoint);
   APoint.Name := PointName;
-  FObjects.Add(APoint);
+  AddObjectNode(APoint);
   Result := True;
 end;
 
@@ -701,7 +708,7 @@ begin
     Exit(False);
   end;
   AEdge.Role := ARole;
-  FObjects.Add(AEdge);
+  AddObjectNode(AEdge);
   Result := True;
 end;
 
@@ -805,7 +812,7 @@ var
     // Each part is its own edge: it gets a derived name and joins the pattern
     Result.Name := DerivedEdgeName(Result);
     Result.Role := Source.Role;
-    FObjects.Add(Result);
+    AddObjectNode(Result);
   end;
 
 begin
@@ -923,11 +930,12 @@ begin
   end;
   // The evaluator may hold the node; forget the old graph
   FEvaluator.Rebuild(nil, FContext);
+  FNodes.Remove(Node.Key);
+  // The lists own their nodes, so removing frees it
   if Node is TVariable then
-    FVariables.Remove(Node)
+    FVariables.Remove(TVariable(Node))
   else
-    FObjects.Remove(Node);
-  FreeAndNil(Node);
+    FObjects.Remove(TDraftObject(Node));
   Result := True;
 end;
 
@@ -940,6 +948,7 @@ procedure TPattern.RebuildMeasurementNodes;
 var
   Keys: TStringList;
   Node: TEvalNode;
+  MeasurementNode: TMeasurementNode;
   Ref: TFormulaReference;
   FieldIndex, KeyIndex: integer;
 begin
@@ -953,9 +962,15 @@ begin
         for Ref in Node.Fields[FieldIndex].Formula.References do
           if Ref.Kind = rkMeasurement then
             Keys.Add('@' + Ref.Id);
-    FreeItems(FMeasurementNodes);
+    for MeasurementNode in FMeasurementNodes do
+      FNodes.Remove(LowerCase(MeasurementNode.Key));
+    FMeasurementNodes.Clear;
     for KeyIndex := 0 to Keys.Count - 1 do
-      FMeasurementNodes.Add(TMeasurementNode.Create(Keys[KeyIndex]));
+    begin
+      MeasurementNode := TMeasurementNode.Create(Keys[KeyIndex]);
+      FMeasurementNodes.Add(MeasurementNode);
+      FNodes.Add(LowerCase(MeasurementNode.Key), MeasurementNode);
+    end;
   finally
     FreeAndNil(Keys);
   end;
@@ -963,24 +978,27 @@ end;
 
 function TPattern.AllNodes: TEvalNodeArray;
 var
-  Index, Count: integer;
+  Count: integer;
+  MeasurementNode: TMeasurementNode;
+  Variable: TVariable;
+  DraftObject: TDraftObject;
 begin
   Result := nil;
   SetLength(Result, FMeasurementNodes.Count + FVariables.Count + FObjects.Count);
   Count := 0;
-  for Index := 0 to FMeasurementNodes.Count - 1 do
+  for MeasurementNode in FMeasurementNodes do
   begin
-    Result[Count] := TEvalNode(FMeasurementNodes[Index]);
+    Result[Count] := MeasurementNode;
     Inc(Count);
   end;
-  for Index := 0 to FVariables.Count - 1 do
+  for Variable in FVariables do
   begin
-    Result[Count] := Variables[Index];
+    Result[Count] := Variable;
     Inc(Count);
   end;
-  for Index := 0 to FObjects.Count - 1 do
+  for DraftObject in FObjects do
   begin
-    Result[Count] := Objects[Index];
+    Result[Count] := DraftObject;
     Inc(Count);
   end;
 end;
@@ -1022,13 +1040,13 @@ end;
 
 procedure TPattern.InsertVariable(Variable: TVariable);
 begin
-  FVariables.Add(Variable);
+  AddVariableNode(Variable);
   KeepIdsAbove(Variable.Key);
 end;
 
 procedure TPattern.InsertObject(DraftObject: TDraftObject);
 begin
-  FObjects.Add(DraftObject);
+  AddObjectNode(DraftObject);
   KeepIdsAbove(DraftObject.Key);
 end;
 

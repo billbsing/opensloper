@@ -34,7 +34,7 @@ unit Sloper.Document.PatternDocument;
 interface
 
 uses
-  Classes, SysUtils, Sloper.Core.Measurements, Sloper.Core.Pattern;
+  SysUtils, Generics.Collections, Sloper.Core.Measurements, Sloper.Core.Pattern;
 
 const
   DefaultUndoLimit = 500;
@@ -81,6 +81,8 @@ type
     procedure Undo; override;
   end;
 
+  TCommandList = specialize TObjectList<TCommand>;
+
   TPatternDocument = class
   private
     FPattern: TPattern;
@@ -89,7 +91,7 @@ type
     FMeasurementError: string;
     FMeasurementsChanged: boolean;
     FFileName: string;
-    FUndo, FRedo: TFPList;
+    FUndo, FRedo: TCommandList;
     FSavedCount: integer;
     FChangeOpen: boolean;
     FChangeDescription: string;
@@ -220,8 +222,8 @@ end;
 constructor TPatternDocument.Create;
 begin
   FPattern := TPattern.Create;
-  FUndo := TFPList.Create;
-  FRedo := TFPList.Create;
+  FUndo := TCommandList.Create;
+  FRedo := TCommandList.Create;
   FUndoLimit := DefaultUndoLimit;
   FMergeSeconds := DefaultMergeSeconds;
 end;
@@ -295,7 +297,7 @@ begin
   if FUndo.Count = 0 then
     Result := ''
   else
-    Result := TCommand(FUndo.Last).Description;
+    Result := FUndo.Last.Description;
 end;
 
 function TPatternDocument.GetRedoDescription: string;
@@ -303,28 +305,19 @@ begin
   if FRedo.Count = 0 then
     Result := ''
   else
-    Result := TCommand(FRedo.Last).Description;
-end;
-
-procedure FreeCommands(List: TFPList);
-var
-  Index: integer;
-begin
-  for Index := 0 to List.Count - 1 do
-    TObject(List[Index]).Free;
-  List.Clear;
+    Result := FRedo.Last.Description;
 end;
 
 procedure TPatternDocument.ClearHistory;
 begin
-  FreeCommands(FUndo);
-  FreeCommands(FRedo);
+  FUndo.Clear;
+  FRedo.Clear;
   FSavedCount := 0;
 end;
 
 procedure TPatternDocument.ClearRedo;
 begin
-  FreeCommands(FRedo);
+  FRedo.Clear;
   // The saved state was on the discarded redo branch
   if FSavedCount > FUndo.Count then
     FSavedCount := -1;
@@ -334,7 +327,6 @@ procedure TPatternDocument.TrimUndo;
 begin
   while (FUndoLimit > 0) and (FUndo.Count > FUndoLimit) do
   begin
-    TObject(FUndo[0]).Free;
     FUndo.Delete(0);
     // FSavedCount counts steps; a save before the dropped step can no longer be reached
     if FSavedCount > 0 then
@@ -530,10 +522,7 @@ begin
     Last.FAfter := After;
     Last.FTime := Time;
     if Last.FAfter = Last.FBefore then
-    begin
       FUndo.Delete(FUndo.Count - 1);
-      FreeAndNil(Last);
-    end;
   end
   else
   begin
@@ -586,8 +575,7 @@ begin
   if not CanUndo then
     Exit(False);
   WasModified := Modified;
-  Command := TCommand(FUndo.Last);
-  FUndo.Delete(FUndo.Count - 1);
+  Command := FUndo.ExtractIndex(FUndo.Count - 1);
   Command.Undo;
   FRedo.Add(Command);
   Changes := [dcPattern, dcObjectsReplaced, dcHistory];
@@ -606,8 +594,7 @@ begin
   if not CanRedo then
     Exit(False);
   WasModified := Modified;
-  Command := TCommand(FRedo.Last);
-  FRedo.Delete(FRedo.Count - 1);
+  Command := FRedo.ExtractIndex(FRedo.Count - 1);
   Command.Execute;
   FUndo.Add(Command);
   Changes := [dcPattern, dcObjectsReplaced, dcHistory];

@@ -114,7 +114,10 @@ resourcestring
 implementation
 
 uses
-  Classes;
+  Generics.Collections;
+
+type
+  TEvalNodeSet = specialize THashSet<TEvalNode>;
 
 function ReferenceKey(const Ref: TFormulaReference): string;
 begin
@@ -358,7 +361,7 @@ end;
 
 class function TEvaluator.Reaches(From, Target: TEvalNode; Context: TEvalContext): boolean;
 var
-  Visited: TList;
+  Visited: TEvalNodeSet;
 
   function Visit(Current: TEvalNode): boolean;
   var
@@ -372,18 +375,15 @@ var
         Continue;
       if Dep = Target then
         Exit(True);
-      if Visited.IndexOf(Dep) < 0 then
-      begin
-        Visited.Add(Dep);
-        if Visit(Dep) then
-          Exit(True);
-      end;
+      // Add is False when Dep was already visited
+      if Visited.Add(Dep) and Visit(Dep) then
+        Exit(True);
     end;
     Result := False;
   end;
 
 begin
-  Visited := TList.Create;
+  Visited := TEvalNodeSet.Create;
   try
     Result := Visit(From);
   finally

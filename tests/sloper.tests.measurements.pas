@@ -147,6 +147,7 @@ begin
   FSet.Add('hip', 1010);
   FSet.Rename(M, 'waist_natural');
   AssertNotNull(FSet.Find('waist_natural'));
+  AssertSame('any case', M, FSet.Find('WAIST_Natural'));
   AssertNull(FSet.Find('waist'));
   try
     FSet.Rename(M, 'hip');
@@ -161,6 +162,8 @@ begin
   FSet.Add('waist', 820);
   FSet.Delete(FSet.Find('waist'));
   AssertEquals(0, FSet.Count);
+  AssertNull('not found', FSet.Find('waist'));
+  AssertNotNull('key free again', FSet.Add('waist', 800));
 end;
 
 procedure TTestMeasurements.TestSaveText;
