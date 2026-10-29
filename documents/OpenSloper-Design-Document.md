@@ -355,7 +355,18 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Dragging points:** only fields that are plain numbers change (free x/y, offset length/angle or dx/dy, along-edge value), rounded to 0.1 mm, 0.1° or 0.0001. A point placed by a formula or by other objects is refused, with the reason shown. One drag is one undo step; Escape cancels it.
 - **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
-- **Next:** drawing tools with snap-inferred operations, and the properties panel.
+- **Tools:** Select (S), Point (P), Line (L) and Curve (C), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
+- **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
+  1. An existing point is reused.
+  2. A crossing of two nearby edges becomes an intersect point, with its `pick`. An edge and its own split parts are not treated as crossing.
+  3. A place on an edge becomes an along-edge point, measured from the nearer end.
+  4. A spot level with or square to a point becomes a polar offset from it. While drawing a line, its start point is tried first; between equally good line-ups, the nearer point wins.
+  5. Anything else becomes a free point.
+
+  Values are rounded to 0.1 mm. The canvas shows a marker for the kind of snap, a dotted guide to the point it lines up with, and the line being drawn, and the status bar says what a click will make ("New point 30 mm right of B").
+- **Lines and curves** take two clicks. Both new end points and the edge are one undo step, and drawing carries on from the end point. New edges are outlines. A curve starts with handles along the chord, a third of its length, ready to shape in the properties.
+- **Properties panel** (`Sloper.UI.Properties`): the selected object's type, name, formulas (shown with names, with readable captions such as "Point 2 handle in") and role, and what it computes to. Enter or leaving a field commits one undo step; Escape puts the text back. A refused formula keeps its text, shows the reason in red and puts the cursor at the problem. The role drop-down is also one undo step.
+- **Next:** variables and measurements panels, and a node editor for curve handles.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 

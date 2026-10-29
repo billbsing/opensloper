@@ -25,8 +25,8 @@ unit Sloper.UI.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, LCLType, Sloper.Core.Geometry,
-  Sloper.Document.PatternDocument, Sloper.UI.Canvas;
+  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
+  Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties;
 
 type
 
@@ -80,7 +80,16 @@ type
   private
     FDocument: TPatternDocument;
     FCanvas: TPatternCanvas;
+    FProperties: TPropertiesPanel;
+    FSplitter: TSplitter;
+    FToolBar: TToolBar;
+    FToolButtons: array[TCanvasTool] of TToolButton;
+    FToolItems: array[TCanvasTool] of TMenuItem;
     FShown: boolean;
+    procedure CreateTools;
+    procedure ToolClick(Sender: TObject);
+    procedure CanvasToolChange(Sender: TObject);
+    procedure CanvasSelectionChange(Sender: TObject);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure CanvasCursorMove(Sender: TObject; const ModelPos: TVec2);
     procedure CanvasMessage(Sender: TObject; const AText: string);
@@ -131,6 +140,12 @@ resourcestring
   rsMenuViewZoomOut = 'Zoom &Out';
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
+  rsMenuTools = '&Tools';
+  rsToolSelect = 'Select';
+  rsToolPoint = 'Point';
+  rsToolLine = 'Line';
+  rsToolCurve = 'Curve';
+  rsToolKey = '%s (%s)';
   rsMenuHelp = '&Help';
   rsMenuHelpAbout = '&About OpenSloper';
   rsAboutText = '%s %s'#10#10 + 'Parametric sewing pattern drafting.'#10#10 + 'This program is free software: you can redistribute it and/or modify ' +
@@ -170,8 +185,8 @@ begin
   MenuEdit.Caption := rsMenuEdit;
   MenuEditUndo.ShortCut := ShortCut(VK_Z, [ssModifier]);
   MenuEditRedo.ShortCut := ShortCut(VK_Z, [ssModifier, ssShift]);
+  // The canvas handles the Delete key, so typing in a field can still delete text
   MenuEditDelete.Caption := rsMenuEditDelete;
-  MenuEditDelete.ShortCut := ShortCut(VK_DELETE, []);
   MenuView.Caption := rsMenuView;
   MenuViewZoomIn.Caption := rsMenuViewZoomIn;
   MenuViewZoomIn.ShortCut := ShortCut(VK_OEM_PLUS, [ssModifier]);
@@ -193,12 +208,25 @@ begin
   MeasurementsDialog.InitialDir := OpenDialog.InitialDir;
 
   FDocument := TPatternDocument.Create;
+  CreateTools;
+  FProperties := TPropertiesPanel.Create(Self);
+  FProperties.Parent := Self;
+  FProperties.Align := alRight;
+  FProperties.Width := Scale96ToForm(280);
+  FProperties.Document := FDocument;
+  FSplitter := TSplitter.Create(Self);
+  FSplitter.Parent := Self;
+  FSplitter.Align := alRight;
+  FSplitter.Left := FProperties.Left - FSplitter.Width;
   FCanvas := TPatternCanvas.Create(Self);
   FCanvas.Parent := Self;
   FCanvas.Align := alClient;
   FCanvas.Document := FDocument;
   FCanvas.OnCursorMove := @CanvasCursorMove;
   FCanvas.OnMessage := @CanvasMessage;
+  FCanvas.OnToolChange := @CanvasToolChange;
+  FCanvas.OnSelectionChange := @CanvasSelectionChange;
+  CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
   StatusBar.OnResize := @StatusBarResize;
   UpdateTitle;
@@ -206,10 +234,79 @@ begin
   UpdateStatus;
 end;
 
+// The toolbar and Tools menu; each item's Tag is its TCanvasTool
+procedure TMainForm.CreateTools;
+const
+  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C');
+var
+  MenuTools: TMenuItem;
+  Tool: TCanvasTool;
+  Captions: array[TCanvasTool] of string;
+begin
+  Captions[ctSelect] := rsToolSelect;
+  Captions[ctPoint] := rsToolPoint;
+  Captions[ctLine] := rsToolLine;
+  Captions[ctCurve] := rsToolCurve;
+  FToolBar := TToolBar.Create(Self);
+  FToolBar.Parent := Self;
+  FToolBar.Align := alTop;
+  FToolBar.ShowCaptions := True;
+  FToolBar.List := True;
+  FToolBar.AutoSize := True;
+  MenuTools := TMenuItem.Create(MainMenu);
+  MenuTools.Caption := rsMenuTools;
+  MainMenu.Items.Insert(MainMenu.Items.IndexOf(MenuHelp), MenuTools);
+  for Tool := Low(TCanvasTool) to High(TCanvasTool) do
+  begin
+    FToolButtons[Tool] := TToolButton.Create(FToolBar);
+    FToolButtons[Tool].Parent := FToolBar;
+    FToolButtons[Tool].Caption := Captions[Tool];
+    FToolButtons[Tool].Hint := Format(rsToolKey, [Captions[Tool], Keys[Tool]]);
+    FToolButtons[Tool].ShowHint := True;
+    FToolButtons[Tool].Style := tbsCheck;
+    FToolButtons[Tool].Grouped := True;
+    FToolButtons[Tool].Tag := Ord(Tool);
+    FToolButtons[Tool].OnClick := @ToolClick;
+  end;
+  for Tool := Low(TCanvasTool) to High(TCanvasTool) do
+  begin
+    FToolItems[Tool] := TMenuItem.Create(MenuTools);
+    FToolItems[Tool].Caption := Format(rsToolKey, [Captions[Tool], Keys[Tool]]);
+    FToolItems[Tool].RadioItem := True;
+    FToolItems[Tool].GroupIndex := 1;
+    FToolItems[Tool].Tag := Ord(Tool);
+    FToolItems[Tool].OnClick := @ToolClick;
+    MenuTools.Add(FToolItems[Tool]);
+  end;
+end;
+
+procedure TMainForm.ToolClick(Sender: TObject);
+begin
+  FCanvas.Tool := TCanvasTool(TComponent(Sender).Tag);
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.CanvasToolChange(Sender: TObject);
+var
+  Tool: TCanvasTool;
+begin
+  for Tool := Low(TCanvasTool) to High(TCanvasTool) do
+  begin
+    FToolButtons[Tool].Down := Tool = FCanvas.Tool;
+    FToolItems[Tool].Checked := Tool = FCanvas.Tool;
+  end;
+end;
+
+procedure TMainForm.CanvasSelectionChange(Sender: TObject);
+begin
+  FProperties.ShowSelection(FCanvas.Selection);
+end;
+
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
-  // The canvas listens to the document, so it lets go first
+  // The canvas and panel listen to the document, so they let go first
   FCanvas.Document := nil;
+  FProperties.Document := nil;
   FDocument.RemoveListener(@DocumentChanged);
   FreeAndNil(FDocument);
 end;

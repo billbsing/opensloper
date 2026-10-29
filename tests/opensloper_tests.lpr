@@ -43,6 +43,7 @@ uses
   Sloper.Tests.Document,
   Sloper.Tests.Drag,
   Sloper.Tests.CanvasModel,
+  Sloper.Tests.Snap,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;
 

@@ -162,6 +162,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Canvas"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.snap.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.Snap"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.properties.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.Properties"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

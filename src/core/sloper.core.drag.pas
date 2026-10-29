@@ -35,6 +35,8 @@ const
   DragAngleDecimals = 1;
   DragRatioDecimals = 4;
 
+// Value rounded to Decimals as formula text, without "-0"
+function RoundedText(Value: double; Decimals: integer): string;
 // True when Point can be dragged: its type moves freely, and every field the
 // drag would change is a plain number. Otherwise ErrorMessage says why.
 function CanDrag(Point: TPointObject; out ErrorMessage: string): boolean;

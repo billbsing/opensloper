@@ -141,6 +141,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.snap.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Snap"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

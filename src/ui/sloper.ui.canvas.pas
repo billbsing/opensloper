@@ -28,10 +28,12 @@ interface
 
 uses
   Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Document.PatternDocument, Sloper.UI.View;
+  Sloper.Core.Draft, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
   TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging);
+  // ctSelect selects and drags; the others add points, lines and curves where the snap points
+  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -47,6 +49,14 @@ type
     FPressKey: string;
     FDragOffset: TVec2;
     FSpaceDown: boolean;
+    FTool: TCanvasTool;
+    // Where a click would go, while a drawing tool is in use
+    FSnap: TSnap;
+    FSnapShown: boolean;
+    // The first click of a line or curve
+    FStartSnap: TSnap;
+    FHasStart: boolean;
+    FOnToolChange: TNotifyEvent;
     FOnCursorMove: TCursorMoveEvent;
     FOnMessage: TCanvasMessageEvent;
     FOnSelectionChange: TNotifyEvent;
@@ -63,10 +73,17 @@ type
     procedure DragTo(X, Y: integer);
     procedure CancelDrag;
     procedure Nudge(DX, DY: double);
+    procedure SetTool(Value: TCanvasTool);
+    procedure UpdateSnap(X, Y: integer);
+    procedure ClickTool;
+    procedure AddPointHere;
+    procedure AddEdgeHere;
+    procedure CancelStart;
     procedure DrawGrid;
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
     procedure DrawPattern;
+    procedure DrawSnap;
   protected
     procedure Paint; override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer); override;
@@ -75,6 +92,7 @@ type
     function DoMouseWheel(Shift: TShiftState; WheelDelta: integer; MousePos: TPoint): boolean; override;
     procedure KeyDown(var Key: word; Shift: TShiftState); override;
     procedure KeyUp(var Key: word; Shift: TShiftState); override;
+    procedure MouseLeave; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -94,6 +112,8 @@ type
     // A hint or the reason something could not be done
     property OnMessage: TCanvasMessageEvent read FOnMessage write FOnMessage;
     property OnSelectionChange: TNotifyEvent read FOnSelectionChange write FOnSelectionChange;
+    property Tool: TCanvasTool read FTool write SetTool;
+    property OnToolChange: TNotifyEvent read FOnToolChange write FOnToolChange;
   end;
 
 resourcestring
@@ -101,6 +121,13 @@ resourcestring
   rsCanvasNudge = 'Nudge';
   rsCanvasDelete = 'Delete';
   rsCanvasHover = '%s: %s';
+  rsCanvasAddPoint = 'Add point';
+  rsCanvasAddLine = 'Add line';
+  rsCanvasAddCurve = 'Add curve';
+  rsCanvasToolSelect = 'Select: click to select, drag a point to move it';
+  rsCanvasToolPoint = 'Point: click to add a point where it snaps';
+  rsCanvasToolLine = 'Line: click the start, then the end; Escape stops';
+  rsCanvasToolCurve = 'Curve: click the start, then the end; Escape stops';
 
 implementation
 
@@ -117,6 +144,12 @@ const
   FlattenPixels = 0.25;
   LabelFontHeight = 13;
   WheelPanPixels = 60;
+  SnapRadius = 8;
+  SnapMarkerSize = 6;
+  // A line or curve shorter than this (mm) is ignored
+  MinEdgeLength = 0.05;
+  // Curve handles start this fraction of the way along the chord
+  HandleFraction = 1 / 3;
   // Arrow-key nudges in mm
   NudgeStep = 1;
   NudgeStepLarge = 10;
@@ -149,6 +182,11 @@ end;
 function SelectedInk: TBGRAPixel;
 begin
   Result := BGRA(37, 116, 214);
+end;
+
+function SnapInk: TBGRAPixel;
+begin
+  Result := BGRA(196, 48, 140);
 end;
 
 function HoverHalo: TBGRAPixel;
@@ -215,7 +253,12 @@ end;
 procedure TPatternCanvas.DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
 begin
   if dcObjectsReplaced in Changes then
+  begin
     DropMissingSelection;
+    // The first click may name objects that undo removed
+    FHasStart := False;
+    FSnapShown := False;
+  end;
   Invalidate;
 end;
 
@@ -425,6 +468,131 @@ begin
   SetSelection(nil);
 end;
 
+{ Drawing tools }
+
+procedure TPatternCanvas.SetTool(Value: TCanvasTool);
+begin
+  FHasStart := False;
+  FSnapShown := False;
+  if FMode = cmDragging then
+    CancelDrag;
+  FTool := Value;
+  if FTool = ctSelect then
+    Cursor := crDefault
+  else
+    Cursor := crCross;
+  case FTool of
+    ctSelect: ShowMessageText(rsCanvasToolSelect);
+    ctPoint: ShowMessageText(rsCanvasToolPoint);
+    ctLine: ShowMessageText(rsCanvasToolLine);
+    ctCurve: ShowMessageText(rsCanvasToolCurve);
+  end;
+  Invalidate;
+  if Assigned(FOnToolChange) then
+    FOnToolChange(Self);
+end;
+
+procedure TPatternCanvas.UpdateSnap(X, Y: integer);
+var
+  AnchorKey: string;
+begin
+  AnchorKey := '';
+  // A line lines up with its start first, once that start is a point
+  if FHasStart and (FStartSnap.Kind = snPoint) then
+    AnchorKey := FStartSnap.PointKey;
+  FSnap := FindSnap(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius), AnchorKey);
+  FSnapShown := True;
+  ShowMessageText(SnapDescription(FDocument.Pattern, FSnap));
+  Invalidate;
+end;
+
+procedure TPatternCanvas.CancelStart;
+begin
+  FHasStart := False;
+  Invalidate;
+end;
+
+procedure TPatternCanvas.AddPointHere;
+var
+  Key, Reason: string;
+begin
+  if FSnap.Kind = snPoint then
+  begin
+    SetSelection([FSnap.PointKey]);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddPoint);
+  Key := PointFromSnap(FDocument.Pattern, FSnap);
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Key <> '') then
+    SetSelection([Key])
+  else
+    ShowMessageText(Reason);
+end;
+
+// The second click of a line or curve: both ends and the edge are one change
+procedure TPatternCanvas.AddEdgeHere;
+var
+  StartKey, EndKey, Reason, Description: string;
+  StartPos, EndPos: TVec2;
+  Chord: double;
+  Edge: TEdgeObject;
+begin
+  StartPos := FStartSnap.Position;
+  EndPos := FSnap.Position;
+  Chord := Distance(StartPos, EndPos);
+  if Chord < MinEdgeLength then
+    Exit;
+  if FTool = ctLine then
+    Description := rsCanvasAddLine
+  else
+    Description := rsCanvasAddCurve;
+  FDocument.BeginChange(Description);
+  Edge := nil;
+  StartKey := PointFromSnap(FDocument.Pattern, FStartSnap);
+  EndKey := '';
+  if StartKey <> '' then
+    EndKey := PointFromSnap(FDocument.Pattern, FSnap);
+  if (EndKey <> '') and (EndKey <> StartKey) then
+    if FTool = ctLine then
+      Edge := FDocument.Pattern.AddLine(StartKey, EndKey, erOutline)
+    else
+      Edge := FDocument.Pattern.AddCurve(StartKey, EndKey, RoundedText(AngleBetween(StartPos, EndPos), DragAngleDecimals),
+        RoundedText(Chord * HandleFraction, DragLengthDecimals), RoundedText(AngleBetween(EndPos, StartPos), DragAngleDecimals),
+        RoundedText(Chord * HandleFraction, DragLengthDecimals), erOutline);
+  Reason := FDocument.Pattern.LastError;
+  if not FDocument.Commit(Edge <> nil) then
+  begin
+    ShowMessageText(Reason);
+    FHasStart := False;
+    Exit;
+  end;
+  SetSelection([Edge.Key]);
+  // Carry on from the end, as a chain
+  FStartSnap := Default(TSnap);
+  FStartSnap.Kind := snPoint;
+  FStartSnap.PointKey := EndKey;
+  FStartSnap.Position := TPointObject(FDocument.Pattern.FindNode(EndKey)).Position;
+  FHasStart := True;
+end;
+
+procedure TPatternCanvas.ClickTool;
+begin
+  case FTool of
+    ctPoint:
+      AddPointHere;
+    ctLine, ctCurve:
+      if not FHasStart then
+      begin
+        FStartSnap := FSnap;
+        FHasStart := True;
+      end
+      else
+        AddEdgeHere;
+  end;
+  Invalidate;
+end;
+
 { Mouse and keys }
 
 procedure TPatternCanvas.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
@@ -438,7 +606,21 @@ begin
     FMode := cmPanning;
     Exit;
   end;
-  if (Button <> mbLeft) or (FDocument = nil) then
+  if FDocument = nil then
+    Exit;
+  if FTool <> ctSelect then
+  begin
+    // Right click stops a line or curve
+    if Button = mbRight then
+      CancelStart
+    else if Button = mbLeft then
+    begin
+      UpdateSnap(X, Y);
+      ClickTool;
+    end;
+    Exit;
+  end;
+  if Button <> mbLeft then
     Exit;
   FPressKey := ObjectKeyAt(X, Y);
   FMode := cmPressed;
@@ -469,7 +651,9 @@ begin
     cmDragging:
       DragTo(X, Y);
     cmIdle:
-      if FDocument <> nil then
+      if (FDocument <> nil) and (FTool <> ctSelect) then
+        UpdateSnap(X, Y)
+      else if FDocument <> nil then
       begin
         Key := ObjectKeyAt(X, Y);
         if Key <> FHoverKey then
@@ -541,8 +725,25 @@ begin
     VK_ESCAPE:
       if FMode = cmDragging then
         CancelDrag
+      else if FHasStart then
+        CancelStart
+      else if FTool <> ctSelect then
+        SetTool(ctSelect)
       else
         SelectNone;
+    VK_DELETE, VK_BACK:
+      DeleteSelection;
+    VK_S, VK_P, VK_L, VK_C:
+    begin
+      if Shift <> [] then
+        Exit;
+      case Key of
+        VK_S: SetTool(ctSelect);
+        VK_P: SetTool(ctPoint);
+        VK_L: SetTool(ctLine);
+        VK_C: SetTool(ctCurve);
+      end;
+    end;
     VK_LEFT:
       Nudge(-Step, 0);
     VK_RIGHT:
@@ -555,6 +756,16 @@ begin
       Exit;
   end;
   Key := 0;
+end;
+
+procedure TPatternCanvas.MouseLeave;
+begin
+  inherited MouseLeave;
+  if FSnapShown then
+  begin
+    FSnapShown := False;
+    Invalidate;
+  end;
 end;
 
 procedure TPatternCanvas.KeyUp(var Key: word; Shift: TShiftState);
@@ -691,6 +902,56 @@ begin
   end;
 end;
 
+// The snap marker, a guide to the point it lines up with, and the line being drawn
+procedure TPatternCanvas.DrawSnap;
+var
+  Screen, Base, Start: TVec2;
+  Node: TEvalNode;
+  Size: single;
+begin
+  if not FSnapShown or (FTool = ctSelect) then
+    Exit;
+  Screen := FView.ToScreen(FSnap.Position);
+  Size := SnapMarkerSize;
+  if FHasStart then
+  begin
+    Start := FView.ToScreen(FStartSnap.Position);
+    FBitmap.PenStyle := psDash;
+    FBitmap.DrawLineAntialias(Start.X, Start.Y, Screen.X, Screen.Y, SelectedInk, 1.5);
+    FBitmap.PenStyle := psSolid;
+  end;
+  if FSnap.Kind in [snHorizontal, snVertical] then
+  begin
+    Node := FDocument.Pattern.FindNode(FSnap.PointKey);
+    if Node is TPointObject then
+    begin
+      Base := FView.ToScreen(TPointObject(Node).Position);
+      FBitmap.PenStyle := psDot;
+      FBitmap.DrawLineAntialias(Base.X, Base.Y, Screen.X, Screen.Y, SnapInk, 1);
+      FBitmap.PenStyle := psSolid;
+    end;
+  end;
+  case FSnap.Kind of
+    snPoint:
+      FBitmap.EllipseAntialias(Screen.X, Screen.Y, Size, Size, SnapInk, 2);
+    snCrossing:
+    begin
+      FBitmap.DrawLineAntialias(Screen.X - Size, Screen.Y - Size, Screen.X + Size, Screen.Y + Size, SnapInk, 2);
+      FBitmap.DrawLineAntialias(Screen.X - Size, Screen.Y + Size, Screen.X + Size, Screen.Y - Size, SnapInk, 2);
+    end;
+    snEdge:
+      FBitmap.DrawPolygonAntialias([PointF(Screen.X, Screen.Y - Size), PointF(Screen.X + Size, Screen.Y),
+        PointF(Screen.X, Screen.Y + Size), PointF(Screen.X - Size, Screen.Y)], SnapInk, 2);
+    snHorizontal, snVertical:
+      FBitmap.RectangleAntialias(Screen.X - Size + 1, Screen.Y - Size + 1, Screen.X + Size - 1, Screen.Y + Size - 1, SnapInk, 2);
+    else
+    begin
+      FBitmap.DrawLineAntialias(Screen.X - Size, Screen.Y, Screen.X + Size, Screen.Y, SnapInk, 1.5);
+      FBitmap.DrawLineAntialias(Screen.X, Screen.Y - Size, Screen.X, Screen.Y + Size, SnapInk, 1.5);
+    end;
+  end;
+end;
+
 procedure TPatternCanvas.Paint;
 begin
   if (FBitmap.Width <> ClientWidth) or (FBitmap.Height <> ClientHeight) then
@@ -700,7 +961,10 @@ begin
   FBitmap.FontQuality := fqFineAntialiasing;
   DrawGrid;
   if FDocument <> nil then
+  begin
     DrawPattern;
+    DrawSnap;
+  end;
   FBitmap.Draw(Canvas, 0, 0, True);
 end;
 
