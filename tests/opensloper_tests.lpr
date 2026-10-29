@@ -21,24 +21,24 @@ program opensloper_tests;
 {$mode ObjFPC}{$H+}
 
 uses
-  osCodePage,
+  Sloper.Core.CodePage,
   Classes,
   SysUtils,
   consoletestrunner,
-  TestGeometry,
-  TestNumeric,
-  TestBezier,
-  TestNames,
-  TestFormula,
-  TestJSON,
-  TestMeasurements,
-  TestEvaluator,
-  TestVariables,
-  TestPattern,
-  TestOperations,
-  TestEdges,
-  TestAppPaths,
-  TestClipper;
+  Sloper.Tests.Geometry,
+  Sloper.Tests.Numeric,
+  Sloper.Tests.Bezier,
+  Sloper.Tests.Names,
+  Sloper.Tests.Formula,
+  Sloper.Tests.JSON,
+  Sloper.Tests.Measurements,
+  Sloper.Tests.Evaluator,
+  Sloper.Tests.Variables,
+  Sloper.Tests.Pattern,
+  Sloper.Tests.Operations,
+  Sloper.Tests.Edges,
+  Sloper.Tests.AppPaths,
+  Sloper.Tests.Clipper;
 
 var
   App: TTestRunner;

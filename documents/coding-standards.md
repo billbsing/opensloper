@@ -33,11 +33,11 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 ## Naming
 
 - **Descriptive names.** No single-letter variables or parameters: `Index`, not `I`; `Node`, not `N`; `Failure`, not `E`. A name says what the value is (`StartPos`, `LengthOrDx`, `TokenIndex`), not just its type.
-  - Exceptions: the core math units (`osgeometry`, `osbezier`, `osnumeric`), where single letters (`P`, `T`, `A`, `B`) match the formulas and read better; and `tests/`.
+  - Exceptions: the core math units (`Sloper.Core.Geometry`, `Sloper.Core.Bezier`, `Sloper.Core.Numeric`), where single letters (`P`, `T`, `A`, `B`) match the formulas and read better; and `tests/`.
 - **Parameters that would clash take an `A` prefix.** When a parameter's plain name matches a field, property or method of the class (`AName`, `AEdge`, `AKey`, `AValue`), prefix it with `A`. Free Pascal refuses a local or parameter with the same name as a member. Locals use plain descriptive names instead (`EdgeObject`, `PointPos`).
 - **Fields** start with `F` and are private; expose them through properties.
 - **Types** start with `T`, exception classes with `E`; enumeration values carry a short lower-case prefix (`esValid`, `omPolar`, `pdAngle`).
-- **Units** in `src/` start with `os` (`osPattern`, `osFormula`); test units start with `Test` (`TestPattern`), apart from the shared base class unit `osTestCase`.
+- **Units** are named `Sloper.<Area>.<Name>`, where the area is the folder: `Sloper.Core.Formula` (`src/core`), `Sloper.Document.…` (`src/document`), `Sloper.UI.MainForm` (`src/ui`), `Sloper.Output.…` (`src/output`) and `Sloper.Tests.Pattern` (`tests`). File names are the unit name in lower case (`sloper.core.formula.pas`).
 - **Resource strings** start with `rs` and the unit's area (`rsFormulaEmpty`, `rsDraftPastEnd`).
 - **IDs and names** follow the project's name rules (see `CLAUDE.md`): letters, digits and underscore, compared without regard to case.
 

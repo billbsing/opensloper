@@ -24,11 +24,11 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  osCodePage,
+  Sloper.Core.CodePage,
   Interfaces,
   Forms,
-  osVersion,
-  osMainForm;
+  Sloper.Core.Version,
+  Sloper.UI.MainForm;
 
   {$R *.res}
 

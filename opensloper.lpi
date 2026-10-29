@@ -40,92 +40,92 @@
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/osmainform.pas"/>
+        <Filename Value="src/ui/sloper.ui.mainform.pas"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="MainForm"/>
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
-        <UnitName Value="osMainForm"/>
+        <UnitName Value="Sloper.UI.MainForm"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osversion.pas"/>
+        <Filename Value="src/core/sloper.core.version.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osVersion"/>
+        <UnitName Value="Sloper.Core.Version"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osgeometry.pas"/>
+        <Filename Value="src/core/sloper.core.geometry.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osGeometry"/>
+        <UnitName Value="Sloper.Core.Geometry"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osapppaths.pas"/>
+        <Filename Value="src/core/sloper.core.apppaths.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osAppPaths"/>
+        <UnitName Value="Sloper.Core.AppPaths"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osnumeric.pas"/>
+        <Filename Value="src/core/sloper.core.numeric.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osNumeric"/>
+        <UnitName Value="Sloper.Core.Numeric"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osbezier.pas"/>
+        <Filename Value="src/core/sloper.core.bezier.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osBezier"/>
+        <UnitName Value="Sloper.Core.Bezier"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osnames.pas"/>
+        <Filename Value="src/core/sloper.core.names.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osNames"/>
+        <UnitName Value="Sloper.Core.Names"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osformulalexer.pas"/>
+        <Filename Value="src/core/sloper.core.formulalexer.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osFormulaLexer"/>
+        <UnitName Value="Sloper.Core.FormulaLexer"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osformula.pas"/>
+        <Filename Value="src/core/sloper.core.formula.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osFormula"/>
+        <UnitName Value="Sloper.Core.Formula"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osjson.pas"/>
+        <Filename Value="src/core/sloper.core.json.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osJSON"/>
+        <UnitName Value="Sloper.Core.JSON"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osevaltypes.pas"/>
+        <Filename Value="src/core/sloper.core.evaltypes.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osEvalTypes"/>
+        <UnitName Value="Sloper.Core.EvalTypes"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osmeasurements.pas"/>
+        <Filename Value="src/core/sloper.core.measurements.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osMeasurements"/>
+        <UnitName Value="Sloper.Core.Measurements"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osvariables.pas"/>
+        <Filename Value="src/core/sloper.core.variables.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osVariables"/>
+        <UnitName Value="Sloper.Core.Variables"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/oscodepage.pas"/>
+        <Filename Value="src/core/sloper.core.codepage.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osCodePage"/>
+        <UnitName Value="Sloper.Core.CodePage"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osevaluator.pas"/>
+        <Filename Value="src/core/sloper.core.evaluator.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osEvaluator"/>
+        <UnitName Value="Sloper.Core.Evaluator"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/osdraft.pas"/>
+        <Filename Value="src/core/sloper.core.draft.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osDraft"/>
+        <UnitName Value="Sloper.Core.Draft"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/ospattern.pas"/>
+        <Filename Value="src/core/sloper.core.pattern.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osPattern"/>
+        <UnitName Value="Sloper.Core.Pattern"/>
       </Unit>
     </Units>
   </ProjectOptions>

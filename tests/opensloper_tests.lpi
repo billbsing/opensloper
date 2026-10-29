@@ -37,79 +37,79 @@
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
-        <Filename Value="ostestcase.pas"/>
+        <Filename Value="sloper.tests.testcase.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="osTestCase"/>
+        <UnitName Value="Sloper.Tests.TestCase"/>
       </Unit>
       <Unit>
-        <Filename Value="testgeometry.pas"/>
+        <Filename Value="sloper.tests.geometry.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestGeometry"/>
+        <UnitName Value="Sloper.Tests.Geometry"/>
       </Unit>
       <Unit>
-        <Filename Value="testapppaths.pas"/>
+        <Filename Value="sloper.tests.apppaths.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestAppPaths"/>
+        <UnitName Value="Sloper.Tests.AppPaths"/>
       </Unit>
       <Unit>
-        <Filename Value="testclipper.pas"/>
+        <Filename Value="sloper.tests.clipper.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestClipper"/>
+        <UnitName Value="Sloper.Tests.Clipper"/>
       </Unit>
       <Unit>
-        <Filename Value="testnumeric.pas"/>
+        <Filename Value="sloper.tests.numeric.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestNumeric"/>
+        <UnitName Value="Sloper.Tests.Numeric"/>
       </Unit>
       <Unit>
-        <Filename Value="testbezier.pas"/>
+        <Filename Value="sloper.tests.bezier.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestBezier"/>
+        <UnitName Value="Sloper.Tests.Bezier"/>
       </Unit>
       <Unit>
-        <Filename Value="testnames.pas"/>
+        <Filename Value="sloper.tests.names.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestNames"/>
+        <UnitName Value="Sloper.Tests.Names"/>
       </Unit>
       <Unit>
-        <Filename Value="testformula.pas"/>
+        <Filename Value="sloper.tests.formula.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestFormula"/>
+        <UnitName Value="Sloper.Tests.Formula"/>
       </Unit>
       <Unit>
-        <Filename Value="testjson.pas"/>
+        <Filename Value="sloper.tests.json.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestJSON"/>
+        <UnitName Value="Sloper.Tests.JSON"/>
       </Unit>
       <Unit>
-        <Filename Value="testmeasurements.pas"/>
+        <Filename Value="sloper.tests.measurements.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestMeasurements"/>
+        <UnitName Value="Sloper.Tests.Measurements"/>
       </Unit>
       <Unit>
-        <Filename Value="testvariables.pas"/>
+        <Filename Value="sloper.tests.variables.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestVariables"/>
+        <UnitName Value="Sloper.Tests.Variables"/>
       </Unit>
       <Unit>
-        <Filename Value="testevaluator.pas"/>
+        <Filename Value="sloper.tests.evaluator.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestEvaluator"/>
+        <UnitName Value="Sloper.Tests.Evaluator"/>
       </Unit>
       <Unit>
-        <Filename Value="testpattern.pas"/>
+        <Filename Value="sloper.tests.pattern.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestPattern"/>
+        <UnitName Value="Sloper.Tests.Pattern"/>
       </Unit>
       <Unit>
-        <Filename Value="testoperations.pas"/>
+        <Filename Value="sloper.tests.operations.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestOperations"/>
+        <UnitName Value="Sloper.Tests.Operations"/>
       </Unit>
       <Unit>
-        <Filename Value="testedges.pas"/>
+        <Filename Value="sloper.tests.edges.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="TestEdges"/>
+        <UnitName Value="Sloper.Tests.Edges"/>
       </Unit>
     </Units>
   </ProjectOptions>

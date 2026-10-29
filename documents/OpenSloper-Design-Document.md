@@ -130,7 +130,7 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 
 **Dragging.** Parameters that are plain numbers update when dragged. Formula-driven parameters are locked by default, with an optional override offset (`@waist/4 + #ease + 13.5`) to keep the parametric intent. The evaluator reports which parameters are literal and which are formulas.
 
-**Implementation** (`osEvaluator`, `osPattern`):
+**Implementation** (`Sloper.Core.Evaluator`, `Sloper.Core.Pattern`):
 
 - Node keys are object and variable IDs (`p1`, `l1`, `v1`); measurements are `@key`. `TPattern` creates a measurement node for each key its formulas use, so a key missing from the current set is one error ("@chest is not in the measurement set") and everything reading it is blocked.
 - A node's dependencies are its inputs (`InputKeys`, e.g. an offset's base point) plus every reference in its formula fields. A reference to an ID that no longer exists makes the node an error ("Uses p9, which no longer exists").
@@ -198,7 +198,7 @@ References are stored as IDs and shown as names, so renaming an object changes o
 
 ## Formula engine
 
-Decision: a small recursive-descent parser of our own (`osFormula`), on a custom tokenizer (`osFormulaLexer`). TFPExpressionParser was planned first, but a probe on FPC 3.2.2 showed its error positions refer to translated text, it lets comparisons, `if()`, `mod`, `and`/`or` and strings through, and it reports errors as exceptions; our syntax is small enough that our own parser is less code than wrapping it.
+Decision: a small recursive-descent parser of our own (`Sloper.Core.Formula`), on a custom tokenizer (`Sloper.Core.FormulaLexer`). TFPExpressionParser was planned first, but a probe on FPC 3.2.2 showed its error positions refer to translated text, it lets comparisons, `if()`, `mod`, `and`/`or` and strings through, and it reports errors as exceptions; our syntax is small enough that our own parser is less code than wrapping it.
 
 **Syntax:** numbers (`12`, `0.5`, `.5`, `1e3`; `.` is always the decimal point), `+ - * /`, `^` (right-associative and tighter than unary minus, so `-2^2 = -4`), brackets, and the functions `sin cos tan asin acos atan2 sqrt abs min max round`. Angles are in degrees; `atan2(y, x)` returns degrees in (-180, 180]; `round` rounds halves away from zero; `min` and `max` take two or more values. References: `@measurement`, `#variable`, `Object.property`.
 
@@ -393,7 +393,7 @@ JSON rules:
 - Stable IDs for every object; references by ID
 - Formulas stored as strings, evaluated on load
 - Consistent key order and pretty-printing on save: two-space indent, `"key": value`, LF line ends, numbers in the shortest form that reads back exactly (`720`, `432.5`), `.` as decimal point
-- Text is UTF-8; every program lists `osCodePage` first so non-ASCII names and notes survive
+- Text is UTF-8; every program lists `Sloper.Core.CodePage` first so non-ASCII names and notes survive
 - Measurements in separate files from patterns
 - A file that fails to load reports why and leaves nothing half-loaded; a formula that does not parse is kept as text and shows as an error
 

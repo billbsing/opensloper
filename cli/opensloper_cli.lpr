@@ -25,10 +25,10 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  osCodePage,
+  Sloper.Core.CodePage,
   SysUtils,
   ConsoleTools,
-  osVersion;
+  Sloper.Core.Version;
 
 resourcestring
   rsDescription = 'Export and check OpenSloper patterns.';

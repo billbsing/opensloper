@@ -42,8 +42,8 @@ Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa.
 - User-visible text goes in `resourcestring` sections.
 - Code style (naming, formatting, line length) follows `documents/coding-standards.md`; read it before writing code. Run `./format.sh` before committing.
 - File paths go through `TAppPaths`; build paths with `ConcatPaths` / `PathDelim`, never a hard-coded `/`.
-- Every program lists `osCodePage` first in its uses clause and is compiled with `-FcUTF8`, so strings are UTF-8 throughout.
-- Files are written through `osJSON` (`JSONToText`, `JSONFloat`) for a stable layout; loading reports errors as messages, never exceptions.
+- Every program lists `Sloper.Core.CodePage` first in its uses clause and is compiled with `-FcUTF8`, so strings are UTF-8 throughout.
+- Files are written through `Sloper.Core.JSON` (`JSONToText`, `JSONFloat`) for a stable layout; loading reports errors as messages, never exceptions.
 - Shortcuts use `ssModifier`, not a hard-coded Ctrl.
 
 ## Testing
