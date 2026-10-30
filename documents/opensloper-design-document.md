@@ -42,7 +42,7 @@ A pattern is a graph of draft objects whose positions come from measurements, va
 
 | Concept | What it is | Notes |
 | --- | --- | --- |
-| Measurement set | A person's body measurements, e.g. `@waist`, `@back_length` | Own file; one set drives many patterns. A size table (several sets) enables grading later |
+| Measurement set | A person's body measurements, e.g. `@waist`, `@back_length` | Own file, edited in the measurements app; one set drives many patterns. A file is one person's set or a size table with one column per size, which enables grading |
 | Variable (increment) | Pattern-level value, e.g. `#ease_waist = 20` | Holds design decisions; formulas may use measurements and other variables (not draft objects, which would tie variables to geometry) |
 | Point | A position defined by an operation, its references and formulas | Never stored as fixed coordinates, except free points |
 | Operation | How a point is placed: offset, along line, intersection, perpendicular, midpoint/ratio | Inferred from snapping where possible |
@@ -74,7 +74,7 @@ Layers (dependencies point down):
 - **Document:** TPatternDocument (owns the model), undo/redo commands, change notifications
 - **Core (pure Pascal, no LCL):** geometry, expressions, model, evaluator, piece builder (Clipper2 seam allowance), storage (JSON pattern and measurement files)
 
-Two GUI apps sit on these layers: the drafting app and the publish app (see Publish app), which shares the core and output layers but not the drafting UI.
+Three GUI apps sit on these layers: the measurements app, the drafting app and the publish app (see Measurements app and Publish app). Each owns one kind of file and only reads the ones before it (measurements → patterns → layouts). They share the core, and the publish app the output layer, but not each other's UI.
 
 The UI changes the model only through document commands, and exporters read computed geometry directly from the core, so a new output format never touches drafting code.
 
@@ -96,7 +96,7 @@ The central rule: only definitions are saved and undone; computed geometry is al
    - **Holding objects.** Undo, redo, cancel and load replace the pattern's objects with new instances (`dcObjectsReplaced`), so the UI holds objects by ID, never by reference, across changes.
    - **Merging.** `EndChange(MergeKey)` joins the last step when it has the same key and came within `MergeSeconds` (1 s) of it, e.g. `nudge:3`. A merged step that cancels out is dropped. A step the file was saved after is never merged into, so the saved state stays reachable.
    - **Limits and the modified flag.** At most `UndoLimit` steps are kept (500). The document is modified when the undo position differs from the one at the last save, or when the measurement set changed.
-   - **The measurement set** belongs to the document, not the history: undo never swaps it back. On save it is stored relative to the pattern's folder; while the pattern is unsaved it is stored as an absolute path.
+   - **The measurement set** (file and size) belongs to the document, not the history: undo never swaps it back, and edits to the measurement file itself are not pattern undo steps (see Measurements app). On save it is stored relative to the pattern's folder; while the pattern is unsaved it is stored as an absolute path.
    - **The ID counter** only ever goes up. Undo and redo restore the pattern's text but keep the counter where it is, so undoing a creation and creating something else never hands out the same ID.
    - **Notifications.** Listeners receive a set of `dcPattern`, `dcObjectsReplaced`, `dcMeasurements`, `dcHistory` and `dcFile`.
 8. **Storage kept apart from the model.** `TPattern` knows nothing about JSON; `Sloper.Core.PatternFile` reads and writes it through `TPattern`'s loader hooks (`InsertVariable`, `InsertObject`, `UpdateDerivedNames`). With only one format there is no storage interface; one can be extracted if a second format is added.
@@ -503,7 +503,7 @@ Pattern files are JSON; SQLite is reserved for an app-level library.
 | --- | --- | --- |
 | JSON | Native pattern and measurement files | Built into FCL, readable, diffs in git, easy to share |
 | SQLite | Optional library: clients/measurements, pattern catalogue, settings | Searchable, grows over time; not suited to small, shared documents |
-| XML (read only) | Import Valentina/Seamly2D measurement files (`.vit`, `.vst`) | Compatibility with existing users' data |
+| XML (read only) | Import Valentina/Seamly2D measurement files (`.vit`, `.vst`) in the measurements app | Compatibility with existing users' data |
 | SVG | Export pieces; import as a non-parametric trace layer | Exchange with Inkscape and laser cutters |
 | YAML | Not used; possible later export | No standard Pascal library; whitespace pitfalls |
 
@@ -545,6 +545,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
   "units": "mm",
   "notes": "",
   "measurementFile": "bill.slm",
+  "size": "",
   "nextId": 7,
   "drafts": [
     { "id": 1, "name": "Skirt", "layers": [ { "id": 2, "name": "Draft" } ] }
@@ -564,7 +565,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 
 (Shown compacted; the writer puts every member on its own line.)
 
-- `measurementFile` is the measurement set last used with the pattern, written with `/` separators and relative to the pattern's folder unless absolute. `MeasurementFilePath` turns it into a path; the core never loads it by itself.
+- `measurementFile` is the measurement set last used with the pattern, written with `/` separators and relative to the pattern's folder unless absolute. `MeasurementFilePath` turns it into a path; the core never loads it by itself. `size` names the size used from a size table, and is empty for a personal set.
 - `variables` and `objects` are in creation order. An object's direct inputs (`base`, `edge`, `start`, a path's node points and so on) must name an object earlier in the file. Creation order guarantees this, because inputs exist before the object and cannot be deleted while it uses them. Formulas may refer to any ID; a missing one shows as an error when evaluated.
 - IDs and references to them (`base`, `edge`, `layer`, `sources` and so on) are JSON numbers; in formula text a reference is the ID in braces (`{3}`).
 - Each object has `id`, `type`, `name` and `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
@@ -586,6 +587,57 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
 
 Pieces and seams are added to the file when they exist in the model.
+
+## Measurements app
+
+Measurement files are edited in a third application, `opensloper-measurements`, as SeamlyMe does for Seamly2D. Information flows one way through the three apps, each owning one kind of file and only reading the ones before it: measurements → patterns → layouts.
+
+**Why a separate app.** One measurement file drives many patterns, and recording someone's measurements is a different job from drafting, sometimes done by a different person: it needs a form-like editor, not a canvas. The app is also the natural home for parts of the plan that have no other place: importing Valentina/Seamly2D `.vit` and `.vst` files, size tables for grading, and later the SQLite library of clients and their measurements.
+
+**What it does:**
+
+- Edit keys, values and descriptions in a table, with sizes as columns; keys follow the name rules and are checked as typed
+- Add, rename, reorder and delete measurements and sizes; renaming a key warns that patterns using the old key will show it as missing
+- Import `.vit` (individual) and `.vst` (multi-size) files
+- Show values in mm, cm or inches; files always store mm
+- Its own undo history
+- Later: the client library, and diagrams showing where to take each measurement
+
+**One file format, one or several sizes.** A measurement file is either one person's set, with a `value` per measurement, or a size table, with a `sizes` list and a `values` list per measurement, one per size. Patterns do not change: they refer to `@waist` either way. Wherever a measurement file is chosen, a size is chosen with it (the drafting app's current set, each source in a layout); a personal set has no size. A size with no value for a key the pattern uses is one error ("@waist has no value for size 42"), and everything reading it is blocked. Pattern-specific ease stays in the pattern's `#` variables, never in the measurement file.
+
+```json
+{
+  "format": "measurements",
+  "version": 1,
+  "units": "mm",
+  "name": "Women's block sizes",
+  "notes": "",
+  "sizes": ["36", "38", "40"],
+  "measurements": [
+    { "key": "waist", "values": [700, 740, 780], "description": "Waist circumference" },
+    { "key": "back_length", "values": [405, 410, 415], "description": "Nape to waist" }
+  ]
+}
+```
+
+**One unit is the central control.** All reading, writing and editing of measurement files goes through `Sloper.Core.Measurements` in the core, used by all three apps and the CLI, so key rules, units and formatting are the same everywhere. A long-running service that the apps connect to was considered and rejected: it would add process management, sockets on every platform and crash handling, for a problem that a careful write and a merge by key already solve.
+
+**Small edits from the drafting app.** The drafting app shows the current set in a measurements panel (keys, values, descriptions, search, switching set and size) and allows two small edits:
+
+- Adding a missing key from its error ("@chest is not in the measurement set" → Add, with value and description)
+- Changing a value in the panel
+
+Everything else (reordering, sizes, imports, the client library) is done in the measurements app; a button opens it at the current file. Measurement edits are not part of the pattern's undo, because the measurement set belongs to the document, not its history, so the status bar names each change ("@waist 820 → 830 mm saved to bill.slm").
+
+**Writing safely:**
+
+- Every small edit re-reads the file just before writing, applies that one change and writes atomically (a temporary file, then rename), so a change made elsewhere is never overwritten.
+- Every app with a measurement file open watches it. With no unsaved edits it reloads. The measurements app, if it has unsaved edits, merges by key: changes to other keys merge automatically, and a change to the same key asks which value to keep.
+- The drafting and publish apps re-evaluate when the file changes, the same rule as for pattern files.
+
+**From the CLI and the Automation API:** `opensloper-cli measurements set FILE KEY VALUE [--size SIZE] [--description TEXT]` and `opensloper-cli measurements list FILE` for scripts, and matching `get_measurements` and `set_measurement` methods in the Automation API, so Claude can add a missing measurement. Both use `Sloper.Core.Measurements`.
+
+**Code.** A third Lazarus project, `measurements/opensloper-measurements.lpi`, using `src/core` only.
 
 ## Publish app
 
@@ -626,8 +678,8 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
   "nextId": 4,
   "sources": [
     { "id": 1, "pattern": "skirt.sloper", "measurementFile": "bill.slm" },
-    { "id": 2, "pattern": "skirt.sloper", "measurementFile": "anna.slm" },
-    { "id": 3, "pattern": "top.sloper", "measurementFile": "anna.slm" }
+    { "id": 2, "pattern": "skirt.sloper", "measurementFile": "sizes.slm", "size": "38" },
+    { "id": 3, "pattern": "top.sloper", "measurementFile": "sizes.slm", "size": "38" }
   ],
   "output": { "kind": "tiled", "paper": "A4", "margin": 6, "overlap": 10,
               "marks": "diamond", "calibrationX": 1, "calibrationY": 1 },
@@ -786,6 +838,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end) |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
 | Storage | Save → load → save produces identical JSON |
+| Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
 | Undo/redo | Execute then undo restores the exact previous state, including random command sequences |
 | Printing | Tile layout maths: page count, overlaps, blank-page skipping |
 
@@ -823,6 +876,7 @@ opensloper/
 │   ├── document/           TPatternDocument, undo/redo commands, notifications
 │   ├── ui/                 forms, canvas, tools, snapping, panels
 │   └── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
+├── measurements/           opensloper-measurements: measurement files and size tables, using core
 ├── publish/                opensloper-publish: layouts and printing, using core + output
 ├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
 ├── tests/                  FPCUnit test project, regression patterns and expected JSON
@@ -857,7 +911,8 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 **Command-line tools** (using the LCL-free core and ConsoleTools):
 
 - `opensloper-cli export LAYOUT`: regenerate the PDFs for a layout file after patterns or measurements change
-- `opensloper-cli check PATTERN [-m FILE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors and invalid objects, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
+- `opensloper-cli check PATTERN [-m FILE] [-s SIZE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors and invalid objects, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile` and `size`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
+- `opensloper-cli measurements list FILE` and `measurements set FILE KEY VALUE [--size SIZE] [--description TEXT]`: read and edit measurement files from scripts, through `Sloper.Core.Measurements` (see Measurements app)
 
 **ConsoleTools improvements noted:**
 
@@ -873,7 +928,7 @@ ConsoleTools is public at [github.com/billbsing/console-tools](https://github.co
 
 OpenSloper exposes its document operations as an API, first so Claude Code can test the app without GUI automation, later so Claude can help design and change patterns.
 
-**One rule: the API only issues document commands.** Every API call goes through the same document-layer commands as the UI, so name rules, formula checks, cycle checks and undo apply exactly as they do for a user. The API cannot put a pattern into a state the UI could not.
+**One rule: the API only issues document commands.** Every API call goes through the same document-layer commands as the UI, so name rules, formula checks, cycle checks and undo apply exactly as they do for a user. The API cannot put a pattern into a state the UI could not. Measurement edits go through `Sloper.Core.Measurements` with the same safe write as the drafting app.
 
 ### Phase 1: scripting and testing
 
@@ -882,7 +937,8 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 | Method | Purpose |
 | --- | --- |
-| `open`, `save` | Load or save a pattern, optionally with a measurement file |
+| `open`, `save` | Load or save a pattern, optionally with a measurement file and size |
+| `get_measurements`, `set_measurement` | Read the current measurement set, or add or change one value |
 | `list_objects`, `get_object` | Names, IDs, operations, formulas (display form), computed values and state |
 | `add_point`, `add_edge` | Create objects with an operation and formula fields |
 | `set_formula`, `rename`, `delete` | Edit existing objects |
@@ -933,7 +989,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render`
 7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
-9. Import Valentina/Seamly2D measurement files; SVG export
+9. Measurements app: measurement and size table editing, Valentina/Seamly2D import; SVG export
 10. Seams and seam-length checks
 11. DXF-AAMA export, automatic packing in the publish app
 12. Blender export for 3D preview
@@ -946,4 +1002,5 @@ Open questions:
 - [x] Project name: settled, OpenSloper (opensloper.com available; reserve domain and GitHub name; file extensions .sloper for patterns, .slm for measurements)
 - [x] Undo granularity: settled, see Key design decisions item 7
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
+- [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
 - [x] Draft tabs and layers: settled, drafts as tabs within one pattern file, global names, ordered layers per draft; see Draft tabs and layers
