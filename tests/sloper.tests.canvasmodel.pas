@@ -25,13 +25,14 @@ unit Sloper.Tests.CanvasModel;
 interface
 
 uses
-  fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Pattern;
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Pattern;
 
 type
   TTestCanvasModel = class(TOSTestCase)
   private
     FPattern: TPattern;
     procedure Build;
+    procedure AssertLabels(const Msg, Expected: string; const Keys: TStringArray);
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -47,12 +48,19 @@ type
     procedure TestPointAt;
     procedure TestEdgeAt;
     procedure TestPolylines;
+    procedure TestPolylineMiddle;
+    procedure TestLabelModes;
+    procedure TestContextualHover;
+    procedure TestContextualSelection;
+    procedure TestContextualToolKeys;
+    procedure TestContextualFormulaInput;
+    procedure TestLabelsWaitForResults;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.UI.View, Sloper.UI.Scene;
+  Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Settings, Sloper.UI.View, Sloper.UI.Scene;
 
 procedure TTestCanvasModel.SetUp;
 begin
@@ -192,6 +200,69 @@ begin
   AssertPointsNear('ends at C', Vec2(100, 50), Curve[High(Curve)]);
   for Index := 1 to High(Curve) do
     AssertTrue('no repeated points', Distance(Curve[Index - 1], Curve[Index]) > 1e-9);
+end;
+
+procedure TTestCanvasModel.TestPolylineMiddle;
+begin
+  AssertPointsNear('a line', Vec2(50, 0), PolylineMiddle([Vec2(0, 0), Vec2(100, 0)]));
+  AssertPointsNear('on a corner', Vec2(10, 0), PolylineMiddle([Vec2(0, 0), Vec2(10, 0), Vec2(10, 10)]));
+  AssertPointsNear('by length, not by vertex', Vec2(5, 0), PolylineMiddle([Vec2(0, 0), Vec2(1, 0), Vec2(2, 0), Vec2(10, 0)]));
+  AssertPointsNear('one point', Vec2(3, 4), PolylineMiddle([Vec2(3, 4)]));
+end;
+
+procedure TTestCanvasModel.AssertLabels(const Msg, Expected: string; const Keys: TStringArray);
+begin
+  AssertEquals(Msg, Expected, string.Join(' ', Keys));
+end;
+
+procedure TTestCanvasModel.TestLabelModes;
+begin
+  Build;
+  FPattern.Evaluate;
+  AssertLabels('all', '1 2 3 4 5', LabelKeys(FPattern, lmAll, nil, '', nil));
+  AssertLabels('none, even when selected', '', LabelKeys(FPattern, lmNone, ['1'], '2', ['3']));
+  AssertLabels('contextual with nothing going on', '', LabelKeys(FPattern, lmContextual, nil, '', nil));
+end;
+
+procedure TTestCanvasModel.TestContextualHover;
+begin
+  Build;
+  FPattern.Evaluate;
+  AssertLabels('only the hovered object', '2', LabelKeys(FPattern, lmContextual, nil, '2', nil));
+end;
+
+procedure TTestCanvasModel.TestContextualSelection;
+begin
+  Build;
+  FPattern.Evaluate;
+  AssertLabels('a point and the edges using it', '1 4 5', LabelKeys(FPattern, lmContextual, ['1'], '', nil));
+  AssertLabels('an edge and its ends', '1 2 4', LabelKeys(FPattern, lmContextual, ['4'], '', nil));
+  AssertLabels('gone from the pattern', '', LabelKeys(FPattern, lmContextual, ['99'], '', nil));
+end;
+
+procedure TTestCanvasModel.TestContextualToolKeys;
+begin
+  Build;
+  FPattern.Evaluate;
+  AssertLabels('what the tool works with', '2 4', LabelKeys(FPattern, lmContextual, nil, '', ['2', '4']));
+end;
+
+// Formula references count as inputs; variables have no label on the canvas
+procedure TTestCanvasModel.TestContextualFormulaInput;
+var
+  Point: TDraftObject;
+begin
+  Build;
+  FPattern.AddVariable('ease', '5');
+  Point := FPattern.AddFreePoint('D', 'B.x + #ease', '0');
+  FPattern.Evaluate;
+  AssertLabels('the point it reads', '2 ' + Point.Key, LabelKeys(FPattern, lmContextual, [Point.Key], '', nil));
+end;
+
+procedure TTestCanvasModel.TestLabelsWaitForResults;
+begin
+  Build;
+  AssertLabels('not computed yet', '', LabelKeys(FPattern, lmAll, nil, '', nil));
 end;
 
 initialization

@@ -377,7 +377,8 @@ This is construction-based (an explicit dependency graph), not constraint-based 
   Values are rounded to 0.1 mm. The canvas shows a marker for the kind of snap, a dotted guide to the point it lines up with, and the line being drawn, and the status bar says what a click will make ("New point 30 mm right of B").
 - **Lines and curves** take two clicks. Both new end points and the edge are one undo step, and drawing carries on from the end point. New edges are outlines. A curve starts with handles along the chord, a third of its length, ready to shape in the properties.
 - **Properties panel** (`Sloper.UI.Properties`, with the LCL-free `Sloper.UI.GridColumns`): the selected object's type, name, formulas (shown with names, with readable captions such as "Point 2 handle in") and role, and what it computes to, laid out as the property grid below. Enter or leaving a field commits one undo step; Escape puts the text back. A refused formula keeps its text, shows the reason in red under its field and puts the cursor at the problem. A failing object's evaluation message shows below the rows. The role drop-down is also one undo step.
-- **Next:** point label modes (the canvas still labels every point), the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
+- **Labels** (`LabelKeys` in `Sloper.UI.Scene`): the View menu switches between Contextual, All and None (see Point labels), remembered in the app's settings. Point labels sit beside the point and edge labels at the middle of the edge. Contextual shows the hovered object; the selection with its direct inputs and dependents; and while drawing, the line's start and what the cursor snaps to. Holding N shows every label in any mode. None also draws smaller point markers.
+- **Next:** the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -480,7 +481,7 @@ A problems panel lists each issue in plain words (e.g. "Front: gap between Line\
 | Mode | What shows | When to use |
 | --- | --- | --- |
 | Contextual (default) | Labels on hover and selection; on points a tool is asking for (e.g. candidate base points while placing an offset point); on the inputs and dependents of the selected object | Normal drafting |
-| All | Every point and edge label | Checking or explaining a whole draft; also while a shortcut key is held |
+| All | Every point and edge label | Checking or explaining a whole draft; also while N is held on the canvas |
 | None | No labels, small point markers only | Reviewing the shape of the design |
 
 Labels never print unless explicitly turned on in the print screen.

@@ -28,7 +28,7 @@ unit Sloper.UI.Snap;
 interface
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Pattern;
 
 type
   // snHorizontal and snVertical: level with or square to a point
@@ -61,6 +61,8 @@ function SnapDescription(Pattern: TPattern; const Snap: TSnap): string;
 // key; for snPoint returns the existing point. '' when refused, with the
 // reason in Pattern.LastError.
 function PointFromSnap(Pattern: TPattern; const Snap: TSnap): string;
+// The existing objects the snap works from, whose labels help while drawing
+function SnapObjectKeys(const Snap: TSnap): TStringArray;
 
 resourcestring
   rsSnapFree = 'New point at %s, %s';
@@ -75,7 +77,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.UI.Scene;
+  Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.UI.Scene;
 
 const
   LengthDecimals = 1;
@@ -335,6 +337,16 @@ begin
     Result := ''
   else
     Result := Added.Key;
+end;
+
+function SnapObjectKeys(const Snap: TSnap): TStringArray;
+var
+  Key: string;
+begin
+  Result := nil;
+  for Key in [Snap.PointKey, Snap.EdgeKey, Snap.OtherEdgeKey] do
+    if Key <> '' then
+      Insert(Key, Result, Length(Result));
 end;
 
 end.

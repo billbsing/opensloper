@@ -80,6 +80,7 @@ type
   private
     FDocument: TPatternDocument;
     FSettings: TAppSettings;
+    FLabelItems: array[TLabelMode] of TMenuItem;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
     FSplitter: TSplitter;
@@ -89,6 +90,9 @@ type
     FShown: boolean;
     procedure LoadSettings;
     procedure SaveSettings;
+    procedure SetLabelMode(Mode: TLabelMode);
+    procedure CreateLabelMenu;
+    procedure LabelModeClick(Sender: TObject);
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
@@ -143,6 +147,10 @@ resourcestring
   rsMenuViewZoomOut = 'Zoom &Out';
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
+  rsMenuViewLabels = '&Labels';
+  rsLabelsContextual = '&Contextual';
+  rsLabelsAll = '&All (hold N)';
+  rsLabelsNone = '&None';
   rsMenuTools = '&Tools';
   rsToolSelect = 'Select';
   rsToolPoint = 'Point';
@@ -230,6 +238,8 @@ begin
   FCanvas.OnMessage := @CanvasMessage;
   FCanvas.OnToolChange := @CanvasToolChange;
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
+  CreateLabelMenu;
+  SetLabelMode(FSettings.LabelMode);
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
   StatusBar.OnResize := @StatusBarResize;
@@ -254,8 +264,46 @@ var
   Err: string;
 begin
   FSettings.NameColumnShare := FProperties.NameShare;
+  FSettings.LabelMode := FCanvas.LabelMode;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
+end;
+
+procedure TMainForm.SetLabelMode(Mode: TLabelMode);
+begin
+  FCanvas.LabelMode := Mode;
+  FLabelItems[Mode].Checked := True;
+end;
+
+// The label modes in the View menu; each item's Tag is its TLabelMode
+procedure TMainForm.CreateLabelMenu;
+var
+  MenuLabels: TMenuItem;
+  Mode: TLabelMode;
+  Captions: array[TLabelMode] of string;
+begin
+  Captions[lmContextual] := rsLabelsContextual;
+  Captions[lmAll] := rsLabelsAll;
+  Captions[lmNone] := rsLabelsNone;
+  MenuLabels := TMenuItem.Create(MainMenu);
+  MenuLabels.Caption := rsMenuViewLabels;
+  MenuView.Add(NewLine);
+  MenuView.Add(MenuLabels);
+  for Mode := Low(TLabelMode) to High(TLabelMode) do
+  begin
+    FLabelItems[Mode] := TMenuItem.Create(MenuLabels);
+    FLabelItems[Mode].Caption := Captions[Mode];
+    FLabelItems[Mode].RadioItem := True;
+    FLabelItems[Mode].GroupIndex := 2;
+    FLabelItems[Mode].Tag := Ord(Mode);
+    FLabelItems[Mode].OnClick := @LabelModeClick;
+    MenuLabels.Add(FLabelItems[Mode]);
+  end;
+end;
+
+procedure TMainForm.LabelModeClick(Sender: TObject);
+begin
+  SetLabelMode(TLabelMode(TComponent(Sender).Tag));
 end;
 
 // The toolbar and Tools menu; each item's Tag is its TCanvasTool

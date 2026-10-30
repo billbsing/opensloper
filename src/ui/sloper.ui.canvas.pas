@@ -28,7 +28,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
+  Sloper.Core.Draft, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
   TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging);
@@ -56,6 +56,9 @@ type
     // The first click of a line or curve
     FStartSnap: TSnap;
     FHasStart: boolean;
+    FLabelMode: TLabelMode;
+    // The hold-for-all-labels key is down
+    FLabelsHeld: boolean;
     FOnToolChange: TNotifyEvent;
     FOnCursorMove: TCursorMoveEvent;
     FOnMessage: TCanvasMessageEvent;
@@ -79,10 +82,15 @@ type
     procedure AddPointHere;
     procedure AddEdgeHere;
     procedure CancelStart;
+    procedure SetLabelMode(Value: TLabelMode);
+    procedure SetLabelsHeld(Value: boolean);
+    function ShownLabelMode: TLabelMode;
+    function ToolLabelKeys: TStringArray;
     procedure DrawGrid;
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
     procedure DrawPattern;
+    procedure DrawLabels;
     procedure DrawSnap;
   protected
     procedure Paint; override;
@@ -93,6 +101,7 @@ type
     procedure KeyDown(var Key: word; Shift: TShiftState); override;
     procedure KeyUp(var Key: word; Shift: TShiftState); override;
     procedure MouseLeave; override;
+    procedure DoExit; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -114,6 +123,7 @@ type
     property OnSelectionChange: TNotifyEvent read FOnSelectionChange write FOnSelectionChange;
     property Tool: TCanvasTool read FTool write SetTool;
     property OnToolChange: TNotifyEvent read FOnToolChange write FOnToolChange;
+    property LabelMode: TLabelMode read FLabelMode write SetLabelMode;
   end;
 
 resourcestring
@@ -137,6 +147,7 @@ uses
 const
   // Screen pixels
   PointRadius = 3.5;
+  SmallPointRadius = 2.5;
   PointHitRadius = 7;
   EdgeHitRadius = 5;
   DragThreshold = 3;
@@ -477,6 +488,8 @@ begin
   if FMode = cmDragging then
     CancelDrag;
   FTool := Value;
+  if FTool <> ctSelect then
+    FHoverKey := '';
   if FTool = ctSelect then
     Cursor := crDefault
   else
@@ -510,6 +523,38 @@ procedure TPatternCanvas.CancelStart;
 begin
   FHasStart := False;
   Invalidate;
+end;
+
+procedure TPatternCanvas.SetLabelMode(Value: TLabelMode);
+begin
+  FLabelMode := Value;
+  Invalidate;
+end;
+
+procedure TPatternCanvas.SetLabelsHeld(Value: boolean);
+begin
+  if Value = FLabelsHeld then
+    Exit;
+  FLabelsHeld := Value;
+  Invalidate;
+end;
+
+function TPatternCanvas.ShownLabelMode: TLabelMode;
+begin
+  if FLabelsHeld then
+    Result := lmAll
+  else
+    Result := FLabelMode;
+end;
+
+// What a drawing tool is working with: the start of a line and the snap
+function TPatternCanvas.ToolLabelKeys: TStringArray;
+begin
+  Result := nil;
+  if FHasStart then
+    Result := SnapObjectKeys(FStartSnap);
+  if FSnapShown and (FTool <> ctSelect) then
+    Result := Concat(Result, SnapObjectKeys(FSnap));
 end;
 
 procedure TPatternCanvas.AddPointHere;
@@ -744,6 +789,12 @@ begin
         VK_C: SetTool(ctCurve);
       end;
     end;
+    VK_N:
+    begin
+      if Shift <> [] then
+        Exit;
+      SetLabelsHeld(True);
+    end;
     VK_LEFT:
       Nudge(-Step, 0);
     VK_RIGHT:
@@ -768,11 +819,20 @@ begin
   end;
 end;
 
+// The key-up goes elsewhere once focus has moved
+procedure TPatternCanvas.DoExit;
+begin
+  inherited DoExit;
+  SetLabelsHeld(False);
+end;
+
 procedure TPatternCanvas.KeyUp(var Key: word; Shift: TShiftState);
 begin
   inherited KeyUp(Key, Shift);
   if Key = VK_SPACE then
-    FSpaceDown := False;
+    FSpaceDown := False
+  else if Key = VK_N then
+    SetLabelsHeld(False);
 end;
 
 { Drawing }
@@ -870,7 +930,10 @@ var
 begin
   Screen := FView.ToScreen(Point.Position);
   InkColor := Faded(StateInk(Point.State, Ink), Point.State);
-  Radius := PointRadius;
+  if ShownLabelMode = lmNone then
+    Radius := SmallPointRadius
+  else
+    Radius := PointRadius;
   if Point.Key = FHoverKey then
     FBitmap.FillEllipseAntialias(Screen.X, Screen.Y, Radius + 5, Radius + 5, HoverHalo);
   if IsSelected(Point.Key) then
@@ -879,7 +942,6 @@ begin
     Radius := Radius + 1.5;
   end;
   FBitmap.FillEllipseAntialias(Screen.X, Screen.Y, Radius, Radius, InkColor);
-  FBitmap.TextOut(Screen.X + 6, Screen.Y - LabelFontHeight - 2, Point.Name, InkColor);
 end;
 
 procedure TPatternCanvas.DrawPattern;
@@ -899,6 +961,39 @@ begin
     DraftObject := FDocument.Pattern.Objects[Index];
     if (DraftObject is TPointObject) and DraftObject.HasResult then
       DrawPoint(TPointObject(DraftObject));
+  end;
+end;
+
+// Over the drawing, so that no edge or point crosses out a label
+procedure TPatternCanvas.DrawLabels;
+var
+  Key: string;
+  Node: TEvalNode;
+  Model: TVec2Array;
+  Screen: TVec2;
+  InkColor: TBGRAPixel;
+begin
+  for Key in LabelKeys(FDocument.Pattern, ShownLabelMode, FSelection, FHoverKey, ToolLabelKeys) do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if Node is TPointObject then
+    begin
+      Screen := FView.ToScreen(TPointObject(Node).Position);
+      Screen := Vec2(Screen.X + 6, Screen.Y - LabelFontHeight - 2);
+    end
+    else
+    begin
+      Model := EdgePolyline(TEdgeObject(Node), FView.PixelsToMM(FlattenPixels));
+      if Model = nil then
+        Continue;
+      Screen := FView.ToScreen(PolylineMiddle(Model));
+      Screen := Vec2(Screen.X + 4, Screen.Y + 2);
+    end;
+    if IsSelected(Key) then
+      InkColor := SelectedInk
+    else
+      InkColor := Faded(StateInk(Node.State, Ink), Node.State);
+    FBitmap.TextOut(Screen.X, Screen.Y, Node.DisplayName, InkColor);
   end;
 end;
 
@@ -963,6 +1058,7 @@ begin
   if FDocument <> nil then
   begin
     DrawPattern;
+    DrawLabels;
     DrawSnap;
   end;
   FBitmap.Draw(Canvas, 0, 0, True);

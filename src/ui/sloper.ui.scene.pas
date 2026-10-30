@@ -19,7 +19,8 @@
 // What the canvas shows, in model millimetres: the pattern's extent, edges
 // as polylines for drawing, and the point or edge under the cursor. Objects
 // that are failing are shown at their last good result; objects never
-// computed are not shown. Kept free of the LCL so it can be unit-tested.
+// computed are not shown. Also which labels to draw. Kept free of the LCL so
+// it can be unit-tested.
 unit Sloper.UI.Scene;
 
 {$mode ObjFPC}{$H+}
@@ -27,7 +28,7 @@ unit Sloper.UI.Scene;
 interface
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.Settings;
 
 // Extent of everything shown; False when nothing is
 function PatternBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
@@ -37,11 +38,21 @@ function EdgePolyline(Edge: TEdgeObject; Tolerance: double): TVec2Array;
 function PointAt(Pattern: TPattern; const At: TVec2; Radius: double): TPointObject;
 // The nearest edge within Radius mm of At, or nil
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
+// The point halfway along a polyline of at least one point, where an edge's label goes
+function PolylineMiddle(const Line: TVec2Array): TVec2;
+// Keys of the objects to label, in pattern order. Contextual labels the
+// hovered object, the selection with its direct inputs and dependents, and
+// ToolKeys, the objects a tool is working with.
+function LabelKeys(Pattern: TPattern; Mode: TLabelMode; const Selection: TStringArray; const HoverKey: string;
+  const ToolKeys: TStringArray): TStringArray;
 
 implementation
 
 uses
-  Math, Sloper.Core.Bezier;
+  Math, Generics.Collections, Sloper.Core.Bezier, Sloper.Core.Evaluator;
+
+type
+  TKeySet = specialize THashSet<string>;
 
 procedure Include(var Bounds: TRect2; var Empty: boolean; const P: TVec2);
 begin
@@ -172,6 +183,70 @@ begin
       Best := Offset;
       Result := TEdgeObject(DraftObject);
     end;
+  end;
+end;
+
+function PolylineMiddle(const Line: TVec2Array): TVec2;
+var
+  Index: integer;
+  Total, Remaining, Step: double;
+begin
+  Total := 0;
+  for Index := 1 to High(Line) do
+    Total := Total + Distance(Line[Index - 1], Line[Index]);
+  Remaining := Total / 2;
+  for Index := 1 to High(Line) do
+  begin
+    Step := Distance(Line[Index - 1], Line[Index]);
+    if (Step > 0) and (Remaining <= Step) then
+      Exit(Lerp(Line[Index - 1], Line[Index], Remaining / Step));
+    Remaining := Remaining - Step;
+  end;
+  Result := Line[0];
+end;
+
+function LabelKeys(Pattern: TPattern; Mode: TLabelMode; const Selection: TStringArray; const HoverKey: string;
+  const ToolKeys: TStringArray): TStringArray;
+var
+  Wanted: TKeySet;
+  Key: string;
+  Node, Neighbour: TEvalNode;
+  Index, Count: integer;
+  DraftObject: TDraftObject;
+begin
+  Result := nil;
+  if Mode = lmNone then
+    Exit;
+  Wanted := TKeySet.Create;
+  try
+    Wanted.Add(HoverKey);
+    for Key in ToolKeys do
+      Wanted.Add(Key);
+    for Key in Selection do
+    begin
+      Wanted.Add(Key);
+      Node := Pattern.FindNode(Key);
+      if Node = nil then
+        Continue;
+      for Neighbour in Node.Deps do
+        Wanted.Add(Neighbour.Key);
+      for Neighbour in Node.Dependents do
+        Wanted.Add(Neighbour.Key);
+    end;
+    SetLength(Result, Pattern.ObjectCount);
+    Count := 0;
+    for Index := 0 to Pattern.ObjectCount - 1 do
+    begin
+      DraftObject := Pattern.Objects[Index];
+      if DraftObject.HasResult and ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) then
+      begin
+        Result[Count] := DraftObject.Key;
+        Inc(Count);
+      end;
+    end;
+    SetLength(Result, Count);
+  finally
+    FreeAndNil(Wanted);
   end;
 end;
 

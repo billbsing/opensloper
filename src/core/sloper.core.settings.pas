@@ -25,14 +25,20 @@ unit Sloper.Core.Settings;
 
 interface
 
+type
+  // Which labels the canvas shows: those that help the current step, all, or none
+  TLabelMode = (lmContextual, lmAll, lmNone);
+
 const
   DefaultNameColumnShare = 0.45;
+  DefaultLabelMode = lmContextual;
 
 type
   TAppSettings = class
   public
     // The part of the properties panel's row width given to field names, above 0 and below 1
     NameColumnShare: double;
+    LabelMode: TLabelMode;
     constructor Create;
     procedure Reset;
     function SaveToText: string;
@@ -54,6 +60,7 @@ uses
 const
   SettingsFormat = 'opensloper-settings';
   SettingsVersion = 1;
+  LabelModeNames: array[TLabelMode] of string = ('contextual', 'all', 'none');
 
 constructor TAppSettings.Create;
 begin
@@ -64,6 +71,7 @@ end;
 procedure TAppSettings.Reset;
 begin
   NameColumnShare := DefaultNameColumnShare;
+  LabelMode := DefaultLabelMode;
 end;
 
 function TAppSettings.SaveToText: string;
@@ -75,6 +83,7 @@ begin
     Obj.Add('format', SettingsFormat);
     Obj.Add('version', SettingsVersion);
     Obj.Add('nameColumnShare', JSONFloat(NameColumnShare));
+    Obj.Add('labelMode', LabelModeNames[LabelMode]);
     Result := JSONToText(Obj);
   finally
     FreeAndNil(Obj);
@@ -87,6 +96,7 @@ var
   TextValue: string;
   Version: integer;
   Share: double;
+  Mode: TLabelMode;
 begin
   Reset;
   if not ParseJSONObject(Text, Obj, ErrorMessage) then
@@ -104,6 +114,10 @@ begin
     end;
     if GetJSONNumber(Obj, 'nameColumnShare', Share) and (Share > 0) and (Share < 1) then
       NameColumnShare := Share;
+    if GetJSONString(Obj, 'labelMode', TextValue) then
+      for Mode := Low(TLabelMode) to High(TLabelMode) do
+        if TextValue = LabelModeNames[Mode] then
+          LabelMode := Mode;
     Result := True;
   finally
     FreeAndNil(Obj);

@@ -42,6 +42,8 @@ type
     procedure TestNewerVersionKeepsDefaults;
     procedure TestOutOfRangeShareIsIgnored;
     procedure TestMissingShareIsDefault;
+    procedure TestLabelModeRoundTrip;
+    procedure TestUnknownLabelModeIsIgnored;
   end;
 
 implementation
@@ -62,6 +64,35 @@ end;
 procedure TTestSettings.TestDefaults;
 begin
   AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertTrue('label mode', FSettings.LabelMode = lmContextual);
+end;
+
+procedure TTestSettings.TestLabelModeRoundTrip;
+var
+  Other: TAppSettings;
+  Err: string;
+  Mode: TLabelMode;
+begin
+  Other := TAppSettings.Create;
+  try
+    for Mode := Low(TLabelMode) to High(TLabelMode) do
+    begin
+      FSettings.LabelMode := Mode;
+      AssertTrue(Err, Other.LoadFromText(FSettings.SaveToText, Err));
+      AssertTrue('label mode', Other.LabelMode = Mode);
+    end;
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestSettings.TestUnknownLabelModeIsIgnored;
+var
+  Err: string;
+begin
+  FSettings.LabelMode := lmNone;
+  AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "labelMode": "some"}', Err));
+  AssertTrue(FSettings.LabelMode = DefaultLabelMode);
 end;
 
 procedure TTestSettings.TestTextRoundTrip;

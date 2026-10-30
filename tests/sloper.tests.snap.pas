@@ -48,6 +48,7 @@ type
     procedure TestFree;
     procedure TestSplitPartsDoNotCross;
     procedure TestDescriptions;
+    procedure TestObjectKeys;
   end;
 
 implementation
@@ -212,6 +213,15 @@ begin
   AssertEquals(Format(rsSnapRight, ['30', 'B']), SnapDescription(FPattern, Snap(130, 0.8)));
   AssertEquals(Format(rsSnapUp, ['30', 'D']), SnapDescription(FPattern, Snap(50.5, 80)));
   AssertEquals(Format(rsSnapFree, ['200', '200']), SnapDescription(FPattern, Snap(200, 200)));
+end;
+
+procedure TTestSnap.TestObjectKeys;
+begin
+  AssertEquals('a point', '2', string.Join(' ', SnapObjectKeys(Snap(99, 0))));
+  AssertEquals('a crossing', '5 6', string.Join(' ', SnapObjectKeys(Snap(50, 0.5))));
+  AssertEquals('an edge', '5', string.Join(' ', SnapObjectKeys(Snap(25, 0.5))));
+  AssertEquals('lines up with a point', '4', string.Join(' ', SnapObjectKeys(Snap(50, 60))));
+  AssertEquals('free', '', string.Join(' ', SnapObjectKeys(Snap(200, 200))));
 end;
 
 initialization
