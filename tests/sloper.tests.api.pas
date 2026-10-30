@@ -90,12 +90,13 @@ type
     procedure TestRefusedAddLeavesNoChangeOpen;
     procedure TestInputsByIdOrName;
     procedure TestAddedPatternSavesAndReopens;
+    procedure TestFailureBuildingAReplyLeaksNothing;
   end;
 
 implementation
 
 uses
-  Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Draft;
+  Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft;
 
 function PathParams(const Path: string): string;
 var
@@ -674,6 +675,23 @@ begin
   Call('open', PathParams(FPatternPath + '2'));
   AssertEquals(2, Answer.Get('objects', 0));
   AssertNear('evaluates after reopening', 15, ObjectNamed('B').Get('x', 0.0));
+end;
+
+// A key that is not a number makes the ID conversion raise partway through
+// building each reply. heaptrc fails the run if anything built so far leaks.
+procedure TTestAPI.TestFailureBuildingAReplyLeaksNothing;
+begin
+  OpenTestPattern;
+  FServer.Document.Pattern.InsertVariable(TVariable.Create('bad'));
+  Call('list_objects');
+  AssertEquals('list', RpcInternalError, ErrorCode);
+  Call('get_object', '{"name": "ease"}');
+  AssertEquals('other objects still work', 'ease', Answer.Get('name', ''));
+  Call('check');
+  AssertEquals('check', RpcInternalError, ErrorCode);
+  Call('save');
+  AssertEquals('save', RpcInternalError, ErrorCode);
+  AssertFalse('no change left open', FServer.Document.ChangeOpen);
 end;
 
 initialization

@@ -199,36 +199,41 @@ var
   FieldName: string;
 begin
   Result := TJSONObject.Create;
-  Result.Add('id', StrToInt(Node.Key));
-  if Node is TVariable then
-  begin
-    Result.Add('name', TVariable(Node).Name);
-    Result.Add('type', VariableType);
-  end
-  else
-  begin
-    Result.Add('name', Node.DisplayName);
-    Result.Add('type', PatternObjectTypeName(TDraftObject(Node)));
-  end;
-  Result.Add('state', StateName(Node.State));
-  if Node.State <> esValid then
-    Result.Add('message', Node.Message);
-  if Node.State = esValid then
+  try
+    Result.Add('id', StrToInt(Node.Key));
     if Node is TVariable then
-      Result.Add('value', ReportFloat(TVariable(Node).Value))
-    else if Node is TPointObject then
     begin
-      Result.Add('x', ReportFloat(TPointObject(Node).Position.X));
-      Result.Add('y', ReportFloat(TPointObject(Node).Position.Y));
+      Result.Add('name', TVariable(Node).Name);
+      Result.Add('type', VariableType);
     end
-    else if Node is TEdgeObject then
-      Result.Add('length', ReportFloat(TEdgeObject(Node).Length));
-  Formulas := TJSONObject.Create;
-  Result.Add('formulas', Formulas);
-  for Index := 0 to Node.FieldCount - 1 do
-  begin
-    FieldName := Node.Fields[Index].Name;
-    Formulas.Add(FieldName, Document.Pattern.FormulaText(Node, FieldName));
+    else
+    begin
+      Result.Add('name', Node.DisplayName);
+      Result.Add('type', PatternObjectTypeName(TDraftObject(Node)));
+    end;
+    Result.Add('state', StateName(Node.State));
+    if Node.State <> esValid then
+      Result.Add('message', Node.Message);
+    if Node.State = esValid then
+      if Node is TVariable then
+        Result.Add('value', ReportFloat(TVariable(Node).Value))
+      else if Node is TPointObject then
+      begin
+        Result.Add('x', ReportFloat(TPointObject(Node).Position.X));
+        Result.Add('y', ReportFloat(TPointObject(Node).Position.Y));
+      end
+      else if Node is TEdgeObject then
+        Result.Add('length', ReportFloat(TEdgeObject(Node).Length));
+    Formulas := TJSONObject.Create;
+    Result.Add('formulas', Formulas);
+    for Index := 0 to Node.FieldCount - 1 do
+    begin
+      FieldName := Node.Fields[Index].Name;
+      Formulas.Add(FieldName, Document.Pattern.FormulaText(Node, FieldName));
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
   end;
 end;
 
@@ -247,11 +252,14 @@ end;
 // The reason is read first, since cancelling can reload the pattern
 procedure TApiServer.RefuseChange;
 var
-  Failure: EApiError;
+  Reason, FieldName: string;
+  Position: integer;
 begin
-  Failure := EApiError.Create(RpcRefused, FDocument.Pattern.LastError, FDocument.Pattern.LastErrorField, FDocument.Pattern.LastErrorPos);
+  Reason := FDocument.Pattern.LastError;
+  FieldName := FDocument.Pattern.LastErrorField;
+  Position := FDocument.Pattern.LastErrorPos;
   FDocument.CancelChange;
-  raise Failure;
+  raise EApiError.Create(RpcRefused, Reason, FieldName, Position);
 end;
 
 // The ID of an input given as a number, or as an object's name
@@ -309,13 +317,18 @@ end;
 function TApiServer.DocumentInfo: TJSONObject;
 begin
   Result := TJSONObject.Create;
-  Result.Add('path', FDocument.FileName);
-  Result.Add('measurements', FDocument.MeasurementPath);
-  Result.Add('objects', FDocument.Pattern.ObjectCount);
-  Result.Add('variables', FDocument.Pattern.VariableCount);
-  Result.Add('modified', FDocument.Modified);
-  if FDocument.MeasurementError <> '' then
-    Result.Add('measurementError', FDocument.MeasurementError);
+  try
+    Result.Add('path', FDocument.FileName);
+    Result.Add('measurements', FDocument.MeasurementPath);
+    Result.Add('objects', FDocument.Pattern.ObjectCount);
+    Result.Add('variables', FDocument.Pattern.VariableCount);
+    Result.Add('modified', FDocument.Modified);
+    if FDocument.MeasurementError <> '' then
+      Result.Add('measurementError', FDocument.MeasurementError);
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
 end;
 
 function TApiServer.DoOpen(Params: TJSONObject): TJSONData;
@@ -352,19 +365,23 @@ var
   Index: integer;
 begin
   Info := TJSONObject.Create;
-  Result := Info;
-  Info.Add('path', FDocument.MeasurementPath);
-  List := TJSONArray.Create;
-  Info.Add('measurements', List);
-  if FDocument.Measurements = nil then
-    Exit;
-  for Index := 0 to FDocument.Measurements.Count - 1 do
-  begin
-    Item := TJSONObject.Create;
-    Item.Add('key', FDocument.Measurements[Index].Key);
-    Item.Add('value', JSONFloat(FDocument.Measurements[Index].Value));
-    Item.Add('description', FDocument.Measurements[Index].Description);
-    List.Add(Item);
+  try
+    Info.Add('path', FDocument.MeasurementPath);
+    List := TJSONArray.Create;
+    Info.Add('measurements', List);
+    if FDocument.Measurements <> nil then
+      for Index := 0 to FDocument.Measurements.Count - 1 do
+      begin
+        Item := TJSONObject.Create;
+        List.Add(Item);
+        Item.Add('key', FDocument.Measurements[Index].Key);
+        Item.Add('value', JSONFloat(FDocument.Measurements[Index].Value));
+        Item.Add('description', FDocument.Measurements[Index].Description);
+      end;
+    Result := Info;
+  except
+    FreeAndNil(Info);
+    raise;
   end;
 end;
 
@@ -391,12 +408,17 @@ begin
   if not FDocument.ChangeMeasurement(Key, Value, Description, Change, Err) then
     raise EApiError.Create(RpcRefused, Err);
   Info := TJSONObject.Create;
-  Result := Info;
-  Info.Add('key', Change.Key);
-  Info.Add('value', JSONFloat(Change.Value));
-  Info.Add('added', Change.Added);
-  if not Change.Added then
-    Info.Add('oldValue', JSONFloat(Change.OldValue));
+  try
+    Info.Add('key', Change.Key);
+    Info.Add('value', JSONFloat(Change.Value));
+    Info.Add('added', Change.Added);
+    if not Change.Added then
+      Info.Add('oldValue', JSONFloat(Change.OldValue));
+    Result := Info;
+  except
+    FreeAndNil(Info);
+    raise;
+  end;
 end;
 
 function TApiServer.DoListObjects: TJSONData;
@@ -406,15 +428,20 @@ var
   Index: integer;
 begin
   Info := TJSONObject.Create;
-  Result := Info;
-  List := TJSONArray.Create;
-  Info.Add('variables', List);
-  for Index := 0 to FDocument.Pattern.VariableCount - 1 do
-    List.Add(NodeToJSON(FDocument, FDocument.Pattern.Variables[Index]));
-  List := TJSONArray.Create;
-  Info.Add('objects', List);
-  for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
-    List.Add(NodeToJSON(FDocument, FDocument.Pattern.Objects[Index]));
+  try
+    List := TJSONArray.Create;
+    Info.Add('variables', List);
+    for Index := 0 to FDocument.Pattern.VariableCount - 1 do
+      List.Add(NodeToJSON(FDocument, FDocument.Pattern.Variables[Index]));
+    List := TJSONArray.Create;
+    Info.Add('objects', List);
+    for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
+      List.Add(NodeToJSON(FDocument, FDocument.Pattern.Objects[Index]));
+    Result := Info;
+  except
+    FreeAndNil(Info);
+    raise;
+  end;
 end;
 
 function TApiServer.DoGetObject(Params: TJSONObject): TJSONData;
@@ -473,14 +500,19 @@ var
   BlockedCount: integer;
 begin
   Result := TJSONObject.Create;
-  Problems := PatternProblems(FDocument.Pattern, BlockedCount);
-  List := TJSONArray.Create;
-  Result.Add('problems', List);
-  for Problem in Problems do
-    List.Add(Problem);
-  Result.Add('blocked', BlockedCount);
-  if WithReport then
-    Result.Add('report', PatternReport(FDocument.Pattern, ExtractFileName(FDocument.FileName), ExtractFileName(FDocument.MeasurementPath)));
+  try
+    Problems := PatternProblems(FDocument.Pattern, BlockedCount);
+    List := TJSONArray.Create;
+    Result.Add('problems', List);
+    for Problem in Problems do
+      List.Add(Problem);
+    Result.Add('blocked', BlockedCount);
+    if WithReport then
+      Result.Add('report', PatternReport(FDocument.Pattern, ExtractFileName(FDocument.FileName), ExtractFileName(FDocument.MeasurementPath)));
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
 end;
 
 function TApiServer.DoEvaluate(WithReport: boolean): TJSONData;
@@ -533,9 +565,14 @@ begin
     end;
   end;
   Info := TJSONObject.Create;
-  Result := Info;
-  Info.Add('format', RenderFormatSVG);
-  Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
+  try
+    Info.Add('format', RenderFormatSVG);
+    Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
+    Result := Info;
+  except
+    FreeAndNil(Info);
+    raise;
+  end;
 end;
 
 function TApiServer.DoAddVariable(Params: TJSONObject): TJSONData;
@@ -718,9 +755,14 @@ begin
   SecondKey := Second.Key;
   FDocument.EndChange;
   Parts := TJSONArray.Create;
-  Result := Parts;
-  Parts.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(FirstKey)));
-  Parts.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(SecondKey)));
+  try
+    Parts.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(FirstKey)));
+    Parts.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(SecondKey)));
+    Result := Parts;
+  except
+    FreeAndNil(Parts);
+    raise;
+  end;
 end;
 
 function TApiServer.CallMethod(const Method: string; Params: TJSONObject): TJSONData;

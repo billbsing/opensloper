@@ -148,10 +148,15 @@ end;
 function SaveVariable(Variable: TVariable): TJSONObject;
 begin
   Result := TJSONObject.Create;
-  Result.Add('id', JSONId(Variable.Key));
-  Result.Add('name', Variable.Name);
-  Result.Add('formula', Variable.Formula.StoredText);
-  Result.Add('description', Variable.Description);
+  try
+    Result.Add('id', JSONId(Variable.Key));
+    Result.Add('name', Variable.Name);
+    Result.Add('formula', Variable.Formula.StoredText);
+    Result.Add('description', Variable.Description);
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
 end;
 
 function SaveCurvePathNodes(Path: TCurvePathObject): TJSONArray;
@@ -161,17 +166,22 @@ var
   NodeName: string;
 begin
   Result := TJSONArray.Create;
-  for Index := 0 to High(Path.NodeKeys) do
-  begin
-    NodeName := 'node' + IntToStr(Index + 1);
-    NodeItem := TJSONObject.Create;
-    NodeItem.Add('point', JSONId(Path.NodeKeys[Index]));
-    NodeItem.Add('angle', Path.Field(NodeName + '.angle').StoredText);
-    if Index > 0 then
-      NodeItem.Add('lengthIn', Path.Field(NodeName + '.lengthIn').StoredText);
-    if Index < High(Path.NodeKeys) then
-      NodeItem.Add('lengthOut', Path.Field(NodeName + '.lengthOut').StoredText);
-    Result.Add(NodeItem);
+  try
+    for Index := 0 to High(Path.NodeKeys) do
+    begin
+      NodeName := 'node' + IntToStr(Index + 1);
+      NodeItem := TJSONObject.Create;
+      Result.Add(NodeItem);
+      NodeItem.Add('point', JSONId(Path.NodeKeys[Index]));
+      NodeItem.Add('angle', Path.Field(NodeName + '.angle').StoredText);
+      if Index > 0 then
+        NodeItem.Add('lengthIn', Path.Field(NodeName + '.lengthIn').StoredText);
+      if Index < High(Path.NodeKeys) then
+        NodeItem.Add('lengthOut', Path.Field(NodeName + '.lengthOut').StoredText);
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
   end;
 end;
 
@@ -188,71 +198,76 @@ var
   Part: TSplitPart;
 begin
   Result := TJSONObject.Create;
-  Result.Add('id', JSONId(DraftObject.Key));
-  Result.Add('type', PatternObjectTypeName(DraftObject));
-  // A derived name (Line_A_B) is recomputed on loading
-  if not ((DraftObject is TEdgeObject) and TEdgeObject(DraftObject).NameIsDerived) then
-    Result.Add('name', DraftObject.Name);
+  try
+    Result.Add('id', JSONId(DraftObject.Key));
+    Result.Add('type', PatternObjectTypeName(DraftObject));
+    // A derived name (Line_A_B) is recomputed on loading
+    if not ((DraftObject is TEdgeObject) and TEdgeObject(DraftObject).NameIsDerived) then
+      Result.Add('name', DraftObject.Name);
 
-  if DraftObject is TOffsetPoint then
-  begin
-    Offset := TOffsetPoint(DraftObject);
-    Result.Add('base', JSONId(Offset.Base));
-    Result.Add('mode', OffsetModeNames[Offset.Mode]);
-  end
-  else if DraftObject is TAlongEdgePoint then
-  begin
-    Along := TAlongEdgePoint(DraftObject);
-    Result.Add('edge', JSONId(Along.Edge));
-    Result.Add('from', EdgeEndNames[Along.FromEnd]);
-    Result.Add('mode', AlongModeNames[Along.Mode]);
-  end
-  else if DraftObject is TIntersectPoint then
-  begin
-    Intersect := TIntersectPoint(DraftObject);
-    Result.Add('edgeA', JSONId(Intersect.EdgeA));
-    Result.Add('edgeB', JSONId(Intersect.EdgeB));
-    Result.Add('extendA', Intersect.ExtendA);
-    Result.Add('extendB', Intersect.ExtendB);
-    Result.Add('pick', Intersect.Pick);
-  end
-  else if DraftObject is TCircleEdgePoint then
-  begin
-    Circle := TCircleEdgePoint(DraftObject);
-    Result.Add('centre', JSONId(Circle.Centre));
-    Result.Add('edge', JSONId(Circle.Edge));
-    Result.Add('extend', Circle.Extend);
-    Result.Add('pick', Circle.Pick);
-  end
-  else if DraftObject is TProjectPoint then
-  begin
-    Project := TProjectPoint(DraftObject);
-    Result.Add('point', JSONId(Project.Source));
-    Result.Add('edge', JSONId(Project.Edge));
-    Result.Add('direction', DirectionNames[Project.Direction]);
-    Result.Add('extend', Project.Extend);
-  end
-  else if DraftObject is TSplitPart then
-  begin
-    Part := TSplitPart(DraftObject);
-    Result.Add('edge', JSONId(Part.Source));
-    Result.Add('point', JSONId(Part.Point));
-    Result.Add('part', Part.Part);
-  end
-  else if (DraftObject is TLineObject) or (DraftObject is TCurveObject) then
-  begin
-    Result.Add('start', JSONId(TEdgeObject(DraftObject).StartKey));
-    Result.Add('end', JSONId(TEdgeObject(DraftObject).EndKey));
+    if DraftObject is TOffsetPoint then
+    begin
+      Offset := TOffsetPoint(DraftObject);
+      Result.Add('base', JSONId(Offset.Base));
+      Result.Add('mode', OffsetModeNames[Offset.Mode]);
+    end
+    else if DraftObject is TAlongEdgePoint then
+    begin
+      Along := TAlongEdgePoint(DraftObject);
+      Result.Add('edge', JSONId(Along.Edge));
+      Result.Add('from', EdgeEndNames[Along.FromEnd]);
+      Result.Add('mode', AlongModeNames[Along.Mode]);
+    end
+    else if DraftObject is TIntersectPoint then
+    begin
+      Intersect := TIntersectPoint(DraftObject);
+      Result.Add('edgeA', JSONId(Intersect.EdgeA));
+      Result.Add('edgeB', JSONId(Intersect.EdgeB));
+      Result.Add('extendA', Intersect.ExtendA);
+      Result.Add('extendB', Intersect.ExtendB);
+      Result.Add('pick', Intersect.Pick);
+    end
+    else if DraftObject is TCircleEdgePoint then
+    begin
+      Circle := TCircleEdgePoint(DraftObject);
+      Result.Add('centre', JSONId(Circle.Centre));
+      Result.Add('edge', JSONId(Circle.Edge));
+      Result.Add('extend', Circle.Extend);
+      Result.Add('pick', Circle.Pick);
+    end
+    else if DraftObject is TProjectPoint then
+    begin
+      Project := TProjectPoint(DraftObject);
+      Result.Add('point', JSONId(Project.Source));
+      Result.Add('edge', JSONId(Project.Edge));
+      Result.Add('direction', DirectionNames[Project.Direction]);
+      Result.Add('extend', Project.Extend);
+    end
+    else if DraftObject is TSplitPart then
+    begin
+      Part := TSplitPart(DraftObject);
+      Result.Add('edge', JSONId(Part.Source));
+      Result.Add('point', JSONId(Part.Point));
+      Result.Add('part', Part.Part);
+    end
+    else if (DraftObject is TLineObject) or (DraftObject is TCurveObject) then
+    begin
+      Result.Add('start', JSONId(TEdgeObject(DraftObject).StartKey));
+      Result.Add('end', JSONId(TEdgeObject(DraftObject).EndKey));
+    end;
+
+    if DraftObject is TCurvePathObject then
+      Result.Add('nodes', SaveCurvePathNodes(TCurvePathObject(DraftObject)))
+    else
+      for Index := 0 to DraftObject.FieldCount - 1 do
+        Result.Add(DraftObject.Fields[Index].Name, DraftObject.Fields[Index].Formula.StoredText);
+
+    if DraftObject is TEdgeObject then
+      Result.Add('role', RoleNames[TEdgeObject(DraftObject).Role]);
+  except
+    FreeAndNil(Result);
+    raise;
   end;
-
-  if DraftObject is TCurvePathObject then
-    Result.Add('nodes', SaveCurvePathNodes(TCurvePathObject(DraftObject)))
-  else
-    for Index := 0 to DraftObject.FieldCount - 1 do
-      Result.Add(DraftObject.Fields[Index].Name, DraftObject.Fields[Index].Formula.StoredText);
-
-  if DraftObject is TEdgeObject then
-    Result.Add('role', RoleNames[TEdgeObject(DraftObject).Role]);
 end;
 
 function SavePatternToText(Pattern: TPattern; WithNextId: boolean): string;

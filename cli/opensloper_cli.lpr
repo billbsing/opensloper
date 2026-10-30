@@ -83,9 +83,11 @@ resourcestring
     BlockedCount: integer;
     Report: TJSONObject;
   begin
-    Measurements := TMeasurementSet.Create;
-    Pattern := TPattern.Create;
+    Measurements := nil;
+    Pattern := nil;
     try
+      Measurements := TMeasurementSet.Create;
+      Pattern := TPattern.Create;
       if not CheckFileExists(PatternFile) then
         Exit(ExitFailure);
       if not LoadPatternFromFile(Pattern, PatternFile, Err) then

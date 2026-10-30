@@ -107,11 +107,16 @@ end;
 function ReportNode(Node: TEvalNode; const AName: string): TJSONObject;
 begin
   Result := TJSONObject.Create;
-  Result.Add('id', StrToInt(Node.Key));
-  Result.Add('name', AName);
-  Result.Add('state', StateName(Node.State));
-  if Node.State <> esValid then
-    Result.Add('message', Node.Message);
+  try
+    Result.Add('id', StrToInt(Node.Key));
+    Result.Add('name', AName);
+    Result.Add('state', StateName(Node.State));
+    if Node.State <> esValid then
+      Result.Add('message', Node.Message);
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
 end;
 
 function PatternReport(Pattern: TPattern; const PatternName, MeasurementName: string): TJSONObject;
@@ -123,33 +128,38 @@ var
   DraftObject: TDraftObject;
 begin
   Result := TJSONObject.Create;
-  Result.Add('pattern', PatternName);
-  Result.Add('measurements', MeasurementName);
-  List := TJSONArray.Create;
-  Result.Add('variables', List);
-  for Index := 0 to Pattern.VariableCount - 1 do
-  begin
-    Variable := Pattern.Variables[Index];
-    Item := ReportNode(Variable, Variable.Name);
-    if Variable.State = esValid then
-      Item.Add('value', ReportFloat(Variable.Value));
-    List.Add(Item);
-  end;
-  List := TJSONArray.Create;
-  Result.Add('objects', List);
-  for Index := 0 to Pattern.ObjectCount - 1 do
-  begin
-    DraftObject := Pattern.Objects[Index];
-    Item := ReportNode(DraftObject, DraftObject.Name);
-    if DraftObject.State = esValid then
-      if DraftObject is TPointObject then
-      begin
-        Item.Add('x', ReportFloat(TPointObject(DraftObject).Position.X));
-        Item.Add('y', ReportFloat(TPointObject(DraftObject).Position.Y));
-      end
-      else if DraftObject is TEdgeObject then
-        Item.Add('length', ReportFloat(TEdgeObject(DraftObject).Length));
-    List.Add(Item);
+  try
+    Result.Add('pattern', PatternName);
+    Result.Add('measurements', MeasurementName);
+    List := TJSONArray.Create;
+    Result.Add('variables', List);
+    for Index := 0 to Pattern.VariableCount - 1 do
+    begin
+      Variable := Pattern.Variables[Index];
+      Item := ReportNode(Variable, Variable.Name);
+      List.Add(Item);
+      if Variable.State = esValid then
+        Item.Add('value', ReportFloat(Variable.Value));
+    end;
+    List := TJSONArray.Create;
+    Result.Add('objects', List);
+    for Index := 0 to Pattern.ObjectCount - 1 do
+    begin
+      DraftObject := Pattern.Objects[Index];
+      Item := ReportNode(DraftObject, DraftObject.Name);
+      List.Add(Item);
+      if DraftObject.State = esValid then
+        if DraftObject is TPointObject then
+        begin
+          Item.Add('x', ReportFloat(TPointObject(DraftObject).Position.X));
+          Item.Add('y', ReportFloat(TPointObject(DraftObject).Position.Y));
+        end
+        else if DraftObject is TEdgeObject then
+          Item.Add('length', ReportFloat(TEdgeObject(DraftObject).Length));
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
   end;
 end;
 

@@ -233,20 +233,25 @@ var
   Index: integer;
 begin
   Result := TJSONObject.Create;
-  Result.Add('format', MeasurementFormat);
-  Result.Add('version', MeasurementVersion);
-  Result.Add('units', 'mm');
-  Result.Add('name', Name);
-  Result.Add('notes', Notes);
-  List := TJSONArray.Create;
-  Result.Add('measurements', List);
-  for Index := 0 to Count - 1 do
-  begin
-    Item := TJSONObject.Create;
-    Item.Add('key', Items[Index].Key);
-    Item.Add('value', JSONFloat(Items[Index].Value));
-    Item.Add('description', Items[Index].Description);
-    List.Add(Item);
+  try
+    Result.Add('format', MeasurementFormat);
+    Result.Add('version', MeasurementVersion);
+    Result.Add('units', 'mm');
+    Result.Add('name', Name);
+    Result.Add('notes', Notes);
+    List := TJSONArray.Create;
+    Result.Add('measurements', List);
+    for Index := 0 to Count - 1 do
+    begin
+      Item := TJSONObject.Create;
+      List.Add(Item);
+      Item.Add('key', Items[Index].Key);
+      Item.Add('value', JSONFloat(Items[Index].Value));
+      Item.Add('description', Items[Index].Description);
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
   end;
 end;
 

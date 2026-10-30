@@ -407,27 +407,31 @@ var
   NewSet: TMeasurementSet;
 begin
   RequireNoChange;
-  Loaded := TPattern.Create;
-  if not LoadPatternFromFile(Loaded, FileName, ErrorMessage) then
-  begin
-    FreeAndNil(Loaded);
-    Exit(False);
-  end;
-  FullName := ExpandFileName(FileName);
-  SetPath := MeasurementFilePath(Loaded, FullName);
   NewSet := nil;
-  SetError := '';
-  if SetPath <> '' then
-  begin
-    SetPath := ExpandFileName(SetPath);
-    NewSet := TMeasurementSet.Create;
-    if not NewSet.LoadFromFile(SetPath, SetError) then
-      FreeAndNil(NewSet);
-  end;
+  Loaded := TPattern.Create;
+  try
+    if not LoadPatternFromFile(Loaded, FileName, ErrorMessage) then
+      Exit(False);
+    FullName := ExpandFileName(FileName);
+    SetPath := MeasurementFilePath(Loaded, FullName);
+    SetError := '';
+    if SetPath <> '' then
+    begin
+      SetPath := ExpandFileName(SetPath);
+      NewSet := TMeasurementSet.Create;
+      if not NewSet.LoadFromFile(SetPath, SetError) then
+        FreeAndNil(NewSet);
+    end;
 
-  FreeAndNil(FPattern);
-  FPattern := Loaded;
-  SetMeasurementSet(NewSet, SetPath);
+    FreeAndNil(FPattern);
+    FPattern := Loaded;
+    Loaded := nil;
+    SetMeasurementSet(NewSet, SetPath);
+    NewSet := nil;
+  finally
+    FreeAndNil(NewSet);
+    FreeAndNil(Loaded);
+  end;
   FMeasurementError := SetError;
   ClearHistory;
   FFileName := FullName;
@@ -474,12 +478,14 @@ begin
   if not ChangeMeasurementInFile(FMeasurementPath, Key, Value, Description, Change, ErrorMessage) then
     Exit(False);
   NewSet := TMeasurementSet.Create;
-  if not NewSet.LoadFromFile(FMeasurementPath, ErrorMessage) then
-  begin
+  try
+    if not NewSet.LoadFromFile(FMeasurementPath, ErrorMessage) then
+      Exit(False);
+    SetMeasurementSet(NewSet, FMeasurementPath);
+    NewSet := nil;
+  finally
     FreeAndNil(NewSet);
-    Exit(False);
   end;
-  SetMeasurementSet(NewSet, FMeasurementPath);
   FMeasurementError := '';
   FPattern.Evaluate;
   Notify([dcPattern, dcMeasurements]);
@@ -497,19 +503,21 @@ begin
   ErrorMessage := '';
   NewSet := nil;
   NewPath := '';
-  if FileName <> '' then
-  begin
-    NewPath := ExpandFileName(FileName);
-    NewSet := TMeasurementSet.Create;
-    if not NewSet.LoadFromFile(NewPath, ErrorMessage) then
-    begin
-      FreeAndNil(NewSet);
-      Exit(False);
-    end;
-  end;
   WasModified := Modified;
   OldStored := FPattern.MeasurementFile;
-  SetMeasurementSet(NewSet, NewPath);
+  try
+    if FileName <> '' then
+    begin
+      NewPath := ExpandFileName(FileName);
+      NewSet := TMeasurementSet.Create;
+      if not NewSet.LoadFromFile(NewPath, ErrorMessage) then
+        Exit(False);
+    end;
+    SetMeasurementSet(NewSet, NewPath);
+    NewSet := nil;
+  finally
+    FreeAndNil(NewSet);
+  end;
   FMeasurementError := '';
   FPattern.MeasurementFile := MeasurementFileFor(FFileName);
   if FPattern.MeasurementFile <> OldStored then

@@ -48,6 +48,33 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 - Comments explain why, or what is not obvious; they don't restate the code.
 - Collections use `Generics.Collections`: `specialize TObjectList<T>` for lists that own their items, `specialize TDictionary<string, T>` for lookups by key, instead of `TList` with casts. Declare the specialization as a named type (`TDraftObjectList = specialize TObjectList<TDraftObject>`). Removing from an owning list frees the item; use `ExtractIndex` to take one out without freeing it.
 - Free objects with `FreeAndNil(Obj)`, never `Obj.Free` or `Obj.Destroy`, so a reference is either `nil` or a live instance (see [Modern Object Pascal](https://castle-engine.io/modern_pascal)). It does not clear other copies of the reference. The one exception is a typecast list item (`TObject(List[Index]).Free`), which cannot be passed to `FreeAndNil`; clear the list straight after.
+- Protect every object a routine creates, so an exception or an early `Exit` cannot leak it. Heaptrc only sees the paths the tests run, so don't rely on an object being safe because nothing "should" raise; a failure halfway through building a result leaked 79 blocks before this rule was followed.
+  - **A local object:** create it just before the `try`, not inside it, and free it in the `finally`. If `Create` raises inside the `try`, the `finally` runs on a variable that was never assigned. `Exit` inside the `try` still runs the `finally`.
+
+    ```pascal
+    Pattern := TPattern.Create;
+    try
+      // use it
+    finally
+      FreeAndNil(Pattern);
+    end;
+    ```
+
+  - **Several objects:** set them all to `nil`, then create them inside one `try`, instead of nesting a `try` for each. This relies on `FreeAndNil` being safe on `nil`.
+  - **Handing an object over:** when another object takes ownership, set your variable to `nil` straight after, so the `finally` does not free it twice.
+  - **A function returning a new object:** `finally` would free what is being returned, so use `except`:
+
+    ```pascal
+    Result := TJSONObject.Create;
+    try
+      // fill it in
+    except
+      FreeAndNil(Result);
+      raise;
+    end;
+    ```
+
+  - **An item for a list:** add it to its owner first and fill it in afterwards, so it needs no `try` of its own. A constructor filling its fields needs none either: the destructor frees them.
 - Recursion inside a function needs brackets: in ObjFPC mode a bare `ParseUnary` inside `ParseUnary` means the result variable, so write `ParseUnary()`.
 - Don't index an array with a call that can grow it (`Tokens[Add(...)] := ...`): Free Pascal may take the array's address before the call reallocates it. Store the index first.
 - Compare floats with a tolerance, and never compare a `double` with an untyped float constant such as `MaxDouble`: on x86_64 Linux the constant is evaluated as 80-bit `Extended` and never equals the `double` (see `documents/known-issues.md`).
