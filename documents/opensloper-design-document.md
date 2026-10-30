@@ -376,8 +376,8 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 
   Values are rounded to 0.1 mm. The canvas shows a marker for the kind of snap, a dotted guide to the point it lines up with, and the line being drawn, and the status bar says what a click will make ("New point 30 mm right of B").
 - **Lines and curves** take two clicks. Both new end points and the edge are one undo step, and drawing carries on from the end point. New edges are outlines. A curve starts with handles along the chord, a third of its length, ready to shape in the properties.
-- **Properties panel** (`Sloper.UI.Properties`): the selected object's type, name, formulas (shown with names, with readable captions such as "Point 2 handle in") and role, and what it computes to. Enter or leaving a field commits one undo step; Escape puts the text back. A refused formula keeps its text, shows the reason in red and puts the cursor at the problem. The role drop-down is also one undo step.
-- **Next:** the property grid layout below, point label modes (the canvas still labels every point), the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
+- **Properties panel** (`Sloper.UI.Properties`, with the LCL-free `Sloper.UI.GridColumns`): the selected object's type, name, formulas (shown with names, with readable captions such as "Point 2 handle in") and role, and what it computes to, laid out as the property grid below. Enter or leaving a field commits one undo step; Escape puts the text back. A refused formula keeps its text, shows the reason in red under its field and puts the cursor at the problem. A failing object's evaluation message shows below the rows. The role drop-down is also one undo step.
+- **Next:** point label modes (the canvas still labels every point), the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -489,7 +489,7 @@ Labels never print unless explicitly turned on in the print screen.
 
 **Property grid.** The properties panel lays out each field on one row, name on the left and value on the right, like the Castle Game Engine inspector, instead of a caption above each field. This keeps the whole selection visible in a narrow panel.
 
-- A splitter between the two columns can be dragged to share the width between names and values. Its position is kept between sessions.
+- A splitter between the two columns can be dragged to share the width between names and values, leaving each column a minimum width. Its position is a share of the row width, so it follows the panel when that is resized, and it is kept between sessions in `settings.json`.
 - A name too long for its column is cut with an ellipsis and shown in full as a tooltip.
 - Read-only rows (type, computed values) use the same layout with plain text in the value column.
 - A refused formula's reason shows in red on a row under its field, across both columns.
@@ -784,7 +784,7 @@ OpenSloper follows each platform's conventions and never writes app files into t
 
 | Kind | Examples | Linux (XDG) | Windows | macOS |
 | --- | --- | --- | --- | --- |
-| Config | Preferences, printer calibration, UI layout | `~/.config/opensloper/` | `%APPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
+| Config | Preferences, printer calibration, UI layout (`settings.json`) | `~/.config/opensloper/` | `%APPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
 | Data | SQLite library, templates, user-added blocks | `~/.local/share/opensloper/` | `%APPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
 | State | Recent files, window positions, logs | `~/.local/state/opensloper/` | `%LOCALAPPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
 | Cache | Thumbnails, preview renders | `~/.cache/opensloper/` | `%LOCALAPPDATA%\OpenSloper\Cache\` | `~/Library/Caches/OpenSloper/` |
@@ -796,6 +796,7 @@ On Linux, `XDG_*_HOME` environment variables are respected when set.
 **Implementation:**
 
 - One `TAppPaths` unit provides `ConfigDir`, `DataDir`, `StateDir`, `CacheDir` and `DefaultDocumentsDir`; no other code builds paths
+- App settings live in `settings.json` (`TAppPaths.SettingsFile`, read and written by `Sloper.Core.Settings`), saved when the app closes. A missing file is a first run; an unreadable one leaves the defaults, without troubling the user, since it only arranges the window
 - `GetAppConfigDir` covers config on Linux and Windows; macOS and the XDG data and cache folders may need small custom code
 - `Application.Title` and the app name are set early so library calls use `opensloper`
 - Folders are created on first use, not at install time

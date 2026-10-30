@@ -172,6 +172,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Properties"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.settings.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Settings"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.gridcolumns.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.GridColumns"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

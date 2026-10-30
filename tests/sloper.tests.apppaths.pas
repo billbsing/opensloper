@@ -32,6 +32,7 @@ type
     procedure TestXdgEmptyValueFallsBack;
     procedure TestXdgRelativeValueIsIgnored;
     procedure TestFoldersEndWithAppName;
+    procedure TestSettingsFileIsInConfigDir;
   end;
 
 implementation
@@ -66,6 +67,11 @@ begin
   AssertTrue('config', AnsiEndsText('opensloper', TAppPaths.ConfigDir));
   AssertTrue('data', AnsiEndsText('opensloper', TAppPaths.DataDir));
   AssertTrue('documents', AnsiEndsText('opensloper', TAppPaths.DefaultDocumentsDir));
+end;
+
+procedure TTestAppPaths.TestSettingsFileIsInConfigDir;
+begin
+  AssertEquals(ConcatPaths([TAppPaths.ConfigDir, 'settings.json']), TAppPaths.SettingsFile);
 end;
 
 initialization

@@ -17,9 +17,10 @@
 }
 
 // The properties panel: the selected object's name, formulas and role, and
-// what it computes to. Formulas are shown with names; Enter or leaving a
-// field commits it as one undo step, Escape puts it back. The object is held
-// by its ID, since undo and redo replace the pattern's objects.
+// what it computes to, one field to a row with the name on the left and the
+// value on the right. Formulas are shown with names; Enter or leaving a field
+// commits it as one undo step, Escape puts it back. The object is held by its
+// ID, since undo and redo replace the pattern's objects.
 unit Sloper.UI.Properties;
 
 {$mode ObjFPC}{$H+}
@@ -30,27 +31,72 @@ uses
   Classes, SysUtils, Controls, StdCtrls, Forms, Graphics, LCLType, Sloper.Document.PatternDocument;
 
 type
+  // One line of text that cuts itself to the label's width with an ellipsis
+  // and shows the full text as a tooltip when it does
+  TGridLabel = class(TLabel)
+  private
+    FFittedText: string;
+  protected
+    function GetLabelText: string; override;
+    procedure Paint; override;
+  public
+    constructor Create(TheOwner: TComponent); override;
+  end;
+
+  TColumnDragEvent = procedure(Sender: TObject; NewLeft: integer) of object;
+
+  // The draggable strip between the name and value columns
+  TColumnDivider = class(TGraphicControl)
+  private
+    FGrabX: integer;
+    FDragging: boolean;
+    FOnDrag: TColumnDragEvent;
+  protected
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer); override;
+    procedure MouseMove(Shift: TShiftState; X, Y: integer); override;
+    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: integer); override;
+  public
+    constructor Create(TheOwner: TComponent); override;
+    property OnDrag: TColumnDragEvent read FOnDrag write FOnDrag;
+  end;
+
   TPropertiesPanel = class(TScrollBox)
   private
     FDocument: TPatternDocument;
     FKey: string;
     FSelectionCount: integer;
+    FNameShare: double;
     // The fields the controls were built for; a rebuild is needed when they change
     FFieldNames: TStringArray;
-    FTitle: TLabel;
+    FDivider: TColumnDivider;
     FNameEdit: TEdit;
     FRoleBox: TComboBox;
     FEdits: array of TEdit;
-    FResult: TLabel;
+    // Each field's row for a refused entry, hidden until needed; see RefusalRow
+    FRefusals: array of TLabel;
+    FResult: TGridLabel;
     FProblem: TLabel;
+    FFirstRow: TControl;
+    FLastRow: TControl;
     FLastControl: TControl;
     FCommitting: boolean;
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure ClearControls;
+    procedure HangBelowLast(Control: TControl; SpaceAbove: integer);
     procedure Stack(Control: TControl; SpaceAbove: integer);
     function AddLabel(const ACaption: string; SpaceAbove: integer): TLabel;
-    function AddEdit(ATag: integer): TEdit;
+    procedure AddRow(const ACaption: string; Value: TControl; SpaceAbove: integer);
+    function AddTextRow(const ACaption, AText: string; SpaceAbove: integer): TGridLabel;
+    function AddEditRow(const ACaption: string; ATag: integer): TEdit;
+    function ColumnSpace: integer;
+    function MinColumn: integer;
+    procedure PositionDivider;
+    procedure DividerDrag(Sender: TObject; NewLeft: integer);
+    procedure SetNameShare(AShare: double);
+    function RefusalRow(Edit: TEdit): TLabel;
+    procedure ShowRefusal(Edit: TEdit; const Reason: string);
+    procedure ClearRefusal(Edit: TEdit);
     procedure Rebuild;
     procedure RefreshValues;
     function CurrentFieldNames: TStringArray;
@@ -59,12 +105,16 @@ type
     procedure RoleChange(Sender: TObject);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
+  protected
+    procedure Resize; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     // Shows the object with this key alone, or a count when several or none are selected
     procedure ShowSelection(const Keys: TStringArray);
     property Document: TPatternDocument read FDocument write SetDocument;
+    // The part of a row's width given to names; kept between sessions by the main form
+    property NameShare: double read FNameShare write SetNameShare;
   end;
 
 // Caption for a formula field, such as "Start angle" for angle1
@@ -73,13 +123,16 @@ function FieldCaption(const FieldName: string): string;
 resourcestring
   rsPropNothing = 'Nothing selected';
   rsPropMany = '%d objects selected';
+  rsPropType = 'Type';
   rsPropName = 'Name';
   rsPropRole = 'Role';
   rsPropConstruction = 'Construction';
   rsPropOutline = 'Outline';
-  rsPropAt = 'At %s, %s mm';
-  rsPropLength = 'Length %s mm';
-  rsPropValue = 'Value %s';
+  rsPropPosition = 'Position';
+  rsPropPositionValue = '%s, %s mm';
+  rsPropLength = 'Length';
+  rsPropLengthValue = '%s mm';
+  rsPropValue = 'Value';
   rsPropEdit = 'Change %s';
   rsPropRename = 'Rename';
   rsPropChangeRole = 'Change role';
@@ -114,11 +167,16 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drag;
+  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings,
+  Sloper.UI.GridColumns;
 
 const
   Gap = 6;
+  RowGap = 3;
   Indent = 8;
+  // At 96 pixels per inch
+  DividerWidth96 = 8;
+  MinColumn96 = 48;
 
 function FieldCaption(const FieldName: string): string;
 var
@@ -195,12 +253,78 @@ begin
   Result := True;
 end;
 
+{ TGridLabel }
+
+constructor TGridLabel.Create(TheOwner: TComponent);
+begin
+  inherited Create(TheOwner);
+  ShowAccelChar := False;
+  Layout := tlCenter;
+  ShowHint := True;
+end;
+
+function TGridLabel.GetLabelText: string;
+begin
+  if FFittedText <> '' then
+    Result := FFittedText
+  else
+    Result := inherited GetLabelText;
+end;
+
+// Fitted here, where the width and font are final; the fitted text is only
+// for drawing, so the label's preferred size still comes from the full text
+procedure TGridLabel.Paint;
+begin
+  Canvas.Font := Font;
+  FFittedText := FitText(Caption, Width, @Canvas.TextWidth);
+  if FFittedText = Caption then
+    Hint := ''
+  else
+    Hint := Caption;
+  inherited Paint;
+  FFittedText := '';
+end;
+
+{ TColumnDivider }
+
+constructor TColumnDivider.Create(TheOwner: TComponent);
+begin
+  inherited Create(TheOwner);
+  ControlStyle := ControlStyle + [csCaptureMouse];
+  Cursor := crHSplit;
+end;
+
+procedure TColumnDivider.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+begin
+  inherited MouseDown(Button, Shift, X, Y);
+  if Button = mbLeft then
+  begin
+    FDragging := True;
+    FGrabX := X;
+  end;
+end;
+
+procedure TColumnDivider.MouseMove(Shift: TShiftState; X, Y: integer);
+begin
+  inherited MouseMove(Shift, X, Y);
+  if FDragging and Assigned(FOnDrag) then
+    FOnDrag(Self, Left + X - FGrabX);
+end;
+
+procedure TColumnDivider.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+begin
+  inherited MouseUp(Button, Shift, X, Y);
+  if Button = mbLeft then
+    FDragging := False;
+end;
+
 { TPropertiesPanel }
 
 constructor TPropertiesPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   BorderStyle := bsNone;
+  FNameShare := DefaultNameColumnShare;
   HorzScrollBar.Visible := False;
   Rebuild;
 end;
@@ -278,25 +402,23 @@ begin
     Edit.OnExit := nil;
   while ControlCount > 0 do
     Controls[0].Free;
-  FTitle := nil;
+  FDivider := nil;
   FNameEdit := nil;
   FRoleBox := nil;
   FEdits := nil;
+  FRefusals := nil;
   FResult := nil;
   FProblem := nil;
+  FFirstRow := nil;
+  FLastRow := nil;
   FLastControl := nil;
 end;
 
-// Each control hangs below the one before, anchored to the panel's sides, so
-// sizes follow the widgetset's fonts and scaling and the order is explicit
-procedure TPropertiesPanel.Stack(Control: TControl; SpaceAbove: integer);
+// Each control hangs below the one before, so sizes follow the widgetset's
+// fonts and scaling and the order is explicit. A hidden control takes no
+// room: the next one anchors through it.
+procedure TPropertiesPanel.HangBelowLast(Control: TControl; SpaceAbove: integer);
 begin
-  Control.Parent := Self;
-  Control.Anchors := [akLeft, akTop, akRight];
-  Control.AnchorSideLeft.Control := Self;
-  Control.AnchorSideLeft.Side := asrTop;
-  Control.AnchorSideRight.Control := Self;
-  Control.AnchorSideRight.Side := asrBottom;
   if FLastControl = nil then
   begin
     Control.AnchorSideTop.Control := Self;
@@ -307,10 +429,22 @@ begin
     Control.AnchorSideTop.Control := FLastControl;
     Control.AnchorSideTop.Side := asrBottom;
   end;
-  Control.BorderSpacing.Left := Indent;
-  Control.BorderSpacing.Right := Indent;
   Control.BorderSpacing.Top := SpaceAbove;
   FLastControl := Control;
+end;
+
+// A control across both columns
+procedure TPropertiesPanel.Stack(Control: TControl; SpaceAbove: integer);
+begin
+  Control.Parent := Self;
+  Control.Anchors := [akLeft, akTop, akRight];
+  Control.AnchorSideLeft.Control := Self;
+  Control.AnchorSideLeft.Side := asrTop;
+  Control.AnchorSideRight.Control := Self;
+  Control.AnchorSideRight.Side := asrBottom;
+  Control.BorderSpacing.Left := Indent;
+  Control.BorderSpacing.Right := Indent;
+  HangBelowLast(Control, SpaceAbove);
 end;
 
 function TPropertiesPanel.AddLabel(const ACaption: string; SpaceAbove: integer): TLabel;
@@ -322,16 +456,112 @@ begin
   Stack(Result, SpaceAbove);
 end;
 
-function TPropertiesPanel.AddEdit(ATag: integer): TEdit;
+// A name in the left column beside Value in the right; the value sets the
+// row's height and the divider sets where the columns meet
+procedure TPropertiesPanel.AddRow(const ACaption: string; Value: TControl; SpaceAbove: integer);
+var
+  NameLabel: TGridLabel;
+begin
+  Value.Parent := Self;
+  Value.Anchors := [akLeft, akTop, akRight];
+  Value.AnchorSideLeft.Control := FDivider;
+  Value.AnchorSideLeft.Side := asrBottom;
+  Value.AnchorSideRight.Control := Self;
+  Value.AnchorSideRight.Side := asrBottom;
+  Value.BorderSpacing.Right := Indent;
+  HangBelowLast(Value, SpaceAbove);
+  NameLabel := TGridLabel.Create(Self);
+  NameLabel.Caption := ACaption;
+  NameLabel.Parent := Self;
+  NameLabel.Anchors := [akLeft, akTop, akRight, akBottom];
+  NameLabel.AnchorSideLeft.Control := Self;
+  NameLabel.AnchorSideLeft.Side := asrTop;
+  NameLabel.AnchorSideRight.Control := FDivider;
+  NameLabel.AnchorSideRight.Side := asrTop;
+  NameLabel.AnchorSideTop.Control := Value;
+  NameLabel.AnchorSideTop.Side := asrTop;
+  NameLabel.AnchorSideBottom.Control := Value;
+  NameLabel.AnchorSideBottom.Side := asrBottom;
+  NameLabel.BorderSpacing.Left := Indent;
+  if FFirstRow = nil then
+    FFirstRow := Value;
+  FLastRow := Value;
+end;
+
+function TPropertiesPanel.AddTextRow(const ACaption, AText: string; SpaceAbove: integer): TGridLabel;
+begin
+  Result := TGridLabel.Create(Self);
+  Result.Caption := AText;
+  AddRow(ACaption, Result, SpaceAbove);
+end;
+
+// Tag -1 is the name; 0 and up are formula fields
+function TPropertiesPanel.AddEditRow(const ACaption: string; ATag: integer): TEdit;
+var
+  Refusal: TLabel;
 begin
   Result := TEdit.Create(Self);
   Result.Tag := ATag;
   Result.OnKeyDown := @EditKeyDown;
   Result.OnExit := @EditExit;
-  Stack(Result, 2);
+  AddRow(ACaption, Result, RowGap);
+  Refusal := AddLabel('', RowGap);
+  Refusal.Font.Color := clRed;
+  Refusal.Visible := False;
+  FRefusals[ATag + 1] := Refusal;
 end;
 
-// Tag -1 is the name; 0 and up are formula fields
+// The width the two columns share
+function TPropertiesPanel.ColumnSpace: integer;
+begin
+  Result := ClientWidth - 2 * Indent - FDivider.Width;
+end;
+
+function TPropertiesPanel.MinColumn: integer;
+begin
+  Result := Scale96ToForm(MinColumn96);
+end;
+
+procedure TPropertiesPanel.PositionDivider;
+begin
+  if FDivider <> nil then
+    FDivider.Left := Indent + NameColumnWidth(ColumnSpace, MinColumn, FNameShare);
+end;
+
+procedure TPropertiesPanel.DividerDrag(Sender: TObject; NewLeft: integer);
+begin
+  FNameShare := NameShareAt(NewLeft - Indent, ColumnSpace, MinColumn);
+  PositionDivider;
+end;
+
+procedure TPropertiesPanel.SetNameShare(AShare: double);
+begin
+  FNameShare := AShare;
+  PositionDivider;
+end;
+
+procedure TPropertiesPanel.Resize;
+begin
+  inherited Resize;
+  PositionDivider;
+end;
+
+function TPropertiesPanel.RefusalRow(Edit: TEdit): TLabel;
+begin
+  Result := FRefusals[Edit.Tag + 1];
+end;
+
+procedure TPropertiesPanel.ShowRefusal(Edit: TEdit; const Reason: string);
+begin
+  RefusalRow(Edit).Caption := Reason;
+  RefusalRow(Edit).Visible := True;
+end;
+
+procedure TPropertiesPanel.ClearRefusal(Edit: TEdit);
+begin
+  RefusalRow(Edit).Visible := False;
+end;
+
 procedure TPropertiesPanel.Rebuild;
 var
   Node: TEvalNode;
@@ -352,32 +582,40 @@ begin
         AddLabel(rsPropNothing, Gap);
       Exit;
     end;
-    FTitle := AddLabel(TypeCaption(Node), Gap);
-    FTitle.Font.Style := [fsBold];
+    FDivider := TColumnDivider.Create(Self);
+    FDivider.Width := Scale96ToForm(DividerWidth96);
+    FDivider.Parent := Self;
+    FDivider.OnDrag := @DividerDrag;
+    SetLength(FRefusals, Node.FieldCount + 1);
+    AddTextRow(rsPropType, TypeCaption(Node), Gap);
     if (Node is TDraftObject) or (Node is TVariable) then
-    begin
-      AddLabel(rsPropName, Gap);
-      FNameEdit := AddEdit(-1);
-    end;
+      FNameEdit := AddEditRow(rsPropName, -1);
     SetLength(FEdits, Node.FieldCount);
     for Index := 0 to Node.FieldCount - 1 do
-    begin
-      AddLabel(FieldCaption(Node.Fields[Index].Name), Gap);
-      FEdits[Index] := AddEdit(Index);
-    end;
+      FEdits[Index] := AddEditRow(FieldCaption(Node.Fields[Index].Name), Index);
     if Node is TEdgeObject then
     begin
-      AddLabel(rsPropRole, Gap);
       FRoleBox := TComboBox.Create(Self);
       FRoleBox.Style := csDropDownList;
       FRoleBox.Items.Add(rsPropConstruction);
       FRoleBox.Items.Add(rsPropOutline);
       FRoleBox.OnChange := @RoleChange;
-      Stack(FRoleBox, 2);
+      AddRow(rsPropRole, FRoleBox, RowGap);
     end;
-    FResult := AddLabel('', 2 * Gap);
+    if Node is TPointObject then
+      FResult := AddTextRow(rsPropPosition, '', Gap)
+    else if Node is TEdgeObject then
+      FResult := AddTextRow(rsPropLength, '', Gap)
+    else if Node is TVariable then
+      FResult := AddTextRow(rsPropValue, '', Gap);
     FProblem := AddLabel('', Gap);
     FProblem.Font.Color := clRed;
+    FDivider.Anchors := [akLeft, akTop, akBottom];
+    FDivider.AnchorSideTop.Control := FFirstRow;
+    FDivider.AnchorSideTop.Side := asrTop;
+    FDivider.AnchorSideBottom.Control := FLastRow;
+    FDivider.AnchorSideBottom.Side := asrBottom;
+    PositionDivider;
   finally
     EnableAlign;
   end;
@@ -412,24 +650,32 @@ begin
   Node := FDocument.Pattern.FindNode(FKey);
   if Node = nil then
     Exit;
-  // A field being typed in keeps its text
+  // A field being typed in keeps its text, and the reason it was refused
   if (FNameEdit <> nil) and not FNameEdit.Focused then
+  begin
     FNameEdit.Text := OriginalText(FNameEdit);
+    if not FCommitting then
+      ClearRefusal(FNameEdit);
+  end;
   for Edit in FEdits do
     if not Edit.Focused then
+    begin
       Edit.Text := OriginalText(Edit);
+      if not FCommitting then
+        ClearRefusal(Edit);
+    end;
   if FRoleBox <> nil then
     FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
   if FResult <> nil then
     if not (Node is TDraftObject) or not TDraftObject(Node).HasResult then
       FResult.Caption := ''
     else if Node is TPointObject then
-      FResult.Caption := Format(rsPropAt, [RoundedText(TPointObject(Node).Position.X, 1),
+      FResult.Caption := Format(rsPropPositionValue, [RoundedText(TPointObject(Node).Position.X, 1),
         RoundedText(TPointObject(Node).Position.Y, 1)])
     else if Node is TEdgeObject then
-      FResult.Caption := Format(rsPropLength, [RoundedText(TEdgeObject(Node).Length, 1)]);
+      FResult.Caption := Format(rsPropLengthValue, [RoundedText(TEdgeObject(Node).Length, 1)]);
   if (FResult <> nil) and (Node is TVariable) and (Node.State = esValid) then
-    FResult.Caption := Format(rsPropValue, [RoundedText(TVariable(Node).Value, 4)]);
+    FResult.Caption := RoundedText(TVariable(Node).Value, 4);
   if (FProblem <> nil) and not FCommitting then
     if Node.State = esValid then
       FProblem.Caption := ''
@@ -444,8 +690,13 @@ var
   ErrorPos: integer;
   Done: boolean;
 begin
-  if (FDocument = nil) or (FKey = '') or (Edit.Text = OriginalText(Edit)) then
+  if (FDocument = nil) or (FKey = '') then
     Exit;
+  if Edit.Text = OriginalText(Edit) then
+  begin
+    ClearRefusal(Edit);
+    Exit;
+  end;
   Node := FDocument.Pattern.FindNode(FKey);
   if Node = nil then
     Exit;
@@ -472,12 +723,13 @@ begin
   if Done then
   begin
     Edit.Text := OriginalText(Edit);
+    ClearRefusal(Edit);
     RefreshValues;
   end
   else
   begin
     // Keep the text so it can be fixed, with the cursor at the problem
-    FProblem.Caption := Reason;
+    ShowRefusal(Edit, Reason);
     if ErrorPos > 0 then
       Edit.SelStart := ErrorPos - 1;
   end;
@@ -497,7 +749,7 @@ begin
     VK_ESCAPE:
     begin
       Edit.Text := OriginalText(Edit);
-      FProblem.Caption := '';
+      ClearRefusal(Edit);
       Key := 0;
     end;
   end;

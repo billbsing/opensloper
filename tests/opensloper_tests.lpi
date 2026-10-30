@@ -146,6 +146,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Snap"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.gridcolumns.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.GridColumns"/>
+      </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.settings.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Settings"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

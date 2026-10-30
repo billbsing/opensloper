@@ -26,7 +26,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
-  Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties;
+  Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties;
 
 type
 
@@ -79,6 +79,7 @@ type
     procedure MenuHelpAboutClick(Sender: TObject);
   private
     FDocument: TPatternDocument;
+    FSettings: TAppSettings;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
     FSplitter: TSplitter;
@@ -86,6 +87,8 @@ type
     FToolButtons: array[TCanvasTool] of TToolButton;
     FToolItems: array[TCanvasTool] of TMenuItem;
     FShown: boolean;
+    procedure LoadSettings;
+    procedure SaveSettings;
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
@@ -214,6 +217,7 @@ begin
   FProperties.Align := alRight;
   FProperties.Width := Scale96ToForm(280);
   FProperties.Document := FDocument;
+  LoadSettings;
   FSplitter := TSplitter.Create(Self);
   FSplitter.Parent := Self;
   FSplitter.Align := alRight;
@@ -232,6 +236,26 @@ begin
   UpdateTitle;
   UpdateMenus;
   UpdateStatus;
+end;
+
+// Settings only arrange the window, so a problem with the file isn't worth
+// stopping the user for: the defaults stand and the file is rewritten on exit
+procedure TMainForm.LoadSettings;
+var
+  Err: string;
+begin
+  FSettings := TAppSettings.Create;
+  FSettings.LoadFromFile(TAppPaths.SettingsFile, Err);
+  FProperties.NameShare := FSettings.NameColumnShare;
+end;
+
+procedure TMainForm.SaveSettings;
+var
+  Err: string;
+begin
+  FSettings.NameColumnShare := FProperties.NameShare;
+  TAppPaths.ForceDir(TAppPaths.ConfigDir);
+  FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
 end;
 
 // The toolbar and Tools menu; each item's Tag is its TCanvasTool
@@ -304,6 +328,8 @@ end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
+  SaveSettings;
+  FreeAndNil(FSettings);
   // The canvas and panel listen to the document, so they let go first
   FCanvas.Document := nil;
   FProperties.Document := nil;

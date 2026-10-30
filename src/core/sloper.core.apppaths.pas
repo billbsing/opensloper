@@ -32,6 +32,7 @@ type
     class function StateDir: string;
     class function CacheDir: string;
     class function DefaultDocumentsDir: string;
+    class function SettingsFile: string;
     // True when portable.ini sits beside the executable
     class function IsPortable: boolean;
     // Creates Dir if missing and returns it; folders are made on first use
@@ -47,6 +48,7 @@ uses
 
 const
   PortableFileName = 'portable.ini';
+  SettingsFileName = 'settings.json';
 
 function HomeDir: string;
 begin
@@ -144,6 +146,11 @@ begin
   if IsPortable then
     Exit(PortableDir('documents'));
   Result := ConcatPaths([HomeDir, 'Documents', AppName]);
+end;
+
+class function TAppPaths.SettingsFile: string;
+begin
+  Result := ConcatPaths([ConfigDir, SettingsFileName]);
 end;
 
 class function TAppPaths.IsPortable: boolean;
