@@ -4,7 +4,7 @@ OpenSloper is a parametric sewing pattern drafting application written in Lazaru
 
 ## Status
 
-Early development: project skeleton, geometry basics and the test suite are in place. See `documents/OpenSloper-Design-Document.md` for the design and roadmap, and `documents/known-issues.md` for open problems.
+Early development: project skeleton, geometry basics and the test suite are in place. See `documents/opensloper-design-document.md` for the design and roadmap, and `documents/known-issues.md` for open problems.
 
 ## Building
 

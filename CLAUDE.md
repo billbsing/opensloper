@@ -2,7 +2,7 @@
 
 Parametric sewing pattern drafting application in Lazarus / Free Pascal. GPLv3 or later.
 
-The full design is in `documents/OpenSloper-Design-Document.md`. Read it before making architectural changes, and keep it up to date when a design decision changes.
+The full design is in `documents/opensloper-design-document.md`. Read it before making architectural changes, and keep it up to date when a design decision changes.
 
 ## Layout
 
