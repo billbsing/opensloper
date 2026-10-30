@@ -57,6 +57,7 @@ type
     procedure TestCycleThroughObjectsRefused;
     procedure TestSelfReferenceRefused;
     procedure TestFieldErrorRefusesAdd;
+    procedure TestIdsSharedAndNeverReused;
     procedure TestFieldNameInEvaluationError;
     procedure TestTypeChecks;
     procedure TestUnknownField;
@@ -115,8 +116,8 @@ begin
   B := FPattern.AddFreePoint('', '0', '0');
   AssertEquals('A', A.Name);
   AssertEquals('B', B.Name);
-  AssertEquals('p1', A.Key);
-  AssertEquals('p2', B.Key);
+  AssertEquals('1', A.Key);
+  AssertEquals('2', B.Key);
   AssertEquals('C', FPattern.AddFreePoint('', '0', '0').Name);
   FPattern.Evaluate;
   AssertAt('A', A, 10, -5);
@@ -155,7 +156,7 @@ var
 begin
   Basic(A, B, L);
   AssertEquals('Line_A_B', L.Name);
-  AssertEquals('l1', L.Key);
+  AssertEquals('3', L.Key);
   FPattern.Evaluate;
   AssertTrue(L.State = esValid);
   AssertNear('length', 100, L.PropertyValue('length'));
@@ -171,7 +172,7 @@ begin
   Basic(A, B, L);
   D := TOffsetPoint(Check(FPattern.AddOffsetPoint('D', A.Key, omPolar,
     'Line_A_B.length / 2', 'Line_A_B.angle + 90')));
-  AssertEquals('stored', '{l1}.length / 2', D.Field('length').StoredText);
+  AssertEquals('stored', '{3}.length / 2', D.Field('length').StoredText);
   FPattern.Evaluate;
   AssertAt('D', D, 0, 50);
 end;
@@ -353,7 +354,20 @@ begin
   AssertEquals('field', 'y', FPattern.LastErrorField);
   AssertEquals(rsFormulaEndsTooSoon, FPattern.LastError);
   AssertEquals('nothing added', 0, FPattern.ObjectCount);
-  AssertEquals('ID not used up', 'p1', FPattern.AddFreePoint('', '0', '0').Key);
+  AssertEquals('ID not used up', '1', FPattern.AddFreePoint('', '0', '0').Key);
+end;
+
+// Variables and objects share one counter, and a deleted object's ID stays retired
+procedure TTestPattern.TestIdsSharedAndNeverReused;
+var
+  A: TFreePoint;
+begin
+  A := FPattern.AddFreePoint('', '0', '0');
+  AssertEquals('object', '1', A.Key);
+  AssertEquals('variable', '2', FPattern.AddVariable('ease', '20').Key);
+  AssertTrue(FPattern.Delete(A));
+  AssertEquals('not reused', '3', FPattern.AddFreePoint('', '0', '0').Key);
+  AssertEquals(4, FPattern.NextId);
 end;
 
 procedure TTestPattern.TestFieldNameInEvaluationError;
@@ -374,8 +388,8 @@ begin
   Basic(A, B, L);
   AssertNull('line as base', FPattern.AddOffsetPoint('X', L.Key, omPolar, '1', '0'));
   AssertEquals(Format(rsDraftNotAPoint, ['Line_A_B']), FPattern.LastError);
-  AssertNull('unknown base', FPattern.AddOffsetPoint('X', 'p99', omPolar, '1', '0'));
-  AssertEquals(Format(rsPatternUnknownObject, ['p99']), FPattern.LastError);
+  AssertNull('unknown base', FPattern.AddOffsetPoint('X', '99', omPolar, '1', '0'));
+  AssertEquals(Format(rsPatternUnknownObject, ['99']), FPattern.LastError);
   AssertNull('point as edge', FPattern.AddAlongEdgePoint('X', A.Key, False, amLength, '1'));
   AssertEquals(Format(rsDraftNotAnEdge, ['A']), FPattern.LastError);
   AssertNull('line to a line', FPattern.AddLine(A.Key, L.Key));

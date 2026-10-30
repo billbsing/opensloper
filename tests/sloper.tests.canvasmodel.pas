@@ -70,8 +70,8 @@ begin
   FPattern.AddFreePoint('A', '0', '0');
   FPattern.AddFreePoint('B', '100', '0');
   FPattern.AddFreePoint('C', '100', '50');
-  FPattern.AddLine('p1', 'p2');
-  FPattern.AddCurve('p1', 'p3', '270', '60', '270', '60');
+  FPattern.AddLine('1', '2');
+  FPattern.AddCurve('1', '3', '270', '60', '270', '60');
 end;
 
 procedure TTestCanvasModel.TestYIsFlipped;
@@ -184,9 +184,9 @@ var
 begin
   Build;
   FPattern.Evaluate;
-  Line := EdgePolyline(TEdgeObject(FPattern.FindNode('l1')), 0.1);
+  Line := EdgePolyline(TEdgeObject(FPattern.FindNode('4')), 0.1);
   AssertEquals('a line is its two ends', 2, Length(Line));
-  Curve := EdgePolyline(TEdgeObject(FPattern.FindNode('c1')), 0.1);
+  Curve := EdgePolyline(TEdgeObject(FPattern.FindNode('5')), 0.1);
   AssertTrue('a curve is flattened', Length(Curve) > 4);
   AssertPointsNear('starts at A', Vec2(0, 0), Curve[0]);
   AssertPointsNear('ends at C', Vec2(100, 50), Curve[High(Curve)]);

@@ -19,7 +19,7 @@
 // Formulas: parsing, references, evaluation and name/ID conversion.
 
 // Users type names (Line_A_B.length + #ease_waist + @waist / 4). Parse
-// resolves them and keeps the stored ID form ({l1}.length + {v1} + @waist / 4),
+// resolves them and keeps the stored ID form ({12}.length + {3} + @waist / 4),
 // which survives renames. DisplayText turns IDs back into current names.
 // Measurements are referred to by their stable key in both forms.
 
@@ -121,7 +121,7 @@ resourcestring
   rsFormulaMissingHash = 'Unknown name "%s"; for the variable write "#%s"';
   rsFormulaNeedsProperty = '"%s" needs a property, such as "%s.x" or "%s.length"';
   rsFormulaUnknownProperty = '"%s" has no property "%s"';
-  rsFormulaNamesNotIds = 'Expected an ID such as {p1}, not a name';
+  rsFormulaNamesNotIds = 'Expected an ID such as {12}, not a name';
   rsFormulaExpectedBracket = 'Expected "(" after %s';
   rsFormulaExpectedValue = 'Expected a number, a name or "("';
   rsFormulaExpectedClose = 'Expected ")"';

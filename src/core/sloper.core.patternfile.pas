@@ -33,7 +33,9 @@ const
   PatternFormat = 'pattern';
   PatternVersion = 1;
 
-function SavePatternToText(Pattern: TPattern): string;
+// WithNextId False leaves out the ID counter, for undo snapshots, which
+// restore definitions but never the counter
+function SavePatternToText(Pattern: TPattern; WithNextId: boolean = True): string;
 // Replaces the pattern's contents. On failure the pattern is left empty and
 // ErrorMessage says why. A formula that does not parse is kept as text and
 // shows as an error when evaluated. Call Evaluate afterwards.
@@ -51,17 +53,18 @@ resourcestring
   rsPatternFileUnits = 'Units "%s" are not supported; use mm';
   rsPatternFileList = 'The file has no valid "%s" list';
   rsPatternFileBadId = 'Item %d of "%s" has a missing, invalid or repeated ID';
+  rsPatternFileBadNextId = '"nextId" must be a whole number above every ID in the file';
   rsPatternVariableMissing = 'Variable %s has no valid "%s"';
   rsPatternVariableBadName = 'Variable %s: %s';
   rsPatternObjectMissing = 'Object %s has no valid "%s"';
   rsPatternObjectUnknownType = 'Object %s has an unknown type "%s"';
-  rsPatternObjectNotBefore = 'Object %s uses %s, which is not defined before it';
+  rsPatternObjectNotBefore = 'Object %s uses object %s, which is not defined before it';
   rsPatternObjectProblem = 'Object %s: %s';
 
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.Evaluator, Sloper.Core.Variables,
+  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables,
   Sloper.Core.Draft;
 
 const
@@ -135,10 +138,16 @@ end;
 
 { Saving }
 
+// IDs are kept as text in the model and written as JSON numbers
+function JSONId(const Key: string): TJSONData;
+begin
+  Result := TJSONIntegerNumber.Create(StrToInt(Key));
+end;
+
 function SaveVariable(Variable: TVariable): TJSONObject;
 begin
   Result := TJSONObject.Create;
-  Result.Add('id', Variable.Key);
+  Result.Add('id', JSONId(Variable.Key));
   Result.Add('name', Variable.Name);
   Result.Add('formula', Variable.Formula.StoredText);
   Result.Add('description', Variable.Description);
@@ -155,7 +164,7 @@ begin
   begin
     NodeName := 'node' + IntToStr(Index + 1);
     NodeItem := TJSONObject.Create;
-    NodeItem.Add('point', Path.NodeKeys[Index]);
+    NodeItem.Add('point', JSONId(Path.NodeKeys[Index]));
     NodeItem.Add('angle', Path.Field(NodeName + '.angle').StoredText);
     if Index > 0 then
       NodeItem.Add('lengthIn', Path.Field(NodeName + '.lengthIn').StoredText);
@@ -178,7 +187,7 @@ var
   Part: TSplitPart;
 begin
   Result := TJSONObject.Create;
-  Result.Add('id', DraftObject.Key);
+  Result.Add('id', JSONId(DraftObject.Key));
   Result.Add('type', ObjectTypeName(DraftObject));
   // A derived name (Line_A_B) is recomputed on loading
   if not ((DraftObject is TEdgeObject) and TEdgeObject(DraftObject).NameIsDerived) then
@@ -187,21 +196,21 @@ begin
   if DraftObject is TOffsetPoint then
   begin
     Offset := TOffsetPoint(DraftObject);
-    Result.Add('base', Offset.Base);
+    Result.Add('base', JSONId(Offset.Base));
     Result.Add('mode', OffsetModeNames[Offset.Mode]);
   end
   else if DraftObject is TAlongEdgePoint then
   begin
     Along := TAlongEdgePoint(DraftObject);
-    Result.Add('edge', Along.Edge);
+    Result.Add('edge', JSONId(Along.Edge));
     Result.Add('from', EdgeEndNames[Along.FromEnd]);
     Result.Add('mode', AlongModeNames[Along.Mode]);
   end
   else if DraftObject is TIntersectPoint then
   begin
     Intersect := TIntersectPoint(DraftObject);
-    Result.Add('edgeA', Intersect.EdgeA);
-    Result.Add('edgeB', Intersect.EdgeB);
+    Result.Add('edgeA', JSONId(Intersect.EdgeA));
+    Result.Add('edgeB', JSONId(Intersect.EdgeB));
     Result.Add('extendA', Intersect.ExtendA);
     Result.Add('extendB', Intersect.ExtendB);
     Result.Add('pick', Intersect.Pick);
@@ -209,30 +218,30 @@ begin
   else if DraftObject is TCircleEdgePoint then
   begin
     Circle := TCircleEdgePoint(DraftObject);
-    Result.Add('centre', Circle.Centre);
-    Result.Add('edge', Circle.Edge);
+    Result.Add('centre', JSONId(Circle.Centre));
+    Result.Add('edge', JSONId(Circle.Edge));
     Result.Add('extend', Circle.Extend);
     Result.Add('pick', Circle.Pick);
   end
   else if DraftObject is TProjectPoint then
   begin
     Project := TProjectPoint(DraftObject);
-    Result.Add('point', Project.Source);
-    Result.Add('edge', Project.Edge);
+    Result.Add('point', JSONId(Project.Source));
+    Result.Add('edge', JSONId(Project.Edge));
     Result.Add('direction', DirectionNames[Project.Direction]);
     Result.Add('extend', Project.Extend);
   end
   else if DraftObject is TSplitPart then
   begin
     Part := TSplitPart(DraftObject);
-    Result.Add('edge', Part.Source);
-    Result.Add('point', Part.Point);
+    Result.Add('edge', JSONId(Part.Source));
+    Result.Add('point', JSONId(Part.Point));
     Result.Add('part', Part.Part);
   end
   else if (DraftObject is TLineObject) or (DraftObject is TCurveObject) then
   begin
-    Result.Add('start', TEdgeObject(DraftObject).StartKey);
-    Result.Add('end', TEdgeObject(DraftObject).EndKey);
+    Result.Add('start', JSONId(TEdgeObject(DraftObject).StartKey));
+    Result.Add('end', JSONId(TEdgeObject(DraftObject).EndKey));
   end;
 
   if DraftObject is TCurvePathObject then
@@ -245,7 +254,7 @@ begin
     Result.Add('role', RoleNames[TEdgeObject(DraftObject).Role]);
 end;
 
-function SavePatternToText(Pattern: TPattern): string;
+function SavePatternToText(Pattern: TPattern; WithNextId: boolean): string;
 var
   Root: TJSONObject;
   List: TJSONArray;
@@ -258,6 +267,8 @@ begin
     Root.Add('units', 'mm');
     Root.Add('notes', Pattern.Notes);
     Root.Add('measurementFile', Pattern.MeasurementFile);
+    if WithNextId then
+      Root.Add('nextId', Pattern.NextId);
     List := TJSONArray.Create;
     Root.Add('variables', List);
     for Index := 0 to Pattern.VariableCount - 1 do
@@ -309,9 +320,12 @@ function TPatternLoader.ReadInput(Item: TJSONObject; const AName: string; WantEd
   out Key: string): boolean;
 var
   Node: TEvalNode;
+  Id: integer;
 begin
-  if not GetJSONString(Item, AName, Key) then
+  Key := '';
+  if not GetJSONInteger(Item, AName, Id) or (Id < 1) then
     Exit(Missing(AName));
+  Key := IntToStr(Id);
   Node := FPattern.FindNode(Key);
   if Node = nil then
     Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
@@ -378,9 +392,16 @@ begin
   Result := True;
 end;
 
+// A positive integer not used by anything loaded so far
 function IdIsFree(Pattern: TPattern; Item: TJSONObject; out Id: string): boolean;
+var
+  Value: integer;
 begin
-  Result := GetJSONString(Item, 'id', Id) and IsValidName(Id) and (Pattern.FindNode(Id) = nil);
+  Id := '';
+  if not GetJSONInteger(Item, 'id', Value) or (Value < 1) then
+    Exit(False);
+  Id := IntToStr(Value);
+  Result := Pattern.FindNode(Id) = nil;
 end;
 
 function TPatternLoader.LoadVariables(Data: TJSONData): boolean;
@@ -607,7 +628,7 @@ function TPatternLoader.Load(const Text: string): boolean;
 var
   Root: TJSONObject;
   TextValue: string;
-  Version: integer;
+  Version, NextId: integer;
 begin
   FPattern.Clear;
   if not ParseJSONObject(Text, Root, FError) then
@@ -621,6 +642,14 @@ begin
       Exit(Fail(Format(rsPatternFileUnits, [TextValue])));
     if not LoadVariables(Root.Find('variables')) or not LoadObjects(Root.Find('objects')) then
       Exit(False);
+    // Loading has put NextId above every ID; a saved counter may be higher,
+    // because deleted IDs stay retired. Hand-written files may leave it out.
+    if Root.Find('nextId') <> nil then
+    begin
+      if not GetJSONInteger(Root, 'nextId', NextId) or (NextId < FPattern.NextId) then
+        Exit(Fail(rsPatternFileBadNextId));
+      FPattern.NextId := NextId;
+    end;
     GetJSONString(Root, 'notes', FPattern.Notes);
     GetJSONString(Root, 'measurementFile', FPattern.MeasurementFile);
     FPattern.UpdateDerivedNames;

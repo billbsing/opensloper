@@ -570,7 +570,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 - Each object has `id`, `type`, `name` and `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
-- Loading checks IDs (positive integers, unique across drafts, layers, variables and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object (`Line_A_B (6) uses object 9, which is not defined before it`), leaving the pattern empty.
+- Loading checks IDs (positive integers, unique across drafts, layers, variables and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
 
 | `type` | Members besides `id`, `type`, `name` |
 | --- | --- |

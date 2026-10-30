@@ -105,7 +105,7 @@ end;
 function ReportNode(Node: TEvalNode; const AName: string): TJSONObject;
 begin
   Result := TJSONObject.Create;
-  Result.Add('id', Node.Key);
+  Result.Add('id', StrToInt(Node.Key));
   Result.Add('name', AName);
   Result.Add('state', StateName(Node.State));
   if Node.State <> esValid then

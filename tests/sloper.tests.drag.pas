@@ -104,7 +104,7 @@ var
   B: TPointObject;
 begin
   Pt('A', '10', '10');
-  B := TPointObject(Check(FPattern.AddOffsetPoint('B', 'p1', omPolar, '5', '0')));
+  B := TPointObject(Check(FPattern.AddOffsetPoint('B', '1', omPolar, '5', '0')));
   FPattern.Evaluate;
   Drag(B, 40, 50);
   AssertEquals('length', '50', FPattern.FormulaText(B, 'length'));
@@ -116,7 +116,7 @@ var
   B: TPointObject;
 begin
   Pt('A', '10', '10');
-  B := TPointObject(Check(FPattern.AddOffsetPoint('B', 'p1', omCartesian, '5', '0')));
+  B := TPointObject(Check(FPattern.AddOffsetPoint('B', '1', omCartesian, '5', '0')));
   FPattern.Evaluate;
   Drag(B, 40, -5);
   AssertEquals('dx', '30', FPattern.FormulaText(B, 'dx'));
@@ -131,7 +131,7 @@ var
 begin
   Pt('A', '0', '0');
   Pt('B', '200', '0');
-  Edge := TLineObject(Check(FPattern.AddLine('p1', 'p2')));
+  Edge := TLineObject(Check(FPattern.AddLine('1', '2')));
   FromStart := TPointObject(Check(FPattern.AddAlongEdgePoint('C', Edge.Key, False, amLength, '10')));
   FromEnd := TPointObject(Check(FPattern.AddAlongEdgePoint('D', Edge.Key, True, amLength, '10')));
   Ratio := TPointObject(Check(FPattern.AddAlongEdgePoint('E', Edge.Key, False, amRatio, '0.1')));
@@ -160,7 +160,7 @@ var
   Err: string;
 begin
   Pt('A', '0', '0');
-  B := TPointObject(Check(FPattern.AddOffsetPoint('B', 'p1', omPolar, '@waist / 4', '0')));
+  B := TPointObject(Check(FPattern.AddOffsetPoint('B', '1', omPolar, '@waist / 4', '0')));
   FPattern.Evaluate;
   AssertFalse(CanDrag(B, Err));
   AssertEquals(Format(rsDragFormula, ['B']), Err);
@@ -177,9 +177,9 @@ begin
   Pt('B', '10', '10');
   Pt('C', '0', '10');
   Pt('D', '10', '0');
-  Check(FPattern.AddLine('p1', 'p2'));
-  Check(FPattern.AddLine('p3', 'p4'));
-  Crossing := TPointObject(Check(FPattern.AddIntersectPoint('X', 'l1', 'l2', False, False, 1)));
+  Check(FPattern.AddLine('1', '2'));
+  Check(FPattern.AddLine('3', '4'));
+  Crossing := TPointObject(Check(FPattern.AddIntersectPoint('X', '5', '6', False, False, 1)));
   AssertFalse(CanDrag(Crossing, Err));
   AssertEquals(Format(rsDragPlaced, ['X']), Err);
 end;

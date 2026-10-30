@@ -6,186 +6,186 @@
   "measurementFile": "skirt-small.slm",
   "variables": [
     {
-      "id": "v1",
+      "id": 1,
       "name": "hip_ease",
       "formula": "40",
       "description": "Total ease at the hip"
     },
     {
-      "id": "v2",
+      "id": 2,
       "name": "waist_ease",
       "formula": "10",
       "description": "Total ease at the waist"
     },
     {
-      "id": "v3",
+      "id": 3,
       "name": "suppression",
-      "formula": "(@hip + {v1} - @waist - {v2}) / 2",
+      "formula": "(@hip + {1} - @waist - {2}) / 2",
       "description": "Waist shaping for the half skirt: side seam, back dart and front dart"
     },
     {
-      "id": "v4",
+      "id": 4,
       "name": "side_take",
-      "formula": "{v3} / 4",
+      "formula": "{3} / 4",
       "description": "Taken in at the side, on each panel"
     },
     {
-      "id": "v5",
+      "id": 5,
       "name": "back_dart",
-      "formula": "{v3} * 0.3",
+      "formula": "{3} * 0.3",
       "description": "Back dart width"
     },
     {
-      "id": "v6",
+      "id": 6,
       "name": "front_dart",
-      "formula": "{v3} * 0.2",
+      "formula": "{3} * 0.2",
       "description": "Front dart width"
     }
   ],
   "objects": [
     {
-      "id": "p1",
+      "id": 7,
       "type": "freePoint",
       "name": "A",
       "x": "0",
       "y": "0"
     },
     {
-      "id": "p2",
+      "id": 8,
       "type": "offsetPoint",
       "name": "B",
-      "base": "p1",
+      "base": 7,
       "mode": "polar",
       "length": "@waist_to_hip",
       "angle": "270"
     },
     {
-      "id": "p3",
+      "id": 9,
       "type": "offsetPoint",
       "name": "C",
-      "base": "p1",
+      "base": 7,
       "mode": "polar",
       "length": "@skirt_length",
       "angle": "270"
     },
     {
-      "id": "p4",
+      "id": 10,
       "type": "offsetPoint",
       "name": "D",
-      "base": "p1",
+      "base": 7,
       "mode": "polar",
-      "length": "@hip / 2 + {v1} / 2",
+      "length": "@hip / 2 + {1} / 2",
       "angle": "0"
     },
     {
-      "id": "l1",
+      "id": 11,
       "type": "line",
       "name": "Waist_line",
-      "start": "p1",
-      "end": "p4",
+      "start": 7,
+      "end": 10,
       "role": "construction"
     },
     {
-      "id": "p5",
+      "id": 12,
       "type": "offsetPoint",
       "name": "E",
-      "base": "p2",
+      "base": 8,
       "mode": "polar",
-      "length": "{l1}.length",
+      "length": "{11}.length",
       "angle": "0"
     },
     {
-      "id": "l2",
+      "id": 13,
       "type": "line",
       "name": "Hip_line",
-      "start": "p2",
-      "end": "p5",
+      "start": 8,
+      "end": 12,
       "role": "construction"
     },
     {
-      "id": "p6",
+      "id": 14,
       "type": "offsetPoint",
       "name": "F",
-      "base": "p3",
+      "base": 9,
       "mode": "polar",
-      "length": "{l1}.length",
+      "length": "{11}.length",
       "angle": "0"
     },
     {
-      "id": "l3",
+      "id": 15,
       "type": "line",
       "name": "Hem",
-      "start": "p3",
-      "end": "p6",
+      "start": 9,
+      "end": 14,
       "role": "outline"
     },
     {
-      "id": "l4",
+      "id": 16,
       "type": "line",
       "name": "Centre_back",
-      "start": "p1",
-      "end": "p3",
+      "start": 7,
+      "end": 9,
       "role": "outline"
     },
     {
-      "id": "l5",
+      "id": 17,
       "type": "line",
       "name": "Centre_front",
-      "start": "p4",
-      "end": "p6",
+      "start": 10,
+      "end": 14,
       "role": "outline"
     },
     {
-      "id": "p7",
+      "id": 18,
       "type": "alongEdgePoint",
       "name": "G",
-      "edge": "l2",
+      "edge": 13,
       "from": "start",
       "mode": "length",
-      "value": "{l2}.length / 2 - 10"
+      "value": "{13}.length / 2 - 10"
     },
     {
-      "id": "p8",
+      "id": 19,
       "type": "projectPoint",
       "name": "H",
-      "point": "p7",
-      "edge": "l1",
+      "point": 18,
+      "edge": 11,
       "direction": "perpendicular",
       "extend": false
     },
     {
-      "id": "p9",
+      "id": 20,
       "type": "projectPoint",
       "name": "J",
-      "point": "p7",
-      "edge": "l3",
+      "point": 18,
+      "edge": 15,
       "direction": "perpendicular",
       "extend": false
     },
     {
-      "id": "p10",
+      "id": 21,
       "type": "offsetPoint",
       "name": "L",
-      "base": "p8",
+      "base": 19,
       "mode": "cartesian",
-      "dx": "-{v4}",
+      "dx": "-{4}",
       "dy": "12"
     },
     {
-      "id": "p11",
+      "id": 22,
       "type": "offsetPoint",
       "name": "M",
-      "base": "p8",
+      "base": 19,
       "mode": "cartesian",
-      "dx": "{v4}",
+      "dx": "{4}",
       "dy": "12"
     },
     {
-      "id": "c1",
+      "id": 23,
       "type": "curve",
       "name": "Back_waist",
-      "start": "p1",
-      "end": "p10",
+      "start": 7,
+      "end": 21,
       "angle1": "0",
       "length1": "60",
       "angle2": "183",
@@ -193,11 +193,11 @@
       "role": "construction"
     },
     {
-      "id": "c2",
+      "id": 24,
       "type": "curve",
       "name": "Front_waist",
-      "start": "p4",
-      "end": "p11",
+      "start": 10,
+      "end": 22,
       "angle1": "180",
       "length1": "60",
       "angle2": "357",
@@ -205,235 +205,235 @@
       "role": "construction"
     },
     {
-      "id": "p12",
+      "id": 25,
       "type": "alongEdgePoint",
       "name": "N",
-      "edge": "c1",
+      "edge": 23,
       "from": "start",
       "mode": "ratio",
       "value": "0.5"
     },
     {
-      "id": "p13",
+      "id": 26,
       "type": "offsetPoint",
       "name": "O",
-      "base": "p12",
+      "base": 25,
       "mode": "polar",
       "length": "140",
       "angle": "270"
     },
     {
-      "id": "p14",
+      "id": 27,
       "type": "circleEdgePoint",
       "name": "P",
-      "centre": "p12",
-      "edge": "c1",
+      "centre": 25,
+      "edge": 23,
       "extend": false,
       "pick": 1,
-      "radius": "{v5} / 2"
+      "radius": "{5} / 2"
     },
     {
-      "id": "p15",
+      "id": 28,
       "type": "circleEdgePoint",
       "name": "Q",
-      "centre": "p12",
-      "edge": "c1",
+      "centre": 25,
+      "edge": 23,
       "extend": false,
       "pick": 2,
-      "radius": "{v5} / 2"
+      "radius": "{5} / 2"
     },
     {
-      "id": "l6",
+      "id": 29,
       "type": "line",
-      "start": "p14",
-      "end": "p13",
+      "start": 27,
+      "end": 26,
       "role": "outline"
     },
     {
-      "id": "l7",
+      "id": 30,
       "type": "line",
-      "start": "p15",
-      "end": "p13",
+      "start": 28,
+      "end": 26,
       "role": "outline"
     },
     {
-      "id": "c3",
+      "id": 31,
       "type": "splitPart",
-      "edge": "c1",
-      "point": "p14",
+      "edge": 23,
+      "point": 27,
       "part": 1,
       "role": "outline"
     },
     {
-      "id": "c4",
+      "id": 32,
       "type": "splitPart",
-      "edge": "c1",
-      "point": "p14",
+      "edge": 23,
+      "point": 27,
       "part": 2,
       "role": "construction"
     },
     {
-      "id": "c5",
+      "id": 33,
       "type": "splitPart",
-      "edge": "c4",
-      "point": "p15",
+      "edge": 32,
+      "point": 28,
       "part": 1,
       "role": "construction"
     },
     {
-      "id": "c6",
+      "id": 34,
       "type": "splitPart",
-      "edge": "c4",
-      "point": "p15",
+      "edge": 32,
+      "point": 28,
       "part": 2,
       "role": "outline"
     },
     {
-      "id": "p16",
+      "id": 35,
       "type": "alongEdgePoint",
       "name": "S",
-      "edge": "c2",
+      "edge": 24,
       "from": "end",
       "mode": "length",
-      "value": "{c2}.length / 2"
+      "value": "{24}.length / 2"
     },
     {
-      "id": "p17",
+      "id": 36,
       "type": "offsetPoint",
       "name": "S2",
-      "base": "p16",
+      "base": 35,
       "mode": "cartesian",
       "dx": "0",
       "dy": "-10"
     },
     {
-      "id": "l8",
+      "id": 37,
       "type": "line",
       "name": "Front_dart_centre",
-      "start": "p16",
-      "end": "p17",
+      "start": 35,
+      "end": 36,
       "role": "construction"
     },
     {
-      "id": "p18",
+      "id": 38,
       "type": "offsetPoint",
       "name": "T",
-      "base": "p2",
+      "base": 8,
       "mode": "cartesian",
       "dx": "0",
       "dy": "90"
     },
     {
-      "id": "p19",
+      "id": 39,
       "type": "offsetPoint",
       "name": "U",
-      "base": "p18",
+      "base": 38,
       "mode": "polar",
-      "length": "{l1}.length",
+      "length": "{11}.length",
       "angle": "0"
     },
     {
-      "id": "l9",
+      "id": 40,
       "type": "line",
       "name": "Front_dart_level",
-      "start": "p18",
-      "end": "p19",
+      "start": 38,
+      "end": 39,
       "role": "construction"
     },
     {
-      "id": "p20",
+      "id": 41,
       "type": "intersectPoint",
       "name": "R",
-      "edgeA": "l8",
-      "edgeB": "l9",
+      "edgeA": 37,
+      "edgeB": 40,
       "extendA": true,
       "extendB": false,
       "pick": 1
     },
     {
-      "id": "p21",
+      "id": 42,
       "type": "circleEdgePoint",
       "name": "V",
-      "centre": "p16",
-      "edge": "c2",
+      "centre": 35,
+      "edge": 24,
       "extend": false,
       "pick": 1,
-      "radius": "{v6} / 2"
+      "radius": "{6} / 2"
     },
     {
-      "id": "p22",
+      "id": 43,
       "type": "circleEdgePoint",
       "name": "W",
-      "centre": "p16",
-      "edge": "c2",
+      "centre": 35,
+      "edge": 24,
       "extend": false,
       "pick": 2,
-      "radius": "{v6} / 2"
+      "radius": "{6} / 2"
     },
     {
-      "id": "l10",
+      "id": 44,
       "type": "line",
-      "start": "p21",
-      "end": "p20",
+      "start": 42,
+      "end": 41,
       "role": "outline"
     },
     {
-      "id": "l11",
+      "id": 45,
       "type": "line",
-      "start": "p22",
-      "end": "p20",
+      "start": 43,
+      "end": 41,
       "role": "outline"
     },
     {
-      "id": "c7",
+      "id": 46,
       "type": "splitPart",
-      "edge": "c2",
-      "point": "p21",
+      "edge": 24,
+      "point": 42,
       "part": 1,
       "role": "outline"
     },
     {
-      "id": "c8",
+      "id": 47,
       "type": "splitPart",
-      "edge": "c2",
-      "point": "p21",
+      "edge": 24,
+      "point": 42,
       "part": 2,
       "role": "construction"
     },
     {
-      "id": "c9",
+      "id": 48,
       "type": "splitPart",
-      "edge": "c8",
-      "point": "p22",
+      "edge": 47,
+      "point": 43,
       "part": 1,
       "role": "construction"
     },
     {
-      "id": "c10",
+      "id": 49,
       "type": "splitPart",
-      "edge": "c8",
-      "point": "p22",
+      "edge": 47,
+      "point": 43,
       "part": 2,
       "role": "outline"
     },
     {
-      "id": "c11",
+      "id": 50,
       "type": "curvePath",
       "name": "Back_side",
       "nodes": [
         {
-          "point": "p10",
+          "point": 21,
           "angle": "275",
           "lengthOut": "@waist_to_hip / 3"
         },
         {
-          "point": "p7",
+          "point": 18,
           "angle": "270",
           "lengthIn": "@waist_to_hip / 3",
           "lengthOut": "50"
         },
         {
-          "point": "p9",
+          "point": 20,
           "angle": "270",
           "lengthIn": "50"
         }
@@ -441,11 +441,11 @@
       "role": "outline"
     },
     {
-      "id": "c12",
+      "id": 51,
       "type": "curve",
       "name": "Front_side",
-      "start": "p11",
-      "end": "p7",
+      "start": 22,
+      "end": 18,
       "angle1": "265",
       "length1": "@waist_to_hip / 3",
       "angle2": "90",

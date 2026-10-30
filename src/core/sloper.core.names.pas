@@ -17,7 +17,8 @@
 }
 
 // Name rules for draft objects, variables and measurements: valid names,
-// reserved words, case-insensitive comparison and numbering of copies.
+// reserved words, case-insensitive comparison and numbering of copies; and
+// the form of IDs.
 // No LCL dependency.
 unit Sloper.Core.Names;
 
@@ -46,6 +47,9 @@ function SameName(const First, Second: string): boolean;
 function NextFreeName(const Name: string; IsTaken: TNameTakenFunc): string;
 // Next automatic point name: A to Z, then A1 to Z1, A2 and so on
 function NextAutoName(IsTaken: TNameTakenFunc): string;
+// An ID as text: a positive integer in plain decimal (12, not 012 or 0),
+// small enough for an integer
+function IsIdText(const Text: string): boolean;
 
 resourcestring
   rsNameEmpty = 'The name is empty';
@@ -66,6 +70,18 @@ end;
 function IsNameChar(Character: char): boolean;
 begin
   Result := Character in ['A'..'Z', 'a'..'z', '_', '0'..'9'];
+end;
+
+function IsIdText(const Text: string): boolean;
+var
+  Index: integer;
+begin
+  if (Text = '') or (Length(Text) > 9) or (Text[1] = '0') then
+    Exit(False);
+  for Index := 1 to Length(Text) do
+    if not (Text[Index] in ['0'..'9']) then
+      Exit(False);
+  Result := True;
 end;
 
 function IsFunctionName(const Name: string): boolean;

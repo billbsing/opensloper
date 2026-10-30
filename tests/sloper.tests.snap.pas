@@ -65,8 +65,8 @@ begin
   FPattern.AddFreePoint('B', '100', '0');
   FPattern.AddFreePoint('C', '50', '-50');
   FPattern.AddFreePoint('D', '50', '50');
-  FPattern.AddLine('p1', 'p2');
-  FPattern.AddLine('p3', 'p4');
+  FPattern.AddLine('1', '2');
+  FPattern.AddLine('3', '4');
   FPattern.Evaluate;
 end;
 
@@ -101,8 +101,8 @@ var
 begin
   Result := Snap(99, 1);
   AssertTrue('point', Result.Kind = snPoint);
-  AssertEquals('p2', Result.PointKey);
-  AssertEquals('reused, not added', 'p2', PointFromSnap(FPattern, Result));
+  AssertEquals('2', Result.PointKey);
+  AssertEquals('reused, not added', '2', PointFromSnap(FPattern, Result));
   AssertEquals('nothing added', 6, FPattern.ObjectCount);
 end;
 
@@ -112,8 +112,8 @@ var
 begin
   Result := Snap(50.6, 0.7);
   AssertTrue('crossing', Result.Kind = snCrossing);
-  AssertEquals('first edge', 'l1', Result.EdgeKey);
-  AssertEquals('second edge', 'l2', Result.OtherEdgeKey);
+  AssertEquals('first edge', '5', Result.EdgeKey);
+  AssertEquals('second edge', '6', Result.OtherEdgeKey);
   AssertEquals('pick', 1, Result.Pick);
   AssertMakes('crossing', Result, 'TIntersectPoint', 50, 0);
 end;
@@ -124,7 +124,7 @@ var
 begin
   Result := Snap(20.04, 1);
   AssertTrue('edge', Result.Kind = snEdge);
-  AssertEquals('l1', Result.EdgeKey);
+  AssertEquals('5', Result.EdgeKey);
   AssertFalse('from the start', Result.FromEnd);
   AssertNear('distance', 20.04, Result.Distance);
   AssertMakes('on edge, rounded to 0.1 mm', Result, 'TAlongEdgePoint', 20, 0);
@@ -147,7 +147,7 @@ var
 begin
   Result := Snap(130, 0.8);
   AssertTrue('level', Result.Kind = snHorizontal);
-  AssertEquals('the nearer of A and B', 'p2', Result.PointKey);
+  AssertEquals('the nearer of A and B', '2', Result.PointKey);
   AssertNear('distance', 30, Result.Distance);
   AssertNear('to the right', 0, Result.Angle);
   AssertMakes('right of B', Result, 'TOffsetPoint', 130, 0);
@@ -162,7 +162,7 @@ var
 begin
   Result := Snap(50.5, 80);
   AssertTrue('square', Result.Kind = snVertical);
-  AssertEquals('above D', 'p4', Result.PointKey);
+  AssertEquals('above D', '4', Result.PointKey);
   AssertNear('distance', 30, Result.Distance);
   AssertNear('up', 90, Result.Angle);
   AssertMakes('above D', Result, 'TOffsetPoint', 50, 80);
@@ -174,12 +174,12 @@ var
 begin
   // Square to A (0.9 mm off) and level with C (0.4 mm off): C lines up
   // better, but a line from A lines up with A first
-  Result := Snap(0.9, -49.6, 'p1');
+  Result := Snap(0.9, -49.6, '1');
   AssertTrue('square to the anchor', Result.Kind = snVertical);
-  AssertEquals('p1', Result.PointKey);
+  AssertEquals('1', Result.PointKey);
   Result := Snap(0.9, -49.6);
   AssertTrue('level with C without an anchor', Result.Kind = snHorizontal);
-  AssertEquals('p3', Result.PointKey);
+  AssertEquals('3', Result.PointKey);
 end;
 
 procedure TTestSnap.TestFree;
@@ -196,9 +196,9 @@ var
   First, Second: TSplitPart;
   Result: TSnap;
 begin
-  FPattern.AddAlongEdgePoint('F', 'l1', False, amLength, '25');
+  FPattern.AddAlongEdgePoint('F', '5', False, amLength, '25');
   FPattern.Evaluate;
-  AssertTrue(FPattern.SplitEdge('l1', FPattern.FindObject('F').Key, First, Second));
+  AssertTrue(FPattern.SplitEdge('5', FPattern.FindObject('F').Key, First, Second));
   FPattern.Evaluate;
   Result := Snap(12, 0.5);
   AssertTrue('on an edge, not a crossing of an edge with its own part', Result.Kind = snEdge);

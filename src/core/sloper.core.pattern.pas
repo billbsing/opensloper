@@ -45,7 +45,8 @@ type
     FObjects: TDraftObjectList;
     // Every node by key, for FindNode; measurement keys in lower case
     FNodes: TEvalNodeMap;
-    FNextPoint, FNextLine, FNextCurve, FNextVariable: integer;
+    // The next ID to hand out, shared by variables and objects; only ever goes up
+    FNextId: integer;
     FEvaluator: TEvaluator;
     FResolver: TNameResolver;          // objects, variables, measurements
     FVariableResolver: TNameResolver;  // variables and measurements only
@@ -141,7 +142,7 @@ type
 
     // For loaders: add a variable or object that already has its stored ID
     // and formulas, taking ownership. Nothing is checked; the loader checks
-    // IDs, names and inputs. New IDs are kept above the inserted ones.
+    // IDs, names and inputs. NextId is kept above the inserted IDs.
     procedure InsertVariable(Variable: TVariable);
     procedure InsertObject(DraftObject: TDraftObject);
     // Recomputes the names of edges named after their ends; called after
@@ -156,6 +157,8 @@ type
     property Variables[Index: integer]: TVariable read GetVariable;
     property ObjectCount: integer read GetObjectCount;
     property Objects[Index: integer]: TDraftObject read GetObject;
+    // The next ID to hand out. Loaders and undo may raise it; IDs are never reused.
+    property NextId: integer read FNextId write FNextId;
     property LastError: string read FLastError;
     property LastErrorField: string read FLastErrorField;
     property LastErrorPos: integer read FLastErrorPos;
@@ -363,10 +366,7 @@ begin
   FMeasurementNodes.Clear;
   FVariables.Clear;
   FObjects.Clear;
-  FNextPoint := 1;
-  FNextLine := 1;
-  FNextCurve := 1;
-  FNextVariable := 1;
+  FNextId := 1;
   Notes := '';
   MeasurementFile := '';
 end;
@@ -541,14 +541,14 @@ begin
     SetError(Msg);
     Exit;
   end;
-  Result := TVariable.Create('v' + IntToStr(FNextVariable));
+  Result := TVariable.Create(IntToStr(FNextId));
   if not ParseFields(Result, ['formula'], [FormulaText]) then
   begin
     FreeAndNil(Result);
     Exit;
   end;
   // A new node cannot close a cycle: nothing refers to it yet
-  Inc(FNextVariable);
+  Inc(FNextId);
   Result.Name := AName;
   Result.Description := Description;
   AddVariableNode(Result);
@@ -575,7 +575,7 @@ begin
     FreeAndNil(APoint);
     Exit(False);
   end;
-  Inc(FNextPoint);
+  Inc(FNextId);
   APoint.Name := PointName;
   AddObjectNode(APoint);
   Result := True;
@@ -583,7 +583,7 @@ end;
 
 function TPattern.AddFreePoint(const AName, XText, YText: string): TFreePoint;
 begin
-  Result := TFreePoint.Create('p' + IntToStr(FNextPoint));
+  Result := TFreePoint.Create(IntToStr(FNextId));
   if not AddPointObject(Result, AName, ['x', 'y'], [XText, YText]) then
     Result := nil;
 end;
@@ -594,7 +594,7 @@ begin
   Result := nil;
   if not CheckPoint(BaseId) then
     Exit;
-  Result := TOffsetPoint.Create('p' + IntToStr(FNextPoint), BaseId, Mode);
+  Result := TOffsetPoint.Create(IntToStr(FNextId), BaseId, Mode);
   if Mode = omPolar then
   begin
     if not AddPointObject(Result, AName, ['length', 'angle'], [LengthOrDx, AngleOrDy]) then
@@ -610,7 +610,7 @@ begin
   Result := nil;
   if not CheckEdgeTarget(EdgeId) then
     Exit;
-  Result := TAlongEdgePoint.Create('p' + IntToStr(FNextPoint), EdgeId, FromEnd, Mode);
+  Result := TAlongEdgePoint.Create(IntToStr(FNextId), EdgeId, FromEnd, Mode);
   if not AddPointObject(Result, AName, ['value'], [Value]) then
     Result := nil;
 end;
@@ -631,7 +631,7 @@ begin
     SetError(rsPatternBadPick);
     Exit;
   end;
-  Result := TIntersectPoint.Create('p' + IntToStr(FNextPoint), EdgeAId, EdgeBId,
+  Result := TIntersectPoint.Create(IntToStr(FNextId), EdgeAId, EdgeBId,
     ExtendA, ExtendB, Pick);
   if not AddPointObject(Result, AName, [], []) then
     Result := nil;
@@ -648,7 +648,7 @@ begin
     SetError(rsPatternBadPick);
     Exit;
   end;
-  Result := TCircleEdgePoint.Create('p' + IntToStr(FNextPoint), CentreId, EdgeId, Extend, Pick);
+  Result := TCircleEdgePoint.Create(IntToStr(FNextId), CentreId, EdgeId, Extend, Pick);
   if not AddPointObject(Result, AName, ['radius'], [Radius]) then
     Result := nil;
 end;
@@ -659,7 +659,7 @@ begin
   Result := nil;
   if not CheckPoint(SourceId) or not CheckEdgeTarget(EdgeId) then
     Exit;
-  Result := TProjectPoint.Create('p' + IntToStr(FNextPoint), SourceId, EdgeId, Direction, Extend);
+  Result := TProjectPoint.Create(IntToStr(FNextId), SourceId, EdgeId, Direction, Extend);
   if Direction = pdAngle then
   begin
     if not AddPointObject(Result, AName, ['angle'], [Angle]) then
@@ -708,6 +708,7 @@ begin
     Exit(False);
   end;
   AEdge.Role := ARole;
+  Inc(FNextId);
   AddObjectNode(AEdge);
   Result := True;
 end;
@@ -715,21 +716,17 @@ end;
 function TPattern.AddLine(const StartId, EndId: string; Role: TEdgeRole;
   const AName: string): TLineObject;
 begin
-  Result := TLineObject.Create('l' + IntToStr(FNextLine), StartId, EndId);
-  if AddEdgeObject(Result, AName, Role, [], []) then
-    Inc(FNextLine)
-  else
+  Result := TLineObject.Create(IntToStr(FNextId), StartId, EndId);
+  if not AddEdgeObject(Result, AName, Role, [], []) then
     Result := nil;
 end;
 
 function TPattern.AddCurve(const StartId, EndId, Angle1, Length1, Angle2, Length2: string;
   Role: TEdgeRole; const AName: string): TCurveObject;
 begin
-  Result := TCurveObject.Create('c' + IntToStr(FNextCurve), StartId, EndId);
-  if AddEdgeObject(Result, AName, Role, ['angle1', 'length1', 'angle2', 'length2'],
+  Result := TCurveObject.Create(IntToStr(FNextId), StartId, EndId);
+  if not AddEdgeObject(Result, AName, Role, ['angle1', 'length1', 'angle2', 'length2'],
     [Angle1, Length1, Angle2, Length2]) then
-    Inc(FNextCurve)
-  else
     Result := nil;
 end;
 
@@ -782,33 +779,19 @@ begin
     if Index < Count - 1 then
       AddText(NodeName + '.lengthOut', LengthsOut[Index]);
   end;
-  Result := TCurvePathObject.Create('c' + IntToStr(FNextCurve), NodeIds);
-  if AddEdgeObject(Result, AName, Role, Names, Texts) then
-    Inc(FNextCurve)
-  else
+  Result := TCurvePathObject.Create(IntToStr(FNextId), NodeIds);
+  if not AddEdgeObject(Result, AName, Role, Names, Texts) then
     Result := nil;
 end;
 
 function TPattern.SplitEdge(const EdgeId, PointId: string; out First, Second: TSplitPart): boolean;
 var
   Source: TEdgeObject;
-  Straight: boolean;
 
   function NewPart(APart: integer): TSplitPart;
-  var
-    Key: string;
   begin
-    if Straight then
-    begin
-      Key := 'l' + IntToStr(FNextLine);
-      Inc(FNextLine);
-    end
-    else
-    begin
-      Key := 'c' + IntToStr(FNextCurve);
-      Inc(FNextCurve);
-    end;
-    Result := NewSplitPart(Key, Source, PointId, APart);
+    Result := NewSplitPart(IntToStr(FNextId), Source, PointId, APart);
+    Inc(FNextId);
     // Each part is its own edge: it gets a derived name and joins the pattern
     Result.Name := DerivedEdgeName(Result);
     Result.Role := Source.Role;
@@ -821,7 +804,6 @@ begin
   if not CheckEdgeTarget(EdgeId) or not CheckPoint(PointId) then
     Exit(False);
   Source := TEdgeObject(FindNode(EdgeId));
-  Straight := IsStraightEdge(Source);
   First := NewPart(1);
   Second := NewPart(2);
   Result := True;
@@ -1012,30 +994,14 @@ begin
   FEvaluator.Run(FContext);
 end;
 
-// Moves the counter for Key's letter past Key's number (p7 -> next point p8)
+// Moves the counter past Key (12 -> next ID 13)
 procedure TPattern.KeepIdsAbove(const Key: string);
 var
   IdNumber, Code: integer;
 begin
-  if Length(Key) < 2 then
-    Exit;
-  Val(Copy(Key, 2, MaxInt), IdNumber, Code);
-  if (Code <> 0) or (IdNumber < 1) then
-    Exit;
-  case Key[1] of
-    'p':
-      if IdNumber >= FNextPoint then
-        FNextPoint := IdNumber + 1;
-    'l':
-      if IdNumber >= FNextLine then
-        FNextLine := IdNumber + 1;
-    'c':
-      if IdNumber >= FNextCurve then
-        FNextCurve := IdNumber + 1;
-    'v':
-      if IdNumber >= FNextVariable then
-        FNextVariable := IdNumber + 1;
-  end;
+  Val(Key, IdNumber, Code);
+  if (Code = 0) and (IdNumber >= FNextId) then
+    FNextId := IdNumber + 1;
 end;
 
 procedure TPattern.InsertVariable(Variable: TVariable);

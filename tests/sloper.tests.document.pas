@@ -49,6 +49,7 @@ type
     procedure TestChangeIsOneStep;
     procedure TestUndoRedoRestoresExactly;
     procedure TestRedoKeepsIds;
+    procedure TestUndoneIdNotReused;
     procedure TestRefusedEditAddsNothing;
     procedure TestCancelRestores;
     procedure TestDragIsOneStep;
@@ -114,9 +115,10 @@ begin
   FChanges[High(FChanges)] := Changes;
 end;
 
+// The definitions, without the ID counter, which undo leaves where it is
 function TTestDocument.Text: string;
 begin
-  Result := SavePatternToText(FDocument.Pattern);
+  Result := SavePatternToText(FDocument.Pattern, False);
 end;
 
 function TTestDocument.PointX(const AName: string): double;
@@ -196,9 +198,19 @@ begin
   AddPoint('B', '20');
   FDocument.Undo;
   FDocument.Redo;
-  AssertEquals('p2', FDocument.Pattern.FindObject('B').Key);
+  AssertEquals('2', FDocument.Pattern.FindObject('B').Key);
   AddPoint('C', '30');
-  AssertEquals('p3', FDocument.Pattern.FindObject('C').Key);
+  AssertEquals('3', FDocument.Pattern.FindObject('C').Key);
+end;
+
+// Undo restores the text but not the counter, so B's ID stays retired
+procedure TTestDocument.TestUndoneIdNotReused;
+begin
+  AddPoint('A', '10');
+  AddPoint('B', '20');
+  FDocument.Undo;
+  AddPoint('C', '30');
+  AssertEquals('3', FDocument.Pattern.FindObject('C').Key);
 end;
 
 procedure TTestDocument.TestRefusedEditAddsNothing;

@@ -50,6 +50,7 @@ type
     procedure TestOptionalFields;
     procedure TestLoadKeepsBadFormula;
     procedure TestNewIdsAfterLoad;
+    procedure TestNextIdKept;
     procedure TestHeaderErrors;
     procedure TestObjectErrors;
     procedure TestFailedLoadEmptiesPattern;
@@ -147,8 +148,8 @@ procedure TTestPatternFile.TestLayout;
 begin
   Check(FPattern.AddVariable('ease', '10'));
   Check(FPattern.AddFreePoint('A', '0', '0'));
-  Check(FPattern.AddOffsetPoint('B', 'p1', omPolar, '@waist/4 + #ease', '0'));
-  Check(FPattern.AddLine('p1', 'p2', erOutline));
+  Check(FPattern.AddOffsetPoint('B', '2', omPolar, '@waist/4 + #ease', '0'));
+  Check(FPattern.AddLine('2', '3', erOutline));
   FPattern.Notes := 'Test';
   FPattern.MeasurementFile := 'bill.slm';
   AssertEquals(
@@ -158,9 +159,10 @@ begin
     '  "units": "mm",'#10 +
     '  "notes": "Test",'#10 +
     '  "measurementFile": "bill.slm",'#10 +
+    '  "nextId": 5,'#10 +
     '  "variables": ['#10 +
     '    {'#10 +
-    '      "id": "v1",'#10 +
+    '      "id": 1,'#10 +
     '      "name": "ease",'#10 +
     '      "formula": "10",'#10 +
     '      "description": ""'#10 +
@@ -168,26 +170,26 @@ begin
     '  ],'#10 +
     '  "objects": ['#10 +
     '    {'#10 +
-    '      "id": "p1",'#10 +
+    '      "id": 2,'#10 +
     '      "type": "freePoint",'#10 +
     '      "name": "A",'#10 +
     '      "x": "0",'#10 +
     '      "y": "0"'#10 +
     '    },'#10 +
     '    {'#10 +
-    '      "id": "p2",'#10 +
+    '      "id": 3,'#10 +
     '      "type": "offsetPoint",'#10 +
     '      "name": "B",'#10 +
-    '      "base": "p1",'#10 +
+    '      "base": 2,'#10 +
     '      "mode": "polar",'#10 +
-    '      "length": "@waist/4 + {v1}",'#10 +
+    '      "length": "@waist/4 + {1}",'#10 +
     '      "angle": "0"'#10 +
     '    },'#10 +
     '    {'#10 +
-    '      "id": "l1",'#10 +
+    '      "id": 4,'#10 +
     '      "type": "line",'#10 +
-    '      "start": "p1",'#10 +
-    '      "end": "p2",'#10 +
+    '      "start": 2,'#10 +
+    '      "end": 3,'#10 +
     '      "role": "outline"'#10 +
     '    }'#10 +
     '  ]'#10 +
@@ -237,32 +239,32 @@ end;
 
 procedure TTestPatternFile.TestDerivedNamesFollowEnds;
 begin
-  LoadObjects('[{"id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
-    ' {"id": "p2", "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
-    ' {"id": "l1", "type": "line", "start": "p1", "end": "p2"}]');
-  AssertEquals('derived', 'Line_A_B', FLoaded.FindNode('l1').DisplayName);
+  LoadObjects('[{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
+    ' {"id": 2, "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
+    ' {"id": 3, "type": "line", "start": 1, "end": 2}]');
+  AssertEquals('derived', 'Line_A_B', FLoaded.FindNode('3').DisplayName);
   AssertTrue(FLoaded.Rename(FLoaded.FindObject('A'), 'Z'));
-  AssertEquals('follows', 'Line_Z_B', FLoaded.FindNode('l1').DisplayName);
+  AssertEquals('follows', 'Line_Z_B', FLoaded.FindNode('3').DisplayName);
   AssertEquals('not saved', 0, Pos('Line_', SavePatternToText(FLoaded)));
 end;
 
 procedure TTestPatternFile.TestDerivedNameAvoidsLaterName;
 begin
-  LoadObjects('[{"id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
-    ' {"id": "p2", "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
-    ' {"id": "l1", "type": "line", "start": "p1", "end": "p2"},' +
-    ' {"id": "l2", "type": "line", "name": "Line_A_B", "start": "p2", "end": "p1"}]');
-  AssertEquals('user name kept', 'Line_A_B', FLoaded.FindNode('l2').DisplayName);
-  AssertEquals('derived name moves aside', 'Line_A_B2', FLoaded.FindNode('l1').DisplayName);
+  LoadObjects('[{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
+    ' {"id": 2, "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
+    ' {"id": 3, "type": "line", "start": 1, "end": 2},' +
+    ' {"id": 4, "type": "line", "name": "Line_A_B", "start": 2, "end": 1}]');
+  AssertEquals('user name kept', 'Line_A_B', FLoaded.FindNode('4').DisplayName);
+  AssertEquals('derived name moves aside', 'Line_A_B2', FLoaded.FindNode('3').DisplayName);
 end;
 
 procedure TTestPatternFile.TestUserEdgeNameKept;
 begin
-  LoadObjects('[{"id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
-    ' {"id": "p2", "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
-    ' {"id": "l1", "type": "line", "name": "Waist", "start": "p1", "end": "p2"}]');
+  LoadObjects('[{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
+    ' {"id": 2, "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
+    ' {"id": 3, "type": "line", "name": "Waist", "start": 1, "end": 2}]');
   AssertTrue(FLoaded.Rename(FLoaded.FindObject('A'), 'Z'));
-  AssertEquals('Waist', FLoaded.FindNode('l1').DisplayName);
+  AssertEquals('Waist', FLoaded.FindNode('3').DisplayName);
   AssertTrue('saved', Pos('"name": "Waist"', SavePatternToText(FLoaded)) > 0);
 end;
 
@@ -273,14 +275,14 @@ var
   Intersect: TIntersectPoint;
   Project: TProjectPoint;
 begin
-  LoadObjects('[{"id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
-    ' {"id": "p2", "type": "offsetPoint", "name": "B", "base": "p1", "length": "100", "angle": "0"},' +
-    ' {"id": "l1", "type": "line", "start": "p1", "end": "p2"},' +
-    ' {"id": "p3", "type": "alongEdgePoint", "name": "C", "edge": "l1", "value": "30"},' +
-    ' {"id": "p4", "type": "offsetPoint", "name": "D", "base": "p3", "mode": "cartesian", "dx": "0", "dy": "10"},' +
-    ' {"id": "l2", "type": "line", "start": "p3", "end": "p4"},' +
-    ' {"id": "p5", "type": "intersectPoint", "name": "E", "edgeA": "l1", "edgeB": "l2"},' +
-    ' {"id": "p6", "type": "projectPoint", "name": "F", "point": "p4", "edge": "l1"}]');
+  LoadObjects('[{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
+    ' {"id": 2, "type": "offsetPoint", "name": "B", "base": 1, "length": "100", "angle": "0"},' +
+    ' {"id": 3, "type": "line", "start": 1, "end": 2},' +
+    ' {"id": 4, "type": "alongEdgePoint", "name": "C", "edge": 3, "value": "30"},' +
+    ' {"id": 5, "type": "offsetPoint", "name": "D", "base": 4, "mode": "cartesian", "dx": "0", "dy": "10"},' +
+    ' {"id": 6, "type": "line", "start": 4, "end": 5},' +
+    ' {"id": 7, "type": "intersectPoint", "name": "E", "edgeA": 3, "edgeB": 6},' +
+    ' {"id": 8, "type": "projectPoint", "name": "F", "point": 5, "edge": 3}]');
   Offset := TOffsetPoint(FLoaded.FindObject('B'));
   AssertTrue('offset mode', Offset.Mode = omPolar);
   Along := TAlongEdgePoint(FLoaded.FindObject('C'));
@@ -293,7 +295,7 @@ begin
   Project := TProjectPoint(FLoaded.FindObject('F'));
   AssertTrue('direction', Project.Direction = pdPerpendicular);
   AssertFalse('extend', Project.Extend);
-  AssertTrue('role', TEdgeObject(FLoaded.FindNode('l1')).Role = erConstruction);
+  AssertTrue('role', TEdgeObject(FLoaded.FindNode('3')).Role = erConstruction);
   FLoaded.Evaluate;
   AssertPointsNear('E', Vec2(30, 0), TPointObject(FLoaded.FindObject('E')).Position);
   AssertPointsNear('F', Vec2(30, 0), TPointObject(FLoaded.FindObject('F')).Position);
@@ -303,7 +305,7 @@ procedure TTestPatternFile.TestLoadKeepsBadFormula;
 var
   Point: TDraftObject;
 begin
-  LoadObjects('[{"id": "p1", "type": "freePoint", "name": "A", "x": "1 +", "y": "0"}]');
+  LoadObjects('[{"id": 1, "type": "freePoint", "name": "A", "x": "1 +", "y": "0"}]');
   Point := FLoaded.FindObject('A');
   FLoaded.Evaluate;
   AssertTrue('error state', Point.State = esError);
@@ -314,19 +316,40 @@ procedure TTestPatternFile.TestNewIdsAfterLoad;
 var
   Err: string;
 begin
+  // No nextId: new IDs continue above the highest, whatever the order
   AssertTrue(Err, LoadPatternFromText(FPattern, '{"format": "pattern", "version": 1,' +
-    ' "variables": [{"id": "v4", "name": "ease", "formula": "1"}],' +
-    ' "objects": [{"id": "p5", "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
-    ' {"id": "p2", "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
-    ' {"id": "l3", "type": "line", "start": "p5", "end": "p2"},' +
-    ' {"id": "c2", "type": "curve", "start": "p5", "end": "p2",' +
+    ' "variables": [{"id": 4, "name": "ease", "formula": "1"}],' +
+    ' "objects": [{"id": 9, "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
+    ' {"id": 2, "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
+    ' {"id": 3, "type": "line", "start": 9, "end": 2},' +
+    ' {"id": 5, "type": "curve", "start": 9, "end": 2,' +
     ' "angle1": "0", "length1": "1", "angle2": "180", "length2": "1"}]}', Err));
+  AssertEquals(10, FPattern.NextId);
   Check(FPattern.AddVariable('more', '2'));
-  AssertEquals('v5', FPattern.FindVariable('more').Key);
+  AssertEquals('10', FPattern.FindVariable('more').Key);
   Check(FPattern.AddFreePoint('C', '0', '5'));
-  AssertEquals('p6', Key('C'));
-  AssertEquals('l4', TEdgeObject(Check(FPattern.AddLine('p5', 'p6'))).Key);
-  AssertEquals('c3', TEdgeObject(Check(FPattern.AddCurve('p5', 'p6', '0', '1', '0', '1'))).Key);
+  AssertEquals('11', Key('C'));
+  AssertEquals('12', TEdgeObject(Check(FPattern.AddLine('9', '11'))).Key);
+end;
+
+// A saved counter above every ID keeps deleted IDs retired
+procedure TTestPatternFile.TestNextIdKept;
+var
+  Saved, Err: string;
+begin
+  Check(FPattern.AddFreePoint('A', '0', '0'));
+  Check(FPattern.AddFreePoint('B', '1', '0'));
+  AssertTrue(FPattern.Delete(FPattern.FindObject('B')));
+  Saved := SavePatternToText(FPattern);
+  AssertTrue('saved', Pos('"nextId": 3,', Saved) > 0);
+  AssertTrue(Err, LoadPatternFromText(FLoaded, Saved, Err));
+  AssertEquals(3, FLoaded.NextId);
+  AssertEquals('3', FLoaded.AddFreePoint('C', '0', '1').Key);
+  AssertFalse('below an ID', LoadPatternFromText(FLoaded, '{"format": "pattern", "version": 1, "nextId": 1,' +
+    ' "objects": [{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}]}', Err));
+  AssertEquals(rsPatternFileBadNextId, Err);
+  AssertFalse('not a number', LoadPatternFromText(FLoaded, '{"format": "pattern", "version": 1, "nextId": "7"}', Err));
+  AssertEquals(rsPatternFileBadNextId, Err);
 end;
 
 procedure TTestPatternFile.TestHeaderErrors;
@@ -346,59 +369,63 @@ begin
   CheckText('{"format": "pattern", "version": 1, "units": "cm"}', Format(rsPatternFileUnits, ['cm']));
   CheckText('{"format": "pattern", "version": 1, "objects": {}}', Format(rsPatternFileList, ['objects']));
   CheckText('{"format": "pattern", "version": 1, "objects": [1]}', Format(rsPatternFileList, ['objects']));
-  CheckText('{"format": "pattern", "version": 1, "variables": [{"id": "x1", "name": "a", "formula": "1"}],' +
-    ' "objects": [{"id": "x1", "type": "freePoint", "name": "A", "x": "0", "y": "0"}]}',
+  CheckText('{"format": "pattern", "version": 1, "variables": [{"id": 1, "name": "a", "formula": "1"}],' +
+    ' "objects": [{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}]}',
     Format(rsPatternFileBadId, [1, 'objects']));
 end;
 
 procedure TTestPatternFile.TestObjectErrors;
 const
-  PointA = '{"id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0"}, ';
-  PointB = '{"id": "p2", "type": "freePoint", "name": "B", "x": "10", "y": "0"}, ';
-  LineAB = '{"id": "l1", "type": "line", "start": "p1", "end": "p2"}, ';
-  LineBA = '{"id": "l2", "type": "line", "start": "p2", "end": "p1"}, ';
+  PointA = '{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, ';
+  PointB = '{"id": 2, "type": "freePoint", "name": "B", "x": "10", "y": "0"}, ';
+  LineAB = '{"id": 3, "type": "line", "start": 1, "end": 2}, ';
+  LineBA = '{"id": 4, "type": "line", "start": 2, "end": 1}, ';
 begin
   AssertLoadFails('[{"type": "freePoint", "name": "A", "x": "0", "y": "0"}]', Format(rsPatternFileBadId, [1, 'objects']));
-  AssertLoadFails('[{"id": "1p", "type": "freePoint", "name": "A", "x": "0", "y": "0"}]',
+  AssertLoadFails('[{"id": "1", "type": "freePoint", "name": "A", "x": "0", "y": "0"}]',
     Format(rsPatternFileBadId, [1, 'objects']));
-  AssertLoadFails('[' + PointA + '{"id": "p1", "type": "freePoint", "name": "B", "x": "0", "y": "0"}]',
+  AssertLoadFails('[{"id": 0, "type": "freePoint", "name": "A", "x": "0", "y": "0"}]',
+    Format(rsPatternFileBadId, [1, 'objects']));
+  AssertLoadFails('[' + PointA + '{"id": 2, "type": "offsetPoint", "name": "B", "base": "1", "length": "1", "angle": "0"}]',
+    Format(rsPatternObjectMissing, ['2', 'base']));
+  AssertLoadFails('[' + PointA + '{"id": 1, "type": "freePoint", "name": "B", "x": "0", "y": "0"}]',
     Format(rsPatternFileBadId, [2, 'objects']));
-  AssertLoadFails('[{"id": "p1", "name": "A"}]', Format(rsPatternObjectMissing, ['p1', 'type']));
-  AssertLoadFails('[{"id": "p1", "type": "spline"}]', Format(rsPatternObjectUnknownType, ['p1', 'spline']));
-  AssertLoadFails('[{"id": "p1", "type": "freePoint", "x": "0", "y": "0"}]', Format(rsPatternObjectMissing, ['p1', 'name']));
-  AssertLoadFails('[{"id": "p1", "type": "freePoint", "name": "a b", "x": "0", "y": "0"}]',
-    Format(rsPatternObjectProblem, ['p1', Format(rsNameInvalid, ['a b'])]));
-  AssertLoadFails('[' + PointA + '{"id": "p2", "type": "freePoint", "name": "a", "x": "0", "y": "0"}]',
-    Format(rsPatternObjectProblem, ['p2', Format(rsNameTaken, ['a'])]));
-  AssertLoadFails('[{"id": "p1", "type": "freePoint", "name": "A", "x": "0"}]', Format(rsPatternObjectMissing, ['p1', 'y']));
-  AssertLoadFails('[{"id": "p1", "type": "freePoint", "name": "A", "x": 0, "y": "0"}]', Format(rsPatternObjectMissing, ['p1', 'x']));
-  AssertLoadFails('[' + PointA + '{"id": "l1", "type": "line", "start": "p1", "end": "p2"}, ' + PointB +
-    '{"id": "p9", "type": "freePoint", "name": "Z", "x": "0", "y": "0"}]',
-    Format(rsPatternObjectNotBefore, ['l1', 'p2']));
-  AssertLoadFails('[' + PointA + '{"id": "l1", "type": "line", "start": "p1"}]', Format(rsPatternObjectMissing, ['l1', 'end']));
-  AssertLoadFails('[' + PointA + PointB + '{"id": "p3", "type": "alongEdgePoint", "name": "C", "edge": "p2", "value": "1"}]',
-    Format(rsPatternObjectProblem, ['p3', Format(rsDraftNotAnEdge, ['B'])]));
-  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": "l2", "type": "line", "start": "p1", "end": "l1"}]',
-    Format(rsPatternObjectProblem, ['l2', Format(rsDraftNotAPoint, ['l1'])]));
-  AssertLoadFails('[' + PointA + '{"id": "p2", "type": "offsetPoint", "name": "B", "base": "p1", "mode": "sideways",' +
-    ' "length": "1", "angle": "0"}]', Format(rsPatternObjectMissing, ['p2', 'mode']));
-  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": "l2", "type": "line", "start": "p1", "end": "p2", "role": "seam"}]',
-    Format(rsPatternObjectMissing, ['l2', 'role']));
+  AssertLoadFails('[{"id": 1, "name": "A"}]', Format(rsPatternObjectMissing, ['1', 'type']));
+  AssertLoadFails('[{"id": 1, "type": "spline"}]', Format(rsPatternObjectUnknownType, ['1', 'spline']));
+  AssertLoadFails('[{"id": 1, "type": "freePoint", "x": "0", "y": "0"}]', Format(rsPatternObjectMissing, ['1', 'name']));
+  AssertLoadFails('[{"id": 1, "type": "freePoint", "name": "a b", "x": "0", "y": "0"}]',
+    Format(rsPatternObjectProblem, ['1', Format(rsNameInvalid, ['a b'])]));
+  AssertLoadFails('[' + PointA + '{"id": 2, "type": "freePoint", "name": "a", "x": "0", "y": "0"}]',
+    Format(rsPatternObjectProblem, ['2', Format(rsNameTaken, ['a'])]));
+  AssertLoadFails('[{"id": 1, "type": "freePoint", "name": "A", "x": "0"}]', Format(rsPatternObjectMissing, ['1', 'y']));
+  AssertLoadFails('[{"id": 1, "type": "freePoint", "name": "A", "x": 0, "y": "0"}]', Format(rsPatternObjectMissing, ['1', 'x']));
+  AssertLoadFails('[' + PointA + '{"id": 3, "type": "line", "start": 1, "end": 2}, ' + PointB +
+    '{"id": 5, "type": "freePoint", "name": "Z", "x": "0", "y": "0"}]',
+    Format(rsPatternObjectNotBefore, ['3', '2']));
+  AssertLoadFails('[' + PointA + '{"id": 3, "type": "line", "start": 1}]', Format(rsPatternObjectMissing, ['3', 'end']));
+  AssertLoadFails('[' + PointA + PointB + '{"id": 6, "type": "alongEdgePoint", "name": "C", "edge": 2, "value": "1"}]',
+    Format(rsPatternObjectProblem, ['6', Format(rsDraftNotAnEdge, ['B'])]));
+  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": 4, "type": "line", "start": 1, "end": 3}]',
+    Format(rsPatternObjectProblem, ['4', Format(rsDraftNotAPoint, ['3'])]));
+  AssertLoadFails('[' + PointA + '{"id": 2, "type": "offsetPoint", "name": "B", "base": 1, "mode": "sideways",' +
+    ' "length": "1", "angle": "0"}]', Format(rsPatternObjectMissing, ['2', 'mode']));
+  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": 4, "type": "line", "start": 1, "end": 2, "role": "seam"}]',
+    Format(rsPatternObjectMissing, ['4', 'role']));
   AssertLoadFails('[' + PointA + PointB + LineAB + LineBA +
-    '{"id": "p3", "type": "intersectPoint", "name": "C", "edgeA": "l1", "edgeB": "l2", "extendA": "yes"}]',
-    Format(rsPatternObjectMissing, ['p3', 'extendA']));
+    '{"id": 6, "type": "intersectPoint", "name": "C", "edgeA": 3, "edgeB": 4, "extendA": "yes"}]',
+    Format(rsPatternObjectMissing, ['6', 'extendA']));
   AssertLoadFails('[' + PointA + PointB + LineAB + LineBA +
-    '{"id": "p3", "type": "intersectPoint", "name": "C", "edgeA": "l1", "edgeB": "l2", "pick": 0}]',
-    Format(rsPatternObjectProblem, ['p3', rsPatternBadPick]));
+    '{"id": 6, "type": "intersectPoint", "name": "C", "edgeA": 3, "edgeB": 4, "pick": 0}]',
+    Format(rsPatternObjectProblem, ['6', rsPatternBadPick]));
   AssertLoadFails('[' + PointA + PointB + LineAB +
-    '{"id": "p3", "type": "intersectPoint", "name": "C", "edgeA": "l1", "edgeB": "l1"}]',
-    Format(rsPatternObjectProblem, ['p3', rsPatternSameEdge]));
-  AssertLoadFails('[' + PointA + '{"id": "c1", "type": "curvePath", "nodes": [{"point": "p1", "angle": "0"}]}]',
-    Format(rsPatternObjectProblem, ['c1', rsPatternPathTooShort]));
-  AssertLoadFails('[' + PointA + PointB + '{"id": "c1", "type": "curvePath", "nodes": [{"point": "p1", "angle": "0",' +
-    ' "lengthOut": "1"}, {"point": "p2", "angle": "0"}]}]', Format(rsPatternObjectMissing, ['c1', 'lengthIn']));
-  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": "l2", "type": "splitPart", "edge": "l1", "point": "p2", "part": 3}]',
-    Format(rsPatternObjectMissing, ['l2', 'part']));
+    '{"id": 6, "type": "intersectPoint", "name": "C", "edgeA": 3, "edgeB": 3}]',
+    Format(rsPatternObjectProblem, ['6', rsPatternSameEdge]));
+  AssertLoadFails('[' + PointA + '{"id": 7, "type": "curvePath", "nodes": [{"point": 1, "angle": "0"}]}]',
+    Format(rsPatternObjectProblem, ['7', rsPatternPathTooShort]));
+  AssertLoadFails('[' + PointA + PointB + '{"id": 7, "type": "curvePath", "nodes": [{"point": 1, "angle": "0",' +
+    ' "lengthOut": "1"}, {"point": 2, "angle": "0"}]}]', Format(rsPatternObjectMissing, ['7', 'lengthIn']));
+  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": 4, "type": "splitPart", "edge": 3, "point": 2, "part": 3}]',
+    Format(rsPatternObjectMissing, ['4', 'part']));
 end;
 
 procedure TTestPatternFile.TestFailedLoadEmptiesPattern;
@@ -407,7 +434,7 @@ var
 begin
   BuildEveryType;
   AssertFalse(LoadPatternFromText(FPattern, PatternWithObjects(
-    '[{"id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0"}, {"id": "p2", "type": "spline"}]'), Err));
+    '[{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, {"id": 2, "type": "spline"}]'), Err));
   AssertEquals('objects', 0, FPattern.ObjectCount);
   AssertEquals('variables', 0, FPattern.VariableCount);
   AssertEquals('notes', '', FPattern.Notes);

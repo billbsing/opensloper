@@ -112,12 +112,12 @@ uses
 constructor TTestResolver.Create;
 begin
   Objects := TStringList.Create;
-  Objects.Values['p1'] := 'A';
-  Objects.Values['p2'] := 'B';
-  Objects.Values['l1'] := 'Line_A_B';
+  Objects.Values['1'] := 'A';
+  Objects.Values['2'] := 'B';
+  Objects.Values['3'] := 'Line_A_B';
   Variables := TStringList.Create;
-  Variables.Values['v1'] := 'ease_waist';
-  Variables.Values['v2'] := 'dart';
+  Variables.Values['4'] := 'ease_waist';
+  Variables.Values['5'] := 'dart';
   Measurements := TStringList.Create;
   Measurements.Add('waist');
   Measurements.Add('hip');
@@ -169,10 +169,11 @@ function TTestResolver.ResolveProperty(const ObjectId, Prop: string;
   out CanonicalProp: string): boolean;
 begin
   CanonicalProp := LowerCase(Prop);
-  if ObjectId[1] = 'p' then
-    Result := (CanonicalProp = 'x') or (CanonicalProp = 'y')
+  // 3 is the line; the other objects are points
+  if ObjectId = '3' then
+    Result := (CanonicalProp = 'length') or (CanonicalProp = 'angle')
   else
-    Result := (CanonicalProp = 'length') or (CanonicalProp = 'angle');
+    Result := (CanonicalProp = 'x') or (CanonicalProp = 'y');
 end;
 
 function TTestResolver.VariableName(const Id: string; out Name: string): boolean;
@@ -203,9 +204,9 @@ end;
 function TTestContext.VariableValue(const Id: string; out Value: double): boolean;
 begin
   Result := True;
-  if Id = 'v1' then
+  if Id = '4' then
     Value := 20
-  else if Id = 'v2' then
+  else if Id = '5' then
     Value := 15
   else
     Result := False;
@@ -214,15 +215,15 @@ end;
 function TTestContext.PropertyValue(const ObjectId, Prop: string; out Value: double): boolean;
 begin
   Result := True;
-  if (ObjectId = 'p1') and (Prop = 'x') then
+  if (ObjectId = '1') and (Prop = 'x') then
     Value := 0
-  else if (ObjectId = 'p1') and (Prop = 'y') then
+  else if (ObjectId = '1') and (Prop = 'y') then
     Value := 0
-  else if (ObjectId = 'p2') and (Prop = 'x') then
+  else if (ObjectId = '2') and (Prop = 'x') then
     Value := 100
-  else if (ObjectId = 'p2') and (Prop = 'y') then
+  else if (ObjectId = '2') and (Prop = 'y') then
     Value := 50
-  else if (ObjectId = 'l1') and (Prop = 'length') then
+  else if (ObjectId = '3') and (Prop = 'length') then
     Value := 125
   else
     Result := False;
@@ -264,10 +265,10 @@ procedure TTestFormulaLexer.TestStoredTokens;
 var
   T: TFormulaTokenArray;
 begin
-  T := Tokens('{l1}.length + {v1}', ffStored);
+  T := Tokens('{3}.length + {4}', ffStored);
   AssertEquals('count', 3, Length(T));
   AssertTrue('object id', T[0].Kind = ftIdRef);
-  AssertEquals('id', 'l1', T[0].Name);
+  AssertEquals('id', '3', T[0].Name);
   AssertEquals('property', 'length', T[0].Prop);
   AssertTrue('variable id', T[2].Kind = ftIdRef);
   AssertEquals('no property', '', T[2].Prop);
@@ -333,8 +334,13 @@ begin
   AssertFalse('dot without property', TokenizeFormula('A. + 1', ffDisplay, T, Msg, Pos));
   AssertEquals(rsFormulaExpectedProperty, Msg);
   AssertEquals('dot position', 3, Pos);
-  AssertFalse('unclosed id', TokenizeFormula('{p1.x', ffStored, T, Msg, Pos));
+  AssertFalse('unclosed id', TokenizeFormula('{1.x', ffStored, T, Msg, Pos));
   AssertEquals(rsFormulaBadId, Msg);
+  // IDs are positive integers in plain decimal
+  AssertFalse('letter id', TokenizeFormula('{p1}.x', ffStored, T, Msg, Pos));
+  AssertEquals(rsFormulaBadId, Msg);
+  AssertFalse('leading zero', TokenizeFormula('{012}.x', ffStored, T, Msg, Pos));
+  AssertFalse('zero', TokenizeFormula('{0}', ffStored, T, Msg, Pos));
 end;
 
 procedure TTestFormulaLexer.TestFormsDiffer;
@@ -343,7 +349,7 @@ var
   Msg: string;
   Pos: integer;
 begin
-  AssertFalse('no braces when typing', TokenizeFormula('{p1}.x', ffDisplay, T, Msg, Pos));
+  AssertFalse('no braces when typing', TokenizeFormula('{1}.x', ffDisplay, T, Msg, Pos));
   AssertFalse('no # when stored', TokenizeFormula('#ease', ffStored, T, Msg, Pos));
 end;
 
@@ -458,13 +464,13 @@ var
   Refs: TFormulaReferenceArray;
 begin
   AssertValue('@waist/4 + #ease_waist', 200);
-  AssertEquals('stored', '@waist/4 + {v1}', FFormula.StoredText);
+  AssertEquals('stored', '@waist/4 + {4}', FFormula.StoredText);
   Refs := FFormula.References;
   AssertEquals('reference count', 2, Length(Refs));
   AssertTrue('measurement', Refs[0].Kind = rkMeasurement);
   AssertEquals('key', 'waist', Refs[0].Id);
   AssertTrue('variable', Refs[1].Kind = rkVariable);
-  AssertEquals('variable id', 'v1', Refs[1].Id);
+  AssertEquals('variable id', '4', Refs[1].Id);
 end;
 
 procedure TTestFormula.TestObjectProperties;
@@ -472,18 +478,18 @@ var
   Refs: TFormulaReferenceArray;
 begin
   AssertValue('Line_A_B.length + B.x / 2', 175);
-  AssertEquals('stored', '{l1}.length + {p2}.x / 2', FFormula.StoredText);
+  AssertEquals('stored', '{3}.length + {2}.x / 2', FFormula.StoredText);
   Refs := FFormula.References;
   AssertEquals('reference count', 2, Length(Refs));
   AssertTrue('object', Refs[0].Kind = rkObject);
-  AssertEquals('id', 'l1', Refs[0].Id);
+  AssertEquals('id', '3', Refs[0].Id);
   AssertEquals('property', 'length', Refs[0].Prop);
 end;
 
 procedure TTestFormula.TestNamesIgnoreCase;
 begin
   AssertValue('line_a_b.LENGTH + @WAIST + #Ease_Waist', 865);
-  AssertEquals('stored', '{l1}.length + @waist + {v1}', FFormula.StoredText);
+  AssertEquals('stored', '{3}.length + @waist + {4}', FFormula.StoredText);
   AssertEquals('display uses current spelling', 'Line_A_B.length + @waist + #ease_waist',
     FFormula.DisplayText(FResolver));
 end;
@@ -504,9 +510,9 @@ end;
 procedure TTestFormula.TestRenameKeepsFormula;
 begin
   AssertTrue(FFormula.Parse('A.x + #dart', FResolver));
-  FResolver.Objects.Values['p1'] := 'Waist_Front';
-  FResolver.Variables.Values['v2'] := 'dart_width';
-  AssertEquals('{p1}.x + {v2}', FFormula.StoredText);
+  FResolver.Objects.Values['1'] := 'Waist_Front';
+  FResolver.Variables.Values['5'] := 'dart_width';
+  AssertEquals('{1}.x + {5}', FFormula.StoredText);
   AssertEquals('Waist_Front.x + #dart_width', FFormula.DisplayText(FResolver));
 end;
 
@@ -528,10 +534,10 @@ procedure TTestFormula.TestDanglingId;
 var
   V: double;
 begin
-  AssertTrue(FFormula.ParseStored('{p99}.x + 1'));
-  AssertEquals('display keeps the ID', '{p99}.x + 1', FFormula.DisplayText(FResolver));
+  AssertTrue(FFormula.ParseStored('{99}.x + 1'));
+  AssertEquals('display keeps the ID', '{99}.x + 1', FFormula.DisplayText(FResolver));
   AssertFalse(FFormula.Evaluate(FContext, V));
-  AssertEquals(Format(rsFormulaNoValue, ['{p99}.x']), FFormula.ErrorMessage);
+  AssertEquals(Format(rsFormulaNoValue, ['{99}.x']), FFormula.ErrorMessage);
   AssertEquals(1, FFormula.ErrorPos);
 end;
 
@@ -634,10 +640,10 @@ procedure TTestFormula.TestDisplayErrorPos;
 var
   V: double;
 begin
-  // Stored: {l1}.length / ({p1}.x - {p1}.x); the '/' moves when shown with names
+  // Stored: {3}.length / ({1}.x - {1}.x); the '/' moves when shown with names
   AssertTrue(FFormula.Parse('Line_A_B.length / (A.x - A.x)', FResolver));
   AssertFalse(FFormula.Evaluate(FContext, V));
-  AssertEquals('stored position', 13, FFormula.ErrorPos);
+  AssertEquals('stored position', 12, FFormula.ErrorPos);
   AssertEquals('display position', 17, FFormula.DisplayErrorPos(FResolver));
 end;
 

@@ -74,8 +74,8 @@ var
   BlockedCount: integer;
 begin
   LoadText('{"format": "pattern", "version": 1,' +
-    ' "variables": [{"id": "v1", "name": "half", "formula": "@waist / 2"}],' +
-    ' "objects": [{"id": "p1", "type": "freePoint", "name": "A", "x": "{v1}", "y": "0"}]}');
+    ' "variables": [{"id": 1, "name": "half", "formula": "@waist / 2"}],' +
+    ' "objects": [{"id": 2, "type": "freePoint", "name": "A", "x": "{1}", "y": "0"}]}');
   AssertEquals('problems', 0, Length(PatternProblems(FPattern, BlockedCount)));
   AssertEquals('blocked', 0, BlockedCount);
 end;
@@ -88,16 +88,16 @@ var
   BlockedCount: integer;
 begin
   LoadText('{"format": "pattern", "version": 1,' +
-    ' "variables": [{"id": "v1", "name": "a", "formula": "@chest"}, {"id": "v2", "name": "b", "formula": "{v1} * 2"}],' +
-    ' "objects": [{"id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
-    ' {"id": "p2", "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
-    ' {"id": "p3", "type": "freePoint", "name": "C", "x": "0", "y": "10"},' +
-    ' {"id": "p4", "type": "freePoint", "name": "D", "x": "10", "y": "10"},' +
-    ' {"id": "l1", "type": "line", "start": "p1", "end": "p2"},' +
-    ' {"id": "l2", "type": "line", "start": "p3", "end": "p4"},' +
-    ' {"id": "p5", "type": "intersectPoint", "name": "X", "edgeA": "l1", "edgeB": "l2"},' +
-    ' {"id": "p6", "type": "offsetPoint", "name": "Y", "base": "p5", "length": "1", "angle": "0"},' +
-    ' {"id": "p7", "type": "freePoint", "name": "Z", "x": "1 +", "y": "0"}]}');
+    ' "variables": [{"id": 1, "name": "a", "formula": "@chest"}, {"id": 2, "name": "b", "formula": "{1} * 2"}],' +
+    ' "objects": [{"id": 3, "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
+    ' {"id": 4, "type": "freePoint", "name": "B", "x": "10", "y": "0"},' +
+    ' {"id": 5, "type": "freePoint", "name": "C", "x": "0", "y": "10"},' +
+    ' {"id": 6, "type": "freePoint", "name": "D", "x": "10", "y": "10"},' +
+    ' {"id": 7, "type": "line", "start": 3, "end": 4},' +
+    ' {"id": 8, "type": "line", "start": 5, "end": 6},' +
+    ' {"id": 9, "type": "intersectPoint", "name": "X", "edgeA": 7, "edgeB": 8},' +
+    ' {"id": 10, "type": "offsetPoint", "name": "Y", "base": 9, "length": "1", "angle": "0"},' +
+    ' {"id": 11, "type": "freePoint", "name": "Z", "x": "1 +", "y": "0"}]}');
   Problems := PatternProblems(FPattern, BlockedCount);
   AssertEquals('problems', 3, Length(Problems));
   AssertEquals(Format(rsCheckProblem, ['@chest', rsCheckError, '@chest is not in the measurement set']), Problems[0]);
@@ -112,10 +112,10 @@ var
   Report: TJSONObject;
 begin
   LoadText('{"format": "pattern", "version": 1,' +
-    ' "variables": [{"id": "v1", "name": "third", "formula": "1 / 3"}, {"id": "v2", "name": "bad", "formula": "@chest"}],' +
-    ' "objects": [{"id": "p1", "type": "freePoint", "name": "A", "x": "{v1}", "y": "-0.0000001"},' +
-    ' {"id": "p2", "type": "freePoint", "name": "B", "x": "3", "y": "4"},' +
-    ' {"id": "l1", "type": "line", "start": "p1", "end": "p2"}]}');
+    ' "variables": [{"id": 1, "name": "third", "formula": "1 / 3"}, {"id": 2, "name": "bad", "formula": "@chest"}],' +
+    ' "objects": [{"id": 3, "type": "freePoint", "name": "A", "x": "{1}", "y": "-0.0000001"},' +
+    ' {"id": 4, "type": "freePoint", "name": "B", "x": "3", "y": "4"},' +
+    ' {"id": 5, "type": "line", "start": 3, "end": 4}]}');
   Report := PatternReport(FPattern, 'test.sloper', 'bill.slm');
   try
     AssertEquals(
@@ -124,13 +124,13 @@ begin
       '  "measurements": "bill.slm",'#10 +
       '  "variables": ['#10 +
       '    {'#10 +
-      '      "id": "v1",'#10 +
+      '      "id": 1,'#10 +
       '      "name": "third",'#10 +
       '      "state": "valid",'#10 +
       '      "value": 0.333333'#10 +
       '    },'#10 +
       '    {'#10 +
-      '      "id": "v2",'#10 +
+      '      "id": 2,'#10 +
       '      "name": "bad",'#10 +
       '      "state": "blocked",'#10 +
       '      "message": "Blocked by @chest"'#10 +
@@ -138,21 +138,21 @@ begin
       '  ],'#10 +
       '  "objects": ['#10 +
       '    {'#10 +
-      '      "id": "p1",'#10 +
+      '      "id": 3,'#10 +
       '      "name": "A",'#10 +
       '      "state": "valid",'#10 +
       '      "x": 0.333333,'#10 +
       '      "y": 0'#10 +
       '    },'#10 +
       '    {'#10 +
-      '      "id": "p2",'#10 +
+      '      "id": 4,'#10 +
       '      "name": "B",'#10 +
       '      "state": "valid",'#10 +
       '      "x": 3,'#10 +
       '      "y": 4'#10 +
       '    },'#10 +
       '    {'#10 +
-      '      "id": "l1",'#10 +
+      '      "id": 5,'#10 +
       '      "name": "Line_A_B",'#10 +
       '      "state": "valid",'#10 +
       '      "length": 4.807402'#10 +

@@ -143,7 +143,7 @@ var
 begin
   Path := TestPath;
   AssertEquals('Path_A_C', Path.Name);
-  AssertEquals('c1', Path.Key);
+  AssertEquals('4', Path.Key);
   AssertNotNull('first node has lengthOut', Path.Field('node1.lengthOut'));
   AssertNull('first node has no lengthIn', Path.Field('node1.lengthIn'));
   AssertNotNull('middle node has both', Path.Field('node2.lengthIn'));
@@ -293,7 +293,7 @@ begin
   AssertTrue(FPattern.LastError, FPattern.SplitEdge(Line.Key, P.Key, First, Second));
   AssertEquals('Line_A_P', First.Name);
   AssertEquals('Line_P_B', Second.Name);
-  AssertEquals('line IDs', 'l2', First.Key);
+  AssertEquals('next free ID', '5', First.Key);
   FPattern.Evaluate;
   AssertValidEdge('first', First);
   AssertNear('first length', 30, First.Length);
@@ -360,7 +360,7 @@ begin
   M := TPointObject(Check(FPattern.AddAlongEdgePoint('M', Curve.Key, False, amRatio, '0.5')));
   AssertTrue(FPattern.SplitEdge(Curve.Key, M.Key, First, Second));
   AssertEquals('Curve_A_M', First.Name);
-  AssertEquals('curve IDs', 'c2', First.Key);
+  AssertEquals('next free ID', '5', First.Key);
   FPattern.Evaluate;
   AssertValidEdge('first', First);
   AssertNear('halves', Curve.Length / 2, First.Length, 1e-6);

@@ -357,13 +357,18 @@ begin
 end;
 
 // Loads a recorded state. The measurement set is the document's choice, not
-// part of the history, so the restored pattern keeps the current one.
+// part of the history, so the restored pattern keeps the current one. The ID
+// counter stays where it is, so an undone object's ID is never handed out again.
 procedure TPatternDocument.ApplySnapshot(const Text: string);
 var
   Err: string;
+  NextId: integer;
 begin
+  NextId := FPattern.NextId;
   if not LoadPatternFromText(FPattern, Text, Err) then
     raise EDocumentError.CreateFmt(rsDocumentBadSnapshot, [Err]);
+  if NextId > FPattern.NextId then
+    FPattern.NextId := NextId;
   FPattern.MeasurementFile := MeasurementFileFor(FFileName);
   FPattern.Evaluate;
 end;
@@ -485,7 +490,7 @@ end;
 procedure TPatternDocument.BeginChange(const Description: string);
 begin
   RequireNoChange;
-  FChangeBefore := SavePatternToText(FPattern);
+  FChangeBefore := SavePatternToText(FPattern, False);
   FChangeDescription := Description;
   FChangeOpen := True;
 end;
@@ -502,7 +507,7 @@ begin
     raise EDocumentError.Create(rsDocumentNoChange);
   FChangeOpen := False;
   FPattern.Evaluate;
-  After := SavePatternToText(FPattern);
+  After := SavePatternToText(FPattern, False);
   if After = FChangeBefore then
   begin
     Notify([dcPattern]);
@@ -542,7 +547,7 @@ begin
   if not FChangeOpen then
     raise EDocumentError.Create(rsDocumentNoChange);
   FChangeOpen := False;
-  if SavePatternToText(FPattern) <> FChangeBefore then
+  if SavePatternToText(FPattern, False) <> FChangeBefore then
   begin
     ApplySnapshot(FChangeBefore);
     Notify([dcPattern, dcObjectsReplaced]);

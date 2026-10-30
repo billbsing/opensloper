@@ -3,37 +3,37 @@
   "measurements": "skirt-small.slm",
   "variables": [
     {
-      "id": "v1",
+      "id": 1,
       "name": "hip_ease",
       "state": "valid",
       "value": 40
     },
     {
-      "id": "v2",
+      "id": 2,
       "name": "waist_ease",
       "state": "valid",
       "value": 10
     },
     {
-      "id": "v3",
+      "id": 3,
       "name": "suppression",
       "state": "valid",
       "value": 145
     },
     {
-      "id": "v4",
+      "id": 4,
       "name": "side_take",
       "state": "valid",
       "value": 36.25
     },
     {
-      "id": "v5",
+      "id": 5,
       "name": "back_dart",
       "state": "valid",
       "value": 43.5
     },
     {
-      "id": "v6",
+      "id": 6,
       "name": "front_dart",
       "state": "valid",
       "value": 29
@@ -41,293 +41,293 @@
   ],
   "objects": [
     {
-      "id": "p1",
+      "id": 7,
       "name": "A",
       "state": "valid",
       "x": 0,
       "y": 0
     },
     {
-      "id": "p2",
+      "id": 8,
       "name": "B",
       "state": "valid",
       "x": 0,
       "y": -200
     },
     {
-      "id": "p3",
+      "id": 9,
       "name": "C",
       "state": "valid",
       "x": 0,
       "y": -600
     },
     {
-      "id": "p4",
+      "id": 10,
       "name": "D",
       "state": "valid",
       "x": 480,
       "y": 0
     },
     {
-      "id": "l1",
+      "id": 11,
       "name": "Waist_line",
       "state": "valid",
       "length": 480
     },
     {
-      "id": "p5",
+      "id": 12,
       "name": "E",
       "state": "valid",
       "x": 480,
       "y": -200
     },
     {
-      "id": "l2",
+      "id": 13,
       "name": "Hip_line",
       "state": "valid",
       "length": 480
     },
     {
-      "id": "p6",
+      "id": 14,
       "name": "F",
       "state": "valid",
       "x": 480,
       "y": -600
     },
     {
-      "id": "l3",
+      "id": 15,
       "name": "Hem",
       "state": "valid",
       "length": 480
     },
     {
-      "id": "l4",
+      "id": 16,
       "name": "Centre_back",
       "state": "valid",
       "length": 600
     },
     {
-      "id": "l5",
+      "id": 17,
       "name": "Centre_front",
       "state": "valid",
       "length": 600
     },
     {
-      "id": "p7",
+      "id": 18,
       "name": "G",
       "state": "valid",
       "x": 230,
       "y": -200
     },
     {
-      "id": "p8",
+      "id": 19,
       "name": "H",
       "state": "valid",
       "x": 230,
       "y": 0
     },
     {
-      "id": "p9",
+      "id": 20,
       "name": "J",
       "state": "valid",
       "x": 230,
       "y": -600
     },
     {
-      "id": "p10",
+      "id": 21,
       "name": "L",
       "state": "valid",
       "x": 193.75,
       "y": 12
     },
     {
-      "id": "p11",
+      "id": 22,
       "name": "M",
       "state": "valid",
       "x": 266.25,
       "y": 12
     },
     {
-      "id": "c1",
+      "id": 23,
       "name": "Back_waist",
       "state": "valid",
       "length": 194.162612
     },
     {
-      "id": "c2",
+      "id": 24,
       "name": "Front_waist",
       "state": "valid",
       "length": 214.119411
     },
     {
-      "id": "p12",
+      "id": 25,
       "name": "N",
       "state": "valid",
       "x": 96.937269,
       "y": 4.824892
     },
     {
-      "id": "p13",
+      "id": 26,
       "name": "O",
       "state": "valid",
       "x": 96.937269,
       "y": -135.175108
     },
     {
-      "id": "p14",
+      "id": 27,
       "name": "P",
       "state": "valid",
       "x": 75.247686,
       "y": 3.204863
     },
     {
-      "id": "p15",
+      "id": 28,
       "name": "Q",
       "state": "valid",
       "x": 118.618372,
       "y": 6.55471
     },
     {
-      "id": "l6",
+      "id": 29,
       "name": "Line_P_O",
       "state": "valid",
       "length": 140.069463
     },
     {
-      "id": "l7",
+      "id": 30,
       "name": "Line_Q_O",
       "state": "valid",
       "length": 143.378561
     },
     {
-      "id": "c3",
+      "id": 31,
       "name": "Curve_A_P",
       "state": "valid",
       "length": 75.331258
     },
     {
-      "id": "c4",
+      "id": 32,
       "name": "Curve_P_L",
       "state": "valid",
       "length": 118.831354
     },
     {
-      "id": "c5",
+      "id": 33,
       "name": "Curve_P_Q",
       "state": "valid",
       "length": 43.500056
     },
     {
-      "id": "c6",
+      "id": 34,
       "name": "Curve_Q_L",
       "state": "valid",
       "length": 75.331298
     },
     {
-      "id": "p16",
+      "id": 35,
       "name": "S",
       "state": "valid",
       "x": 373.067728,
       "y": 4.824234
     },
     {
-      "id": "p17",
+      "id": 36,
       "name": "S2",
       "state": "valid",
       "x": 373.067728,
       "y": -5.175766
     },
     {
-      "id": "l8",
+      "id": 37,
       "name": "Front_dart_centre",
       "state": "valid",
       "length": 10
     },
     {
-      "id": "p18",
+      "id": 38,
       "name": "T",
       "state": "valid",
       "x": 0,
       "y": -110
     },
     {
-      "id": "p19",
+      "id": 39,
       "name": "U",
       "state": "valid",
       "x": 480,
       "y": -110
     },
     {
-      "id": "l9",
+      "id": 40,
       "name": "Front_dart_level",
       "state": "valid",
       "length": 480
     },
     {
-      "id": "p20",
+      "id": 41,
       "name": "R",
       "state": "valid",
       "x": 373.067728,
       "y": -110
     },
     {
-      "id": "p21",
+      "id": 42,
       "name": "V",
       "state": "valid",
       "x": 387.535899,
       "y": 3.864013
     },
     {
-      "id": "p22",
+      "id": 43,
       "name": "W",
       "state": "valid",
       "x": 358.60206,
       "y": 5.82146
     },
     {
-      "id": "l10",
+      "id": 44,
       "name": "Line_V_R",
       "state": "valid",
       "length": 114.779534
     },
     {
-      "id": "l11",
+      "id": 45,
       "name": "Line_W_R",
       "state": "valid",
       "length": 116.721318
     },
     {
-      "id": "c7",
+      "id": 46,
       "name": "Curve_D_V",
       "state": "valid",
       "length": 92.5597
     },
     {
-      "id": "c8",
+      "id": 47,
       "name": "Curve_V_M",
       "state": "valid",
       "length": 121.559711
     },
     {
-      "id": "c9",
+      "id": 48,
       "name": "Curve_V_W",
       "state": "valid",
       "length": 29.000008
     },
     {
-      "id": "c10",
+      "id": 49,
       "name": "Curve_W_M",
       "state": "valid",
       "length": 92.559703
     },
     {
-      "id": "c11",
+      "id": 50,
       "name": "Back_side",
       "state": "valid",
       "length": 615.435868
     },
     {
-      "id": "c12",
+      "id": 51,
       "name": "Front_side",
       "state": "valid",
       "length": 215.435868

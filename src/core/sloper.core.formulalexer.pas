@@ -18,7 +18,7 @@
 
 // Tokenizer for formulas. It reads either the display form the user types
 // (Line_A_B.length + #ease + @waist) or the stored ID form
-// ({l1}.length + {v1} + @waist). It only checks spelling; names are resolved
+// ({12}.length + {3} + @waist). It only checks spelling; names are resolved
 // by TFormula. No LCL dependency.
 unit Sloper.Core.FormulaLexer;
 
@@ -36,7 +36,7 @@ type
     ftMeasurement,  // @waist
     ftVariable,     // #ease (display form)
     ftObjectRef,    // Line_A_B.length (display form)
-    ftIdRef         // {v1} or {l1}.length (stored form)
+    ftIdRef         // {3} or {12}.length (stored form)
     );
 
   TFormulaToken = record
@@ -61,12 +61,12 @@ resourcestring
   rsFormulaExpectedProperty = 'Expected a property name after "."';
   rsFormulaExpectedMeasurement = 'Expected a measurement name after "@"';
   rsFormulaExpectedVariable = 'Expected a variable name after "#"';
-  rsFormulaBadId = 'Expected an ID such as {p1}';
+  rsFormulaBadId = 'Expected an ID such as {12}';
 
 implementation
 
 uses
-  SysUtils;
+  SysUtils, Sloper.Core.Names;
 
 function IsNameStart(Character: char): boolean; inline;
 begin
@@ -253,9 +253,10 @@ begin
     end
     else if (Character = '{') and (Form = ffStored) then
     begin
+      // IDs are positive integers, kept in their plain decimal form
       Inc(Position);
       Name := ReadName;
-      if (Name = '') or (Position > Len) or (Text[Position] <> '}') then
+      if not IsIdText(Name) or (Position > Len) or (Text[Position] <> '}') then
       begin
         Fail(rsFormulaBadId, Start);
         Exit;

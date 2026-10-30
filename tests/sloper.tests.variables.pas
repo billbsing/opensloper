@@ -112,8 +112,8 @@ end;
 
 procedure TTestVariables.TestAddAssignsIds;
 begin
-  AssertEquals('v1', AddVar('ease_waist', '20').Key);
-  AssertEquals('v2', AddVar('ease_hip', '30').Key);
+  AssertEquals('1', AddVar('ease_waist', '20').Key);
+  AssertEquals('2', AddVar('ease_hip', '30').Key);
   AssertEquals(2, FPattern.VariableCount);
 end;
 
@@ -149,7 +149,7 @@ var
 begin
   AddVar('ease', '20');
   B := AddVar('front', '@waist/4 + #EASE');
-  AssertEquals('stored', '@waist/4 + {v1}', B.Formula.StoredText);
+  AssertEquals('stored', '@waist/4 + {1}', B.Formula.StoredText);
   AssertEquals('display', '@waist/4 + #ease', FPattern.FormulaText(B, 'formula'));
 end;
 
@@ -176,7 +176,7 @@ begin
   AssertEquals('field', 'formula', FPattern.LastErrorField);
   AssertEquals('position', 5, FPattern.LastErrorPos);
   AssertEquals('nothing added', 0, FPattern.VariableCount);
-  AssertEquals('ID not used up', 'v1', AddVar('ease', '20').Key);
+  AssertEquals('ID not used up', '1', AddVar('ease', '20').Key);
 end;
 
 procedure TTestVariables.TestUnknownMeasurementRefused;
@@ -256,7 +256,7 @@ procedure TTestVariables.TestIdsNotReused;
 begin
   AddVar('a', '1');
   FPattern.Delete(AddVar('b', '2'));
-  AssertEquals('v3', AddVar('c', '3').Key);
+  AssertEquals('3', AddVar('c', '3').Key);
 end;
 
 procedure TTestVariables.TestErrorAndBlockedStates;
@@ -364,7 +364,7 @@ procedure TTestVariables.TestLoadKeepsBadFormula;
 var
   V: TVariable;
 begin
-  LoadText('[{"id": "v1", "name": "a", "formula": "1 +"}]');
+  LoadText('[{"id": 1, "name": "a", "formula": "1 +"}]');
   V := FPattern.FindVariable('a');
   FPattern.Evaluate;
   AssertTrue('error state', V.State = esError);
@@ -373,10 +373,10 @@ end;
 
 procedure TTestVariables.TestLoadedCycleIsAnError;
 begin
-  LoadText('[{"id": "v1", "name": "a", "formula": "{v2} + 1"},' +
-    ' {"id": "v2", "name": "b", "formula": "{v1} * 2"},' +
-    ' {"id": "v3", "name": "c", "formula": "3"},' +
-    ' {"id": "v4", "name": "d", "formula": "{v1}"}]');
+  LoadText('[{"id": 1, "name": "a", "formula": "{2} + 1"},' +
+    ' {"id": 2, "name": "b", "formula": "{1} * 2"},' +
+    ' {"id": 3, "name": "c", "formula": "3"},' +
+    ' {"id": 4, "name": "d", "formula": "{1}"}]');
   FPattern.Evaluate;
   AssertTrue('a', FPattern.FindVariable('a').State = esError);
   AssertEquals(rsEvalCycle, FPattern.FindVariable('a').Message);
@@ -397,21 +397,21 @@ var
   end;
 
 begin
-  Check('{"id": "v1"}', Format(rsPatternFileList, ['variables']));
+  Check('{"id": 1}', Format(rsPatternFileList, ['variables']));
   Check('[{"name": "a", "formula": "1"}]', Format(rsPatternFileBadId, [1, 'variables']));
-  Check('[{"id": "v1", "name": "a", "formula": "1"}, {"id": "v1", "name": "b", "formula": "1"}]',
+  Check('[{"id": 1, "name": "a", "formula": "1"}, {"id": 1, "name": "b", "formula": "1"}]',
     Format(rsPatternFileBadId, [2, 'variables']));
-  Check('[{"id": "v1", "name": "a b", "formula": "1"}]',
-    Format(rsPatternVariableBadName, ['v1', Format(rsNameInvalid, ['a b'])]));
-  Check('[{"id": "v1", "name": "a", "formula": "1"}, {"id": "v2", "name": "A", "formula": "1"}]',
-    Format(rsPatternVariableBadName, ['v2', Format(rsNameTaken, ['A'])]));
-  Check('[{"id": "v1", "name": "a"}]', Format(rsPatternVariableMissing, ['v1', 'formula']));
+  Check('[{"id": 1, "name": "a b", "formula": "1"}]',
+    Format(rsPatternVariableBadName, ['1', Format(rsNameInvalid, ['a b'])]));
+  Check('[{"id": 1, "name": "a", "formula": "1"}, {"id": 2, "name": "A", "formula": "1"}]',
+    Format(rsPatternVariableBadName, ['2', Format(rsNameTaken, ['A'])]));
+  Check('[{"id": 1, "name": "a"}]', Format(rsPatternVariableMissing, ['1', 'formula']));
 end;
 
 procedure TTestVariables.TestNewIdsAfterLoad;
 begin
-  LoadText('[{"id": "v7", "name": "a", "formula": "1"}, {"id": "v3", "name": "b", "formula": "2"}]');
-  AssertEquals('v8', AddVar('c', '3').Key);
+  LoadText('[{"id": 7, "name": "a", "formula": "1"}, {"id": 3, "name": "b", "formula": "2"}]');
+  AssertEquals('8', AddVar('c', '3').Key);
 end;
 
 initialization

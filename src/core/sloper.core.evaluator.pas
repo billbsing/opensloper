@@ -111,7 +111,7 @@ function ReferenceKey(const Ref: TFormulaReference): string;
 
 resourcestring
   rsEvalBlocked = 'Blocked by %s';
-  rsEvalMissing = 'Uses %s, which no longer exists';
+  rsEvalMissing = 'Uses object %s, which no longer exists';
   rsEvalCycle = 'Part of a circular reference';
 
 implementation
