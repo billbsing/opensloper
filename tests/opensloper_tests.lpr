@@ -47,6 +47,7 @@ uses
   Sloper.Tests.GridColumns,
   Sloper.Tests.ObjectList,
   Sloper.Tests.Completion,
+  Sloper.Tests.API,
   Sloper.Tests.Settings,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;

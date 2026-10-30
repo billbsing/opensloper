@@ -33,6 +33,8 @@ const
   // finer than drafting needs, and it keeps reports readable and stable
   ReportDecimals = 6;
 
+// Value rounded to ReportDecimals
+function ReportFloat(Value: double): TJSONData;
 // The state as written in reports; not translated
 function StateName(State: TEvalState): string;
 // One line per measurement, variable or object in error or invalid, as

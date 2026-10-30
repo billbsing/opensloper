@@ -384,7 +384,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Formula autocomplete** (`Sloper.UI.FormulaCompleter`, with the LCL-free `Sloper.UI.Completion`): a formula field offers suggestions under the caret as you type. `@` lists measurements, `#` lists variables, and after an object's dot its properties. A bare word lists objects, variables, measurements and functions, names starting with the word first; choosing an object adds its dot and goes straight on to its properties. The object being edited is left out, as are objects in a variable's formula, since neither would be accepted. Ctrl/Cmd+Space shows everything. Up and Down move, Enter or Tab take the suggestion, Escape closes the list, and the mouse works too. Enter commits the field once the list is closed.
 - **Measurements tab** (`Sloper.UI.MeasurementsPanel`): the current set's keys, values and descriptions, searchable, with New and Open for the set. Keys the pattern uses and the set lacks are listed in red as Missing. Selecting a row fills the fields below the list; Enter or Save writes the change straight to the file through `TPatternDocument.ChangeMeasurement`, and the status bar says what changed. Add starts a new key. Saving with no file asks for a new one first. See Small edits from the drafting app. Not done yet: switching size, which waits for size tables in the core; watching the file for changes made elsewhere; and the button that opens the measurements app, which does not exist yet.
 - **Curve handles** (`CurveHandles` in `Sloper.Core.Drag`): selecting a curve or curve path shows its tangent lines. Dragging a handle's end sets its angle and length, rounded like point drags, as one undo step; Escape cancels. As with points, only plain numbers change: a handle whose angle or length is a formula is drawn hollow and refuses the drag with the reason. The two handles at a path's inner node share one angle, so dragging either turns both and the join stays smooth, while each keeps its own length. A split part follows its source curve and has no handles. A handle lies over the objects under it.
-- **Next:** roadmap step 6, the Automation API.
+- **Next:** the canvas is complete; see the Automation API, roadmap step 6.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -885,7 +885,8 @@ opensloper/
 │   │   └── clipper2/       osclipper2.lpk, builds Clipper2 from the submodule
 │   ├── document/           TPatternDocument, undo/redo commands, notifications
 │   ├── ui/                 forms, canvas, tools, snapping, panels
-│   └── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
+│   ├── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
+│   └── api/                Automation API: JSON-RPC 2.0 over the document layer
 ├── measurements/           opensloper-measurements: measurement files and size tables, using core
 ├── publish/                opensloper-publish: layouts and printing, using core + output
 ├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
@@ -941,6 +942,8 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 **One rule: the API only issues document commands.** Every API call goes through the same document-layer commands as the UI, so name rules, formula checks, cycle checks and undo apply exactly as they do for a user. The API cannot put a pattern into a state the UI could not. Measurement edits go through `Sloper.Core.Measurements` with the same safe write as the drafting app.
 
 ### Phase 1: scripting and testing
+
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo` and `redo`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. Batches of requests are not supported.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.

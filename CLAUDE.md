@@ -10,7 +10,8 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/document/` — `TPatternDocument`, undo/redo commands, change notifications.
 - `src/ui/` — forms, canvas, interaction tools, snapping, panels. Keep it thin: call into document and core.
 - `src/output/` — PDF, SVG, DXF and Blender exporters; read computed geometry only.
-- `cli/` — `opensloper-cli` (export, check), built on the core and ConsoleTools.
+- `src/api/` — the Automation API (JSON-RPC 2.0). Depends only on the document and core; every edit goes through document commands.
+- `cli/` — `opensloper-cli` (export, check, serve), built on the core and ConsoleTools.
 - `tests/` — FPCUnit test project and regression patterns.
 - `packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.

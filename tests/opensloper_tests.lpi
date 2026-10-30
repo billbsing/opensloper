@@ -166,6 +166,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Completion"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.api.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.API"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -175,7 +180,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document;../src/ui"/>
+      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/ui"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <CodeGeneration>

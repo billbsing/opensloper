@@ -27,7 +27,7 @@ unit Sloper.Core.PatternFile;
 interface
 
 uses
-  Sloper.Core.Pattern;
+  Sloper.Core.Draft, Sloper.Core.Pattern;
 
 const
   PatternFormat = 'pattern';
@@ -41,6 +41,8 @@ function SavePatternToText(Pattern: TPattern; WithNextId: boolean = True): strin
 // shows as an error when evaluated. Call Evaluate afterwards.
 function LoadPatternFromText(Pattern: TPattern; const Text: string; out ErrorMessage: string): boolean;
 function SavePatternToFile(Pattern: TPattern; const FileName: string; out ErrorMessage: string): boolean;
+// The object's "type" in a pattern file, such as offsetPoint
+function PatternObjectTypeName(DraftObject: TDraftObject): string;
 function LoadPatternFromFile(Pattern: TPattern; const FileName: string; out ErrorMessage: string): boolean;
 // The pattern's measurement file as a path: relative to the folder of
 // PatternFileName unless absolute. Stored with "/" on every platform. Empty
@@ -64,8 +66,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables,
-  Sloper.Core.Draft;
+  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables;
 
 const
   TypeFreePoint = 'freePoint';
@@ -110,7 +111,7 @@ type
     property Error: string read FError;
   end;
 
-function ObjectTypeName(DraftObject: TDraftObject): string;
+function PatternObjectTypeName(DraftObject: TDraftObject): string;
 begin
   if DraftObject is TFreePoint then
     Result := TypeFreePoint
@@ -188,7 +189,7 @@ var
 begin
   Result := TJSONObject.Create;
   Result.Add('id', JSONId(DraftObject.Key));
-  Result.Add('type', ObjectTypeName(DraftObject));
+  Result.Add('type', PatternObjectTypeName(DraftObject));
   // A derived name (Line_A_B) is recomputed on loading
   if not ((DraftObject is TEdgeObject) and TEdgeObject(DraftObject).NameIsDerived) then
     Result.Add('name', DraftObject.Name);

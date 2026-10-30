@@ -35,7 +35,8 @@ uses
   Sloper.Core.Measurements,
   Sloper.Core.Pattern,
   Sloper.Core.PatternFile,
-  Sloper.Core.PatternCheck;
+  Sloper.Core.PatternCheck,
+  Sloper.API.Server;
 
 const
   ExitProblems = 1;
@@ -51,6 +52,7 @@ resourcestring
   rsArgPattern = 'Pattern file (.sloper)';
   rsCmdCheck = 'Evaluate a pattern and report problems';
   rsCmdExport = 'Export a pattern for one or more measurement files';
+  rsCmdServe = 'Answer JSON-RPC 2.0 on stdin and stdout, one message per line';
   rsNotImplemented = 'The %s command is not implemented yet.';
   rsNeedPattern = 'The %s command needs a pattern file.';
   rsLoadFailed = '%s: %s';
@@ -141,6 +143,31 @@ resourcestring
     end;
   end;
 
+  // The Automation API: one request a line, until stdin closes
+  procedure RunServe;
+  var
+    Server: TApiServer;
+    Line, Reply: string;
+  begin
+    Server := TApiServer.Create;
+    try
+      while not EOF(Input) do
+      begin
+        ReadLn(Input, Line);
+        if Trim(Line) = '' then
+          Continue;
+        Reply := Server.HandleLine(Line);
+        if Reply <> '' then
+        begin
+          WriteLn(Output, Reply);
+          Flush(Output);
+        end;
+      end;
+    finally
+      FreeAndNil(Server);
+    end;
+  end;
+
 var
   Parser: TArgumentParser;
   Command: TArgument;
@@ -157,6 +184,7 @@ begin
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
     Command.AddChoice('check', rsCmdCheck);
     Command.AddChoice('export', rsCmdExport);
+    Command.AddChoice('serve', rsCmdServe);
     Parser.AddArgument('pattern', rsArgPattern, 'pattern', asOptional);
 
     try
@@ -193,6 +221,8 @@ begin
       end;
       ExitCode := RunCheck(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.IsOption('json'));
     end
+    else if CommandName = 'serve' then
+      RunServe
     else
     begin
       WriteLn(StdErr, Format(rsNotImplemented, [CommandName]));
