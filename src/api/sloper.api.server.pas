@@ -58,7 +58,10 @@ type
     function FindTarget(Params: TJSONObject): TEvalNode;
     function DocumentInfo: TJSONObject;
     function ProblemsResult(WithReport: boolean): TJSONObject;
-    procedure Refused;
+    // Cancels the open change and raises the pattern's reason for refusing it
+    procedure RefuseChange;
+    function Reference(Params: TJSONObject; const AName: string): string;
+    function AddedNode(Node: TEvalNode): TJSONData;
     function DoOpen(Params: TJSONObject): TJSONData;
     function DoSave(Params: TJSONObject): TJSONData;
     function DoGetMeasurements: TJSONData;
@@ -72,6 +75,10 @@ type
     function DoUndo: TJSONData;
     function DoRedo: TJSONData;
     function DoRender(Params: TJSONObject): TJSONData;
+    function DoAddVariable(Params: TJSONObject): TJSONData;
+    function DoAddPoint(Params: TJSONObject): TJSONData;
+    function DoAddEdge(Params: TJSONObject): TJSONData;
+    function DoSplitEdge(Params: TJSONObject): TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -94,6 +101,11 @@ resourcestring
   rsApiSetFormula = 'Change %s';
   rsApiRename = 'Rename';
   rsApiDelete = 'Delete';
+  rsApiAdd = 'Add %s';
+  rsApiSplit = 'Split edge';
+  rsApiUnknownType = 'There is no type "%s"; use one of: %s';
+  rsApiBadChoice = 'Parameter "%s" must be one of: %s';
+  rsApiBadNodes = 'A curve path needs a "nodes" list, each with a point and angle';
   rsApiRenderFormat = 'Format "%s" is not available; use svg';
   rsApiBadRegion = 'A region needs minX, minY, maxX and maxY, with each max above its min';
 
@@ -126,6 +138,57 @@ begin
   Result := '';
   if (Params <> nil) and (Params.Find(AName) <> nil) then
     Result := RequireString(Params, AName);
+end;
+
+// A formula, as text or a plain number
+function FormulaParam(Params: TJSONObject; const AName: string): string;
+var
+  Value: double;
+begin
+  if GetJSONNumber(Params, AName, Value) then
+    Exit(FormatJSONFloat(Value));
+  Result := RequireString(Params, AName);
+end;
+
+function OptionalFormula(Params: TJSONObject; const AName: string): string;
+begin
+  Result := '';
+  if Params.Find(AName) <> nil then
+    Result := FormulaParam(Params, AName);
+end;
+
+function BooleanParam(Params: TJSONObject; const AName: string): boolean;
+begin
+  Result := False;
+  if (Params.Find(AName) <> nil) and not GetJSONBoolean(Params, AName, Result) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+end;
+
+// Which of Choices, the first when absent
+function ChoiceParam(Params: TJSONObject; const AName: string; const Choices: array of string): integer;
+var
+  Text: string;
+begin
+  Result := 0;
+  if Params.Find(AName) = nil then
+    Exit;
+  Text := RequireString(Params, AName);
+  for Result := 0 to High(Choices) do
+    if Choices[Result] = Text then
+      Exit;
+  raise EApiError.Create(RpcInvalidParams, Format(rsApiBadChoice, [AName, string.Join(', ', Choices)]));
+end;
+
+function PickParam(Params: TJSONObject): integer;
+begin
+  Result := 1;
+  if (Params.Find('pick') <> nil) and not GetJSONInteger(Params, 'pick', Result) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['pick']));
+end;
+
+function RoleParam(Params: TJSONObject): TEdgeRole;
+begin
+  Result := TEdgeRole(ChoiceParam(Params, 'role', ['construction', 'outline']));
 end;
 
 // Name, type, state and what it computes to, then its formulas with names
@@ -181,13 +244,43 @@ begin
   inherited Destroy;
 end;
 
-// The reason the pattern gave for the last refused call
-procedure TApiServer.Refused;
+// The reason is read first, since cancelling can reload the pattern
+procedure TApiServer.RefuseChange;
 var
-  Pattern: TPattern;
+  Failure: EApiError;
 begin
-  Pattern := FDocument.Pattern;
-  raise EApiError.Create(RpcRefused, Pattern.LastError, Pattern.LastErrorField, Pattern.LastErrorPos);
+  Failure := EApiError.Create(RpcRefused, FDocument.Pattern.LastError, FDocument.Pattern.LastErrorField, FDocument.Pattern.LastErrorPos);
+  FDocument.CancelChange;
+  raise Failure;
+end;
+
+// The ID of an input given as a number, or as an object's name
+function TApiServer.Reference(Params: TJSONObject; const AName: string): string;
+var
+  Id: integer;
+  TargetName: string;
+  Target: TDraftObject;
+begin
+  if GetJSONInteger(Params, AName, Id) then
+    Exit(IntToStr(Id));
+  if not GetJSONString(Params, AName, TargetName) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+  Target := FDocument.Pattern.FindObject(TargetName);
+  if Target = nil then
+    raise EApiError.Create(RpcRefused, Format(rsApiUnknownName, [TargetName]));
+  Result := Target.Key;
+end;
+
+// Ends the change that added Node, nil when it was refused
+function TApiServer.AddedNode(Node: TEvalNode): TJSONData;
+var
+  Key: string;
+begin
+  if Node = nil then
+    RefuseChange;
+  Key := Node.Key;
+  FDocument.EndChange;
+  Result := NodeToJSON(FDocument, FDocument.Pattern.FindNode(Key));
 end;
 
 // The object or variable a call means, by "id" or by "name"
@@ -341,10 +434,7 @@ begin
   FDocument.BeginChange(Format(rsApiSetFormula, [FieldName]));
   Done := FDocument.Pattern.SetFormula(Node, FieldName, Text);
   if not Done then
-  begin
-    FDocument.CancelChange;
-    Refused;
-  end;
+    RefuseChange;
   FDocument.EndChange;
   Result := NodeToJSON(FDocument, FindTarget(Params));
 end;
@@ -358,10 +448,7 @@ begin
   NewName := RequireString(Params, 'newName');
   FDocument.BeginChange(rsApiRename);
   if not FDocument.Pattern.Rename(Node, NewName) then
-  begin
-    FDocument.CancelChange;
-    Refused;
-  end;
+    RefuseChange;
   FDocument.EndChange;
   Result := NodeToJSON(FDocument, FDocument.Pattern.FindNode(Node.Key));
 end;
@@ -373,10 +460,7 @@ begin
   Node := FindTarget(Params);
   FDocument.BeginChange(rsApiDelete);
   if not FDocument.Pattern.Delete(Node) then
-  begin
-    FDocument.CancelChange;
-    Refused;
-  end;
+    RefuseChange;
   FDocument.EndChange;
   Result := DocumentInfo;
 end;
@@ -454,6 +538,191 @@ begin
   Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
 end;
 
+function TApiServer.DoAddVariable(Params: TJSONObject): TJSONData;
+var
+  VariableName, Formula, Description: string;
+begin
+  VariableName := RequireString(Params, 'name');
+  Formula := FormulaParam(Params, 'formula');
+  Description := OptionalString(Params, 'description');
+  FDocument.BeginChange(Format(rsApiAdd, [VariableType]));
+  Result := AddedNode(FDocument.Pattern.AddVariable(VariableName, Formula, Description));
+end;
+
+// Fields as in a pattern file. Inputs are read before the change opens, since
+// a bad one raises.
+function TApiServer.DoAddPoint(Params: TJSONObject): TJSONData;
+var
+  Pattern: TPattern;
+  TypeName, PointName, First, Second, FormulaA, FormulaB: string;
+  Mode, Direction: integer;
+  FlagA, FlagB, FromEnd: boolean;
+  Pick: integer;
+  Added: TEvalNode;
+begin
+  Pattern := FDocument.Pattern;
+  TypeName := RequireString(Params, 'type');
+  PointName := OptionalString(Params, 'name');
+  case TypeName of
+    'freePoint':
+    begin
+      FormulaA := FormulaParam(Params, 'x');
+      FormulaB := FormulaParam(Params, 'y');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddFreePoint(PointName, FormulaA, FormulaB);
+    end;
+    'offsetPoint':
+    begin
+      First := Reference(Params, 'base');
+      Mode := ChoiceParam(Params, 'mode', ['polar', 'cartesian']);
+      if TOffsetMode(Mode) = omPolar then
+      begin
+        FormulaA := FormulaParam(Params, 'length');
+        FormulaB := FormulaParam(Params, 'angle');
+      end
+      else
+      begin
+        FormulaA := FormulaParam(Params, 'dx');
+        FormulaB := FormulaParam(Params, 'dy');
+      end;
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddOffsetPoint(PointName, First, TOffsetMode(Mode), FormulaA, FormulaB);
+    end;
+    'alongEdgePoint':
+    begin
+      First := Reference(Params, 'edge');
+      FromEnd := ChoiceParam(Params, 'from', ['start', 'end']) = 1;
+      Mode := ChoiceParam(Params, 'mode', ['length', 'ratio']);
+      FormulaA := FormulaParam(Params, 'value');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddAlongEdgePoint(PointName, First, FromEnd, TAlongMode(Mode), FormulaA);
+    end;
+    'intersectPoint':
+    begin
+      First := Reference(Params, 'edgeA');
+      Second := Reference(Params, 'edgeB');
+      FlagA := BooleanParam(Params, 'extendA');
+      FlagB := BooleanParam(Params, 'extendB');
+      Pick := PickParam(Params);
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddIntersectPoint(PointName, First, Second, FlagA, FlagB, Pick);
+    end;
+    'circleEdgePoint':
+    begin
+      First := Reference(Params, 'centre');
+      FormulaA := FormulaParam(Params, 'radius');
+      Second := Reference(Params, 'edge');
+      FlagA := BooleanParam(Params, 'extend');
+      Pick := PickParam(Params);
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddCircleEdgePoint(PointName, First, FormulaA, Second, FlagA, Pick);
+    end;
+    'projectPoint':
+    begin
+      First := Reference(Params, 'point');
+      Second := Reference(Params, 'edge');
+      Direction := ChoiceParam(Params, 'direction', ['perpendicular', 'angle']);
+      FormulaA := '';
+      if TProjectDirection(Direction) = pdAngle then
+        FormulaA := FormulaParam(Params, 'angle');
+      FlagA := BooleanParam(Params, 'extend');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddProjectPoint(PointName, First, Second, TProjectDirection(Direction), FormulaA, FlagA);
+    end;
+    else
+      raise EApiError.Create(RpcInvalidParams, Format(rsApiUnknownType,
+        [TypeName, 'freePoint, offsetPoint, alongEdgePoint, intersectPoint, circleEdgePoint, projectPoint']));
+  end;
+  Result := AddedNode(Added);
+end;
+
+function TApiServer.DoAddEdge(Params: TJSONObject): TJSONData;
+var
+  Pattern: TPattern;
+  TypeName, EdgeName, First, Second: string;
+  Angle1, Length1, Angle2, Length2: string;
+  Role: TEdgeRole;
+  Nodes: TJSONData;
+  Item: TJSONObject;
+  NodeKeys, Angles, LengthsIn, LengthsOut: TStringArray;
+  Index: integer;
+  Added: TEvalNode;
+begin
+  Pattern := FDocument.Pattern;
+  TypeName := RequireString(Params, 'type');
+  EdgeName := OptionalString(Params, 'name');
+  Role := RoleParam(Params);
+  case TypeName of
+    'line':
+    begin
+      First := Reference(Params, 'start');
+      Second := Reference(Params, 'end');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddLine(First, Second, Role, EdgeName);
+    end;
+    'curve':
+    begin
+      First := Reference(Params, 'start');
+      Second := Reference(Params, 'end');
+      Angle1 := FormulaParam(Params, 'angle1');
+      Length1 := FormulaParam(Params, 'length1');
+      Angle2 := FormulaParam(Params, 'angle2');
+      Length2 := FormulaParam(Params, 'length2');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddCurve(First, Second, Angle1, Length1, Angle2, Length2, Role, EdgeName);
+    end;
+    'curvePath':
+    begin
+      Nodes := Params.Find('nodes');
+      if (Nodes = nil) or (Nodes.JSONType <> jtArray) then
+        raise EApiError.Create(RpcInvalidParams, rsApiBadNodes);
+      NodeKeys := nil;
+      Angles := nil;
+      LengthsIn := nil;
+      LengthsOut := nil;
+      SetLength(NodeKeys, Nodes.Count);
+      SetLength(Angles, Nodes.Count);
+      SetLength(LengthsIn, Nodes.Count);
+      SetLength(LengthsOut, Nodes.Count);
+      for Index := 0 to Nodes.Count - 1 do
+      begin
+        if Nodes.Items[Index].JSONType <> jtObject then
+          raise EApiError.Create(RpcInvalidParams, rsApiBadNodes);
+        Item := TJSONObject(Nodes.Items[Index]);
+        NodeKeys[Index] := Reference(Item, 'point');
+        Angles[Index] := FormulaParam(Item, 'angle');
+        LengthsIn[Index] := OptionalFormula(Item, 'lengthIn');
+        LengthsOut[Index] := OptionalFormula(Item, 'lengthOut');
+      end;
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddCurvePath(NodeKeys, Angles, LengthsIn, LengthsOut, Role, EdgeName);
+    end;
+    else
+      raise EApiError.Create(RpcInvalidParams, Format(rsApiUnknownType, [TypeName, 'line, curve, curvePath']));
+  end;
+  Result := AddedNode(Added);
+end;
+
+function TApiServer.DoSplitEdge(Params: TJSONObject): TJSONData;
+var
+  Edge, Point, FirstKey, SecondKey: string;
+  First, Second: TSplitPart;
+  Parts: TJSONArray;
+begin
+  Edge := Reference(Params, 'edge');
+  Point := Reference(Params, 'point');
+  FDocument.BeginChange(rsApiSplit);
+  if not FDocument.Pattern.SplitEdge(Edge, Point, First, Second) then
+    RefuseChange;
+  FirstKey := First.Key;
+  SecondKey := Second.Key;
+  FDocument.EndChange;
+  Parts := TJSONArray.Create;
+  Result := Parts;
+  Parts.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(FirstKey)));
+  Parts.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(SecondKey)));
+end;
+
 function TApiServer.CallMethod(const Method: string; Params: TJSONObject): TJSONData;
 begin
   case Method of
@@ -471,6 +740,10 @@ begin
     'undo': Result := DoUndo;
     'redo': Result := DoRedo;
     'render': Result := DoRender(Params);
+    'add_variable': Result := DoAddVariable(Params);
+    'add_point': Result := DoAddPoint(Params);
+    'add_edge': Result := DoAddEdge(Params);
+    'split_edge': Result := DoSplitEdge(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;
@@ -509,9 +782,10 @@ var
   Request: TJSONObject;
   Err, Method: string;
   Id, ParamsData, Output: TJSONData;
-  Params: TJSONObject;
+  Params, OwnParams: TJSONObject;
   Response: TJSONObject;
 begin
+  OwnParams := nil;
   if not ParseJSONObject(Line, Request, Err) then
     Exit(ErrorResponse(nil, RpcParseError, Err, '', 0));
   try
@@ -521,6 +795,13 @@ begin
     ParamsData := Request.Find('params');
     if (ParamsData <> nil) and (ParamsData.JSONType <> jtObject) then
       Exit(ErrorResponse(Id, RpcInvalidParams, Format(rsApiMissingParam, ['params']), '', 0));
+    // Methods read members straight from it, so a request without any gets an empty one
+    OwnParams := nil;
+    if ParamsData = nil then
+    begin
+      OwnParams := TJSONObject.Create;
+      ParamsData := OwnParams;
+    end;
     Params := TJSONObject(ParamsData);
     Output := nil;
     try
@@ -548,6 +829,7 @@ begin
       FreeAndNil(Output);
     end;
   finally
+    FreeAndNil(OwnParams);
     FreeAndNil(Request);
   end;
 end;

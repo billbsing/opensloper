@@ -79,6 +79,17 @@ type
     procedure TestRenderLabelsAndRegion;
     procedure TestRenderFollowsEdits;
     procedure TestRenderRefusals;
+    procedure TestRenderWithoutParams;
+    procedure TestBuildFromNothing;
+    procedure TestEveryPointType;
+    procedure TestCurves;
+    procedure TestSplitEdge;
+    procedure TestAddVariable;
+    procedure TestAddIsOneUndoStep;
+    procedure TestAddRefusals;
+    procedure TestRefusedAddLeavesNoChangeOpen;
+    procedure TestInputsByIdOrName;
+    procedure TestAddedPatternSavesAndReopens;
   end;
 
 implementation
@@ -509,6 +520,160 @@ begin
   AssertEquals(RpcInvalidParams, ErrorCode);
   Call('render', '{"region": 3}');
   AssertEquals(RpcInvalidParams, ErrorCode);
+end;
+
+procedure TTestAPI.TestRenderWithoutParams;
+begin
+  Keep(FServer.HandleLine('{"jsonrpc": "2.0", "id": 1, "method": "render"}'));
+  AssertTrue(Pos('<svg', Answer.Get('svg', '')) = 1);
+end;
+
+procedure TTestAPI.TestBuildFromNothing;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
+  AssertEquals('A', Answer.Get('name', ''));
+  Call('add_point', '{"type": "offsetPoint", "name": "B", "base": "A", "length": 100, "angle": 0}');
+  AssertNear('placed', 100, Answer.Get('x', 0.0));
+  Call('add_edge', '{"type": "line", "start": "A", "end": "B", "role": "outline"}');
+  AssertEquals('derived name', 'Line_A_B', Answer.Get('name', ''));
+  AssertNear('length', 100, Answer.Get('length', 0.0));
+  Call('render');
+  AssertTrue('drawn', Pos('Line_A_B', Answer.Get('svg', '')) > 0);
+end;
+
+procedure TTestAPI.TestEveryPointType;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": "0", "y": "0"}');
+  Call('add_point', '{"type": "offsetPoint", "name": "B", "base": "A", "mode": "cartesian", "dx": 100, "dy": 0}');
+  Call('add_point', '{"type": "offsetPoint", "name": "C", "base": "A", "dx": 1, "length": 50, "angle": 90}');
+  Call('add_point', '{"type": "freePoint", "name": "D", "x": 50, "y": -20}');
+  Call('add_edge', '{"type": "line", "name": "Base", "start": "A", "end": "B"}');
+  Call('add_edge', '{"type": "line", "name": "Up", "start": "D", "end": "C"}');
+  Call('add_point', '{"type": "alongEdgePoint", "name": "E", "edge": "Base", "from": "end", "mode": "ratio", "value": 0.25}');
+  AssertNear('along', 75, Answer.Get('x', 0.0));
+  Call('add_point', '{"type": "intersectPoint", "name": "F", "edgeA": "Base", "edgeB": "Up"}');
+  AssertEquals('crosses', 'valid', Answer.Get('state', ''));
+  Call('add_point', '{"type": "circleEdgePoint", "name": "G", "centre": "A", "radius": 30, "edge": "Base"}');
+  AssertNear('compass', 30, Answer.Get('x', 0.0));
+  Call('add_point', '{"type": "projectPoint", "name": "H", "point": "D", "edge": "Base"}');
+  AssertNear('square onto it', 50, Answer.Get('x', 0.0));
+  Call('add_point', '{"type": "projectPoint", "name": "J", "point": "D", "edge": "Base", "direction": "angle", "angle": 45}');
+  AssertNear('at an angle', 70, Answer.Get('x', 0.0));
+end;
+
+procedure TTestAPI.TestCurves;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "B", "x": 100, "y": 100}');
+  Call('add_point', '{"type": "freePoint", "name": "C", "x": 200, "y": 0}');
+  Call('add_edge', '{"type": "curve", "name": "Arch", "start": "A", "end": "C", "angle1": 90, "length1": 50, "angle2": 90, "length2": 50, "role": "outline"}');
+  AssertEquals('curve', Answer.Get('type', ''));
+  AssertEquals('valid', Answer.Get('state', ''));
+  Call('add_edge', '{"type": "curvePath", "start": "A", "nodes": [' +
+    '{"point": "A", "angle": 90, "lengthOut": 30},' +
+    '{"point": "B", "angle": 0, "lengthIn": 50, "lengthOut": 40},' +
+    '{"point": "C", "angle": 270, "lengthIn": 20}]}');
+  AssertEquals('curvePath', Answer.Get('type', ''));
+  AssertEquals('Path_A_C', Answer.Get('name', ''));
+  AssertEquals('valid', Answer.Get('state', ''));
+end;
+
+procedure TTestAPI.TestSplitEdge;
+var
+  Parts: TJSONArray;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "B", "x": 100, "y": 0}');
+  Call('add_edge', '{"type": "line", "start": "A", "end": "B"}');
+  Call('add_point', '{"type": "alongEdgePoint", "name": "M", "edge": "Line_A_B", "value": 30}');
+  Call('split_edge', '{"edge": "Line_A_B", "point": "M"}');
+  Parts := TJSONArray(FReply.Find('result'));
+  AssertEquals(2, Parts.Count);
+  AssertNear('first', 30, TJSONObject(Parts[0]).Get('length', 0.0));
+  AssertNear('second', 70, TJSONObject(Parts[1]).Get('length', 0.0));
+end;
+
+procedure TTestAPI.TestAddVariable;
+begin
+  Call('add_variable', '{"name": "ease", "formula": "5 * 2", "description": "Some ease"}');
+  AssertNear('value', 10, Answer.Get('value', 0.0));
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": "#ease", "y": 0}');
+  AssertNear('used', 10, Answer.Get('x', 0.0));
+end;
+
+procedure TTestAPI.TestAddIsOneUndoStep;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "B", "x": 1, "y": 0}');
+  Call('undo');
+  AssertNull('B went', ObjectNamed('B'));
+  AssertNotNull('A stayed', ObjectNamed('A'));
+  Call('redo');
+  AssertNotNull('B back', ObjectNamed('B'));
+end;
+
+procedure TTestAPI.TestAddRefusals;
+var
+  Data: TJSONObject;
+begin
+  Call('add_point', '{"type": "wobble"}');
+  AssertEquals('unknown type', RpcInvalidParams, ErrorCode);
+  AssertTrue('lists the choices', Pos('freePoint', ErrorText) > 0);
+  Call('add_point', '{"type": "freePoint", "x": 0}');
+  AssertEquals('missing field', RpcInvalidParams, ErrorCode);
+  Call('add_point', '{"type": "offsetPoint", "base": "Nothing", "length": 1, "angle": 0}');
+  AssertEquals('unknown input', RpcRefused, ErrorCode);
+  Call('add_point', '{"type": "offsetPoint", "base": 99, "length": 1, "angle": 0}');
+  AssertEquals('unknown ID', RpcRefused, ErrorCode);
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "a", "x": 0, "y": 0}');
+  AssertEquals('name taken', RpcRefused, ErrorCode);
+  Call('add_point', '{"type": "freePoint", "x": "1 +", "y": 0}');
+  AssertEquals('bad formula', RpcRefused, ErrorCode);
+  Data := TJSONObject(TJSONObject(FReply.Find('error')).Find('data'));
+  AssertEquals('says which field', 'x', Data.Get('field', ''));
+  Call('add_point', '{"type": "offsetPoint", "base": "A", "mode": "sideways", "length": 1, "angle": 0}');
+  AssertEquals('bad choice', RpcInvalidParams, ErrorCode);
+  Call('add_edge', '{"type": "line", "start": "A", "end": "A"}');
+  AssertEquals('an edge to itself is a state, not a refusal', 'invalid', Answer.Get('state', ''));
+  Call('delete', '{"name": "Line_A_A"}');
+  Call('add_edge', '{"type": "curvePath"}');
+  AssertEquals('no nodes', RpcInvalidParams, ErrorCode);
+  Call('add_variable', '{"name": "2 bad", "formula": "1"}');
+  AssertEquals('bad name', RpcRefused, ErrorCode);
+end;
+
+procedure TTestAPI.TestRefusedAddLeavesNoChangeOpen;
+begin
+  Call('add_point', '{"type": "freePoint", "x": "1 +", "y": 0}');
+  AssertFalse(FServer.Document.ChangeOpen);
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
+  AssertEquals('the next call still works', 'A', Answer.Get('name', ''));
+  Call('undo');
+  Call('undo');
+  AssertEquals('a refused add is not a step', RpcRefused, ErrorCode);
+end;
+
+procedure TTestAPI.TestInputsByIdOrName;
+var
+  Id: integer;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 5, "y": 0}');
+  Id := Answer.Get('id', 0);
+  Call('add_point', Format('{"type": "offsetPoint", "name": "B", "base": %d, "length": 10, "angle": 0}', [Id]));
+  AssertNear('by ID', 15, Answer.Get('x', 0.0));
+  Call('add_point', '{"type": "offsetPoint", "name": "C", "base": "a", "length": 20, "angle": 0}');
+  AssertNear('by name, ignoring case', 25, Answer.Get('x', 0.0));
+end;
+
+procedure TTestAPI.TestAddedPatternSavesAndReopens;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 5, "y": 0}');
+  Call('add_point', '{"type": "offsetPoint", "name": "B", "base": "A", "length": 10, "angle": 0}');
+  Call('save', PathParams(FPatternPath + '2'));
+  Call('open', PathParams(FPatternPath + '2'));
+  AssertEquals(2, Answer.Get('objects', 0));
+  AssertNear('evaluates after reopening', 15, ObjectNamed('B').Get('x', 0.0));
 end;
 
 initialization
