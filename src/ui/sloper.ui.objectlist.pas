@@ -16,8 +16,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// What the objects panel lists: a row of text for each object, narrowed by a
-// filter and a search, and how clicks change the selection. Also the captions
+// What the objects and variables panels list: a row of text for each, narrowed
+// by a filter and a search, and how clicks change the selection. Also the captions
 // the panels share for object types and formula fields. Kept free of the LCL
 // so it can be unit-tested.
 unit Sloper.UI.ObjectList;
@@ -27,7 +27,7 @@ unit Sloper.UI.ObjectList;
 interface
 
 uses
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Pattern;
 
 type
   // ofProblems: anything not valid
@@ -44,6 +44,17 @@ type
   end;
   TObjectRowArray = array of TObjectRow;
 
+  TVariableRow = record
+    Key: string;
+    Name: string;
+    Formula: string;
+    Value: string;
+    Description: string;
+    State: TEvalState;
+    StateText: string;
+  end;
+  TVariableRowArray = array of TVariableRow;
+
 // Caption for a formula field, such as "Start angle" for angle1
 function FieldCaption(const FieldName: string): string;
 // What kind of object this is, such as "Offset point"
@@ -55,6 +66,9 @@ function ObjectRow(Pattern: TPattern; DraftObject: TDraftObject): TObjectRow;
 // The objects passing Filter whose name, operation or formulas contain Search,
 // ignoring case, in pattern order
 function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: string): TObjectRowArray;
+function VariableRow(Pattern: TPattern; Variable: TVariable): TVariableRow;
+// The variables whose name, formula or description contain Search, ignoring case
+function VariableRows(Pattern: TPattern; const Search: string): TVariableRowArray;
 // The selection after clicking Clicked. Toggle adds or removes it; Extend
 // selects from Anchor to it in Visible, the keys in list order, or just it
 // when Anchor is not listed.
@@ -101,7 +115,10 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.Variables, Sloper.Core.Drag;
+  Sloper.Core.Drag;
+
+const
+  VariableDecimals = 4;
 
 function FieldCaption(const FieldName: string): string;
 var
@@ -254,6 +271,42 @@ begin
         Inc(Count);
       end;
     end;
+  SetLength(Result, Count);
+end;
+
+function VariableRow(Pattern: TPattern; Variable: TVariable): TVariableRow;
+begin
+  Result.Key := Variable.Key;
+  Result.Name := Variable.Name;
+  Result.Formula := Pattern.FormulaText(Variable, 'formula');
+  Result.Value := '';
+  if Variable.State = esValid then
+    Result.Value := RoundedText(Variable.Value, VariableDecimals);
+  Result.Description := Variable.Description;
+  Result.State := Variable.State;
+  Result.StateText := StateCaption(Variable.State);
+end;
+
+function VariableRows(Pattern: TPattern; const Search: string): TVariableRowArray;
+var
+  Index, Count: integer;
+  LowerSearch: string;
+  Row: TVariableRow;
+begin
+  Result := nil;
+  SetLength(Result, Pattern.VariableCount);
+  LowerSearch := LowerCase(Trim(Search));
+  Count := 0;
+  for Index := 0 to Pattern.VariableCount - 1 do
+  begin
+    Row := VariableRow(Pattern, Pattern.Variables[Index]);
+    if (LowerSearch = '') or (Pos(LowerSearch, LowerCase(Row.Name)) > 0) or (Pos(LowerSearch, LowerCase(Row.Formula)) > 0) or
+      (Pos(LowerSearch, LowerCase(Row.Description)) > 0) then
+    begin
+      Result[Count] := Row;
+      Inc(Count);
+    end;
+  end;
   SetLength(Result, Count);
 end;
 

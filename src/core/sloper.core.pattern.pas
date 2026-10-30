@@ -64,6 +64,7 @@ type
     function GetObject(Index: integer): TDraftObject;
     function SetError(const Msg: string; const AField: string = ''; Pos: integer = 0): boolean;
     function ObjectNameTaken(const AName: string): boolean;
+    function VariableNameTaken(const AName: string): boolean;
     function ResolverFor(Node: TEvalNode): TNameResolver;
     function ParseFields(Node: TEvalNode; const Names, Texts: array of string): boolean;
     function CheckPoint(const Id: string): boolean;
@@ -95,6 +96,8 @@ type
     // LastErrorField and LastErrorPos. An empty point name takes the next
     // automatic name; an empty edge name is derived from its ends.
     function AddVariable(const AName, FormulaText: string; const Description: string = ''): TVariable;
+    // A free name for a new variable: variable, variable2 and so on
+    function NewVariableName: string;
     function AddFreePoint(const AName, XText, YText: string): TFreePoint;
     // LengthOrDx and AngleOrDy are length and angle (omPolar) or dx and dy (omCartesian)
     function AddOffsetPoint(const AName, BaseId: string; Mode: TOffsetMode; const LengthOrDx, AngleOrDy: string): TOffsetPoint;
@@ -182,6 +185,10 @@ implementation
 
 uses
   Sloper.Core.Names;
+
+const
+  // Not translated: a name has to keep to the name rules
+  NewVariableBaseName = 'variable';
 
 type
   TPatternResolver = class(TNameResolver)
@@ -528,6 +535,16 @@ begin
   if not (Node is TEdgeObject) then
     Exit(SetError(Format(rsDraftNotAnEdge, [Node.DisplayName])));
   Result := True;
+end;
+
+function TPattern.VariableNameTaken(const AName: string): boolean;
+begin
+  Result := FindVariable(AName) <> nil;
+end;
+
+function TPattern.NewVariableName: string;
+begin
+  Result := NextFreeName(NewVariableBaseName, @VariableNameTaken);
 end;
 
 function TPattern.AddVariable(const AName, FormulaText: string;

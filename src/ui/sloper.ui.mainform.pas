@@ -27,7 +27,7 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
-  Sloper.UI.ObjectsPanel;
+  Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel;
 
 type
 
@@ -82,9 +82,12 @@ type
     FDocument: TPatternDocument;
     FSettings: TAppSettings;
     FLabelItems: array[TLabelMode] of TMenuItem;
+    FSidePanel: TPageControl;
+    FSideSplitter: TSplitter;
+    FSideItem: TMenuItem;
     FObjects: TObjectsPanel;
-    FObjectsSplitter: TSplitter;
-    FObjectsItem: TMenuItem;
+    FVariables: TVariablesPanel;
+    FChoosingVariable: boolean;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
     FSplitter: TSplitter;
@@ -97,12 +100,15 @@ type
     procedure SetLabelMode(Mode: TLabelMode);
     procedure CreateLabelMenu;
     procedure LabelModeClick(Sender: TObject);
-    procedure CreateObjectsPanel;
-    procedure SetObjectsShown(Shown: boolean);
-    procedure ObjectsItemClick(Sender: TObject);
+    procedure CreateSidePanel;
+    procedure SetSideShown(Shown: boolean);
+    procedure SideItemClick(Sender: TObject);
+    procedure ListPanelMessage(Sender: TObject; const AText: string);
     procedure ObjectsSelect(Sender: TObject);
     procedure ObjectsZoom(Sender: TObject);
     procedure ObjectsDelete(Sender: TObject);
+    procedure VariablesSelect(Sender: TObject);
+    procedure VariablesAdded(Sender: TObject);
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
@@ -157,7 +163,9 @@ resourcestring
   rsMenuViewZoomOut = 'Zoom &Out';
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
-  rsMenuViewObjects = '&Objects Panel';
+  rsMenuViewSidePanel = '&Side Panel';
+  rsTabObjects = 'Objects';
+  rsTabVariables = 'Variables';
   rsMenuViewLabels = '&Labels';
   rsLabelsContextual = '&Contextual';
   rsLabelsAll = '&All (hold N)';
@@ -241,7 +249,7 @@ begin
   FSplitter.Parent := Self;
   FSplitter.Align := alRight;
   FSplitter.Left := FProperties.Left - FSplitter.Width;
-  CreateObjectsPanel;
+  CreateSidePanel;
   FCanvas := TPatternCanvas.Create(Self);
   FCanvas.Parent := Self;
   FCanvas.Align := alClient;
@@ -252,7 +260,7 @@ begin
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
   CreateLabelMenu;
   SetLabelMode(FSettings.LabelMode);
-  SetObjectsShown(FSettings.ShowObjectsPanel);
+  SetSideShown(FSettings.ShowSidePanel);
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
   StatusBar.OnResize := @StatusBarResize;
@@ -278,7 +286,7 @@ var
 begin
   FSettings.NameColumnShare := FProperties.NameShare;
   FSettings.LabelMode := FCanvas.LabelMode;
-  FSettings.ShowObjectsPanel := FObjects.Visible;
+  FSettings.ShowSidePanel := FSidePanel.Visible;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
 end;
@@ -289,39 +297,62 @@ begin
   FLabelItems[Mode].Checked := True;
 end;
 
-procedure TMainForm.CreateObjectsPanel;
+// The tabs down the left; the list panels share one place
+procedure TMainForm.CreateSidePanel;
+
+  function AddTab(const ACaption: string; Panel: TListPanel): TListPanel;
+  var
+    Sheet: TTabSheet;
+  begin
+    Sheet := FSidePanel.AddTabSheet;
+    Sheet.Caption := ACaption;
+    Panel.Parent := Sheet;
+    Panel.Align := alClient;
+    Panel.Document := FDocument;
+    Panel.OnMessage := @ListPanelMessage;
+    Result := Panel;
+  end;
+
 begin
-  FObjects := TObjectsPanel.Create(Self);
-  FObjects.Parent := Self;
-  FObjects.Align := alLeft;
-  FObjects.Width := Scale96ToForm(320);
-  FObjects.Document := FDocument;
+  FSidePanel := TPageControl.Create(Self);
+  FSidePanel.Parent := Self;
+  FSidePanel.Align := alLeft;
+  FSidePanel.Width := Scale96ToForm(320);
+  FObjects := TObjectsPanel(AddTab(rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
   FObjects.OnDelete := @ObjectsDelete;
-  FObjectsSplitter := TSplitter.Create(Self);
-  FObjectsSplitter.Parent := Self;
-  FObjectsSplitter.Align := alLeft;
-  FObjectsSplitter.Left := FObjects.Left + FObjects.Width;
-  FObjectsItem := TMenuItem.Create(MainMenu);
-  FObjectsItem.Caption := rsMenuViewObjects;
-  FObjectsItem.OnClick := @ObjectsItemClick;
+  FVariables := TVariablesPanel(AddTab(rsTabVariables, TVariablesPanel.Create(Self)));
+  FVariables.OnSelect := @VariablesSelect;
+  FVariables.OnAdded := @VariablesAdded;
+  FSideSplitter := TSplitter.Create(Self);
+  FSideSplitter.Parent := Self;
+  FSideSplitter.Align := alLeft;
+  FSideSplitter.Left := FSidePanel.Left + FSidePanel.Width;
+  FSideItem := TMenuItem.Create(MainMenu);
+  FSideItem.Caption := rsMenuViewSidePanel;
+  FSideItem.OnClick := @SideItemClick;
   MenuView.Add(NewLine);
-  MenuView.Add(FObjectsItem);
+  MenuView.Add(FSideItem);
 end;
 
-procedure TMainForm.SetObjectsShown(Shown: boolean);
+procedure TMainForm.SetSideShown(Shown: boolean);
 begin
-  FObjects.Visible := Shown;
-  FObjectsSplitter.Visible := Shown;
+  FSidePanel.Visible := Shown;
+  FSideSplitter.Visible := Shown;
   // The splitter belongs just after the panel, or it docks on the far side of it
-  FObjectsSplitter.Left := FObjects.Left + FObjects.Width;
-  FObjectsItem.Checked := Shown;
+  FSideSplitter.Left := FSidePanel.Left + FSidePanel.Width;
+  FSideItem.Checked := Shown;
 end;
 
-procedure TMainForm.ObjectsItemClick(Sender: TObject);
+procedure TMainForm.SideItemClick(Sender: TObject);
 begin
-  SetObjectsShown(not FObjects.Visible);
+  SetSideShown(not FSidePanel.Visible);
+end;
+
+procedure TMainForm.ListPanelMessage(Sender: TObject; const AText: string);
+begin
+  StatusBar.Panels[PanelMessage].Text := AText;
 end;
 
 procedure TMainForm.ObjectsSelect(Sender: TObject);
@@ -338,6 +369,23 @@ end;
 procedure TMainForm.ObjectsDelete(Sender: TObject);
 begin
   FCanvas.DeleteSelection;
+end;
+
+// A variable is not on the canvas, so choosing one clears the canvas selection
+procedure TMainForm.VariablesSelect(Sender: TObject);
+begin
+  FChoosingVariable := True;
+  try
+    FCanvas.SelectNone;
+  finally
+    FChoosingVariable := False;
+  end;
+  FProperties.ShowSelection(FVariables.Selection);
+end;
+
+procedure TMainForm.VariablesAdded(Sender: TObject);
+begin
+  FProperties.FocusName;
 end;
 
 // The label modes in the View menu; each item's Tag is its TLabelMode
@@ -436,8 +484,12 @@ end;
 
 procedure TMainForm.CanvasSelectionChange(Sender: TObject);
 begin
-  FProperties.ShowSelection(FCanvas.Selection);
   FObjects.ShowSelection(FCanvas.Selection);
+  // Choosing a variable shows it in the properties itself
+  if FChoosingVariable then
+    Exit;
+  FVariables.ShowSelection(nil);
+  FProperties.ShowSelection(FCanvas.Selection);
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -448,6 +500,7 @@ begin
   FCanvas.Document := nil;
   FProperties.Document := nil;
   FObjects.Document := nil;
+  FVariables.Document := nil;
   FDocument.RemoveListener(@DocumentChanged);
   FreeAndNil(FDocument);
 end;

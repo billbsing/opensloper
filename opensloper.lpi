@@ -202,6 +202,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.FormulaCompleter"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.listpanel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.ListPanel"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.variablespanel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.VariablesPanel"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

@@ -47,6 +47,10 @@ type
     procedure TestExtend;
     procedure TestExtendWithoutAnchor;
     procedure TestSharedCaptions;
+    procedure TestVariableRow;
+    procedure TestVariableSearch;
+    procedure TestFailingVariableHasNoValue;
+    procedure TestNewVariableName;
   end;
 
 implementation
@@ -185,6 +189,57 @@ begin
   AssertEquals(Format(rsFieldNodeIn, ['2']), FieldCaption('node2.lengthIn'));
   AssertEquals('unknown field', 'odd', FieldCaption('odd'));
   AssertEquals(rsStateBlocked, StateCaption(esBlocked));
+end;
+
+procedure TTestObjectList.TestVariableRow;
+var
+  Row: TVariableRow;
+begin
+  FPattern.AddVariable('ease', '20', 'Waist ease');
+  FPattern.AddVariable('half', '#ease / 2');
+  FPattern.Evaluate;
+  Row := VariableRow(FPattern, FPattern.FindVariable('half'));
+  AssertEquals('name', 'half', Row.Name);
+  AssertEquals('formula with names', '#ease / 2', Row.Formula);
+  AssertEquals('value', '10', Row.Value);
+  AssertEquals('state', rsStateValid, Row.StateText);
+  AssertEquals('description', 'Waist ease', VariableRow(FPattern, FPattern.FindVariable('ease')).Description);
+end;
+
+procedure TTestObjectList.TestVariableSearch;
+var
+  Rows: TVariableRowArray;
+begin
+  FPattern.AddVariable('ease', '20', 'Waist ease');
+  FPattern.AddVariable('half', '#ease / 2');
+  FPattern.AddVariable('dart', '30', 'Back only');
+  FPattern.Evaluate;
+  AssertEquals('all', 3, Length(VariableRows(FPattern, '')));
+  Rows := VariableRows(FPattern, 'EASE');
+  AssertEquals('by name and formula', 2, Length(Rows));
+  Rows := VariableRows(FPattern, 'back');
+  AssertEquals('by description', 1, Length(Rows));
+  AssertEquals('dart', Rows[0].Name);
+end;
+
+procedure TTestObjectList.TestFailingVariableHasNoValue;
+var
+  Row: TVariableRow;
+begin
+  FPattern.AddVariable('bad', '1 / 0');
+  FPattern.Evaluate;
+  Row := VariableRow(FPattern, FPattern.FindVariable('bad'));
+  AssertEquals('value', '', Row.Value);
+  AssertEquals('state', rsStateError, Row.StateText);
+end;
+
+procedure TTestObjectList.TestNewVariableName;
+begin
+  AssertEquals('variable', FPattern.NewVariableName);
+  FPattern.AddVariable('variable', '1');
+  AssertEquals('variable2', FPattern.NewVariableName);
+  FPattern.AddVariable('Variable2', '1');
+  AssertEquals('ignoring case', 'variable3', FPattern.NewVariableName);
 end;
 
 initialization

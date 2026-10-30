@@ -43,7 +43,7 @@ type
     procedure TestOutOfRangeShareIsIgnored;
     procedure TestMissingShareIsDefault;
     procedure TestLabelModeRoundTrip;
-    procedure TestObjectsPanelRoundTrip;
+    procedure TestSidePanelRoundTrip;
     procedure TestUnknownLabelModeIsIgnored;
   end;
 
@@ -66,19 +66,19 @@ procedure TTestSettings.TestDefaults;
 begin
   AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
   AssertTrue('label mode', FSettings.LabelMode = lmContextual);
-  AssertTrue('objects panel', FSettings.ShowObjectsPanel);
+  AssertTrue('side panel', FSettings.ShowSidePanel);
 end;
 
-procedure TTestSettings.TestObjectsPanelRoundTrip;
+procedure TTestSettings.TestSidePanelRoundTrip;
 var
   Other: TAppSettings;
   Err: string;
 begin
-  FSettings.ShowObjectsPanel := False;
+  FSettings.ShowSidePanel := False;
   Other := TAppSettings.Create;
   try
     AssertTrue(Err, Other.LoadFromText(FSettings.SaveToText, Err));
-    AssertFalse('hidden', Other.ShowObjectsPanel);
+    AssertFalse('hidden', Other.ShowSidePanel);
   finally
     FreeAndNil(Other);
   end;

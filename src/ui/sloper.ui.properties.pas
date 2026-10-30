@@ -70,6 +70,7 @@ type
     FFieldNames: TStringArray;
     FDivider: TColumnDivider;
     FNameEdit: TEdit;
+    FDescriptionEdit: TEdit;
     FRoleBox: TComboBox;
     FEdits: array of TEdit;
     // Each field's row for a refused entry, hidden until needed; see RefusalRow
@@ -85,6 +86,8 @@ type
     FSettingText: boolean;
     // Enter took a suggestion; its release must not select the whole field
     FSwallowEnterUp: boolean;
+    // Undo or redo changed the pattern, so even the field being typed in follows it
+    FRefreshFocused: boolean;
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure ClearControls;
@@ -112,6 +115,7 @@ type
     procedure EditClick(Sender: TObject);
     procedure UpdateCompletion(Edit: TEdit; Explicit: boolean);
     procedure SetEditText(Edit: TEdit; const AText: string);
+    function KeepsText(Edit: TEdit): boolean;
     procedure RoleChange(Sender: TObject);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
@@ -123,6 +127,8 @@ type
     // Shows the object with this key alone, or a count when several or none are selected
     procedure ShowSelection(const Keys: TStringArray);
     property Document: TPatternDocument read FDocument write SetDocument;
+    // Puts the cursor in the name field, with the name selected, ready to replace
+    procedure FocusName;
     // The part of a row's width given to names; kept between sessions by the main form
     property NameShare: double read FNameShare write SetNameShare;
   end;
@@ -140,6 +146,8 @@ resourcestring
   rsPropValue = 'Value';
   rsPropEdit = 'Change %s';
   rsPropRename = 'Rename';
+  rsPropDescription = 'Description';
+  rsPropChangeDescription = 'Change description';
   rsPropChangeRole = 'Change role';
 
 implementation
@@ -155,6 +163,10 @@ const
   // At 96 pixels per inch
   DividerWidth96 = 8;
   MinColumn96 = 48;
+  // Edit tags below the field numbers
+  NameTag = -1;
+  DescriptionTag = -2;
+  RefusalBase = 2;
 
 function SameNames(const First, Second: TStringArray): boolean;
 var
@@ -284,10 +296,20 @@ begin
     FKey := '';
     FSelectionCount := 0;
   end;
-  if FCommitting or (FKey <> '') and SameNames(CurrentFieldNames, FFieldNames) then
-    RefreshValues
-  else
-    Rebuild;
+  FRefreshFocused := dcObjectsReplaced in Changes;
+  try
+    if FCommitting or (FKey <> '') and SameNames(CurrentFieldNames, FFieldNames) then
+      RefreshValues
+    else
+      Rebuild;
+  finally
+    FRefreshFocused := False;
+  end;
+end;
+
+function TPropertiesPanel.KeepsText(Edit: TEdit): boolean;
+begin
+  Result := Edit.Focused and not FRefreshFocused;
 end;
 
 function TPropertiesPanel.CurrentFieldNames: TStringArray;
@@ -315,12 +337,15 @@ begin
   // Freeing a focused edit would run its exit handler and commit mid-rebuild
   if FNameEdit <> nil then
     FNameEdit.OnExit := nil;
+  if FDescriptionEdit <> nil then
+    FDescriptionEdit.OnExit := nil;
   for Edit in FEdits do
     Edit.OnExit := nil;
   while ControlCount > 0 do
     Controls[0].Free;
   FDivider := nil;
   FNameEdit := nil;
+  FDescriptionEdit := nil;
   FRoleBox := nil;
   FEdits := nil;
   FRefusals := nil;
@@ -428,7 +453,7 @@ begin
   Refusal := AddLabel('', RowGap);
   Refusal.Font.Color := clRed;
   Refusal.Visible := False;
-  FRefusals[ATag + 1] := Refusal;
+  FRefusals[ATag + RefusalBase] := Refusal;
 end;
 
 // The width the two columns share
@@ -468,7 +493,7 @@ end;
 
 function TPropertiesPanel.RefusalRow(Edit: TEdit): TLabel;
 begin
-  Result := FRefusals[Edit.Tag + 1];
+  Result := FRefusals[Edit.Tag + RefusalBase];
 end;
 
 procedure TPropertiesPanel.ShowRefusal(Edit: TEdit; const Reason: string);
@@ -506,13 +531,15 @@ begin
     FDivider.Width := Scale96ToForm(DividerWidth96);
     FDivider.Parent := Self;
     FDivider.OnDrag := @DividerDrag;
-    SetLength(FRefusals, Node.FieldCount + 1);
+    SetLength(FRefusals, Node.FieldCount + RefusalBase);
     AddTextRow(rsPropType, TypeCaption(Node), Gap);
     if (Node is TDraftObject) or (Node is TVariable) then
-      FNameEdit := AddEditRow(rsPropName, -1);
+      FNameEdit := AddEditRow(rsPropName, NameTag);
     SetLength(FEdits, Node.FieldCount);
     for Index := 0 to Node.FieldCount - 1 do
       FEdits[Index] := AddEditRow(FieldCaption(Node.Fields[Index].Name), Index);
+    if Node is TVariable then
+      FDescriptionEdit := AddEditRow(rsPropDescription, DescriptionTag);
     if Node is TEdgeObject then
     begin
       FRoleBox := TComboBox.Create(Self);
@@ -551,12 +578,14 @@ begin
   Node := FDocument.Pattern.FindNode(FKey);
   if Node = nil then
     Exit;
-  if Edit.Tag < 0 then
+  if Edit.Tag = DescriptionTag then
+    Result := TVariable(Node).Description
+  else if Edit.Tag = NameTag then
     Result := Node.DisplayName
   else
     Result := FDocument.Pattern.FormulaText(Node, Node.Fields[Edit.Tag].Name);
   // Variables show as #name; the name field holds the bare name
-  if (Edit.Tag < 0) and (Node is TVariable) then
+  if (Edit.Tag = NameTag) and (Node is TVariable) then
     Result := TVariable(Node).Name;
 end;
 
@@ -571,19 +600,21 @@ begin
   if Node = nil then
     Exit;
   // A field being typed in keeps its text, and the reason it was refused
-  if (FNameEdit <> nil) and not FNameEdit.Focused then
+  if (FNameEdit <> nil) and not KeepsText(FNameEdit) then
   begin
-    FNameEdit.Text := OriginalText(FNameEdit);
+    SetEditText(FNameEdit, OriginalText(FNameEdit));
     if not FCommitting then
       ClearRefusal(FNameEdit);
   end;
   for Edit in FEdits do
-    if not Edit.Focused then
+    if not KeepsText(Edit) then
     begin
-      Edit.Text := OriginalText(Edit);
+      SetEditText(Edit, OriginalText(Edit));
       if not FCommitting then
         ClearRefusal(Edit);
     end;
+  if (FDescriptionEdit <> nil) and not KeepsText(FDescriptionEdit) then
+    SetEditText(FDescriptionEdit, OriginalText(FDescriptionEdit));
   if FRoleBox <> nil then
     FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
   if FResult <> nil then
@@ -617,7 +648,9 @@ begin
   Node := FDocument.Pattern.FindNode(FKey);
   if Node = nil then
     Exit;
-  if Edit.Tag < 0 then
+  if Edit.Tag = DescriptionTag then
+    Description := rsPropChangeDescription
+  else if Edit.Tag = NameTag then
     Description := rsPropRename
   else
   begin
@@ -627,7 +660,12 @@ begin
   FCommitting := True;
   try
     FDocument.BeginChange(Description);
-    if Edit.Tag < 0 then
+    if Edit.Tag = DescriptionTag then
+    begin
+      TVariable(Node).Description := Edit.Text;
+      Done := True;
+    end
+    else if Edit.Tag = NameTag then
       Done := FDocument.Pattern.Rename(Node, Edit.Text)
     else
       Done := FDocument.Pattern.SetFormula(Node, FieldName, Edit.Text);
@@ -704,6 +742,15 @@ begin
   CommitEdit(TEdit(Sender));
 end;
 
+procedure TPropertiesPanel.FocusName;
+begin
+  if FNameEdit <> nil then
+  begin
+    FNameEdit.SetFocus;
+    FNameEdit.SelectAll;
+  end;
+end;
+
 procedure TPropertiesPanel.SetEditText(Edit: TEdit; const AText: string);
 begin
   FSettingText := True;
@@ -716,7 +763,7 @@ begin
     FCompleter.Hide;
 end;
 
-// Name fields have Tag -1 and are not formulas
+// The name and description fields are not formulas
 procedure TPropertiesPanel.UpdateCompletion(Edit: TEdit; Explicit: boolean);
 begin
   if (Edit.Tag < 0) or (FDocument = nil) then
