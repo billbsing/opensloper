@@ -201,7 +201,7 @@ Measurements are the exception: patterns refer to them by a stable key such as `
 - Function names and formula keywords are reserved
 - Case is preserved for display but compared case-insensitively
 - Unique within each namespace: draft objects (points, edges, pieces share one), `#` variables, `@` measurements
-- Auto-naming (`A` to `Z`, then `A1`…) always takes the next free name
+- Auto-naming counts like spreadsheet columns: `A` to `Z`, then `AA`, `AB` … `AZ`, `BA` … `ZZ`, then `AAA`. It always takes the next free name across the whole pattern, skipping names that are taken or reserved (such as `ABS`, `COS`, `MAX`). Auto-names never contain digits, so a trailing number always means a copy
 - Line names are derived from endpoints (`Line_A_B`) unless the user sets a custom one
 
 **Renaming.** The rename field validates as the user types and cannot be confirmed with a duplicate or invalid name. Rename is an undoable command.
@@ -211,7 +211,7 @@ Measurements are the exception: patterns refer to them by a stable key such as `
 **Clashes from paste, import, merge or restore** are resolved automatically and reported in a notice:
 
 - Number appended directly, no separator (`A` → `A2`, `A3`…), using the next free number
-- An existing numeric suffix is stripped first, so a copy of `A2` becomes `A3`, not `A22`; any trailing digits count as the copy number, so a copy of `Hip2` or of an auto-named `A1` simply takes the next free number
+- An existing numeric suffix is stripped first, so a copy of `A2` becomes `A3`, not `A22`; any trailing digits count as the copy number, so a copy of `Hip2` simply takes the next free number
 - Pasted objects get fresh IDs, with references inside the pasted group remapped
 
 ## Formula engine
@@ -782,7 +782,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Geometry | Intersections, curve length, point-at-length, point-in-polygon, signed area, with a tolerance helper (`AssertPointsNear`, e.g. 0.001 mm) |
 | Formula engine | Parsing, precedence, degree-based trig, reference lists, name↔ID round trip, error messages and positions |
 | Evaluator | Ordering, dirty propagation, cycle rejection, invalid and blocked states |
-| Names and IDs | Name uniqueness, case-insensitivity, reserved words, `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
+| Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end) |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
 | Storage | Save → load → save produces identical JSON |

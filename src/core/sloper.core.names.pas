@@ -45,7 +45,9 @@ function SameName(const First, Second: string): boolean;
 // next free number from 2 is appended (A -> A2, A2 -> A3, Hip2 -> Hip3).
 // Returns Name itself when it is free.
 function NextFreeName(const Name: string; IsTaken: TNameTakenFunc): string;
-// Next automatic point name: A to Z, then A1 to Z1, A2 and so on
+// Next automatic point name, counting like spreadsheet columns: A to Z, then
+// AA to AZ, BA to ZZ, then AAA. Skips taken and reserved names. Never has
+// digits, so a trailing number always means a copy.
 function NextAutoName(IsTaken: TNameTakenFunc): string;
 // An ID as text: a positive integer in plain decimal (12, not 012 or 0),
 // small enough for an integer
@@ -145,23 +147,28 @@ begin
   until not IsTaken(Result);
 end;
 
+// The Index'th spreadsheet column name, from 1: A, B … Z, AA, AB …
+function ColumnName(Index: integer): string;
+begin
+  Result := '';
+  while Index > 0 do
+  begin
+    Dec(Index);
+    Result := Chr(Ord('A') + Index mod 26) + Result;
+    Index := Index div 26;
+  end;
+end;
+
 function NextAutoName(IsTaken: TNameTakenFunc): string;
 var
-  Suffix: integer;
-  Letter: char;
+  Index: integer;
 begin
-  Suffix := 0;
+  Index := 1;
   repeat
-    for Letter := 'A' to 'Z' do
-    begin
-      if Suffix = 0 then
-        Result := Letter
-      else
-        Result := Letter + IntToStr(Suffix);
-      if not IsTaken(Result) then
-        Exit;
-    end;
-    Inc(Suffix);
+    Result := ColumnName(Index);
+    if not IsReservedName(Result) and not IsTaken(Result) then
+      Exit;
+    Inc(Index);
   until False;
 end;
 

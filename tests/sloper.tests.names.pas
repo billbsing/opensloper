@@ -43,6 +43,8 @@ type
     procedure TestNextFreeNameStripsNumber;
     procedure TestNextFreeNameIgnoresCase;
     procedure TestNextAutoName;
+    procedure TestNextAutoNamePastTwoLetters;
+    procedure TestNextAutoNameSkipsReserved;
   end;
 
 implementation
@@ -138,11 +140,45 @@ begin
   AssertEquals('next', 'C', NextAutoName(@Taken));
   for C := 'C' to 'Z' do
     FTaken.Add(C);
-  AssertEquals('after Z', 'A1', NextAutoName(@Taken));
-  FTaken.Add('A1');
-  AssertEquals('then', 'B1', NextAutoName(@Taken));
+  AssertEquals('after Z', 'AA', NextAutoName(@Taken));
+  FTaken.Add('AA');
+  AssertEquals('then', 'AB', NextAutoName(@Taken));
   FTaken.Delete(FTaken.IndexOf('M'));
   AssertEquals('gap is reused', 'M', NextAutoName(@Taken));
+end;
+
+// Counts like spreadsheet columns: AZ, BA … ZZ, AAA
+procedure TTestNames.TestNextAutoNamePastTwoLetters;
+var
+  First, Second: char;
+begin
+  for First := 'A' to 'Z' do
+    FTaken.Add(First);
+  for Second := 'A' to 'Z' do
+    FTaken.Add('A' + Second);
+  AssertEquals('after AZ', 'BA', NextAutoName(@Taken));
+  for First := 'B' to 'Z' do
+    for Second := 'A' to 'Z' do
+      FTaken.Add(First + Second);
+  AssertEquals('after ZZ', 'AAA', NextAutoName(@Taken));
+end;
+
+// Function names such as ABS are reserved, so they are skipped
+procedure TTestNames.TestNextAutoNameSkipsReserved;
+var
+  First, Second, Third: char;
+begin
+  for First := 'A' to 'Z' do
+  begin
+    FTaken.Add(First);
+    for Second := 'A' to 'Z' do
+      FTaken.Add(First + Second);
+  end;
+  for Second := 'A' to 'B' do
+    for Third := 'A' to 'Z' do
+      if 'A' + Second + Third < 'ABS' then
+        FTaken.Add('A' + Second + Third);
+  AssertEquals('ABT', NextAutoName(@Taken));
 end;
 
 initialization
