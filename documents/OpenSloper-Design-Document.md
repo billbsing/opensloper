@@ -50,7 +50,8 @@ A pattern is a graph of draft objects whose positions come from measurements, va
 | Role | Each edge is *construction* (guide, dashed) or *outline* | Only outline edges form piece boundaries |
 | Piece | Closed path: ordered edge references, each with a reversed flag | Seam allowance (default + per edge), grainline, notches, labels, cut count, fold line |
 | Seam | Pairing of edges on two pieces that are sewn together, with direction | Drives seam-length checks and 3D export |
-| Layer | Grouping for visibility | E.g. front, back, sleeve, draft vs pieces |
+| Draft | A drafting area within a pattern file, shown as a tab | E.g. bodice, sleeve, collar; drafts share measurements, variables and names |
+| Layer | Ordered group within a draft, for drawing order and visibility | E.g. original draft vs rotated dart; can be hidden or locked |
 | Layout | Pieces arranged on sheets for printing or plotting | Works on computed geometry only |
 | Annotation | Note, callout, title block or sheet note | Anchored to objects by ID so it follows measurement changes; may contain live fields |
 
@@ -241,7 +242,7 @@ Six point operations and three edge types cover basic bodice, skirt and trouser 
 **Conventions:**
 
 - Units in mm; angles in degrees, 0° pointing right, positive anticlockwise (as Valentina); the canvas flips y for screen drawing
-- Common fields on every object: `id`, `name`, `type`, `layer`, `visible`, `notes`
+- Common fields on every object: `id`, `name`, `type`, `layer`, `visible`, `notes`; `visible` applies only while the object's layer is visible (see Draft tabs and layers)
 - Readable properties: point `.x`, `.y`; every edge `.length`, `.angle1` (direction of the start handle) and `.angle2` (direction of the end handle, pointing back along the edge); straight edges also `.angle`
 - Functions: `sin cos tan asin acos atan2 sqrt abs min max round`
 
@@ -322,7 +323,7 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 
 - Creating a transform and all copies is one undoable command
 - Deleting a source prompts to delete its dependents, as for any object
-- Copies can go to a chosen or new layer, keeping the original draft usable
+- Copies can go to a chosen or new layer, keeping the original draft usable; a Move can also put its copies on another draft (see Draft tabs and layers)
 - Interactive: pick the pivot, drag with a live ghost preview, snap to angles of existing lines
 - Rotate and move preserve lengths, giving a free check that seams are unchanged
 - Cut on fold is a piece property applied at output; Mirror is for geometry needed in the draft itself
@@ -330,7 +331,7 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 ```json
 { "id": "t1", "type": "rotate", "name": "Dart to side",
   "sources": ["l7", "c3", "l9"], "pivot": "p14",
-  "angle": "{l5}.angle - {l6}.angle", "suffix": "_r1", "layer": "side-dart" }
+  "angle": "{l5}.angle - {l6}.angle", "suffix": "_r1", "layer": "g2" }
 ```
 
 ## Drafting experience
@@ -385,6 +386,66 @@ Handling the edge cases:
 - Nodes within a small tolerance are merged so formula rounding doesn't break cycles
 - The piece is stored as edge references, so it follows measurement changes; detection re-runs only on request or to warn when a path no longer closes
 - Fallback: click a start edge, the app walks the path and highlights it for confirmation
+
+## Draft tabs and layers
+
+A pattern file holds one or more drafts, shown as tabs along the bottom of the canvas like sheets in a spreadsheet workbook, and each draft holds layers for drawing order and visibility.
+
+**Draft tabs.** Each draft is a separate drafting area in the same pattern file, such as Bodice, Sleeve and Collar, with its own canvas, origin and zoom. All drafts share the measurement set, the `#` variables and the undo history.
+
+- Tabs are added, renamed, reordered by dragging and deleted from the tab bar. Deleting a draft is refused while objects on other drafts use its objects.
+- Undo and redo of a change on another draft switch to that draft, so the change is visible.
+- Sub-windows (one form per draft) were considered and rejected: they make the user manage windows and are the least portable part of the LCL. Seeing two drafts side by side can come later as a split view, a second canvas pane in the main window showing another tab.
+
+**Names are global.** Names are unique across all drafts, as now, so formulas need no qualifier and nothing changes in the formula engine. Auto-naming continues from the next free name across the whole pattern. Autocomplete and the objects panel show each object's draft beside its name, and the objects panel can filter by draft.
+
+**References between drafts:**
+
+- Formulas may refer to objects on any draft, so a sleeve cap can use the bodice armhole's `.length`.
+- Direct inputs (a base point, an edge to intersect or split, a curve's end points) must be on the same draft, so every line on a canvas starts from something visible on it.
+- To bring geometry to another draft, such as tracing a facing or yoke off the bodice, a Move transform takes a destination draft and makes parametric copies there.
+- Piece detection works within one draft.
+
+**Layers.** Each draft has an ordered list of layers; the order is the drawing order (z-order), as in Inkscape.
+
+- Every object belongs to exactly one layer. New objects go into the active layer, and Move to layer is an undoable command.
+- Each layer has a visible and a locked checkbox.
+- **Hidden** means not drawn: objects on a hidden layer are still evaluated, because visible objects may depend on them, but they cannot be selected or snapped to.
+- The layer comes first: on a hidden layer every object is hidden; on a visible layer each object's own `visible` field decides. A hidden object is treated like one on a hidden layer.
+- **Locked** means visible but fixed: its points can be snapped to, but its objects cannot be selected, dragged or deleted. Useful for a finished block being built on.
+- Clicking follows the order: points win over edges, as now, and among points or among edges the topmost layer wins.
+- Piece detection uses visible outline edges only, so hiding the layer with the original dart lets the user click inside the rotated outline without the old edges splitting the region.
+- Deleting a layer is refused while its objects are used elsewhere; a layer can be emptied with Move to layer first.
+- A new draft starts with one layer, `Draft`.
+
+**View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. Layer visibility and lock, the active layer, the current tab and each draft's zoom and position are view state: saved in the pattern file under its own `view` member so the pattern reopens as it was left, but left out of the undo snapshots and the modified flag. Draft and layer names, order and membership are part of the pattern and undoable.
+
+**In the file** (shape to be settled with the implementation; ID letters to be confirmed):
+
+```json
+{
+  "format": "pattern",
+  "version": 2,
+  "drafts": [
+    { "id": "d1", "name": "Bodice",
+      "layers": [ { "id": "g1", "name": "Draft" }, { "id": "g2", "name": "Side dart" } ] },
+    { "id": "d2", "name": "Sleeve",
+      "layers": [ { "id": "g3", "name": "Draft" } ] }
+  ],
+  "objects": [
+    { "id": "p1", "type": "freePoint", "name": "A", "layer": "g1", "x": "0", "y": "0" }
+  ],
+  "view": {
+    "draft": "d1",
+    "drafts": {
+      "d1": { "activeLayer": "g2", "zoom": 1.5, "centre": [120, -200],
+              "hidden": [], "locked": ["g1"] }
+    }
+  }
+}
+```
+
+An object's draft is its layer's draft. A version 1 file loads as a single draft with one layer.
 
 ## Links and problem display
 
@@ -640,7 +701,7 @@ Notes, callouts and a title block are first-class objects that print with the pa
 **Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and pattern-space annotations are saved in the pattern file with everything else. Sheet-space annotations (title block, sheet notes) belong to a printed layout, so they are edited in the publish app and saved in the layout file.
 
 ```json
-{ "id": "n3", "type": "callout", "layer": "notes",
+{ "id": "n3", "type": "callout", "layer": "g4",
   "text": "Ease cap between notches ({=Curve_SC.length} mm)",
   "anchor": { "edge": "c7", "position": "0.5" },
   "box": { "dx": "40", "dy": "-25" },
@@ -869,4 +930,4 @@ Open questions:
 - [x] Project name: settled, OpenSloper (opensloper.com available; reserve domain and GitHub name; file extensions .sloper for patterns, .slm for measurements)
 - [x] Undo granularity: settled, see Key design decisions item 7
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
-- [ ] Draft tabs: several drafting areas per pattern file as tabs along the bottom of the canvas; to decide whether names are global or per tab (`Bodice!A`)
+- [x] Draft tabs and layers: settled, drafts as tabs within one pattern file, global names, ordered layers per draft; see Draft tabs and layers
