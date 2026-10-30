@@ -71,6 +71,7 @@ type
     function DoEvaluate(WithReport: boolean): TJSONData;
     function DoUndo: TJSONData;
     function DoRedo: TJSONData;
+    function DoRender(Params: TJSONObject): TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -93,15 +94,18 @@ resourcestring
   rsApiSetFormula = 'Change %s';
   rsApiRename = 'Rename';
   rsApiDelete = 'Delete';
+  rsApiRenderFormat = 'Format "%s" is not available; use svg';
+  rsApiBadRegion = 'A region needs minX, minY, maxX and maxY, with each max above its min';
 
 implementation
 
 uses
   Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
-  Sloper.Core.Variables, Sloper.Core.Draft;
+  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Output.DraftSVG;
 
 const
   VariableType = 'variable';
+  RenderFormatSVG = 'svg';
 
 constructor EApiError.Create(ACode: integer; const AMessage: string; const AFieldName: string; APosition: integer);
 begin
@@ -415,6 +419,41 @@ begin
   Result := DocumentInfo;
 end;
 
+// The SVG comes back in the reply: file access is for open, save and export
+function TApiServer.DoRender(Params: TJSONObject): TJSONData;
+var
+  Options: TDraftSVGOptions;
+  Region: TJSONData;
+  RegionItem: TJSONObject;
+  RenderFormat: string;
+  Info: TJSONObject;
+begin
+  RenderFormat := OptionalString(Params, 'format');
+  if (RenderFormat <> '') and (RenderFormat <> RenderFormatSVG) then
+    raise EApiError.Create(RpcRefused, Format(rsApiRenderFormat, [RenderFormat]));
+  Options := DefaultDraftSVGOptions;
+  if Params <> nil then
+  begin
+    GetJSONBoolean(Params, 'labels', Options.Labels);
+    Region := Params.Find('region');
+    if Region <> nil then
+    begin
+      if Region.JSONType <> jtObject then
+        raise EApiError.Create(RpcInvalidParams, rsApiBadRegion);
+      RegionItem := TJSONObject(Region);
+      if not GetJSONNumber(RegionItem, 'minX', Options.Region.MinX) or not GetJSONNumber(RegionItem, 'minY', Options.Region.MinY) or
+        not GetJSONNumber(RegionItem, 'maxX', Options.Region.MaxX) or not GetJSONNumber(RegionItem, 'maxY', Options.Region.MaxY) or
+        (Options.Region.MaxX <= Options.Region.MinX) or (Options.Region.MaxY <= Options.Region.MinY) then
+        raise EApiError.Create(RpcInvalidParams, rsApiBadRegion);
+      Options.HasRegion := True;
+    end;
+  end;
+  Info := TJSONObject.Create;
+  Result := Info;
+  Info.Add('format', RenderFormatSVG);
+  Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
+end;
+
 function TApiServer.CallMethod(const Method: string; Params: TJSONObject): TJSONData;
 begin
   case Method of
@@ -431,6 +470,7 @@ begin
     'check': Result := DoEvaluate(True);
     'undo': Result := DoUndo;
     'redo': Result := DoRedo;
+    'render': Result := DoRender(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;

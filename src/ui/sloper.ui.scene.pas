@@ -28,13 +28,11 @@ unit Sloper.UI.Scene;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Settings;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Settings;
 
 const
   MinFocusSize = 60;
 
-// Extent of everything shown; False when nothing is
-function PatternBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
 // Extent of the objects with these keys, at least MinFocusSize mm each way so
 // that a single point has an area to zoom to; False when none is shown
 function ObjectsBounds(Pattern: TPattern; const Keys: TStringArray; out Bounds: TRect2): boolean;
@@ -63,59 +61,6 @@ uses
 
 type
   TKeySet = specialize THashSet<string>;
-
-procedure Include(var Bounds: TRect2; var Empty: boolean; const P: TVec2);
-begin
-  if Empty then
-  begin
-    Bounds.MinX := P.X;
-    Bounds.MaxX := P.X;
-    Bounds.MinY := P.Y;
-    Bounds.MaxY := P.Y;
-    Empty := False;
-    Exit;
-  end;
-  Bounds.MinX := Min(Bounds.MinX, P.X);
-  Bounds.MaxX := Max(Bounds.MaxX, P.X);
-  Bounds.MinY := Min(Bounds.MinY, P.Y);
-  Bounds.MaxY := Max(Bounds.MaxY, P.Y);
-end;
-
-procedure IncludeObject(var Bounds: TRect2; var Empty: boolean; DraftObject: TDraftObject);
-var
-  Segment: TEdgeSegment;
-  CurveBounds: TRect2;
-begin
-  if not DraftObject.HasResult then
-    Exit;
-  if DraftObject is TPointObject then
-    Include(Bounds, Empty, TPointObject(DraftObject).Position)
-  else if DraftObject is TEdgeObject then
-    for Segment in TEdgeObject(DraftObject).Segments do
-      if Segment.Kind = skLine then
-      begin
-        Include(Bounds, Empty, Segment.Line.P1);
-        Include(Bounds, Empty, Segment.Line.P2);
-      end
-      else
-      begin
-        CurveBounds := Segment.Curve.Bounds;
-        Include(Bounds, Empty, Vec2(CurveBounds.MinX, CurveBounds.MinY));
-        Include(Bounds, Empty, Vec2(CurveBounds.MaxX, CurveBounds.MaxY));
-      end;
-end;
-
-function PatternBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
-var
-  Index: integer;
-  Empty: boolean;
-begin
-  Bounds := Default(TRect2);
-  Empty := True;
-  for Index := 0 to Pattern.ObjectCount - 1 do
-    IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
-  Result := not Empty;
-end;
 
 function ObjectsBounds(Pattern: TPattern; const Keys: TStringArray; out Bounds: TRect2): boolean;
 var

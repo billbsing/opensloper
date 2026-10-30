@@ -171,6 +171,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.API"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.draftsvg.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.DraftSVG"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -180,7 +185,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/ui"/>
+      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../src/ui"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <CodeGeneration>

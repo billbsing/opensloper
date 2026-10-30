@@ -943,7 +943,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo` and `redo`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. Batches of requests are not supported.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo` and `render`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: `add_point`, `add_edge`, an `add_variable` method for creating variables, and the GUI's `--automation` mode; `create_piece` and `export` wait for pieces and the output layer.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -998,8 +998,8 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 2. Measurement sets, variables and the formula engine
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
 4. JSON save/load and undo/redo commands (done)
-5. Canvas with pan/zoom and the six point operations, snap-inferred
-6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render`
+5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
+6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
 9. Measurements app: measurement and size table editing, Valentina/Seamly2D import; SVG export

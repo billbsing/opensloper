@@ -48,6 +48,7 @@ uses
   Sloper.Tests.ObjectList,
   Sloper.Tests.Completion,
   Sloper.Tests.API,
+  Sloper.Tests.DraftSVG,
   Sloper.Tests.Settings,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;

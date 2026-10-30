@@ -75,6 +75,10 @@ type
     procedure TestIdIsEchoed;
     procedure TestReplyIsOneLine;
     procedure TestUnknownTarget;
+    procedure TestRender;
+    procedure TestRenderLabelsAndRegion;
+    procedure TestRenderFollowsEdits;
+    procedure TestRenderRefusals;
   end;
 
 implementation
@@ -462,6 +466,48 @@ begin
   Call('get_object', '{"name": "Nothing"}');
   AssertEquals(RpcRefused, ErrorCode);
   Call('get_object');
+  AssertEquals(RpcInvalidParams, ErrorCode);
+end;
+
+procedure TTestAPI.TestRender;
+var
+  Svg: string;
+begin
+  OpenTestPattern;
+  Call('render');
+  AssertEquals('svg', Answer.Get('format', ''));
+  Svg := Answer.Get('svg', '');
+  AssertTrue('an svg', Pos('<svg', Svg) = 1);
+  AssertTrue('has the point', Pos('data-name="B"', Svg) > 0);
+  AssertTrue('no labels by default', Pos('<text', Svg) = 0);
+end;
+
+procedure TTestAPI.TestRenderLabelsAndRegion;
+var
+  Svg: string;
+begin
+  OpenTestPattern;
+  Call('render', '{"labels": true, "region": {"minX": 0, "minY": -10, "maxX": 50, "maxY": 10}}');
+  Svg := Answer.Get('svg', '');
+  AssertTrue('labels', Pos('>B</text>', Svg) > 0);
+  AssertTrue('region', Pos('viewBox="0 -10 50 20"', Svg) > 0);
+end;
+
+procedure TTestAPI.TestRenderFollowsEdits;
+begin
+  OpenTestPattern;
+  Call('set_formula', '{"name": "B", "field": "length", "formula": "300"}');
+  Call('render');
+  AssertTrue('drawn where it now is', Pos('cx="300"', Answer.Get('svg', '')) > 0);
+end;
+
+procedure TTestAPI.TestRenderRefusals;
+begin
+  Call('render', '{"format": "png"}');
+  AssertEquals(RpcRefused, ErrorCode);
+  Call('render', '{"region": {"minX": 5, "minY": 0, "maxX": 1, "maxY": 1}}');
+  AssertEquals(RpcInvalidParams, ErrorCode);
+  Call('render', '{"region": 3}');
   AssertEquals(RpcInvalidParams, ErrorCode);
 end;
 

@@ -157,7 +157,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.UI.Scene;
+  Math, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.UI.Scene;
 
 const
   // Screen pixels

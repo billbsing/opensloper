@@ -64,7 +64,7 @@ type
 implementation
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings, Sloper.UI.View, Sloper.UI.Scene;
+  Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings, Sloper.UI.View, Sloper.UI.Scene;
 
 function MakeRect(MinX, MinY, MaxX, MaxY: double): TRect2;
 begin
