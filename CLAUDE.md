@@ -35,7 +35,7 @@ Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa.
 - Every source unit starts with the GPLv3 header. Code translated from Valentina or Seamly2D keeps their copyright line.
 - Internal units are millimetres; angles are degrees, 0° pointing right, positive anticlockwise.
 - Only definitions (operations, references, formula strings) are saved and undone; computed geometry is always derived.
-- Objects are referenced by stable IDs (`p12`, `l7`); names are for display only. Formulas are stored in ID form and shown with names.
+- Objects are referenced by stable integer IDs (`12`, `7`), never reused; names are for display only. Formulas are stored in ID form and shown with names.
 - Names: letters, digits and underscore, not starting with a digit; unique per namespace; compared case-insensitively. Copies get the next free number appended directly (`A` → `A2`).
 - Every user change is a `TCommand` with `Execute` and `Undo`; one drag is one undo step.
 - Evaluation failures are states (error, invalid, blocked), never exceptions that escape to the UI.

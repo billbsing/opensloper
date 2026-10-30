@@ -86,7 +86,7 @@ The central rule: only definitions are saved and undone; computed geometry is al
 2. **Dependencies come from formulas.** Each formula is parsed once into an expression tree; everything it references (measurements, variables, objects such as `Line_A_B.length`) plus the operation's direct references forms the dependency graph. The user never manages it.
 3. **Ordered, incremental evaluation.** The graph is topologically sorted. A change marks the object and everything downstream dirty, and eventually only those are re-evaluated; the first version recomputes everything (see Evaluator). Formula edits that create a cycle are rejected with a clear message.
 4. **Failures are states, not crashes.** If an operation cannot be evaluated (e.g. two lines no longer intersect), the object and its dependents become invalid and are highlighted in red. The pattern stays editable.
-5. **IDs separate from names.** Internal IDs never change; user-facing names can be renamed freely.
+5. **IDs separate from names.** Internal IDs are integers that never change and are never reused; user-facing names can be renamed freely.
 6. **Operation registry.** Each operation type is a class that declares its inputs and parameters and evaluates itself. Adding a tool means writing one class, adding its `Add…` call to `TPattern`, and giving it a file type in `Sloper.Core.PatternFile`.
 7. **Commands for undo/redo.** Every user change is a `TCommand` with `Execute` and `Undo`; the UI listens for change notifications. One drag is one undo step: the start value is recorded on mouse-down, the model updates live during the drag without creating commands, and a single command is committed on mouse-up; Escape cancels and restores the start value. Repeated arrow-key nudges of the same object within about a second merge into one step, as do consecutive spin box or slider changes to the same field. Formula fields commit one step on Enter or loss of focus, not per keystroke.
 
@@ -94,9 +94,10 @@ The central rule: only definitions are saved and undone; computed geometry is al
    - **Changes.** A command is a `TPatternChange` holding the pattern's saved text from before and after. The UI opens a change with `BeginChange`, edits `Pattern` through its normal API (calling `LiveUpdate` while dragging), then calls `EndChange`, or `CancelChange` for Escape. `Commit(Success)` wraps a single edit.
    - **Why text.** Undo restores exactly the earlier definitions, with the same IDs, for every editing call, without writing an inverse for each.
    - **Holding objects.** Undo, redo, cancel and load replace the pattern's objects with new instances (`dcObjectsReplaced`), so the UI holds objects by ID, never by reference, across changes.
-   - **Merging.** `EndChange(MergeKey)` joins the last step when it has the same key and came within `MergeSeconds` (1 s) of it, e.g. `nudge:p3`. A merged step that cancels out is dropped. A step the file was saved after is never merged into, so the saved state stays reachable.
+   - **Merging.** `EndChange(MergeKey)` joins the last step when it has the same key and came within `MergeSeconds` (1 s) of it, e.g. `nudge:3`. A merged step that cancels out is dropped. A step the file was saved after is never merged into, so the saved state stays reachable.
    - **Limits and the modified flag.** At most `UndoLimit` steps are kept (500). The document is modified when the undo position differs from the one at the last save, or when the measurement set changed.
    - **The measurement set** belongs to the document, not the history: undo never swaps it back. On save it is stored relative to the pattern's folder; while the pattern is unsaved it is stored as an absolute path.
+   - **The ID counter** only ever goes up. Undo and redo restore the pattern's text but keep the counter where it is, so undoing a creation and creating something else never hands out the same ID.
    - **Notifications.** Listeners receive a set of `dcPattern`, `dcObjectsReplaced`, `dcMeasurements`, `dcHistory` and `dcFile`.
 8. **Storage kept apart from the model.** `TPattern` knows nothing about JSON; `Sloper.Core.PatternFile` reads and writes it through `TPattern`'s loader hooks (`InsertVariable`, `InsertObject`, `UpdateDerivedNames`). With only one format there is no storage interface; one can be extracted if a second format is added.
 
@@ -142,8 +143,8 @@ Each node keeps its last good value, drawn ghosted while it is failing, so the d
 
 **Implementation** (`Sloper.Core.Evaluator`, `Sloper.Core.Pattern`):
 
-- Node keys are object and variable IDs (`p1`, `l1`, `v1`); measurements are `@key`. `TPattern` creates a measurement node for each key its formulas use, so a key missing from the current set is one error ("@chest is not in the measurement set") and everything reading it is blocked.
-- A node's dependencies are its inputs (`InputKeys`, e.g. an offset's base point) plus every reference in its formula fields. A reference to an ID that no longer exists makes the node an error ("Uses p9, which no longer exists").
+- Node keys are object and variable IDs as text (`12`); measurements are `@key`. `TPattern` creates a measurement node for each key its formulas use, so a key missing from the current set is one error ("@chest is not in the measurement set") and everything reading it is blocked.
+- A node's dependencies are its inputs (`InputKeys`, e.g. an offset's base point) plus every reference in its formula fields. A reference to an ID that no longer exists makes the node an error ("Uses object 9, which no longer exists").
 - `TPattern.SetFormula` refuses an edit that would close a cycle, naming both nodes. Loaded files can still contain one: nodes on the cycle become errors and their readers are blocked.
 - `Evaluate` rebuilds the graph and recomputes everything; dirty tracking can come later if dragging needs it.
 - `TPattern` is the editing API (`Add…`, `SetFormula`, `Rename`, `Delete`), reporting refusals in `LastError`, `LastErrorField` and `LastErrorPos`. Undo commands (roadmap step 4) wrap these calls. `Delete` is refused while other nodes use the object.
@@ -183,9 +184,16 @@ type
 
 References are stored as IDs and shown as names, so renaming an object changes one field and never breaks a formula.
 
-**Formulas.** The user types names (`Line_A_B.length + @waist/4 + #ease`) with autocomplete. On commit the parser resolves each name and stores the ID form (`{l1}.length + @waist/4 + {v1}`): objects as `{id}.property`, variables as `{id}`, measurements by their stable key. Unknown names are rejected at entry. Formula fields, tooltips and error messages convert IDs back to current names for display.
+**Formulas.** The user types names (`Line_A_B.length + @waist/4 + #ease`) with autocomplete. On commit the parser resolves each name and stores the ID form (`{12}.length + @waist/4 + {3}`): objects as `{id}.property`, variables as `{id}`, measurements by their stable key. Unknown names are rejected at entry. Formula fields, tooltips and error messages convert IDs back to current names for display.
 
-**IDs.** Short and readable (`p12`, `l7`), unique within the pattern, never reused after deletion. Measurements are the exception: patterns refer to them by a stable key such as `waist`, so any measurement file with the same keys works.
+**IDs.** Positive integers from one counter per pattern file, like database keys, shared by every kind of object: variables, points, edges, pieces, drafts, layers and annotations. The object's kind is in its `type`, so the ID carries no prefix.
+
+- Each new object takes the counter's value and the counter goes up by one. It is saved in the file as `nextId` and only ever increases, so an ID that has been saved is never reused: not after deleting, undoing, saving or reopening. An ID handed out and undone before any save can come back after reopening; that is harmless, because no file refers to it.
+- This matters beyond the file: layouts refer to pieces by pattern and piece ID, so a reused ID would silently put a different piece in an old piece's place.
+- IDs are unique within one pattern file only. Pasted and imported objects get fresh IDs from the receiving file's counter, with references inside the pasted group remapped.
+- UUIDs were considered and rejected: IDs only need to be unique within a file, and UUIDs would make every stored formula long and hard to read.
+
+Measurements are the exception: patterns refer to them by a stable key such as `waist`, so any measurement file with the same keys works.
 
 **Name rules:**
 
@@ -237,7 +245,7 @@ end;
 
 ## Operation set
 
-Six point operations and three edge types cover basic bodice, skirt and trouser blocks; many of Valentina's \~30 tools become special cases once formulas can read properties like `{l1}.angle`.
+Six point operations and three edge types cover basic bodice, skirt and trouser blocks; many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
 
 **Conventions:**
 
@@ -251,7 +259,7 @@ Six point operations and three edge types cover basic bodice, skirt and trouser 
 | Operation | Fields | Covers |
 | --- | --- | --- |
 | Free | `x`, `y` | Origin, sketch points not yet pinned |
-| Offset | `base`, `mode` (polar/cartesian), `length` + `angle` or `dx` + `dy` | Distance at angle, straight down or across, perpendicular from a line (`angle = {l1}.angle + 90`) |
+| Offset | `base`, `mode` (polar/cartesian), `length` + `angle` or `dx` + `dy` | Distance at angle, straight down or across, perpendicular from a line (`angle = {4}.angle + 90`) |
 | Along edge | `edge`, `from` (start/end), `mode` (length/ratio), `value` | Point along a line, curve or arc; midpoint (ratio 0.5); thirds; dart positions |
 | Intersect edges | `edgeA`, `edgeB`, `extendA`, `extendB`, `pick` | Line×line, line×curve, curve×curve |
 | Circle × edge | `centre`, `radius`, `edge`, `extend`, `pick` | Compass step, e.g. shoulder length from neck point onto the shoulder slope line |
@@ -280,15 +288,15 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 **Deferred to phase two:** bisector; circle × circle; arcs (approximated by curve paths at first); tangent from a point to a curve.
 
 ```json
-{ "id": "p5", "type": "circleEdgePoint", "name": "SP",
-  "centre": "p3", "radius": "@shoulder_length",
-  "edge": "l4", "extend": true, "pick": 1 }
+{ "id": 5, "type": "circleEdgePoint", "name": "SP",
+  "centre": 3, "radius": "@shoulder_length",
+  "edge": 4, "extend": true, "pick": 1 }
 
-{ "id": "c2", "type": "curvePath", "role": "outline",
+{ "id": 13, "type": "curvePath", "role": "outline",
   "nodes": [
-    { "point": "p5", "angle": "{l4}.angle - 90", "lengthOut": "40" },
-    { "point": "p9", "angle": "270", "lengthIn": "35", "lengthOut": "30" },
-    { "point": "p12", "angle": "0", "lengthIn": "25" }
+    { "point": 5, "angle": "{4}.angle - 90", "lengthOut": "40" },
+    { "point": 9, "angle": "270", "lengthIn": "35", "lengthOut": "30" },
+    { "point": 12, "angle": "0", "lengthIn": "25" }
   ] }
 ```
 
@@ -300,7 +308,7 @@ Uses: dart rotation, slash and spread, mirroring a half piece, and moving a trac
 
 | Transform | Fields | Notes |
 | --- | --- | --- |
-| Rotate | `sources[]`, `pivot`, `angle`, `suffix` | Angle is a formula, e.g. dart angle `{l5}.angle - {l6}.angle` |
+| Rotate | `sources[]`, `pivot`, `angle`, `suffix` | Angle is a formula, e.g. dart angle `{5}.angle - {6}.angle` |
 | Mirror | `sources[]`, `axis` (edge, two points, or point + angle), `suffix` | Curves mirror exactly, with orientation reversed |
 | Move | `sources[]`, `mode` (polar/cartesian), `length` + `angle` or `dx` + `dy`, optional `rotate` + `pivot`, `suffix` | Move-and-rotate repositions a section in one step |
 
@@ -329,9 +337,9 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 - Cut on fold is a piece property applied at output; Mirror is for geometry needed in the draft itself
 
 ```json
-{ "id": "t1", "type": "rotate", "name": "Dart to side",
-  "sources": ["l7", "c3", "l9"], "pivot": "p14",
-  "angle": "{l5}.angle - {l6}.angle", "suffix": "_r1", "layer": "g2" }
+{ "id": 15, "type": "rotate", "name": "Dart to side",
+  "sources": [7, 3, 9], "pivot": 14,
+  "angle": "{5}.angle - {6}.angle", "suffix": "_r1", "layer": 2 }
 ```
 
 ## Drafting experience
@@ -418,34 +426,35 @@ A pattern file holds one or more drafts, shown as tabs along the bottom of the c
 - Deleting a layer is refused while its objects are used elsewhere; a layer can be emptied with Move to layer first.
 - A new draft starts with one layer, `Draft`.
 
-**View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. Layer visibility and lock, the active layer, the current tab and each draft's zoom and position are view state: saved in the pattern file under its own `view` member so the pattern reopens as it was left, but left out of the undo snapshots and the modified flag. Draft and layer names, order and membership are part of the pattern and undoable.
+**View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. Layer visibility and lock, the active layer, the current tab and each draft's zoom and position are view state: saved in the pattern file under its own `view` member so the pattern reopens as it was left, but left out of the undo snapshots and the modified flag. The ID counter is also kept out of the undo snapshots but is not view state: it is saved at the top level as `nextId` (see Names and IDs). Draft and layer names, order and membership are part of the pattern and undoable.
 
-**In the file** (shape to be settled with the implementation; ID letters to be confirmed):
+**In the file** (shape to be settled with the implementation):
 
 ```json
 {
   "format": "pattern",
-  "version": 2,
+  "version": 1,
+  "nextId": 7,
   "drafts": [
-    { "id": "d1", "name": "Bodice",
-      "layers": [ { "id": "g1", "name": "Draft" }, { "id": "g2", "name": "Side dart" } ] },
-    { "id": "d2", "name": "Sleeve",
-      "layers": [ { "id": "g3", "name": "Draft" } ] }
+    { "id": 1, "name": "Bodice",
+      "layers": [ { "id": 3, "name": "Draft" }, { "id": 4, "name": "Side dart" } ] },
+    { "id": 2, "name": "Sleeve",
+      "layers": [ { "id": 5, "name": "Draft" } ] }
   ],
   "objects": [
-    { "id": "p1", "type": "freePoint", "name": "A", "layer": "g1", "x": "0", "y": "0" }
+    { "id": 6, "type": "freePoint", "name": "A", "layer": 3, "x": "0", "y": "0" }
   ],
   "view": {
-    "draft": "d1",
+    "draft": 1,
     "drafts": {
-      "d1": { "activeLayer": "g2", "zoom": 1.5, "centre": [120, -200],
-              "hidden": [], "locked": ["g1"] }
+      "1": { "activeLayer": 4, "zoom": 1.5, "centre": [120, -200],
+             "hidden": [], "locked": [3] }
     }
   }
 }
 ```
 
-An object's draft is its layer's draft. A version 1 file loads as a single draft with one layer.
+An object's draft is its layer's draft. The format version stays at 1; files written before drafts and integer IDs are not read, and the regression patterns are rebuilt (see File format and storage).
 
 ## Links and problem display
 
@@ -527,7 +536,7 @@ Measurement file (`.slm`); values are in mm, keys follow the name rules and are 
 }
 ```
 
-Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`):
+Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
 
 ```json
 {
@@ -536,15 +545,20 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`):
   "units": "mm",
   "notes": "",
   "measurementFile": "bill.slm",
+  "nextId": 7,
+  "drafts": [
+    { "id": 1, "name": "Skirt", "layers": [ { "id": 2, "name": "Draft" } ] }
+  ],
   "variables": [
-    { "id": "v1", "name": "ease_waist", "formula": "20", "description": "" }
+    { "id": 3, "name": "ease_waist", "formula": "20", "description": "" }
   ],
   "objects": [
-    { "id": "p1", "type": "freePoint", "name": "A", "x": "0", "y": "0" },
-    { "id": "p2", "type": "offsetPoint", "name": "B",
-      "base": "p1", "mode": "polar", "length": "@waist/4 + {v1}", "angle": "0" },
-    { "id": "l1", "type": "line", "start": "p1", "end": "p2", "role": "outline" }
-  ]
+    { "id": 4, "type": "freePoint", "name": "A", "layer": 2, "x": "0", "y": "0" },
+    { "id": 5, "type": "offsetPoint", "name": "B", "layer": 2,
+      "base": 4, "mode": "polar", "length": "@waist/4 + {3}", "angle": "0" },
+    { "id": 6, "type": "line", "layer": 2, "start": 4, "end": 5, "role": "outline" }
+  ],
+  "view": { "draft": 1 }
 }
 ```
 
@@ -552,10 +566,11 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`):
 
 - `measurementFile` is the measurement set last used with the pattern, written with `/` separators and relative to the pattern's folder unless absolute. `MeasurementFilePath` turns it into a path; the core never loads it by itself.
 - `variables` and `objects` are in creation order. An object's direct inputs (`base`, `edge`, `start`, a path's node points and so on) must name an object earlier in the file. Creation order guarantees this, because inputs exist before the object and cannot be deleted while it uses them. Formulas may refer to any ID; a missing one shows as an error when evaluated.
-- Each object has `id`, `type` and `name`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
+- IDs and references to them (`base`, `edge`, `layer`, `sources` and so on) are JSON numbers; in formula text a reference is the ID in braces (`{3}`).
+- Each object has `id`, `type`, `name` and `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
-- New IDs continue above the highest loaded number for each letter (`p`, `l`, `c`, `v`).
-- Loading checks IDs (valid, unique across variables and objects), names, types, inputs and options, and fails with a message naming the object (`Object l2 uses p9, which is not defined before it`), leaving the pattern empty.
+- `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
+- Loading checks IDs (positive integers, unique across drafts, layers, variables and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object (`Line_A_B (6) uses object 9, which is not defined before it`), leaving the pattern empty.
 
 | `type` | Members besides `id`, `type`, `name` |
 | --- | --- |
@@ -608,15 +623,16 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
   "version": 1,
   "units": "mm",
   "name": "Summer dress, A4",
+  "nextId": 4,
   "sources": [
-    { "id": "s1", "pattern": "skirt.sloper", "measurementFile": "bill.slm" },
-    { "id": "s2", "pattern": "skirt.sloper", "measurementFile": "anna.slm" },
-    { "id": "s3", "pattern": "top.sloper", "measurementFile": "anna.slm" }
+    { "id": 1, "pattern": "skirt.sloper", "measurementFile": "bill.slm" },
+    { "id": 2, "pattern": "skirt.sloper", "measurementFile": "anna.slm" },
+    { "id": 3, "pattern": "top.sloper", "measurementFile": "anna.slm" }
   ],
   "output": { "kind": "tiled", "paper": "A4", "margin": 6, "overlap": 10,
               "marks": "diamond", "calibrationX": 1, "calibrationY": 1 },
   "placements": [
-    { "source": "s1", "piece": "k1", "copy": 1, "x": 120, "y": 40,
+    { "source": 1, "piece": 42, "copy": 1, "x": 120, "y": 40,
       "rotation": 0, "flipped": false }
   ],
   "sheetNotes": [],
@@ -624,7 +640,7 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
 }
 ```
 
-(Piece IDs get their letter when pieces are implemented.) Placements are plain numbers, not formulas: a layout arranges finished pieces and is not parametric. One layout file holds one arrangement; a differently arranged version (A4 tiles versus one A0 sheet) is another layout file.
+Sources have IDs from the layout's own counter, under the same never-reused rule; `piece` is the piece's ID in that source's pattern file. Placements are plain numbers, not formulas: a layout arranges finished pieces and is not parametric. One layout file holds one arrangement; a differently arranged version (A4 tiles versus one A0 sheet) is another layout file.
 
 **Code.** The publish app is a second Lazarus project, `publish/opensloper-publish.lpi`, using `src/core` and `src/output`. Layout loading, page tiling and preview drawing live in the output layer, so `opensloper-cli export LAYOUT` produces the same PDFs without a window.
 
@@ -701,9 +717,9 @@ Notes, callouts and a title block are first-class objects that print with the pa
 **Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and pattern-space annotations are saved in the pattern file with everything else. Sheet-space annotations (title block, sheet notes) belong to a printed layout, so they are edited in the publish app and saved in the layout file.
 
 ```json
-{ "id": "n3", "type": "callout", "layer": "g4",
+{ "id": 20, "type": "callout", "layer": 8,
   "text": "Ease cap between notches ({=Curve_SC.length} mm)",
-  "anchor": { "edge": "c7", "position": "0.5" },
+  "anchor": { "edge": 7, "position": "0.5" },
   "box": { "dx": "40", "dy": "-25" },
   "size": "4mm", "print": true }
 ```
@@ -766,7 +782,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Geometry | Intersections, curve length, point-at-length, point-in-polygon, signed area, with a tolerance helper (`AssertPointsNear`, e.g. 0.001 mm) |
 | Formula engine | Parsing, precedence, degree-based trig, reference lists, name↔ID round trip, error messages and positions |
 | Evaluator | Ordering, dirty propagation, cycle rejection, invalid and blocked states |
-| Names | Uniqueness, case-insensitivity, reserved words, `2` / `3` copy numbering |
+| Names and IDs | Name uniqueness, case-insensitivity, reserved words, `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end) |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
 | Storage | Save → load → save produces identical JSON |
