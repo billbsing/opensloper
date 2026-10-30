@@ -511,7 +511,7 @@ Pieces and seams are added to the file when they exist in the model.
 
 ## Printing
 
-OpenSloper prints patterns directly at true scale, so no third-party tiling software is needed, a gap found in practice with Seamly2D.
+OpenSloper prints patterns directly at true scale, with notes and text printed alongside them (see Annotations), so no third-party tiling or editing software is needed, a gap found in practice with Seamly2D.
 
 **Tiling:**
 
