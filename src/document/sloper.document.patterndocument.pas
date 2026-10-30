@@ -130,6 +130,12 @@ type
     // but the pattern records it, so the document becomes modified. On
     // failure the current set is kept.
     function UseMeasurements(const FileName: string; out ErrorMessage: string): boolean;
+    // A small edit to the current measurement file: it is re-read, this key
+    // changed or added, and written, then the set is loaded again and the
+    // pattern re-evaluated. Not an undo step and does not modify the pattern,
+    // since the set is not part of it. On failure nothing changes.
+    function ChangeMeasurement(const Key: string; Value: double; const Description: string;
+      out Change: TMeasurementChange; out ErrorMessage: string): boolean;
 
     // A change: BeginChange, any number of edits to Pattern (with LiveUpdate
     // to show them, e.g. while dragging), then EndChange to record them as
@@ -181,6 +187,7 @@ resourcestring
   rsDocumentChangeOpen = 'A change is already open';
   rsDocumentNoChange = 'No change is open';
   rsDocumentBadSnapshot = 'Could not restore the pattern: %s';
+  rsDocumentNoMeasurements = 'There is no measurement file';
 
 implementation
 
@@ -448,6 +455,34 @@ begin
   FSavedCount := FUndo.Count;
   FMeasurementsChanged := False;
   Notify([dcFile]);
+  Result := True;
+end;
+
+function TPatternDocument.ChangeMeasurement(const Key: string; Value: double; const Description: string;
+  out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+var
+  NewSet: TMeasurementSet;
+begin
+  RequireNoChange;
+  Change := Default(TMeasurementChange);
+  ErrorMessage := '';
+  if FMeasurementPath = '' then
+  begin
+    ErrorMessage := rsDocumentNoMeasurements;
+    Exit(False);
+  end;
+  if not ChangeMeasurementInFile(FMeasurementPath, Key, Value, Description, Change, ErrorMessage) then
+    Exit(False);
+  NewSet := TMeasurementSet.Create;
+  if not NewSet.LoadFromFile(FMeasurementPath, ErrorMessage) then
+  begin
+    FreeAndNil(NewSet);
+    Exit(False);
+  end;
+  SetMeasurementSet(NewSet, FMeasurementPath);
+  FMeasurementError := '';
+  FPattern.Evaluate;
+  Notify([dcPattern, dcMeasurements]);
   Result := True;
 end;
 

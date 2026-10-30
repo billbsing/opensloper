@@ -212,6 +212,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.VariablesPanel"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.measurementspanel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.MeasurementsPanel"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

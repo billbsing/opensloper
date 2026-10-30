@@ -35,6 +35,13 @@ type
     procedure TearDown; override;
   published
     procedure TestAddAndFind;
+    procedure TestChangeInFile;
+    procedure TestChangeKeepsChangesMadeElsewhere;
+    procedure TestChangeAddsNewKey;
+    procedure TestChangeRefusesBadKey;
+    procedure TestChangeMissingFile;
+    procedure TestChangeLeavesNoTempFile;
+    procedure TestCreateFile;
     procedure TestKeysIgnoreCase;
     procedure TestCheckKey;
     procedure TestAddRejectsBadKey;
@@ -241,6 +248,136 @@ var
 begin
   AssertFalse(FSet.LoadFromFile(ConcatPaths([GetTempDir, 'no-such-file.slm']), Err));
   AssertTrue('message names the file', Pos('no-such-file.slm', Err) > 0);
+end;
+
+procedure TTestMeasurements.TestChangeInFile;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    FSet.Add('waist', 820, 'Old');
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'WAIST', 830, 'New', Change, Err));
+    AssertEquals('stored spelling', 'waist', Change.Key);
+    AssertNear('old', 820, Change.OldValue);
+    AssertNear('new', 830, Change.Value);
+    AssertFalse('not added', Change.Added);
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    AssertNear('written', 830, FSet.Find('waist').Value);
+    AssertEquals('description', 'New', FSet.Find('waist').Description);
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+// The set in memory is out of date: another app changed hip since it was loaded
+procedure TTestMeasurements.TestChangeKeepsChangesMadeElsewhere;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+  Elsewhere: TMeasurementSet;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    FSet.Add('waist', 820);
+    FSet.Add('hip', 900);
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    Elsewhere := TMeasurementSet.Create;
+    try
+      AssertTrue(Err, Elsewhere.LoadFromFile(FileName, Err));
+      Elsewhere.Find('hip').Value := 910;
+      Elsewhere.Add('neck', 400);
+      AssertTrue(Err, Elsewhere.SaveToFile(FileName, Err));
+    finally
+      FreeAndNil(Elsewhere);
+    end;
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'waist', 830, '', Change, Err));
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    AssertNear('this edit', 830, FSet.Find('waist').Value);
+    AssertNear('their edit kept', 910, FSet.Find('hip').Value);
+    AssertNotNull('their new key kept', FSet.Find('neck'));
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestChangeAddsNewKey;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'chest', 900, 'Round the chest', Change, Err));
+    AssertTrue('added', Change.Added);
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    AssertEquals('Round the chest', FSet.Find('chest').Description);
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestChangeRefusesBadKey;
+var
+  FileName, Err, Before, After: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    FSet.Add('waist', 820);
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    Before := FSet.SaveToText;
+    AssertFalse(ChangeMeasurementInFile(FileName, '2nd key', 1, '', Change, Err));
+    AssertTrue('says why', Err <> '');
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    After := FSet.SaveToText;
+    AssertEquals('file unchanged', Before, After);
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestChangeMissingFile;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := ConcatPaths([GetTempDir, 'opensloper-no-such-file.slm']);
+  AssertFalse(ChangeMeasurementInFile(FileName, 'waist', 1, '', Change, Err));
+  AssertTrue('says why', Err <> '');
+  AssertFalse('not created', FileExists(FileName));
+end;
+
+procedure TTestMeasurements.TestChangeLeavesNoTempFile;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'waist', 1, '', Change, Err));
+    AssertFalse(FileExists(FileName + '.tmp'));
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestCreateFile;
+var
+  FileName, Err: string;
+begin
+  FileName := ConcatPaths([GetTempDir, 'opensloper-new-set.slm']);
+  try
+    AssertTrue(Err, CreateMeasurementFile(FileName, Err));
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    AssertEquals('empty', 0, FSet.Count);
+  finally
+    DeleteFile(FileName);
+  end;
 end;
 
 initialization

@@ -70,6 +70,10 @@ type
     procedure TestMissingMeasurementFileStillOpens;
     procedure TestFailedLoadKeepsPattern;
     procedure TestMeasurementsSurviveUndo;
+    procedure TestChangeMeasurementReevaluates;
+    procedure TestChangeMeasurementIsNotAnUndoStep;
+    procedure TestChangeMeasurementFixesMissingKey;
+    procedure TestChangeMeasurementNeedsAFile;
     procedure TestNewPattern;
   end;
 
@@ -521,6 +525,65 @@ begin
 end;
 
 // The measurement set is the document's choice; undo does not bring back an old one
+procedure TTestDocument.TestChangeMeasurementReevaluates;
+var
+  Err: string;
+  Change: TMeasurementChange;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  FDocument.BeginChange('Add point');
+  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FChanges := nil;
+  FDocument.AddListener(@Listen);
+  AssertTrue(Err, FDocument.ChangeMeasurement('waist', 800, 'Waist', Change, Err));
+  AssertNear('old value', 720, Change.OldValue);
+  AssertNear('pattern follows', 200, PointX('A'));
+  AssertNotNull('set reloaded', FDocument.Measurements.Find('waist'));
+  AssertNear('set value', 800, FDocument.Measurements.Find('waist').Value);
+  AssertEquals('one notification', 1, Length(FChanges));
+  AssertTrue('listeners told', dcMeasurements in FChanges[0]);
+end;
+
+procedure TTestDocument.TestChangeMeasurementIsNotAnUndoStep;
+var
+  Err: string;
+  Change: TMeasurementChange;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  FDocument.BeginChange('Add point');
+  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  AssertTrue(Err, FDocument.SaveToFile(ConcatPaths([FFolder, 'test.sloper']), Err));
+  AssertFalse('saved', FDocument.Modified);
+  AssertTrue(Err, FDocument.ChangeMeasurement('waist', 800, '', Change, Err));
+  AssertFalse('the pattern did not change', FDocument.Modified);
+  FDocument.Undo;
+  AssertNull('undo goes past it', FDocument.Pattern.FindObject('A'));
+  AssertNear('the file keeps the edit', 800, FDocument.Measurements.Find('waist').Value);
+end;
+
+procedure TTestDocument.TestChangeMeasurementFixesMissingKey;
+var
+  Err: string;
+  Change: TMeasurementChange;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  FDocument.BeginChange('Add point');
+  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('other.slm', 800), Err));
+  AssertTrue(Err, FDocument.ChangeMeasurement('chest', 960, '', Change, Err));
+  AssertTrue('added', Change.Added);
+  AssertNotNull(FDocument.Measurements.Find('chest'));
+end;
+
+procedure TTestDocument.TestChangeMeasurementNeedsAFile;
+var
+  Err: string;
+  Change: TMeasurementChange;
+begin
+  AssertFalse(FDocument.ChangeMeasurement('waist', 800, '', Change, Err));
+  AssertEquals(rsDocumentNoMeasurements, Err);
+end;
+
 procedure TTestDocument.TestMeasurementsSurviveUndo;
 var
   Err: string;

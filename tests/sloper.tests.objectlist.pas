@@ -51,12 +51,17 @@ type
     procedure TestVariableSearch;
     procedure TestFailingVariableHasNoValue;
     procedure TestNewVariableName;
+    procedure TestMeasurementRows;
+    procedure TestMeasurementSearch;
+    procedure TestMissingMeasurements;
+    procedure TestNoMeasurementSet;
+    procedure TestMeasurementChangeText;
   end;
 
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.UI.ObjectList;
+  Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Measurements, Sloper.UI.ObjectList;
 
 procedure TTestObjectList.SetUp;
 begin
@@ -240,6 +245,93 @@ begin
   AssertEquals('variable2', FPattern.NewVariableName);
   FPattern.AddVariable('Variable2', '1');
   AssertEquals('ignoring case', 'variable3', FPattern.NewVariableName);
+end;
+
+procedure TTestObjectList.TestMeasurementRows;
+var
+  MeasurementSet: TMeasurementSet;
+  Rows: TMeasurementRowArray;
+begin
+  MeasurementSet := TMeasurementSet.Create;
+  try
+    MeasurementSet.Add('waist', 720.5, 'Round the waist');
+    MeasurementSet.Add('hip', 960);
+    Rows := MeasurementRows(FPattern, MeasurementSet, '');
+    AssertEquals(2, Length(Rows));
+    AssertEquals('waist', Rows[0].Key);
+    AssertEquals('720.5', Rows[0].Value);
+    AssertEquals('Round the waist', Rows[0].Description);
+    AssertFalse('in the set', Rows[0].Missing);
+  finally
+    FreeAndNil(MeasurementSet);
+  end;
+end;
+
+procedure TTestObjectList.TestMeasurementSearch;
+var
+  MeasurementSet: TMeasurementSet;
+  Rows: TMeasurementRowArray;
+begin
+  MeasurementSet := TMeasurementSet.Create;
+  try
+    MeasurementSet.Add('waist', 720, 'Round the middle');
+    MeasurementSet.Add('hip', 960);
+    Rows := MeasurementRows(FPattern, MeasurementSet, 'WAI');
+    AssertEquals('by key', 1, Length(Rows));
+    Rows := MeasurementRows(FPattern, MeasurementSet, 'middle');
+    AssertEquals('by description', 1, Length(Rows));
+    AssertEquals('waist', Rows[0].Key);
+  finally
+    FreeAndNil(MeasurementSet);
+  end;
+end;
+
+// A key the pattern reads that this set lacks, as after switching sets
+procedure TTestObjectList.TestMissingMeasurements;
+var
+  MeasurementSet, Other: TMeasurementSet;
+  Rows: TMeasurementRowArray;
+begin
+  MeasurementSet := TMeasurementSet.Create;
+  Other := TMeasurementSet.Create;
+  try
+    MeasurementSet.Add('waist', 720);
+    MeasurementSet.Add('chest', 900);
+    Other.Add('waist', 800);
+    FPattern.Measurements := MeasurementSet;
+    FPattern.AddFreePoint('A', '@waist + @chest', '0');
+    FPattern.Measurements := Other;
+    FPattern.Evaluate;
+    Rows := MeasurementRows(FPattern, Other, '');
+    AssertEquals('the set, then what is missing', 2, Length(Rows));
+    AssertEquals('waist', Rows[0].Key);
+    AssertEquals('chest', Rows[1].Key);
+    AssertTrue('missing', Rows[1].Missing);
+    AssertEquals('no value', '', Rows[1].Value);
+    FPattern.Measurements := nil;
+    FPattern.Evaluate;
+  finally
+    FreeAndNil(Other);
+    FreeAndNil(MeasurementSet);
+  end;
+end;
+
+procedure TTestObjectList.TestNoMeasurementSet;
+begin
+  AssertEquals('nothing to list', 0, Length(MeasurementRows(FPattern, nil, '')));
+end;
+
+procedure TTestObjectList.TestMeasurementChangeText;
+var
+  Change: TMeasurementChange;
+begin
+  Change := Default(TMeasurementChange);
+  Change.Key := 'waist';
+  Change.OldValue := 820;
+  Change.Value := 830.5;
+  AssertEquals('@waist 820 → 830.5 mm saved to bill.slm', MeasurementChangeText(Change, ConcatPaths(['sets', 'bill.slm'])));
+  Change.Added := True;
+  AssertEquals('@waist 830.5 mm added to bill.slm', MeasurementChangeText(Change, 'bill.slm'));
 end;
 
 initialization

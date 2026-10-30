@@ -77,6 +77,8 @@ type
     procedure Refresh;
     // The user pressed Delete in the list
     procedure DeleteRequested; virtual;
+    // The user chose rows; the default raises OnSelect
+    procedure SelectionChosen; virtual;
     procedure ShowMessageText(const AText: string);
     property SearchText: string read GetSearchText;
     property MultiSelect: boolean read FMultiSelect write FMultiSelect;
@@ -270,6 +272,11 @@ end;
 procedure TListPanel.ChooseKeys(const Keys: TStringArray);
 begin
   ShowSelection(Keys);
+  SelectionChosen;
+end;
+
+procedure TListPanel.SelectionChosen;
+begin
   if Assigned(FOnSelect) then
     FOnSelect(Self);
 end;
@@ -286,8 +293,7 @@ begin
   if not Extend then
     FAnchor := Key;
   FGrid.Invalidate;
-  if Assigned(FOnSelect) then
-    FOnSelect(Self);
+  SelectionChosen;
 end;
 
 procedure TListPanel.GridMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);

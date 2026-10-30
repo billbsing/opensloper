@@ -46,6 +46,10 @@ function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMess
 function ReadTextFile(const FileName: string; out Text: string; out ErrorMessage: string): boolean;
 function WriteTextFile(const FileName, Text: string; out ErrorMessage: string): boolean;
 
+// Writes through a temporary file beside it and a rename, so the file is either
+// the old one or the new one, never half written. On failure it is left alone.
+function WriteTextFileAtomic(const FileName, Text: string; out ErrorMessage: string): boolean;
+
 // Typed member access. False when the member is missing or the wrong type.
 function GetJSONString(Obj: TJSONObject; const Name: string; out Value: string): boolean;
 function GetJSONNumber(Obj: TJSONObject; const Name: string; out Value: double): boolean;
@@ -62,6 +66,9 @@ implementation
 
 uses
   Classes, SysUtils, jsonparser;
+
+const
+  TempSuffix = '.tmp';
 
 function JSONFormatSettings: TFormatSettings;
 begin
@@ -223,6 +230,25 @@ begin
       ErrorMessage := Format(rsFileRead, [FileName, Failure.Message]);
       Result := False;
     end;
+  end;
+end;
+
+function WriteTextFileAtomic(const FileName, Text: string; out ErrorMessage: string): boolean;
+var
+  TempName: string;
+begin
+  TempName := FileName + TempSuffix;
+  if not WriteTextFile(TempName, Text, ErrorMessage) then
+  begin
+    DeleteFile(TempName);
+    Exit(False);
+  end;
+  // Windows will not rename over an existing file
+  Result := RenameFile(TempName, FileName) or (DeleteFile(FileName) and RenameFile(TempName, FileName));
+  if not Result then
+  begin
+    ErrorMessage := Format(rsFileWrite, [FileName, SysErrorMessage(GetLastOSError)]);
+    DeleteFile(TempName);
   end;
 end;
 

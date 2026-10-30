@@ -80,6 +80,23 @@ type
     property Items[Index: integer]: TMeasurement read GetItem; default;
   end;
 
+  // One small edit to a measurement file
+  TMeasurementChange = record
+    Key: string;
+    Value: double;
+    // The value before, unless the key is new
+    OldValue: double;
+    Added: boolean;
+  end;
+
+// Re-reads the file, gives Key this value and description, adding it when it
+// is new, and writes the file atomically, so a change made elsewhere to any
+// other key is kept. On failure the file is left as it was.
+function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
+  out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+// A new, empty measurement file
+function CreateMeasurementFile(const FileName: string; out ErrorMessage: string): boolean;
+
 resourcestring
   rsMeasurementWrongFormat = 'This is not a measurements file';
   rsMeasurementNewerVersion = 'This file was made by a newer version of OpenSloper (file version %d)';
@@ -312,6 +329,53 @@ begin
   if not ReadTextFile(FileName, Text, ErrorMessage) then
     Exit(False);
   Result := LoadFromText(Text, ErrorMessage);
+end;
+
+function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
+  out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+var
+  MeasurementSet: TMeasurementSet;
+  Existing: TMeasurement;
+begin
+  Result := False;
+  Change := Default(TMeasurementChange);
+  MeasurementSet := TMeasurementSet.Create;
+  try
+    if not MeasurementSet.LoadFromFile(FileName, ErrorMessage) then
+      Exit;
+    Existing := MeasurementSet.Find(Key);
+    if Existing = nil then
+    begin
+      if not MeasurementSet.CheckKey(Key, nil, ErrorMessage) then
+        Exit;
+      Change.Key := Key;
+      Change.Added := True;
+      MeasurementSet.Add(Key, Value, Description);
+    end
+    else
+    begin
+      Change.Key := Existing.Key;
+      Change.OldValue := Existing.Value;
+      Existing.Value := Value;
+      Existing.Description := Description;
+    end;
+    Change.Value := Value;
+    Result := WriteTextFileAtomic(FileName, MeasurementSet.SaveToText, ErrorMessage);
+  finally
+    FreeAndNil(MeasurementSet);
+  end;
+end;
+
+function CreateMeasurementFile(const FileName: string; out ErrorMessage: string): boolean;
+var
+  MeasurementSet: TMeasurementSet;
+begin
+  MeasurementSet := TMeasurementSet.Create;
+  try
+    Result := WriteTextFileAtomic(FileName, MeasurementSet.SaveToText, ErrorMessage);
+  finally
+    FreeAndNil(MeasurementSet);
+  end;
 end;
 
 end.

@@ -27,7 +27,8 @@ unit Sloper.UI.ObjectList;
 interface
 
 uses
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft,
+  Sloper.Core.Pattern;
 
 type
   // ofProblems: anything not valid
@@ -55,6 +56,15 @@ type
   end;
   TVariableRowArray = array of TVariableRow;
 
+  TMeasurementRow = record
+    Key: string;
+    Value: string;
+    Description: string;
+    // The pattern uses this key, but the set does not have it
+    Missing: boolean;
+  end;
+  TMeasurementRowArray = array of TMeasurementRow;
+
 // Caption for a formula field, such as "Start angle" for angle1
 function FieldCaption(const FieldName: string): string;
 // What kind of object this is, such as "Offset point"
@@ -69,6 +79,11 @@ function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: stri
 function VariableRow(Pattern: TPattern; Variable: TVariable): TVariableRow;
 // The variables whose name, formula or description contain Search, ignoring case
 function VariableRows(Pattern: TPattern; const Search: string): TVariableRowArray;
+// The set's measurements whose key or description contain Search, ignoring
+// case, then any the pattern uses that the set lacks. Set may be nil.
+function MeasurementRows(Pattern: TPattern; MeasurementSet: TMeasurementSet; const Search: string): TMeasurementRowArray;
+// What a small edit did, for the status bar
+function MeasurementChangeText(const Change: TMeasurementChange; const FileName: string): string;
 // The selection after clicking Clicked. Toggle adds or removes it; Extend
 // selects from Anchor to it in Visible, the keys in list order, or just it
 // when Anchor is not listed.
@@ -80,6 +95,8 @@ resourcestring
   rsObjectLength = '%s mm';
   rsObjectFormula = '%s = %s';
   rsObjectFormulaGap = '; ';
+  rsMeasurementChanged = '@%s %s → %s mm saved to %s';
+  rsMeasurementAdded = '@%s %s mm added to %s';
   rsStateValid = 'Valid';
   rsStateError = 'Error';
   rsStateInvalid = 'Invalid';
@@ -115,7 +132,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.Drag;
+  Sloper.Core.Drag, Sloper.Core.JSON;
 
 const
   VariableDecimals = 4;
@@ -308,6 +325,50 @@ begin
     end;
   end;
   SetLength(Result, Count);
+end;
+
+function MeasurementRows(Pattern: TPattern; MeasurementSet: TMeasurementSet; const Search: string): TMeasurementRowArray;
+var
+  LowerSearch: string;
+  Index, Count: integer;
+  Node: TEvalNode;
+  Key: string;
+
+  procedure Add(const AKey, Value, Description: string; Missing: boolean);
+  begin
+    if (LowerSearch <> '') and (Pos(LowerSearch, LowerCase(AKey)) = 0) and (Pos(LowerSearch, LowerCase(Description)) = 0) then
+      Exit;
+    SetLength(Result, Count + 1);
+    Result[Count].Key := AKey;
+    Result[Count].Value := Value;
+    Result[Count].Description := Description;
+    Result[Count].Missing := Missing;
+    Inc(Count);
+  end;
+
+begin
+  Result := nil;
+  Count := 0;
+  LowerSearch := LowerCase(Trim(Search));
+  if MeasurementSet <> nil then
+    for Index := 0 to MeasurementSet.Count - 1 do
+      Add(MeasurementSet[Index].Key, FormatJSONFloat(MeasurementSet[Index].Value), MeasurementSet[Index].Description, False);
+  for Node in Pattern.AllNodes do
+    if Node is TMeasurementNode then
+    begin
+      Key := Copy(Node.Key, 2, MaxInt);
+      if (MeasurementSet = nil) or (MeasurementSet.Find(Key) = nil) then
+        Add(Key, '', '', True);
+    end;
+end;
+
+function MeasurementChangeText(const Change: TMeasurementChange; const FileName: string): string;
+begin
+  if Change.Added then
+    Result := Format(rsMeasurementAdded, [Change.Key, FormatJSONFloat(Change.Value), ExtractFileName(FileName)])
+  else
+    Result := Format(rsMeasurementChanged, [Change.Key, FormatJSONFloat(Change.OldValue), FormatJSONFloat(Change.Value),
+      ExtractFileName(FileName)]);
 end;
 
 function KeyIndex(const Keys: TStringArray; const Key: string): integer;

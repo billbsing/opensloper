@@ -27,7 +27,8 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
-  Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel;
+  Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
+  Sloper.UI.MeasurementsPanel;
 
 type
 
@@ -87,6 +88,8 @@ type
     FSideItem: TMenuItem;
     FObjects: TObjectsPanel;
     FVariables: TVariablesPanel;
+    FMeasurements: TMeasurementsPanel;
+    FNewSetDialog: TSaveDialog;
     FChoosingVariable: boolean;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
@@ -109,6 +112,7 @@ type
     procedure ObjectsDelete(Sender: TObject);
     procedure VariablesSelect(Sender: TObject);
     procedure VariablesAdded(Sender: TObject);
+    procedure MeasurementsNewSet(Sender: TObject);
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
@@ -134,7 +138,7 @@ var
 implementation
 
 uses
-  Math, Sloper.Core.Version, Sloper.Core.AppPaths, Sloper.Core.PatternCheck;
+  Math, Sloper.Core.Version, Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.PatternCheck;
 
   {$R *.lfm}
 
@@ -166,6 +170,7 @@ resourcestring
   rsMenuViewSidePanel = '&Side Panel';
   rsTabObjects = 'Objects';
   rsTabVariables = 'Variables';
+  rsTabMeasurements = 'Measurements';
   rsMenuViewLabels = '&Labels';
   rsLabelsContextual = '&Contextual';
   rsLabelsAll = '&All (hold N)';
@@ -317,7 +322,7 @@ begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
   FSidePanel.Align := alLeft;
-  FSidePanel.Width := Scale96ToForm(320);
+  FSidePanel.Width := Scale96ToForm(360);
   FObjects := TObjectsPanel(AddTab(rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
@@ -325,6 +330,9 @@ begin
   FVariables := TVariablesPanel(AddTab(rsTabVariables, TVariablesPanel.Create(Self)));
   FVariables.OnSelect := @VariablesSelect;
   FVariables.OnAdded := @VariablesAdded;
+  FMeasurements := TMeasurementsPanel(AddTab(rsTabMeasurements, TMeasurementsPanel.Create(Self)));
+  FMeasurements.OnOpenSet := @MenuFileMeasurementsClick;
+  FMeasurements.OnNewSet := @MeasurementsNewSet;
   FSideSplitter := TSplitter.Create(Self);
   FSideSplitter.Parent := Self;
   FSideSplitter.Align := alLeft;
@@ -386,6 +394,24 @@ end;
 procedure TMainForm.VariablesAdded(Sender: TObject);
 begin
   FProperties.FocusName;
+end;
+
+procedure TMainForm.MeasurementsNewSet(Sender: TObject);
+var
+  Err: string;
+begin
+  if FNewSetDialog = nil then
+  begin
+    FNewSetDialog := TSaveDialog.Create(Self);
+    FNewSetDialog.Filter := MeasurementsDialog.Filter;
+    FNewSetDialog.DefaultExt := 'slm';
+    FNewSetDialog.InitialDir := MeasurementsDialog.InitialDir;
+    FNewSetDialog.Options := FNewSetDialog.Options + [ofOverwritePrompt];
+  end;
+  if not FNewSetDialog.Execute then
+    Exit;
+  if not CreateMeasurementFile(FNewSetDialog.FileName, Err) or not FDocument.UseMeasurements(FNewSetDialog.FileName, Err) then
+    MessageDlg(Format(rsMeasurementsFailed, [FNewSetDialog.FileName, Err]), mtError, [mbOK], 0);
 end;
 
 // The label modes in the View menu; each item's Tag is its TLabelMode
@@ -501,6 +527,7 @@ begin
   FProperties.Document := nil;
   FObjects.Document := nil;
   FVariables.Document := nil;
+  FMeasurements.Document := nil;
   FDocument.RemoveListener(@DocumentChanged);
   FreeAndNil(FDocument);
 end;
