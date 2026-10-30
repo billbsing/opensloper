@@ -28,7 +28,7 @@ unit Sloper.UI.Properties;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, Forms, Graphics, LCLType, Sloper.Document.PatternDocument;
+  Classes, SysUtils, Controls, StdCtrls, Forms, Graphics, LCLType, Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
 type
   // One line of text that cuts itself to the label's width with an ellipsis
@@ -80,6 +80,11 @@ type
     FLastRow: TControl;
     FLastControl: TControl;
     FCommitting: boolean;
+    FCompleter: TFormulaCompleter;
+    // The panel itself is setting a field's text, so suggestions stay away
+    FSettingText: boolean;
+    // Enter took a suggestion; its release must not select the whole field
+    FSwallowEnterUp: boolean;
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure ClearControls;
@@ -102,6 +107,11 @@ type
     function CurrentFieldNames: TStringArray;
     procedure EditKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
     procedure EditExit(Sender: TObject);
+    procedure EditKeyUp(Sender: TObject; var Key: word; Shift: TShiftState);
+    procedure EditChange(Sender: TObject);
+    procedure EditClick(Sender: TObject);
+    procedure UpdateCompletion(Edit: TEdit; Explicit: boolean);
+    procedure SetEditText(Edit: TEdit; const AText: string);
     procedure RoleChange(Sender: TObject);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
@@ -300,6 +310,8 @@ procedure TPropertiesPanel.ClearControls;
 var
   Edit: TEdit;
 begin
+  if FCompleter <> nil then
+    FCompleter.Hide;
   // Freeing a focused edit would run its exit handler and commit mid-rebuild
   if FNameEdit <> nil then
     FNameEdit.OnExit := nil;
@@ -409,6 +421,9 @@ begin
   Result.Tag := ATag;
   Result.OnKeyDown := @EditKeyDown;
   Result.OnExit := @EditExit;
+  Result.OnKeyUp := @EditKeyUp;
+  Result.OnChange := @EditChange;
+  Result.OnClick := @EditClick;
   AddRow(ACaption, Result, RowGap);
   Refusal := AddLabel('', RowGap);
   Refusal.Font.Color := clRed;
@@ -624,7 +639,7 @@ begin
   end;
   if Done then
   begin
-    Edit.Text := OriginalText(Edit);
+    SetEditText(Edit, OriginalText(Edit));
     ClearRefusal(Edit);
     RefreshValues;
   end
@@ -642,6 +657,9 @@ var
   Edit: TEdit;
 begin
   Edit := TEdit(Sender);
+  FSwallowEnterUp := (Key = VK_RETURN) and (FCompleter <> nil) and FCompleter.Visible;
+  if (FCompleter <> nil) and FCompleter.HandleKey(Key) then
+    Exit;
   case Key of
     VK_RETURN:
     begin
@@ -650,16 +668,75 @@ begin
     end;
     VK_ESCAPE:
     begin
-      Edit.Text := OriginalText(Edit);
+      SetEditText(Edit, OriginalText(Edit));
       ClearRefusal(Edit);
       Key := 0;
     end;
+    VK_SPACE:
+      if ssModifier in Shift then
+      begin
+        UpdateCompletion(Edit, True);
+        Key := 0;
+      end;
+    VK_LEFT, VK_RIGHT, VK_HOME, VK_END:
+      if FCompleter <> nil then
+        FCompleter.Hide;
+  end;
+end;
+
+// The edit selects all of its text when Enter comes up
+procedure TPropertiesPanel.EditKeyUp(Sender: TObject; var Key: word; Shift: TShiftState);
+begin
+  if (Key = VK_RETURN) and FSwallowEnterUp then
+  begin
+    FSwallowEnterUp := False;
+    Key := 0;
   end;
 end;
 
 procedure TPropertiesPanel.EditExit(Sender: TObject);
 begin
+  // A click on the suggestions comes back to the field
+  if (FCompleter <> nil) and FCompleter.HasMouse then
+    Exit;
+  if FCompleter <> nil then
+    FCompleter.Hide;
   CommitEdit(TEdit(Sender));
+end;
+
+procedure TPropertiesPanel.SetEditText(Edit: TEdit; const AText: string);
+begin
+  FSettingText := True;
+  try
+    Edit.Text := AText;
+  finally
+    FSettingText := False;
+  end;
+  if FCompleter <> nil then
+    FCompleter.Hide;
+end;
+
+// Name fields have Tag -1 and are not formulas
+procedure TPropertiesPanel.UpdateCompletion(Edit: TEdit; Explicit: boolean);
+begin
+  if (Edit.Tag < 0) or (FDocument = nil) then
+    Exit;
+  if FCompleter = nil then
+    FCompleter := TFormulaCompleter.Create(Self);
+  FCompleter.Update(Edit, FDocument.Pattern, FDocument.Pattern.FindNode(FKey), Explicit);
+end;
+
+procedure TPropertiesPanel.EditChange(Sender: TObject);
+begin
+  if FSettingText or not TEdit(Sender).Focused or ((FCompleter <> nil) and FCompleter.Setting) then
+    Exit;
+  UpdateCompletion(TEdit(Sender), False);
+end;
+
+procedure TPropertiesPanel.EditClick(Sender: TObject);
+begin
+  if FCompleter <> nil then
+    FCompleter.Hide;
 end;
 
 procedure TPropertiesPanel.RoleChange(Sender: TObject);
