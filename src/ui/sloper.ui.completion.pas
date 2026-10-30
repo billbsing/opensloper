@@ -66,6 +66,14 @@ const
   PropertyNames: array[0..5] of string = ('x', 'y', 'length', 'angle', 'angle1', 'angle2');
   ValueDecimals = 2;
 
+type
+  // The items so far, best first, with what each ranked
+  TFoundItems = record
+    Items: TCompletionItemArray;
+    Ranks: array of integer;
+    LowerWord: string;
+  end;
+
 function IsWordChar(Character: char): boolean;
 begin
   Result := Character in ['A'..'Z', 'a'..'z', '0'..'9', '_'];
@@ -87,83 +95,126 @@ begin
     Result := -1;
 end;
 
-// Adds Item in order of rank, then name, so a short name comes before longer ones
-procedure AddItem(var Items: TCompletionItemArray; var Ranks: array of integer; const Item: TCompletionItem; const LowerWord: string);
+// Adds an item in order of rank, then name, so a short name comes before longer ones
+procedure AddItem(var Found: TFoundItems; const Name, Insert, Detail: string);
 var
   Rank, Place, Index: integer;
 begin
-  Rank := MatchRank(Item.Name, LowerWord);
+  Rank := MatchRank(Name, Found.LowerWord);
   if Rank < 0 then
     Exit;
-  Place := Length(Items);
-  while (Place > 0) and ((Ranks[Place - 1] > Rank) or ((Ranks[Place - 1] = Rank) and
-      (CompareText(Items[Place - 1].Name, Item.Name) > 0))) do
+  Place := Length(Found.Items);
+  while (Place > 0) and ((Found.Ranks[Place - 1] > Rank) or ((Found.Ranks[Place - 1] = Rank) and
+      (CompareText(Found.Items[Place - 1].Name, Name) > 0))) do
     Dec(Place);
-  SetLength(Items, Length(Items) + 1);
-  for Index := High(Items) downto Place + 1 do
+  SetLength(Found.Items, Length(Found.Items) + 1);
+  SetLength(Found.Ranks, Length(Found.Items));
+  for Index := High(Found.Items) downto Place + 1 do
   begin
-    Items[Index] := Items[Index - 1];
-    Ranks[Index] := Ranks[Index - 1];
+    Found.Items[Index] := Found.Items[Index - 1];
+    Found.Ranks[Index] := Found.Ranks[Index - 1];
   end;
-  Items[Place] := Item;
-  Ranks[Place] := Rank;
+  Found.Items[Place].Name := Name;
+  Found.Items[Place].Insert := Insert;
+  Found.Items[Place].Detail := Detail;
+  Found.Ranks[Place] := Rank;
 end;
 
-function MakeItem(const Name, Insert, Detail: string): TCompletionItem;
+procedure AddMeasurements(var Found: TFoundItems; Pattern: TPattern; const Prefix: string);
+var
+  Index: integer;
+  Measurement: TMeasurement;
 begin
-  Result.Name := Name;
-  Result.Insert := Insert;
-  Result.Detail := Detail;
+  if Pattern.Measurements = nil then
+    Exit;
+  for Index := 0 to Pattern.Measurements.Count - 1 do
+  begin
+    Measurement := Pattern.Measurements[Index];
+    AddItem(Found, Measurement.Key, Prefix + Measurement.Key, Format(rsCompletionMeasurement, [RoundedText(Measurement.Value, ValueDecimals)]));
+  end;
 end;
 
-function VariableDetail(Variable: TVariable): string;
+// Node's own variable is left out: a formula cannot use itself
+procedure AddVariables(var Found: TFoundItems; Pattern: TPattern; Node: TEvalNode; const Prefix: string);
+var
+  Index: integer;
+  Variable: TVariable;
+  Detail: string;
 begin
-  if Variable.State = esValid then
-    Result := RoundedText(Variable.Value, ValueDecimals)
-  else
-    Result := '';
+  for Index := 0 to Pattern.VariableCount - 1 do
+  begin
+    Variable := Pattern.Variables[Index];
+    if Variable = Node then
+      Continue;
+    Detail := '';
+    if Variable.State = esValid then
+      Detail := RoundedText(Variable.Value, ValueDecimals);
+    AddItem(Found, Variable.Name, Prefix + Variable.Name, Detail);
+  end;
+end;
+
+procedure AddProperties(var Found: TFoundItems; Owner: TDraftObject);
+var
+  PropertyName, Detail: string;
+begin
+  for PropertyName in PropertyNames do
+    if Owner.HasProperty(PropertyName) then
+    begin
+      Detail := '';
+      if Owner.HasResult and (Owner.State = esValid) then
+        Detail := RoundedText(Owner.PropertyValue(PropertyName), ValueDecimals);
+      AddItem(Found, PropertyName, PropertyName, Detail);
+    end;
+end;
+
+// What a bare word can be. An object's dot goes in with it, and a function's bracket.
+procedure AddBareWordItems(var Found: TFoundItems; Pattern: TPattern; Node: TEvalNode);
+var
+  Index: integer;
+  DraftObject: TDraftObject;
+  FunctionName: string;
+begin
+  if not (Node is TVariable) then
+    for Index := 0 to Pattern.ObjectCount - 1 do
+    begin
+      DraftObject := Pattern.Objects[Index];
+      if DraftObject <> Node then
+        AddItem(Found, DraftObject.DisplayName, DraftObject.DisplayName + '.', TypeCaption(DraftObject));
+    end;
+  AddVariables(Found, Pattern, Node, '#');
+  AddMeasurements(Found, Pattern, '@');
+  for FunctionName in FormulaFunctionNames do
+    AddItem(Found, FunctionName, FunctionName + '(', rsCompletionFunction);
+end;
+
+// The object named just before the dot at offset DotOffset, if a formula for
+// Node may read its properties
+function ObjectBeforeDot(Pattern: TPattern; Node: TEvalNode; const Text: string; DotOffset: integer): TDraftObject;
+var
+  Start: integer;
+  OwnerName: string;
+begin
+  Result := nil;
+  if Node is TVariable then
+    Exit;
+  Start := DotOffset;
+  while (Start > 0) and IsWordChar(Text[Start]) do
+    Dec(Start);
+  OwnerName := Copy(Text, Start + 1, DotOffset - Start);
+  if (OwnerName = '') or (OwnerName[1] in ['0'..'9']) then
+    Exit;
+  Result := Pattern.FindObject(OwnerName);
+  if Result = Node then
+    Result := nil;
 end;
 
 function FormulaCompletion(Pattern: TPattern; Node: TEvalNode; const Text: string; Caret: integer; Explicit: boolean): TCompletion;
 var
-  WordStart, Index, Capacity: integer;
-  word, LowerWord, OwnerName: string;
+  WordStart: integer;
+  CaretWord: string;
   Before: char;
-  Ranks: array of integer;
+  Found: TFoundItems;
   Owner: TDraftObject;
-  Variable: TVariable;
-  DraftObject: TDraftObject;
-  FunctionName, PropertyName, Detail: string;
-  AllowObjects: boolean;
-
-  procedure Add(const Name, Insert, ItemDetail: string);
-  begin
-    AddItem(Result.Items, Ranks, MakeItem(Name, Insert, ItemDetail), LowerWord);
-  end;
-
-  procedure AddMeasurements(const Prefix: string);
-  var
-    MeasurementIndex: integer;
-  begin
-    if Pattern.Measurements = nil then
-      Exit;
-    for MeasurementIndex := 0 to Pattern.Measurements.Count - 1 do
-      Add(Pattern.Measurements[MeasurementIndex].Key, Prefix + Pattern.Measurements[MeasurementIndex].Key,
-        Format(rsCompletionMeasurement, [RoundedText(Pattern.Measurements[MeasurementIndex].Value, ValueDecimals)]));
-  end;
-
-  procedure AddVariables(const Prefix: string);
-  var
-    VariableIndex: integer;
-  begin
-    for VariableIndex := 0 to Pattern.VariableCount - 1 do
-    begin
-      Variable := Pattern.Variables[VariableIndex];
-      if Variable <> Node then
-        Add(Variable.Name, Prefix + Variable.Name, VariableDetail(Variable));
-    end;
-  end;
-
 begin
   Result := Default(TCompletion);
   if (Caret < 0) or (Caret > Length(Text)) then
@@ -171,8 +222,7 @@ begin
   WordStart := Caret;
   while (WordStart > 0) and IsWordChar(Text[WordStart]) do
     Dec(WordStart);
-  word := Copy(Text, WordStart + 1, Caret - WordStart);
-  LowerWord := LowerCase(word);
+  CaretWord := Copy(Text, WordStart + 1, Caret - WordStart);
   Result.From := WordStart;
   Result.Upto := Caret;
   // The rest of a word the caret is inside goes too
@@ -182,60 +232,31 @@ begin
   if WordStart > 0 then
     Before := Text[WordStart];
   // A number such as 12 or 1.5 is not a name
-  if (word <> '') and (word[1] in ['0'..'9']) and (Before <> '.') then
+  if (CaretWord <> '') and (CaretWord[1] in ['0'..'9']) and (Before <> '.') then
     Exit;
 
-  AllowObjects := not (Node is TVariable);
-  Capacity := Pattern.ObjectCount + Pattern.VariableCount + Length(FormulaFunctionNames) + Length(PropertyNames) + 1;
-  if Pattern.Measurements <> nil then
-    Capacity := Capacity + Pattern.Measurements.Count;
-  Ranks := nil;
-  SetLength(Ranks, Capacity);
-
+  Found := Default(TFoundItems);
+  Found.LowerWord := LowerCase(CaretWord);
   case Before of
     '@':
-      AddMeasurements('');
+      AddMeasurements(Found, Pattern, '');
     '#':
-      AddVariables('');
+      AddVariables(Found, Pattern, Node, '');
     '.':
     begin
-      Index := WordStart - 1;
-      while (Index > 0) and IsWordChar(Text[Index]) do
-        Dec(Index);
-      OwnerName := Copy(Text, Index + 1, WordStart - 1 - Index);
-      Owner := nil;
-      if AllowObjects and (OwnerName <> '') and not (OwnerName[1] in ['0'..'9']) then
-        Owner := Pattern.FindObject(OwnerName);
-      if (Owner <> nil) and (Owner <> Node) then
-        for PropertyName in PropertyNames do
-          if Owner.HasProperty(PropertyName) then
-          begin
-            Detail := '';
-            if Owner.HasResult and (Owner.State = esValid) then
-              Detail := RoundedText(Owner.PropertyValue(PropertyName), ValueDecimals);
-            Add(PropertyName, PropertyName, Detail);
-          end;
+      Owner := ObjectBeforeDot(Pattern, Node, Text, WordStart - 1);
+      if Owner <> nil then
+        AddProperties(Found, Owner);
     end;
     else
-      if (word <> '') or Explicit then
-      begin
-        if AllowObjects then
-          for Index := 0 to Pattern.ObjectCount - 1 do
-          begin
-            DraftObject := Pattern.Objects[Index];
-            if DraftObject <> Node then
-              Add(DraftObject.DisplayName, DraftObject.DisplayName + '.', TypeCaption(DraftObject));
-          end;
-        AddVariables('#');
-        AddMeasurements('@');
-        for FunctionName in FormulaFunctionNames do
-          Add(FunctionName, FunctionName + '(', rsCompletionFunction);
-      end;
+      if (CaretWord <> '') or Explicit then
+        AddBareWordItems(Found, Pattern, Node);
   end;
 
   // Nothing to add to a word that is already complete
-  if (Length(Result.Items) = 1) and (Result.Upto = Caret) and SameText(Result.Items[0].Insert, word) then
-    Result.Items := nil;
+  if (Length(Found.Items) = 1) and (Result.Upto = Caret) and SameText(Found.Items[0].Insert, CaretWord) then
+    Exit;
+  Result.Items := Found.Items;
 end;
 
 function ApplyCompletion(const Text: string; const Completion: TCompletion; Index: integer; out Caret: integer): string;

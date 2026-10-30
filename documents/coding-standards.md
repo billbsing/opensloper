@@ -75,6 +75,7 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
     ```
 
   - **An item for a list:** add it to its owner first and fill it in afterwards, so it needs no `try` of its own. A constructor filling its fields needs none either: the destructor frees them.
+- A routine does one job. Split it when it does several jobs, when you would want a comment naming a section of it, or when nesting goes past about three levels. Around 40 lines, stop and check; past 80, have a reason. Length is only a prompt: a flat `case` with one branch per type, or plain setup, is fine at any length, and splitting it would only scatter what one screen shows. Nested helper routines are a good way to split without adding to a unit's public surface.
 - Recursion inside a function needs brackets: in ObjFPC mode a bare `ParseUnary` inside `ParseUnary` means the result variable, so write `ParseUnary()`.
 - Don't index an array with a call that can grow it (`Tokens[Add(...)] := ...`): Free Pascal may take the array's address before the call reallocates it. Store the index first.
 - Compare floats with a tolerance, and never compare a `double` with an untyped float constant such as `MaxDouble`: on x86_64 Linux the constant is evaluated as 80-bit `Extended` and never equals the `double` (see `documents/known-issues.md`).

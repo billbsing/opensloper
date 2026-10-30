@@ -59,6 +59,11 @@ const
   ErrorColor = '#c02020';
   BlockedColor = '#e08000';
 
+type
+  TDraftView = record
+    Left, Top, Width, Height, Extent: double;
+  end;
+
 function DefaultDraftSVGOptions: TDraftSVGOptions;
 begin
   Result := Default(TDraftSVGOptions);
@@ -117,15 +122,12 @@ begin
     end;
 end;
 
-function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
+// The part of the drawing shown, in SVG's y-down millimetres. Extent is the
+// longer side, which line widths and text sizes are shares of.
+function DraftView(Pattern: TPattern; const Options: TDraftSVGOptions): TDraftView;
 var
   Bounds: TRect2;
-  Extent, Margin, Left, Top, Width, Height, Stroke: double;
-  Index: integer;
-  DraftObject: TDraftObject;
-  Edge: TEdgeObject;
-  Point: TPointObject;
-  Color, Dash: string;
+  Margin: double;
 begin
   if Options.HasRegion then
     Bounds := Options.Region
@@ -135,57 +137,79 @@ begin
     Bounds.MaxX := EmptyExtent;
     Bounds.MaxY := EmptyExtent;
   end;
-  Extent := Max(Max(Bounds.MaxX - Bounds.MinX, Bounds.MaxY - Bounds.MinY), MinimumExtent);
+  Result.Extent := Max(Max(Bounds.MaxX - Bounds.MinX, Bounds.MaxY - Bounds.MinY), MinimumExtent);
   Margin := 0;
   if not Options.HasRegion then
-    Margin := Extent * MarginShare;
-  Left := Bounds.MinX - Margin;
-  Top := -Bounds.MaxY - Margin;
-  Width := Bounds.MaxX - Bounds.MinX + 2 * Margin;
-  Height := Bounds.MaxY - Bounds.MinY + 2 * Margin;
+    Margin := Result.Extent * MarginShare;
+  Result.Left := Bounds.MinX - Margin;
+  Result.Top := -Bounds.MaxY - Margin;
+  Result.Width := Bounds.MaxX - Bounds.MinX + 2 * Margin;
+  Result.Height := Bounds.MaxY - Bounds.MinY + 2 * Margin;
+end;
 
+function SVGStart(const View: TDraftView): string;
+begin
   Result := Format('<svg xmlns="http://www.w3.org/2000/svg" width="%smm" height="%smm" viewBox="%s %s %s %s">',
-    [Num(Width), Num(Height), Num(Left), Num(Top), Num(Width), Num(Height)]) + #10;
-  Result := Result + Format('<rect x="%s" y="%s" width="%s" height="%s" fill="#ffffff"/>', [Num(Left), Num(Top), Num(Width), Num(Height)]) + #10;
+    [Num(View.Width), Num(View.Height), Num(View.Left), Num(View.Top), Num(View.Width), Num(View.Height)]) + #10 +
+    Format('<rect x="%s" y="%s" width="%s" height="%s" fill="#ffffff"/>', [Num(View.Left), Num(View.Top), Num(View.Width), Num(View.Height)]) + #10;
+end;
 
+function EdgeElement(Edge: TEdgeObject; Extent: double): string;
+var
+  Color, Dash: string;
+  Stroke: double;
+begin
+  Dash := '';
+  if Edge.Role = erOutline then
+  begin
+    Color := InkColor;
+    Stroke := Extent * LineShare;
+  end
+  else
+  begin
+    Color := ConstructionColor;
+    Stroke := Extent * ConstructionShare;
+    Dash := Format(' stroke-dasharray="%s %s"', [Num(Stroke * 4), Num(Stroke * 3)]);
+  end;
+  Result := Format('<path data-id="%s" data-name="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"%s/>',
+    [Edge.Key, EscapeXML(Edge.DisplayName), EdgePath(Edge), StateColor(Edge.State, Color), Num(Stroke), Dash]) + #10;
+end;
+
+function PointElement(Point: TPointObject; Extent: double; Labels: boolean): string;
+var
+  Radius: double;
+  Color: string;
+begin
+  Radius := Extent * PointShare;
+  Color := StateColor(Point.State, InkColor);
+  Result := Format('<circle data-id="%s" data-name="%s" cx="%s" cy="%s" r="%s" fill="%s"/>',
+    [Point.Key, EscapeXML(Point.DisplayName), Num(Point.Position.X), Num(-Point.Position.Y), Num(Radius), Color]) + #10;
+  if Labels then
+    Result := Result + Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
+      [Num(Point.Position.X + Radius * 1.5), Num(-Point.Position.Y - Radius * 1.5), Num(Extent * FontShare), Color,
+      EscapeXML(Point.DisplayName)]) + #10;
+end;
+
+function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
+var
+  View: TDraftView;
+  Index: integer;
+  DraftObject: TDraftObject;
+begin
+  View := DraftView(Pattern, Options);
+  Result := SVGStart(View);
   // Edges under points
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult then
-      Continue;
-    Edge := TEdgeObject(DraftObject);
-    if Edge.Segments = nil then
-      Continue;
-    Dash := '';
-    if Edge.Role = erOutline then
-    begin
-      Color := InkColor;
-      Stroke := Extent * LineShare;
-    end
-    else
-    begin
-      Color := ConstructionColor;
-      Stroke := Extent * ConstructionShare;
-      Dash := Format(' stroke-dasharray="%s %s"', [Num(Stroke * 4), Num(Stroke * 3)]);
-    end;
-    Result := Result + Format('<path data-id="%s" data-name="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"%s/>',
-      [Edge.Key, EscapeXML(Edge.DisplayName), EdgePath(Edge), StateColor(Edge.State, Color), Num(Stroke), Dash]) + #10;
+    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) then
+      Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
   end;
-
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TPointObject) or not DraftObject.HasResult then
-      Continue;
-    Point := TPointObject(DraftObject);
-    Result := Result + Format('<circle data-id="%s" data-name="%s" cx="%s" cy="%s" r="%s" fill="%s"/>',
-      [Point.Key, EscapeXML(Point.DisplayName), Num(Point.Position.X), Num(-Point.Position.Y), Num(Extent * PointShare),
-      StateColor(Point.State, InkColor)]) + #10;
-    if Options.Labels then
-      Result := Result + Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
-        [Num(Point.Position.X + Extent * PointShare * 1.5), Num(-Point.Position.Y - Extent * PointShare * 1.5), Num(Extent * FontShare),
-        StateColor(Point.State, InkColor), EscapeXML(Point.DisplayName)]) + #10;
+    if (DraftObject is TPointObject) and DraftObject.HasResult then
+      Result := Result + PointElement(TPointObject(DraftObject), View.Extent, Options.Labels);
   end;
   Result := Result + '</svg>' + #10;
 end;
