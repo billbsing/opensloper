@@ -45,6 +45,15 @@ type
     procedure TestNegativeLiteralCanDrag;
     procedure TestFormulaIsLocked;
     procedure TestPlacedPointCannotDrag;
+    procedure TestCurveHandles;
+    procedure TestDragStartHandle;
+    procedure TestDragEndHandle;
+    procedure TestHandleAtAnchorKeepsAngle;
+    procedure TestFormulaHandleIsLocked;
+    procedure TestPathHandles;
+    procedure TestDragPathHandleRotatesBothSides;
+    procedure TestOnlyCurvesHaveHandles;
+    procedure TestSplitPartHasNoHandles;
   end;
 
 implementation
@@ -182,6 +191,153 @@ begin
   Crossing := TPointObject(Check(FPattern.AddIntersectPoint('X', '5', '6', False, False, 1)));
   AssertFalse(CanDrag(Crossing, Err));
   AssertEquals(Format(rsDragPlaced, ['X']), Err);
+end;
+
+procedure TTestDrag.TestCurveHandles;
+var
+  Curve: TCurveObject;
+  Handles: TCurveHandleArray;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '30', '90', '40')));
+  FPattern.Evaluate;
+  Handles := CurveHandles(Curve);
+  AssertEquals(2, Length(Handles));
+  AssertPointsNear('start anchor', Vec2(0, 0), Handles[0].Anchor);
+  AssertPointsNear('start handle', Vec2(0, 30), Handles[0].Position);
+  AssertPointsNear('end anchor', Vec2(100, 0), Handles[1].Anchor);
+  AssertPointsNear('end handle', Vec2(100, 40), Handles[1].Position);
+end;
+
+procedure TTestDrag.TestDragStartHandle;
+var
+  Curve: TCurveObject;
+  Err: string;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '30', '90', '40')));
+  FPattern.Evaluate;
+  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[0], Vec2(30, 40), Err));
+  FPattern.Evaluate;
+  AssertEquals('length', '50', FPattern.FormulaText(Curve, 'length1'));
+  AssertEquals('angle', '53.1', FPattern.FormulaText(Curve, 'angle1'));
+  AssertEquals('other handle untouched', '40', FPattern.FormulaText(Curve, 'length2'));
+end;
+
+procedure TTestDrag.TestDragEndHandle;
+var
+  Curve: TCurveObject;
+  Err: string;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '30', '90', '40')));
+  FPattern.Evaluate;
+  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[1], Vec2(100, -25), Err));
+  FPattern.Evaluate;
+  AssertEquals('below the end, angles stay positive', '270', FPattern.FormulaText(Curve, 'angle2'));
+  AssertPointsNear('handle follows', Vec2(100, -25), CurveHandles(Curve)[1].Position);
+end;
+
+procedure TTestDrag.TestHandleAtAnchorKeepsAngle;
+var
+  Curve: TCurveObject;
+  Err: string;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '30', '90', '40')));
+  FPattern.Evaluate;
+  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[0], Vec2(0.01, 0), Err));
+  AssertEquals('length', '0', FPattern.FormulaText(Curve, 'length1'));
+  AssertEquals('angle kept', '90', FPattern.FormulaText(Curve, 'angle1'));
+end;
+
+procedure TTestDrag.TestFormulaHandleIsLocked;
+var
+  Curve: TCurveObject;
+  Handles: TCurveHandleArray;
+  Err: string;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '@waist / 6', '90', '40')));
+  FPattern.Evaluate;
+  Handles := CurveHandles(Curve);
+  AssertFalse('a formula locks it', CanDragHandle(Curve, Handles[0], Err));
+  AssertEquals(Format(rsDragHandleFormula, [Curve.DisplayName]), Err);
+  AssertFalse('drag refused', DragHandle(FPattern, Curve, Handles[0], Vec2(5, 5), Err));
+  AssertEquals('formula kept', '@waist / 6', FPattern.FormulaText(Curve, 'length1'));
+  AssertTrue('the other handle is free', CanDragHandle(Curve, Handles[1], Err));
+end;
+
+procedure TTestDrag.TestPathHandles;
+var
+  Path: TCurvePathObject;
+  Handles: TCurveHandleArray;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '100');
+  Pt('C', '200', '0');
+  Path := TCurvePathObject(Check(FPattern.AddCurvePath(['1', '2', '3'], ['90', '0', '270'], ['', '50', '20'], ['30', '40', ''])));
+  FPattern.Evaluate;
+  Handles := CurveHandles(Path);
+  AssertEquals('none beyond the ends', 4, Length(Handles));
+  AssertPointsNear('out of A', Vec2(0, 30), Handles[0].Position);
+  AssertPointsNear('into B, back along the tangent', Vec2(50, 100), Handles[1].Position);
+  AssertPointsNear('out of B', Vec2(140, 100), Handles[2].Position);
+  AssertPointsNear('into C', Vec2(200, 20), Handles[3].Position);
+  AssertEquals('node2.lengthIn', Handles[1].LengthField);
+end;
+
+procedure TTestDrag.TestDragPathHandleRotatesBothSides;
+var
+  Path: TCurvePathObject;
+  Err: string;
+  Handles: TCurveHandleArray;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '100');
+  Pt('C', '200', '0');
+  Path := TCurvePathObject(Check(FPattern.AddCurvePath(['1', '2', '3'], ['90', '0', '270'], ['', '50', '20'], ['30', '40', ''])));
+  FPattern.Evaluate;
+  // The handle into B, dragged to directly above B
+  AssertTrue(Err, DragHandle(FPattern, Path, CurveHandles(Path)[1], Vec2(100, 160), Err));
+  FPattern.Evaluate;
+  AssertEquals('the shared tangent turns', '270', FPattern.FormulaText(Path, 'node2.angle'));
+  AssertEquals('this length', '60', FPattern.FormulaText(Path, 'node2.lengthIn'));
+  AssertEquals('the other length stays', '40', FPattern.FormulaText(Path, 'node2.lengthOut'));
+  Handles := CurveHandles(Path);
+  AssertPointsNear('dragged', Vec2(100, 160), Handles[1].Position);
+  AssertPointsNear('the other side stays opposite', Vec2(100, 60), Handles[2].Position);
+end;
+
+procedure TTestDrag.TestOnlyCurvesHaveHandles;
+var
+  Line: TLineObject;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Line := TLineObject(Check(FPattern.AddLine('1', '2')));
+  FPattern.Evaluate;
+  AssertEquals(0, Length(CurveHandles(Line)));
+end;
+
+procedure TTestDrag.TestSplitPartHasNoHandles;
+var
+  Curve: TCurveObject;
+  Middle: TPointObject;
+  First, Second: TSplitPart;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '30', '90', '40')));
+  Middle := TPointObject(Check(FPattern.AddAlongEdgePoint('M', Curve.Key, False, amRatio, '0.5')));
+  AssertTrue(FPattern.LastError, FPattern.SplitEdge(Curve.Key, Middle.Key, First, Second));
+  FPattern.Evaluate;
+  AssertEquals(0, Length(CurveHandles(First)));
 end;
 
 initialization

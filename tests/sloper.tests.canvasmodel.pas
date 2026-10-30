@@ -49,6 +49,7 @@ type
     procedure TestEdgeAt;
     procedure TestPolylines;
     procedure TestPolylineMiddle;
+    procedure TestHandleAt;
     procedure TestObjectsBounds;
     procedure TestRevealLeavesVisibleAlone;
     procedure TestRevealCentresWithoutZooming;
@@ -63,7 +64,7 @@ type
 implementation
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Settings, Sloper.UI.View, Sloper.UI.Scene;
+  Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings, Sloper.UI.View, Sloper.UI.Scene;
 
 function MakeRect(MinX, MinY, MaxX, MaxY: double): TRect2;
 begin
@@ -257,6 +258,20 @@ begin
   AssertNear('zoom kept', 2, View.Scale);
   Centre := View.ToScreen(Vec2(1050, -450));
   AssertPointsNear('centred', Vec2(400, 200), Centre);
+end;
+
+procedure TTestCanvasModel.TestHandleAt;
+var
+  Handle: TCurveHandle;
+begin
+  Build;
+  FPattern.Evaluate;
+  AssertEquals('only selected curves', 0, Length(SelectionHandles(FPattern, ['1', '4'])));
+  AssertEquals('the curve', 2, Length(SelectionHandles(FPattern, ['5'])));
+  AssertTrue('near the start handle', HandleAt(FPattern, ['5'], Vec2(1, -59), 3, Handle));
+  AssertEquals('length1', Handle.LengthField);
+  AssertFalse('not when unselected', HandleAt(FPattern, nil, Vec2(1, -59), 3, Handle));
+  AssertFalse('too far', HandleAt(FPattern, ['5'], Vec2(20, 20), 3, Handle));
 end;
 
 procedure TTestCanvasModel.TestPolylineMiddle;

@@ -28,10 +28,11 @@ interface
 
 uses
   Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
+  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
-  TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging);
+  // cmRefused: a drag was refused; the reason stays up until the button is released
+  TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging, cmRefused);
   // ctSelect selects and drags; the others add points, lines and curves where the snap points
   TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
@@ -48,6 +49,11 @@ type
     FPressPos, FLastPos: TPoint;
     FPressKey: string;
     FDragOffset: TVec2;
+    // The press landed on a curve's handle, or the handle is being dragged
+    FPressHandle, FDraggingHandle: boolean;
+    FHandle: TCurveHandle;
+    // The field that identifies the handle under the cursor, and its curve
+    FHoverHandleField, FHoverHandleEdge: string;
     FSpaceDown: boolean;
     FTool: TCanvasTool;
     // Where a click would go, while a drawing tool is in use
@@ -73,7 +79,9 @@ type
     procedure ToggleSelected(const Key: string);
     procedure DropMissingSelection;
     procedure StartDrag;
+    procedure StartHandleDrag;
     procedure DragTo(X, Y: integer);
+    function UpdateHoverHandle(X, Y: integer): boolean;
     procedure CancelDrag;
     procedure Nudge(DX, DY: double);
     procedure SetTool(Value: TCanvasTool);
@@ -90,6 +98,7 @@ type
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
     procedure DrawPattern;
+    procedure DrawHandles;
     procedure DrawLabels;
     procedure DrawSnap;
   protected
@@ -133,6 +142,7 @@ type
 
 resourcestring
   rsCanvasMovePoint = 'Move point';
+  rsCanvasMoveHandle = 'Move curve handle';
   rsCanvasNudge = 'Nudge';
   rsCanvasDelete = 'Delete';
   rsCanvasHover = '%s: %s';
@@ -147,13 +157,14 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Drag, Sloper.UI.Scene;
+  Math, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.UI.Scene;
 
 const
   // Screen pixels
   PointRadius = 3.5;
   SmallPointRadius = 2.5;
   PointHitRadius = 7;
+  HandleRadius = 4;
   EdgeHitRadius = 5;
   DragThreshold = 3;
   FitMargin = 40;
@@ -433,11 +444,27 @@ begin
   if not CanDrag(Point, Reason) then
   begin
     ShowMessageText(Reason);
-    FMode := cmIdle;
+    FMode := cmRefused;
     Exit;
   end;
   FDragOffset := Point.Position - ModelAt(FPressPos.X, FPressPos.Y);
   FDocument.BeginChange(rsCanvasMovePoint);
+  FMode := cmDragging;
+end;
+
+procedure TPatternCanvas.StartHandleDrag;
+var
+  Reason: string;
+begin
+  if not CanDragHandle(TEdgeObject(FDocument.Pattern.FindNode(FHandle.EdgeKey)), FHandle, Reason) then
+  begin
+    ShowMessageText(Reason);
+    FMode := cmRefused;
+    Exit;
+  end;
+  FDragOffset := FHandle.Position - ModelAt(FPressPos.X, FPressPos.Y);
+  FDocument.BeginChange(rsCanvasMoveHandle);
+  FDraggingHandle := True;
   FMode := cmDragging;
 end;
 
@@ -446,6 +473,14 @@ var
   Point: TPointObject;
   Reason: string;
 begin
+  if FDraggingHandle then
+  begin
+    if DragHandle(FDocument.Pattern, TEdgeObject(FDocument.Pattern.FindNode(FHandle.EdgeKey)), FHandle, ModelAt(X, Y) + FDragOffset, Reason) then
+      FDocument.LiveUpdate
+    else
+      ShowMessageText(Reason);
+    Exit;
+  end;
   Point := TPointObject(FDocument.Pattern.FindNode(FPressKey));
   if DragPoint(FDocument.Pattern, Point, ModelAt(X, Y) + FDragOffset, Reason) then
     FDocument.LiveUpdate
@@ -458,6 +493,25 @@ begin
   if FMode = cmDragging then
     FDocument.CancelChange;
   FMode := cmIdle;
+  FDraggingHandle := False;
+end;
+
+// True when the cursor moved on or off a handle, or to another one
+function TPatternCanvas.UpdateHoverHandle(X, Y: integer): boolean;
+var
+  Found: TCurveHandle;
+  FieldName, EdgeKey: string;
+begin
+  FieldName := '';
+  EdgeKey := '';
+  if HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), Found) then
+  begin
+    FieldName := Found.LengthField;
+    EdgeKey := Found.EdgeKey;
+  end;
+  Result := (FieldName <> FHoverHandleField) or (EdgeKey <> FHoverHandleEdge);
+  FHoverHandleField := FieldName;
+  FHoverHandleEdge := EdgeKey;
 end;
 
 procedure TPatternCanvas.Nudge(DX, DY: double);
@@ -699,7 +753,12 @@ begin
   end;
   if Button <> mbLeft then
     Exit;
-  FPressKey := ObjectKeyAt(X, Y);
+  // A handle lies over whatever else is there
+  FPressHandle := HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FHandle);
+  if FPressHandle then
+    FPressKey := FHandle.EdgeKey
+  else
+    FPressKey := ObjectKeyAt(X, Y);
   FMode := cmPressed;
 end;
 
@@ -718,13 +777,19 @@ begin
       Invalidate;
     end;
     cmPressed:
-      if (FPressKey <> '') and (FDocument.Pattern.FindNode(FPressKey) is TPointObject) and
-        (Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DragThreshold) then
-      begin
-        StartDrag;
-        if FMode = cmDragging then
-          DragTo(X, Y);
-      end;
+      if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DragThreshold then
+        if FPressHandle then
+        begin
+          StartHandleDrag;
+          if FMode = cmDragging then
+            DragTo(X, Y);
+        end
+        else if (FPressKey <> '') and (FDocument.Pattern.FindNode(FPressKey) is TPointObject) then
+        begin
+          StartDrag;
+          if FMode = cmDragging then
+            DragTo(X, Y);
+        end;
     cmDragging:
       DragTo(X, Y);
     cmIdle:
@@ -732,6 +797,8 @@ begin
         UpdateSnap(X, Y)
       else if FDocument <> nil then
       begin
+        if UpdateHoverHandle(X, Y) then
+          Invalidate;
         Key := ObjectKeyAt(X, Y);
         if Key <> FHoverKey then
         begin
@@ -755,19 +822,22 @@ begin
     cmDragging:
     begin
       FDocument.EndChange;
+      FDraggingHandle := False;
       if not IsSelected(FPressKey) then
         SetSelection([FPressKey]);
     end;
     cmPressed:
-      if FPressKey = '' then
-      begin
-        if not (ssShift in Shift) then
-          SelectNone;
-      end
-      else if ssShift in Shift then
-        ToggleSelected(FPressKey)
-      else
-        SetSelection([FPressKey]);
+      // A click on a handle leaves the selection as it is
+      if not FPressHandle then
+        if FPressKey = '' then
+        begin
+          if not (ssShift in Shift) then
+            SelectNone;
+        end
+        else if ssShift in Shift then
+          ToggleSelected(FPressKey)
+        else
+          SetSelection([FPressKey]);
   end;
   FMode := cmIdle;
 end;
@@ -996,6 +1066,32 @@ begin
   end;
 end;
 
+// Each selected curve's tangent lines. A handle set by a formula is hollow,
+// since it cannot be dragged.
+procedure TPatternCanvas.DrawHandles;
+var
+  Item: TCurveHandle;
+  Anchor, Tip: TVec2;
+  Radius: single;
+  Reason: string;
+begin
+  if FTool <> ctSelect then
+    Exit;
+  for Item in SelectionHandles(FDocument.Pattern, FSelection) do
+  begin
+    Anchor := FView.ToScreen(Item.Anchor);
+    Tip := FView.ToScreen(Item.Position);
+    FBitmap.DrawLineAntialias(Anchor.X, Anchor.Y, Tip.X, Tip.Y, SelectedInk, 1);
+    Radius := HandleRadius;
+    if (Item.LengthField = FHoverHandleField) and (Item.EdgeKey = FHoverHandleEdge) then
+      Radius := Radius + 1.5;
+    if CanDragHandle(TEdgeObject(FDocument.Pattern.FindNode(Item.EdgeKey)), Item, Reason) then
+      FBitmap.FillEllipseAntialias(Tip.X, Tip.Y, Radius, Radius, SelectedInk)
+    else
+      FBitmap.EllipseAntialias(Tip.X, Tip.Y, Radius, Radius, SelectedInk, 1.5, Paper);
+  end;
+end;
+
 // Over the drawing, so that no edge or point crosses out a label
 procedure TPatternCanvas.DrawLabels;
 var
@@ -1090,6 +1186,7 @@ begin
   if FDocument <> nil then
   begin
     DrawPattern;
+    DrawHandles;
     DrawLabels;
     DrawSnap;
   end;

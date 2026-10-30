@@ -28,7 +28,7 @@ unit Sloper.UI.Scene;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.Settings;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Settings;
 
 const
   MinFocusSize = 60;
@@ -44,6 +44,10 @@ function EdgePolyline(Edge: TEdgeObject; Tolerance: double): TVec2Array;
 function PointAt(Pattern: TPattern; const At: TVec2; Radius: double): TPointObject;
 // The nearest edge within Radius mm of At, or nil
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
+// The handles of the selected curves
+function SelectionHandles(Pattern: TPattern; const Selection: TStringArray): TCurveHandleArray;
+// The nearest handle of the selected curves within Radius mm of At
+function HandleAt(Pattern: TPattern; const Selection: TStringArray; const At: TVec2; Radius: double; out Handle: TCurveHandle): boolean;
 // The point halfway along a polyline of at least one point, where an edge's label goes
 function PolylineMiddle(const Line: TVec2Array): TVec2;
 // Keys of the objects to label, in pattern order. Contextual labels the
@@ -216,6 +220,40 @@ begin
     begin
       Best := Offset;
       Result := TEdgeObject(DraftObject);
+    end;
+  end;
+end;
+
+function SelectionHandles(Pattern: TPattern; const Selection: TStringArray): TCurveHandleArray;
+var
+  Key: string;
+  Node: TEvalNode;
+begin
+  Result := nil;
+  for Key in Selection do
+  begin
+    Node := Pattern.FindNode(Key);
+    if Node is TEdgeObject then
+      Result := Concat(Result, CurveHandles(TEdgeObject(Node)));
+  end;
+end;
+
+function HandleAt(Pattern: TPattern; const Selection: TStringArray; const At: TVec2; Radius: double; out Handle: TCurveHandle): boolean;
+var
+  Candidate: TCurveHandle;
+  Best, Gap: double;
+begin
+  Result := False;
+  Handle := Default(TCurveHandle);
+  Best := Radius;
+  for Candidate in SelectionHandles(Pattern, Selection) do
+  begin
+    Gap := Distance(Candidate.Position, At);
+    if Gap <= Best then
+    begin
+      Best := Gap;
+      Handle := Candidate;
+      Result := True;
     end;
   end;
 end;

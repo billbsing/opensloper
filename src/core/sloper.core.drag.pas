@@ -16,10 +16,10 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// Dragging points: which points can follow the mouse, and the formulas a
-// drag writes. A drag only changes fields that are plain numbers, so a point
-// placed by a formula (@waist/4) keeps its parametric intent and is locked.
-// No LCL dependency.
+// Dragging points and curve handles: which can follow the mouse, and the
+// formulas a drag writes. A drag only changes fields that are plain numbers, so
+// anything placed by a formula (@waist/4) keeps its parametric intent and is
+// locked. No LCL dependency.
 unit Sloper.Core.Drag;
 
 {$mode ObjFPC}{$H+}
@@ -27,13 +27,27 @@ unit Sloper.Core.Drag;
 interface
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.Draft, Sloper.Core.Pattern;
 
 const
   // Dragged values are rounded to these decimals: mm, degrees, ratio
   DragLengthDecimals = 1;
   DragAngleDecimals = 1;
   DragRatioDecimals = 4;
+
+type
+  // A curve's handle: the end of its tangent line, set by an angle and a length.
+  // The two handles at a path's inner node share one angle, so the join stays smooth.
+  TCurveHandle = record
+    EdgeKey: string;
+    // Where the handle starts, on the curve, and where its end is
+    Anchor, Position: TVec2;
+    AngleField, LengthField: string;
+    // Added to the field's angle to get the handle's direction: 180 for the
+    // handle into a path node, which points back along the tangent
+    AngleOffset: double;
+  end;
+  TCurveHandleArray = array of TCurveHandle;
 
 // Value rounded to Decimals as formula text, without "-0"
 function RoundedText(Value: double; Decimals: integer): string;
@@ -45,15 +59,26 @@ function CanDrag(Point: TPointObject; out ErrorMessage: string): boolean;
 // change and evaluate afterwards. False, with ErrorMessage, when the point
 // cannot be dragged.
 function DragPoint(Pattern: TPattern; Point: TPointObject; const Target: TVec2; out ErrorMessage: string): boolean;
+// The handles of a curve or curve path, as computed; empty for other edges,
+// and for one not computed. A split part follows its source and has none.
+function CurveHandles(Edge: TEdgeObject): TCurveHandleArray;
+// True when both of the handle's fields are plain numbers
+function CanDragHandle(Edge: TEdgeObject; const Handle: TCurveHandle; out ErrorMessage: string): boolean;
+// Sets the handle's angle and length so its end lies at Target. At the anchor
+// the length is 0 and the angle is kept. Call inside a document change and
+// evaluate afterwards.
+function DragHandle(Pattern: TPattern; Edge: TEdgeObject; const Handle: TCurveHandle; const Target: TVec2;
+  out ErrorMessage: string): boolean;
 
 resourcestring
   rsDragFormula = '%s is placed by a formula; change it in its properties';
   rsDragPlaced = '%s is placed by other objects and cannot be dragged';
+  rsDragHandleFormula = 'This handle of %s is set by a formula; change it in its properties';
 
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Evaluator, Sloper.Core.JSON;
+  Math, Sloper.Core.Evaluator, Sloper.Core.JSON;
 
 function RoundedText(Value: double; Decimals: integer): string;
 var
@@ -105,12 +130,12 @@ begin
   Result := True;
 end;
 
-function SetFields(Pattern: TPattern; Point: TPointObject; const Names, Texts: array of string; out ErrorMessage: string): boolean;
+function SetFields(Pattern: TPattern; Target: TDraftObject; const Names, Texts: array of string; out ErrorMessage: string): boolean;
 var
   Index: integer;
 begin
   for Index := 0 to High(Names) do
-    if not Pattern.SetFormula(Point, Names[Index], Texts[Index]) then
+    if not Pattern.SetFormula(Target, Names[Index], Texts[Index]) then
     begin
       ErrorMessage := Pattern.LastError;
       Exit(False);
@@ -160,6 +185,68 @@ begin
     Result := SetFields(Pattern, Point, ['value'], [RoundedText(Distance / EdgeLength, DragRatioDecimals)], ErrorMessage)
   else
     Result := True;
+end;
+
+function MakeHandle(Edge: TEdgeObject; const Anchor, Position: TVec2; const AngleField, LengthField: string;
+  AngleOffset: double): TCurveHandle;
+begin
+  Result.EdgeKey := Edge.Key;
+  Result.Anchor := Anchor;
+  Result.Position := Position;
+  Result.AngleField := AngleField;
+  Result.LengthField := LengthField;
+  Result.AngleOffset := AngleOffset;
+end;
+
+function CurveHandles(Edge: TEdgeObject): TCurveHandleArray;
+var
+  Index: integer;
+  Curve: TCubicBezier;
+  Node, NextNode: string;
+begin
+  Result := nil;
+  if not Edge.HasResult or (Edge.Segments = nil) then
+    Exit;
+  if Edge is TCurveObject then
+  begin
+    Curve := TCurveObject(Edge).Curve;
+    Result := [MakeHandle(Edge, Curve.P0, Curve.P1, 'angle1', 'length1', 0), MakeHandle(Edge, Curve.P3, Curve.P2, 'angle2', 'length2', 0)];
+  end
+  else if Edge is TCurvePathObject then
+  begin
+    SetLength(Result, 2 * Length(Edge.Segments));
+    for Index := 0 to High(Edge.Segments) do
+    begin
+      Curve := Edge.Segments[Index].Curve;
+      Node := 'node' + IntToStr(Index + 1);
+      NextNode := 'node' + IntToStr(Index + 2);
+      Result[2 * Index] := MakeHandle(Edge, Curve.P0, Curve.P1, Node + '.angle', Node + '.lengthOut', 0);
+      Result[2 * Index + 1] := MakeHandle(Edge, Curve.P3, Curve.P2, NextNode + '.angle', NextNode + '.lengthIn', 180);
+    end;
+  end;
+end;
+
+function CanDragHandle(Edge: TEdgeObject; const Handle: TCurveHandle; out ErrorMessage: string): boolean;
+begin
+  ErrorMessage := '';
+  Result := Edge.Field(Handle.AngleField).IsLiteral and Edge.Field(Handle.LengthField).IsLiteral;
+  if not Result then
+    ErrorMessage := Format(rsDragHandleFormula, [Edge.DisplayName]);
+end;
+
+function DragHandle(Pattern: TPattern; Edge: TEdgeObject; const Handle: TCurveHandle; const Target: TVec2;
+  out ErrorMessage: string): boolean;
+var
+  LengthText: string;
+begin
+  if not CanDragHandle(Edge, Handle, ErrorMessage) then
+    Exit(False);
+  LengthText := RoundedText(Sloper.Core.Geometry.Distance(Handle.Anchor, Target), DragLengthDecimals);
+  if LengthText = '0' then
+    Exit(SetFields(Pattern, Edge, [Handle.LengthField], [LengthText], ErrorMessage));
+  Result := SetFields(Pattern, Edge, [Handle.AngleField, Handle.LengthField],
+    [RoundedText(NormalizeAngle(AngleBetween(Handle.Anchor, Target) - Handle.AngleOffset), DragAngleDecimals), LengthText],
+    ErrorMessage);
 end;
 
 end.
