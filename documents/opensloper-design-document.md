@@ -622,6 +622,8 @@ Measurement files are edited in a third application, `opensloper-measurements`, 
 
 **One unit is the central control.** All reading, writing and editing of measurement files goes through `Sloper.Core.Measurements` in the core, used by all three apps and the CLI, so key rules, units and formatting are the same everywhere. A long-running service that the apps connect to was considered and rejected: it would add process management, sockets on every platform and crash handling, for a problem that a careful write and a merge by key already solve.
 
+**No measurement set needed to draft.** To keep the drafting app easy to start with, it works with no measurement set: a pattern can be drafted with plain numbers and `#` variables, and `measurementFile` stays empty. Only formulas that use a `@key` show the missing-key error, and adding a key from that error first offers to create a new measurement file for the pattern.
+
 **Small edits from the drafting app.** The drafting app shows the current set in a measurements panel (keys, values, descriptions, search, switching set and size) and allows two small edits:
 
 - Adding a missing key from its error ("@chest is not in the measurement set" → Add, with value and description)
