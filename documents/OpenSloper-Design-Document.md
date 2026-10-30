@@ -666,6 +666,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 - Core tests written alongside, or before, geometry and formula code
 - Every bug gets a failing test before the fix
 - UI kept thin: forms call into the document and core layers
+- End-to-end checks drive `opensloper-cli serve` through the Automation API and inspect render output, instead of GUI automation tools such as xdotool
 - `run-tests.sh` before each commit, optionally via a git pre-commit hook; the same script becomes the CI step on public release
 
 ## Repository layout
@@ -687,7 +688,7 @@ opensloper/
 │   ├── document/           TPatternDocument, undo/redo commands, notifications
 │   ├── ui/                 forms, canvas, tools, snapping, panels
 │   └── output/             PDF, SVG, DXF, Blender exporters
-├── cli/                    opensloper-cli (export, check) using core + ConsoleTools
+├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
 ├── tests/                  FPCUnit test project, regression patterns and expected JSON
 ├── packages/               git submodules, pinned commits
 │   ├── clipper2/
@@ -732,6 +733,58 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 ConsoleTools is public at [github.com/billbsing/console-tools](https://github.com/billbsing/console-tools), MIT licensed, with FPCUnit tests (parse, validation, sort order, colour).
 
+## Automation API` section, placed after the **Dependencies** section (it builds on the CLI described there).
+2. In **Roadmap and open questions**, insert a new step after step 5 (JSON save/load and undo/redo commands) and renumber the steps after it:
+   `Automation API, phase 1: opensloper-cli serve (JSON-RPC over stdio) with open, list_objects, set_formula, evaluate, check and render`
+3. In **Testing**, add this bullet under **Habits**:
+   `- End-to-end checks drive opensloper-cli serve through the Automation API and inspect render output, instead of GUI automation tools such as xdotool`
+4. In **Repository layout**, change the `cli/` line to:
+   `├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools`
+
+If anything in the repo version already conflicts with this note, keep the repo version and flag the conflict.
+
+---
+
+## Automation API
+
+OpenSloper exposes its document operations as an API, first so Claude Code can test the app without GUI automation, later so Claude can help design and change patterns.
+
+**One rule: the API only issues document commands.** Every API call goes through the same document-layer commands as the UI, so name rules, formula checks, cycle checks and undo apply exactly as they do for a user. The API cannot put a pattern into a state the UI could not.
+
+### Phase 1: scripting and testing
+
+- `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
+- The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
+
+| Method | Purpose |
+| --- | --- |
+| `open`, `save` | Load or save a pattern, optionally with a measurement file |
+| `list_objects`, `get_object` | Names, IDs, operations, formulas (display form), computed values and state |
+| `add_point`, `add_edge` | Create objects with an operation and formula fields |
+| `set_formula`, `rename`, `delete` | Edit existing objects |
+| `create_piece` | Detect and create a piece from a position inside a region |
+| `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
+| `undo`, `redo` | Step through history |
+| `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
+| `export` | PDF, SVG or DXF to a given path |
+| `ui_state` (GUI only) | Selection, label mode, viewport, canvas snapshot |
+
+`render` lets Claude look at the result, not only check numbers, so a wrong curve or misplaced dart is caught visually.
+
+**Errors are data.** A refused call returns a JSON-RPC error with the message, the field and the character position, matching `TPattern.LastError`, `LastErrorField` and `LastErrorPos`. Evaluation failures are reported as object states, never as crashes.
+
+### Phase 2: Claude as a design assistant
+
+- MCP (Model Context Protocol) is JSON-RPC 2.0 over stdio, so `opensloper-cli serve` grows into an MCP server by adding the MCP handshake and tool listing; the methods above become MCP tools. Claude Desktop and Claude Code can then connect directly.
+- With the GUI in `--automation` mode, the user sees Claude's changes live. Each Claude request is grouped into one undo step labelled `Claude: <summary>`, so it can be reviewed and undone at once.
+- Example requests: "move the shoulder dart to the side seam", "add 2 cm ease at the hip", "why is point C invalid?", "add notches where the sleeve cap meets the armhole".
+
+### Safety and scope
+
+- Automation is off by default in the GUI, listens only locally (a Unix domain socket, or 127.0.0.1 on platforms without one) and requires a token printed at startup.
+- The API works on the open document. File access is limited to `open`, `save` and `export` with paths the caller supplies.
+- The API layer lives beside the CLI and the UI and depends only on the document and core layers, keeping both usable without it.
+
 ## 3D preview (later phase)
 
 3D draping is deferred and will use Blender's cloth simulation rather than a built-in simulator.
@@ -746,19 +799,20 @@ The only requirement now is the **seam** concept in the core model, which also d
 
 ## Roadmap and open questions
 
-Save/load and undo come before the canvas, so the canvas is built on document commands from the start and saved patterns can serve as regression tests. The app becomes personally useful at step 7; community release follows if it proves easy to use.
+Save/load and undo come before the canvas, so the canvas is built on document commands from the start and saved patterns can serve as regression tests. The app becomes personally useful at step 8; community release follows if it proves easy to use.
 
 1. Geometry core unit (points, lines, Béziers, intersections) with unit tests, no UI
 2. Measurement sets, variables and the formula engine
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
 4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the five core operations, snap-inferred
-6. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
-7. True-scale tiled PDF printing
-8. Import Valentina/Seamly2D measurement files; SVG export
-9. Seams and seam-length checks
-10. DXF-AAMA export, simple layout
-11. Blender export for 3D preview
+6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render`
+7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
+8. True-scale tiled PDF printing
+9. Import Valentina/Seamly2D measurement files; SVG export
+10. Seams and seam-length checks
+11. DXF-AAMA export, simple layout
+12. Blender export for 3D preview
 
 Open questions:
 
