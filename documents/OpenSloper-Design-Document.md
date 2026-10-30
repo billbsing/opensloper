@@ -84,7 +84,7 @@ The central rule: only definitions are saved and undone; computed geometry is al
 
 1. **Definition vs result.** Each object holds its definition (operation, references, formula strings) and a cached computed result (coordinates). Saving, loading and undo touch definitions only.
 2. **Dependencies come from formulas.** Each formula is parsed once into an expression tree; everything it references (measurements, variables, objects such as `Line_A_B.length`) plus the operation's direct references forms the dependency graph. The user never manages it.
-3. **Ordered, incremental evaluation.** The graph is topologically sorted. A change marks the object and everything downstream dirty; only those are re-evaluated. Formula edits that create a cycle are rejected with a clear message.
+3. **Ordered, incremental evaluation.** The graph is topologically sorted. A change marks the object and everything downstream dirty, and eventually only those are re-evaluated; the first version recomputes everything (see Evaluator). Formula edits that create a cycle are rejected with a clear message.
 4. **Failures are states, not crashes.** If an operation cannot be evaluated (e.g. two lines no longer intersect), the object and its dependents become invalid and are highlighted in red. The pattern stays editable.
 5. **IDs separate from names.** Internal IDs never change; user-facing names can be renamed freely.
 6. **Operation registry.** Each operation type is a class that declares its inputs and parameters and evaluates itself. Adding a tool means writing one class, adding its `Add…` call to `TPattern`, and giving it a file type in `Sloper.Core.PatternFile`.
@@ -913,7 +913,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 2. Measurement sets, variables and the formula engine
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
 4. JSON save/load and undo/redo commands (done)
-5. Canvas with pan/zoom and the five core operations, snap-inferred
+5. Canvas with pan/zoom and the six point operations, snap-inferred
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render`
 7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
