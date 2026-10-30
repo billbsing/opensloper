@@ -378,7 +378,8 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Lines and curves** take two clicks. Both new end points and the edge are one undo step, and drawing carries on from the end point. New edges are outlines. A curve starts with handles along the chord, a third of its length, ready to shape in the properties.
 - **Properties panel** (`Sloper.UI.Properties`, with the LCL-free `Sloper.UI.GridColumns`): the selected object's type, name, formulas (shown with names, with readable captions such as "Point 2 handle in") and role, and what it computes to, laid out as the property grid below. Enter or leaving a field commits one undo step; Escape puts the text back. A refused formula keeps its text, shows the reason in red under its field and puts the cursor at the problem. A failing object's evaluation message shows below the rows. The role drop-down is also one undo step.
 - **Labels** (`LabelKeys` in `Sloper.UI.Scene`): the View menu switches between Contextual, All and None (see Point labels), remembered in the app's settings. Point labels sit beside the point and edge labels at the middle of the edge. Contextual shows the hovered object; the selection with its direct inputs and dependents; and while drawing, the line's start and what the cursor snaps to. Holding N shows every label in any mode. None also draws smaller point markers.
-- **Next:** the objects panel with name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
+- **Objects panel** (`Sloper.UI.ObjectsPanel`, with the LCL-free `Sloper.UI.ObjectList`): see Objects panel below. View → Objects Panel shows or hides it, remembered in the app's settings.
+- **Next:** name autocomplete in formula fields, variables and measurements panels, and a node editor for curve handles.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -486,7 +487,7 @@ A problems panel lists each issue in plain words (e.g. "Front: gap between Line\
 
 Labels never print unless explicitly turned on in the print screen.
 
-**Objects panel.** A side panel lists every point, edge, piece and annotation with its name, operation, formulas, computed position and state (valid, error, invalid, blocked), with search and filter. Selecting in the panel selects and zooms on the canvas, and the reverse. The panel is where names and data are read and edited, so the canvas doesn't need to show them; formula fields use name autocomplete, so hidden labels never make formulas harder to write.
+**Objects panel.** A side panel lists every point, edge, piece and annotation with its name, operation, formulas, computed position and state (valid, error, invalid, blocked), with search and filter. Clicking a row selects the object on the canvas and brings it into view at the current zoom, so the list can be browsed without the drawing changing scale; double-clicking zooms to it. Selecting on the canvas highlights its row. Ctrl/Cmd+click and Shift+click select several, the arrow keys move the selection, and Delete deletes it as on the canvas. Search looks through names, operations and formulas, so searching for a name also finds what reads it; the filter narrows to points, edges or problems. The panel is where names and data are read, with editing in the properties panel beside it, so the canvas doesn't need to show them; formula fields use name autocomplete, so hidden labels never make formulas harder to write.
 
 **Property grid.** The properties panel lays out each field on one row, name on the left and value on the right, like the Castle Game Engine inspector, instead of a caption above each field. This keeps the whole selection visible in a narrow panel.
 

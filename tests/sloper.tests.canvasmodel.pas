@@ -49,6 +49,9 @@ type
     procedure TestEdgeAt;
     procedure TestPolylines;
     procedure TestPolylineMiddle;
+    procedure TestObjectsBounds;
+    procedure TestRevealLeavesVisibleAlone;
+    procedure TestRevealCentresWithoutZooming;
     procedure TestLabelModes;
     procedure TestContextualHover;
     procedure TestContextualSelection;
@@ -61,6 +64,14 @@ implementation
 
 uses
   Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Settings, Sloper.UI.View, Sloper.UI.Scene;
+
+function MakeRect(MinX, MinY, MaxX, MaxY: double): TRect2;
+begin
+  Result.MinX := MinX;
+  Result.MinY := MinY;
+  Result.MaxX := MaxX;
+  Result.MaxY := MaxY;
+end;
 
 procedure TTestCanvasModel.SetUp;
 begin
@@ -200,6 +211,52 @@ begin
   AssertPointsNear('ends at C', Vec2(100, 50), Curve[High(Curve)]);
   for Index := 1 to High(Curve) do
     AssertTrue('no repeated points', Distance(Curve[Index - 1], Curve[Index]) > 1e-9);
+end;
+
+procedure TTestCanvasModel.TestObjectsBounds;
+var
+  Bounds: TRect2;
+begin
+  Build;
+  FPattern.Evaluate;
+  AssertTrue('a line', ObjectsBounds(FPattern, ['4'], Bounds));
+  AssertNear('line width', 100, Bounds.MaxX - Bounds.MinX);
+  AssertNear('thin side grown', MinFocusSize, Bounds.MaxY - Bounds.MinY);
+  AssertTrue('a point', ObjectsBounds(FPattern, ['2'], Bounds));
+  AssertNear('centred on the point', 100, (Bounds.MinX + Bounds.MaxX) / 2);
+  AssertNear('point area', MinFocusSize, Bounds.MaxX - Bounds.MinX);
+  AssertFalse('unknown key', ObjectsBounds(FPattern, ['99'], Bounds));
+  AssertFalse('nothing', ObjectsBounds(FPattern, nil, Bounds));
+end;
+
+procedure TTestCanvasModel.TestRevealLeavesVisibleAlone;
+var
+  View: TViewTransform;
+  Bounds: TRect2;
+begin
+  View := DefaultView;
+  View.Scale := 1;
+  View.OriginX := 0;
+  View.OriginY := 400;
+  Bounds := MakeRect(10, 10, 50, 50);
+  View.Reveal(Bounds, 800, 400, 5);
+  AssertNear('x', 0, View.OriginX);
+  AssertNear('y', 400, View.OriginY);
+end;
+
+procedure TTestCanvasModel.TestRevealCentresWithoutZooming;
+var
+  View: TViewTransform;
+  Centre: TVec2;
+begin
+  View := DefaultView;
+  View.Scale := 2;
+  View.OriginX := 0;
+  View.OriginY := 400;
+  View.Reveal(MakeRect(1000, -500, 1100, -400), 800, 400, 5);
+  AssertNear('zoom kept', 2, View.Scale);
+  Centre := View.ToScreen(Vec2(1050, -450));
+  AssertPointsNear('centred', Vec2(400, 200), Centre);
 end;
 
 procedure TTestCanvasModel.TestPolylineMiddle;

@@ -182,6 +182,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.GridColumns"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.objectlist.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.ObjectList"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.objectspanel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.ObjectsPanel"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

@@ -39,6 +39,7 @@ type
     // The part of the properties panel's row width given to field names, above 0 and below 1
     NameColumnShare: double;
     LabelMode: TLabelMode;
+    ShowObjectsPanel: boolean;
     constructor Create;
     procedure Reset;
     function SaveToText: string;
@@ -72,6 +73,7 @@ procedure TAppSettings.Reset;
 begin
   NameColumnShare := DefaultNameColumnShare;
   LabelMode := DefaultLabelMode;
+  ShowObjectsPanel := True;
 end;
 
 function TAppSettings.SaveToText: string;
@@ -84,6 +86,7 @@ begin
     Obj.Add('version', SettingsVersion);
     Obj.Add('nameColumnShare', JSONFloat(NameColumnShare));
     Obj.Add('labelMode', LabelModeNames[LabelMode]);
+    Obj.Add('showObjectsPanel', ShowObjectsPanel);
     Result := JSONToText(Obj);
   finally
     FreeAndNil(Obj);
@@ -97,6 +100,7 @@ var
   Version: integer;
   Share: double;
   Mode: TLabelMode;
+  Shown: boolean;
 begin
   Reset;
   if not ParseJSONObject(Text, Obj, ErrorMessage) then
@@ -118,6 +122,8 @@ begin
       for Mode := Low(TLabelMode) to High(TLabelMode) do
         if TextValue = LabelModeNames[Mode] then
           LabelMode := Mode;
+    if GetJSONBoolean(Obj, 'showObjectsPanel', Shown) then
+      ShowObjectsPanel := Shown;
     Result := True;
   finally
     FreeAndNil(Obj);

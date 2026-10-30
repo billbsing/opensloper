@@ -30,8 +30,14 @@ interface
 uses
   SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.Settings;
 
+const
+  MinFocusSize = 60;
+
 // Extent of everything shown; False when nothing is
 function PatternBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
+// Extent of the objects with these keys, at least MinFocusSize mm each way so
+// that a single point has an area to zoom to; False when none is shown
+function ObjectsBounds(Pattern: TPattern; const Keys: TStringArray; out Bounds: TRect2): boolean;
 // The edge as a polyline, curves flattened to within Tolerance mm
 function EdgePolyline(Edge: TEdgeObject; Tolerance: double): TVec2Array;
 // The nearest point within Radius mm of At, or nil
@@ -71,38 +77,66 @@ begin
   Bounds.MaxY := Max(Bounds.MaxY, P.Y);
 end;
 
+procedure IncludeObject(var Bounds: TRect2; var Empty: boolean; DraftObject: TDraftObject);
+var
+  Segment: TEdgeSegment;
+  CurveBounds: TRect2;
+begin
+  if not DraftObject.HasResult then
+    Exit;
+  if DraftObject is TPointObject then
+    Include(Bounds, Empty, TPointObject(DraftObject).Position)
+  else if DraftObject is TEdgeObject then
+    for Segment in TEdgeObject(DraftObject).Segments do
+      if Segment.Kind = skLine then
+      begin
+        Include(Bounds, Empty, Segment.Line.P1);
+        Include(Bounds, Empty, Segment.Line.P2);
+      end
+      else
+      begin
+        CurveBounds := Segment.Curve.Bounds;
+        Include(Bounds, Empty, Vec2(CurveBounds.MinX, CurveBounds.MinY));
+        Include(Bounds, Empty, Vec2(CurveBounds.MaxX, CurveBounds.MaxY));
+      end;
+end;
+
 function PatternBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
 var
   Index: integer;
-  DraftObject: TDraftObject;
-  Segment: TEdgeSegment;
-  CurveBounds: TRect2;
   Empty: boolean;
 begin
   Bounds := Default(TRect2);
   Empty := True;
   for Index := 0 to Pattern.ObjectCount - 1 do
+    IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
+  Result := not Empty;
+end;
+
+function ObjectsBounds(Pattern: TPattern; const Keys: TStringArray; out Bounds: TRect2): boolean;
+var
+  Key: string;
+  Node: TEvalNode;
+  Empty: boolean;
+  Grow: double;
+begin
+  Bounds := Default(TRect2);
+  Empty := True;
+  for Key in Keys do
   begin
-    DraftObject := Pattern.Objects[Index];
-    if not DraftObject.HasResult then
-      Continue;
-    if DraftObject is TPointObject then
-      Include(Bounds, Empty, TPointObject(DraftObject).Position)
-    else if DraftObject is TEdgeObject then
-      for Segment in TEdgeObject(DraftObject).Segments do
-        if Segment.Kind = skLine then
-        begin
-          Include(Bounds, Empty, Segment.Line.P1);
-          Include(Bounds, Empty, Segment.Line.P2);
-        end
-        else
-        begin
-          CurveBounds := Segment.Curve.Bounds;
-          Include(Bounds, Empty, Vec2(CurveBounds.MinX, CurveBounds.MinY));
-          Include(Bounds, Empty, Vec2(CurveBounds.MaxX, CurveBounds.MaxY));
-        end;
+    Node := Pattern.FindNode(Key);
+    if Node is TDraftObject then
+      IncludeObject(Bounds, Empty, TDraftObject(Node));
   end;
   Result := not Empty;
+  if not Result then
+    Exit;
+  Grow := Max(0, (MinFocusSize - (Bounds.MaxX - Bounds.MinX)) / 2);
+  Bounds.MinX := Bounds.MinX - Grow;
+  Bounds.MaxX := Bounds.MaxX + Grow;
+  Grow := Max(0, (MinFocusSize - (Bounds.MaxY - Bounds.MinY)) / 2);
+  Bounds.MinY := Bounds.MinY - Grow;
+  Bounds.MaxY := Bounds.MaxY + Grow;
 end;
 
 function EdgePolyline(Edge: TEdgeObject; Tolerance: double): TVec2Array;

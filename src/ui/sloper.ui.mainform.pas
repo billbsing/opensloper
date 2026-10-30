@@ -26,7 +26,8 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
-  Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties;
+  Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
+  Sloper.UI.ObjectsPanel;
 
 type
 
@@ -81,6 +82,9 @@ type
     FDocument: TPatternDocument;
     FSettings: TAppSettings;
     FLabelItems: array[TLabelMode] of TMenuItem;
+    FObjects: TObjectsPanel;
+    FObjectsSplitter: TSplitter;
+    FObjectsItem: TMenuItem;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
     FSplitter: TSplitter;
@@ -93,6 +97,12 @@ type
     procedure SetLabelMode(Mode: TLabelMode);
     procedure CreateLabelMenu;
     procedure LabelModeClick(Sender: TObject);
+    procedure CreateObjectsPanel;
+    procedure SetObjectsShown(Shown: boolean);
+    procedure ObjectsItemClick(Sender: TObject);
+    procedure ObjectsSelect(Sender: TObject);
+    procedure ObjectsZoom(Sender: TObject);
+    procedure ObjectsDelete(Sender: TObject);
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
@@ -147,6 +157,7 @@ resourcestring
   rsMenuViewZoomOut = 'Zoom &Out';
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
+  rsMenuViewObjects = '&Objects Panel';
   rsMenuViewLabels = '&Labels';
   rsLabelsContextual = '&Contextual';
   rsLabelsAll = '&All (hold N)';
@@ -230,6 +241,7 @@ begin
   FSplitter.Parent := Self;
   FSplitter.Align := alRight;
   FSplitter.Left := FProperties.Left - FSplitter.Width;
+  CreateObjectsPanel;
   FCanvas := TPatternCanvas.Create(Self);
   FCanvas.Parent := Self;
   FCanvas.Align := alClient;
@@ -240,6 +252,7 @@ begin
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
   CreateLabelMenu;
   SetLabelMode(FSettings.LabelMode);
+  SetObjectsShown(FSettings.ShowObjectsPanel);
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
   StatusBar.OnResize := @StatusBarResize;
@@ -265,6 +278,7 @@ var
 begin
   FSettings.NameColumnShare := FProperties.NameShare;
   FSettings.LabelMode := FCanvas.LabelMode;
+  FSettings.ShowObjectsPanel := FObjects.Visible;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
 end;
@@ -273,6 +287,57 @@ procedure TMainForm.SetLabelMode(Mode: TLabelMode);
 begin
   FCanvas.LabelMode := Mode;
   FLabelItems[Mode].Checked := True;
+end;
+
+procedure TMainForm.CreateObjectsPanel;
+begin
+  FObjects := TObjectsPanel.Create(Self);
+  FObjects.Parent := Self;
+  FObjects.Align := alLeft;
+  FObjects.Width := Scale96ToForm(320);
+  FObjects.Document := FDocument;
+  FObjects.OnSelect := @ObjectsSelect;
+  FObjects.OnZoom := @ObjectsZoom;
+  FObjects.OnDelete := @ObjectsDelete;
+  FObjectsSplitter := TSplitter.Create(Self);
+  FObjectsSplitter.Parent := Self;
+  FObjectsSplitter.Align := alLeft;
+  FObjectsSplitter.Left := FObjects.Left + FObjects.Width;
+  FObjectsItem := TMenuItem.Create(MainMenu);
+  FObjectsItem.Caption := rsMenuViewObjects;
+  FObjectsItem.OnClick := @ObjectsItemClick;
+  MenuView.Add(NewLine);
+  MenuView.Add(FObjectsItem);
+end;
+
+procedure TMainForm.SetObjectsShown(Shown: boolean);
+begin
+  FObjects.Visible := Shown;
+  FObjectsSplitter.Visible := Shown;
+  // The splitter belongs just after the panel, or it docks on the far side of it
+  FObjectsSplitter.Left := FObjects.Left + FObjects.Width;
+  FObjectsItem.Checked := Shown;
+end;
+
+procedure TMainForm.ObjectsItemClick(Sender: TObject);
+begin
+  SetObjectsShown(not FObjects.Visible);
+end;
+
+procedure TMainForm.ObjectsSelect(Sender: TObject);
+begin
+  FCanvas.SelectObjects(FObjects.Selection);
+  FCanvas.RevealSelection;
+end;
+
+procedure TMainForm.ObjectsZoom(Sender: TObject);
+begin
+  FCanvas.ZoomToSelection;
+end;
+
+procedure TMainForm.ObjectsDelete(Sender: TObject);
+begin
+  FCanvas.DeleteSelection;
 end;
 
 // The label modes in the View menu; each item's Tag is its TLabelMode
@@ -372,15 +437,17 @@ end;
 procedure TMainForm.CanvasSelectionChange(Sender: TObject);
 begin
   FProperties.ShowSelection(FCanvas.Selection);
+  FObjects.ShowSelection(FCanvas.Selection);
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
   SaveSettings;
   FreeAndNil(FSettings);
-  // The canvas and panel listen to the document, so they let go first
+  // The canvas and panels listen to the document, so they let go first
   FCanvas.Document := nil;
   FProperties.Document := nil;
+  FObjects.Document := nil;
   FDocument.RemoveListener(@DocumentChanged);
   FreeAndNil(FDocument);
 end;

@@ -112,6 +112,11 @@ type
     // 1 mm on screen is 1 mm
     procedure ZoomTrueSize;
     procedure SelectNone;
+    // Selects these objects, as a click on the canvas would
+    procedure SelectObjects(const Keys: TStringArray);
+    // Brings the selection into view at the current zoom
+    procedure RevealSelection;
+    procedure ZoomToSelection;
     // Deletes the selected objects, the dependents first; nothing when any is in use
     procedure DeleteSelection;
     property Document: TPatternDocument read FDocument write SetDocument;
@@ -317,6 +322,33 @@ begin
   Invalidate;
   if Assigned(FOnSelectionChange) then
     FOnSelectionChange(Self);
+end;
+
+procedure TPatternCanvas.SelectObjects(const Keys: TStringArray);
+begin
+  SetSelection(Keys);
+end;
+
+procedure TPatternCanvas.RevealSelection;
+var
+  Bounds: TRect2;
+begin
+  if (FDocument <> nil) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
+  begin
+    FView.Reveal(Bounds, ClientWidth, ClientHeight, FitMargin);
+    Invalidate;
+  end;
+end;
+
+procedure TPatternCanvas.ZoomToSelection;
+var
+  Bounds: TRect2;
+begin
+  if (FDocument <> nil) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
+  begin
+    FView.Fit(Bounds, ClientWidth, ClientHeight, FitMargin);
+    Invalidate;
+  end;
 end;
 
 procedure TPatternCanvas.ToggleSelected(const Key: string);

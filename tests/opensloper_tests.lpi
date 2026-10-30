@@ -156,6 +156,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Settings"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.objectlist.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.ObjectList"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

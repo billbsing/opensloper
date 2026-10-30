@@ -45,6 +45,7 @@ uses
   Sloper.Tests.CanvasModel,
   Sloper.Tests.Snap,
   Sloper.Tests.GridColumns,
+  Sloper.Tests.ObjectList,
   Sloper.Tests.Settings,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper;

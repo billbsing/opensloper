@@ -48,6 +48,9 @@ type
     procedure Pan(DX, DY: double);
     // Shows Bounds (model) centred in a Width x Height view, with Margin pixels around it
     procedure Fit(const Bounds: TRect2; Width, Height, Margin: double);
+    // Centres Bounds (model) without zooming, unless all of it already shows,
+    // Margin pixels clear of the edges of a Width x Height view
+    procedure Reveal(const Bounds: TRect2; Width, Height, Margin: double);
   end;
 
 function DefaultView: TViewTransform;
@@ -115,6 +118,18 @@ begin
   Centre := Vec2((Bounds.MinX + Bounds.MaxX) / 2, (Bounds.MinY + Bounds.MaxY) / 2);
   OriginX := Width / 2 - Centre.X * Scale;
   OriginY := Height / 2 + Centre.Y * Scale;
+end;
+
+procedure TViewTransform.Reveal(const Bounds: TRect2; Width, Height, Margin: double);
+var
+  Corner, OtherCorner: TVec2;
+begin
+  // Model y points up, so MaxY is the top on screen
+  Corner := ToScreen(Vec2(Bounds.MinX, Bounds.MaxY));
+  OtherCorner := ToScreen(Vec2(Bounds.MaxX, Bounds.MinY));
+  if (Corner.X >= Margin) and (Corner.Y >= Margin) and (OtherCorner.X <= Width - Margin) and (OtherCorner.Y <= Height - Margin) then
+    Exit;
+  Pan(Width / 2 - (Corner.X + OtherCorner.X) / 2, Height / 2 - (Corner.Y + OtherCorner.Y) / 2);
 end;
 
 end.

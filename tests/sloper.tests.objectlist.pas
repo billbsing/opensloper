@@ -1,0 +1,193 @@
+{
+  OpenSloper - parametric sewing pattern drafting
+  Copyright (C) 2026 The OpenSloper authors
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+}
+
+unit Sloper.Tests.ObjectList;
+
+{$mode ObjFPC}{$H+}
+
+interface
+
+uses
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Pattern;
+
+type
+  TTestObjectList = class(TOSTestCase)
+  private
+    FPattern: TPattern;
+    procedure Build;
+    procedure AssertRows(const Msg, Expected: string; Filter: integer; const Search: string);
+  protected
+    procedure SetUp; override;
+    procedure TearDown; override;
+  published
+    procedure TestPointRow;
+    procedure TestEdgeRow;
+    procedure TestFormulasUseNames;
+    procedure TestNotComputedHasNoValue;
+    procedure TestFilters;
+    procedure TestSearch;
+    procedure TestSearchFormulas;
+    procedure TestPlainClick;
+    procedure TestToggle;
+    procedure TestExtend;
+    procedure TestExtendWithoutAnchor;
+    procedure TestSharedCaptions;
+  end;
+
+implementation
+
+uses
+  Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.UI.ObjectList;
+
+procedure TTestObjectList.SetUp;
+begin
+  FPattern := TPattern.Create;
+end;
+
+procedure TTestObjectList.TearDown;
+begin
+  FreeAndNil(FPattern);
+end;
+
+// A (0, 0), B 100 to the right of A, and a line A-B
+procedure TTestObjectList.Build;
+begin
+  FPattern.AddFreePoint('A', '0', '0');
+  FPattern.AddOffsetPoint('B', '1', omPolar, '100', '0');
+  FPattern.AddLine('1', '2');
+  FPattern.Evaluate;
+end;
+
+procedure TTestObjectList.AssertRows(const Msg, Expected: string; Filter: integer; const Search: string);
+var
+  Rows: TObjectRowArray;
+  Row: TObjectRow;
+  Names: string;
+begin
+  Rows := ObjectRows(FPattern, TObjectFilter(Filter), Search);
+  Names := '';
+  for Row in Rows do
+    Names := Trim(Names + ' ' + Row.Name);
+  AssertEquals(Msg, Expected, Names);
+end;
+
+procedure TTestObjectList.TestPointRow;
+var
+  Row: TObjectRow;
+begin
+  Build;
+  Row := ObjectRow(FPattern, FPattern.FindObject('B'));
+  AssertEquals('key', '2', Row.Key);
+  AssertEquals('name', 'B', Row.Name);
+  AssertEquals('operation', rsTypeOffset, Row.Operation);
+  AssertEquals('value', '100, 0 mm', Row.Value);
+  AssertEquals('formulas', 'Length = 100; Angle = 0', Row.Formulas);
+  AssertEquals('state', rsStateValid, Row.StateText);
+end;
+
+procedure TTestObjectList.TestEdgeRow;
+var
+  Row: TObjectRow;
+begin
+  Build;
+  Row := ObjectRow(FPattern, FPattern.FindObject('Line_A_B'));
+  AssertEquals('operation', rsTypeLine, Row.Operation);
+  AssertEquals('value', '100 mm', Row.Value);
+  AssertEquals('no formulas', '', Row.Formulas);
+end;
+
+procedure TTestObjectList.TestFormulasUseNames;
+var
+  Point: TDraftObject;
+begin
+  Build;
+  Point := FPattern.AddFreePoint('C', 'Line_A_B.length / 2', '0');
+  FPattern.Evaluate;
+  AssertEquals('X = Line_A_B.length / 2; Y = 0', ObjectRow(FPattern, Point).Formulas);
+end;
+
+procedure TTestObjectList.TestNotComputedHasNoValue;
+begin
+  FPattern.AddFreePoint('A', '0', '0');
+  AssertEquals('', ObjectRow(FPattern, FPattern.FindObject('A')).Value);
+end;
+
+procedure TTestObjectList.TestFilters;
+begin
+  Build;
+  FPattern.AddFreePoint('C', '1 / A.x', '0');
+  FPattern.Evaluate;
+  AssertRows('all', 'A B Line_A_B C', Ord(ofAll), '');
+  AssertRows('points', 'A B C', Ord(ofPoints), '');
+  AssertRows('edges', 'Line_A_B', Ord(ofEdges), '');
+  AssertRows('problems', 'C', Ord(ofProblems), '');
+end;
+
+procedure TTestObjectList.TestSearch;
+begin
+  Build;
+  AssertRows('by name, ignoring case', 'Line_A_B', Ord(ofAll), 'line_a');
+  AssertRows('by operation', 'B', Ord(ofAll), 'offset');
+  AssertRows('spaces around it ignored', 'B', Ord(ofAll), '  offset ');
+  AssertRows('with a filter', '', Ord(ofEdges), 'offset');
+  AssertRows('no match', '', Ord(ofAll), 'zzz');
+end;
+
+procedure TTestObjectList.TestSearchFormulas;
+begin
+  Build;
+  FPattern.AddFreePoint('C', 'Line_A_B.length', '0');
+  FPattern.Evaluate;
+  AssertRows('finds the object reading a name', 'Line_A_B C', Ord(ofAll), 'line_a_b');
+end;
+
+procedure TTestObjectList.TestPlainClick;
+begin
+  AssertEquals('only the clicked one', 'b',
+    string.Join(' ', SelectionAfterClick(['a', 'b', 'c'], ['a', 'c'], 'a', 'b', False, False)));
+end;
+
+procedure TTestObjectList.TestToggle;
+begin
+  AssertEquals('added', 'a b', string.Join(' ', SelectionAfterClick(['a', 'b', 'c'], ['a'], 'a', 'b', True, False)));
+  AssertEquals('removed', 'b', string.Join(' ', SelectionAfterClick(['a', 'b', 'c'], ['a', 'b'], 'a', 'a', True, False)));
+end;
+
+procedure TTestObjectList.TestExtend;
+begin
+  AssertEquals('down', 'b c d', string.Join(' ', SelectionAfterClick(['a', 'b', 'c', 'd'], ['b'], 'b', 'd', False, True)));
+  AssertEquals('up', 'b c d', string.Join(' ', SelectionAfterClick(['a', 'b', 'c', 'd'], ['d'], 'd', 'b', False, True)));
+end;
+
+procedure TTestObjectList.TestExtendWithoutAnchor;
+begin
+  AssertEquals('anchor filtered out', 'b', string.Join(' ', SelectionAfterClick(['a', 'b'], ['z'], 'z', 'b', False, True)));
+end;
+
+procedure TTestObjectList.TestSharedCaptions;
+begin
+  AssertEquals(rsFieldAngle1, FieldCaption('angle1'));
+  AssertEquals(Format(rsFieldNodeIn, ['2']), FieldCaption('node2.lengthIn'));
+  AssertEquals('unknown field', 'odd', FieldCaption('odd'));
+  AssertEquals(rsStateBlocked, StateCaption(esBlocked));
+end;
+
+initialization
+  RegisterTest(TTestObjectList);
+
+end.
