@@ -73,6 +73,8 @@ Layers (dependencies point down):
 - **Document:** TPatternDocument (owns the model), undo/redo commands, change notifications
 - **Core (pure Pascal, no LCL):** geometry, expressions, model, evaluator, piece builder (Clipper2 seam allowance), storage (JSON pattern and measurement files)
 
+Two GUI apps sit on these layers: the drafting app and the publish app (see Publish app), which shares the core and output layers but not the drafting UI.
+
 The UI changes the model only through document commands, and exporters read computed geometry directly from the core, so a new output format never touches drafting code.
 
 ## Key design decisions
@@ -509,9 +511,65 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`):
 
 Pieces and seams are added to the file when they exist in the model.
 
+## Publish app
+
+Publishing is a separate application, `opensloper-publish`, as KiCad splits schematic and PCB editing: the drafting app designs and edits patterns, and the publish app brings finished pieces from one or more patterns together and prints them.
+
+**Why a separate app.** Information flows one way: the pattern defines the pieces, and publishing only arranges and prints them, so nothing has to be synchronised back. Each app does one job and stays small; the drafting app needs no paper, printer or nesting code, and the publish app needs no snapping or formula editing. Both link the same core and evaluate patterns themselves, with no communication between processes.
+
+**What lives where:**
+
+| Drafting app (pattern file) | Publish app (layout file) |
+| --- | --- |
+| Draft geometry, formulas, variables | Which patterns and measurement sets to use |
+| Pieces: outline, seam allowance, grainline, notches, piece labels, cut count, allowed rotations | Placement of each piece copy: position, rotation, flip |
+| Pattern-space annotations (notes, callouts) | Sheet-space annotations (title block, sheet notes) |
+|  | Paper, margins, overlap, marks, calibration, output kind |
+
+**One or more patterns from the start.** A layout lists its sources, each a pattern file with a measurement set. The same pattern can appear several times with different measurement sets (several sizes on one layout, a step towards grading), and different patterns can share a layout (a skirt and a top cut from the same fabric).
+
+**Keeping in step:**
+
+- The publish app reads saved pattern files and watches them; when one is saved it re-evaluates and redraws, with a status message. Unsaved edits in the drafting app do not appear.
+- Placements refer to pieces by source and piece ID, so they survive measurement changes and edits. A new piece appears in an "unplaced" tray; a deleted piece's placement is flagged in the problems list, never silently dropped.
+- When pieces grow after a measurement change, overlaps between pieces and pieces running off the sheet are flagged; automatic packing can come later.
+- A missing pattern or measurement file, or a piece that fails to evaluate, is shown as a problem. Export refuses while any placed piece is invalid and lists them.
+
+**Moving between the apps.** The drafting app has a Publish… command that opens the publish app with the current pattern, creating a layout for it if there is none, as KiCad's project manager connects its tools.
+
+**Rotation follows the grain.** Each piece says in the drafting app which rotations keep its grainline (0°/180° by default, 90° steps where the fabric allows). The publish app offers only those, plus a flip for mirrored copies. A piece cut twice gets two placements, the second mirrored when `cut.mirrored` is set.
+
+**Layout file** (`.slayout`, JSON under the same rules as pattern files; paths relative to the layout file):
+
+```json
+{
+  "format": "layout",
+  "version": 1,
+  "units": "mm",
+  "name": "Summer dress, A4",
+  "sources": [
+    { "id": "s1", "pattern": "skirt.sloper", "measurementFile": "bill.slm" },
+    { "id": "s2", "pattern": "skirt.sloper", "measurementFile": "anna.slm" },
+    { "id": "s3", "pattern": "top.sloper", "measurementFile": "anna.slm" }
+  ],
+  "output": { "kind": "tiled", "paper": "A4", "margin": 6, "overlap": 10,
+              "marks": "diamond", "calibrationX": 1, "calibrationY": 1 },
+  "placements": [
+    { "source": "s1", "piece": "k1", "copy": 1, "x": 120, "y": 40,
+      "rotation": 0, "flipped": false }
+  ],
+  "sheetNotes": [],
+  "titleBlock": { "corner": "bottomRight", "fields": ["pattern.name", "measurements.name", "date"] }
+}
+```
+
+(Piece IDs get their letter when pieces are implemented.) Placements are plain numbers, not formulas: a layout arranges finished pieces and is not parametric. One layout file holds one arrangement; a differently arranged version (A4 tiles versus one A0 sheet) is another layout file.
+
+**Code.** The publish app is a second Lazarus project, `publish/opensloper-publish.lpi`, using `src/core` and `src/output`. Layout loading, page tiling and preview drawing live in the output layer, so `opensloper-cli export LAYOUT` produces the same PDFs without a window.
+
 ## Printing
 
-OpenSloper prints patterns directly at true scale, with notes and text printed alongside them (see Annotations), so no third-party tiling or editing software is needed, a gap found in practice with Seamly2D.
+The publish app (see Publish app) prints patterns directly at true scale, with notes and text printed alongside them (see Annotations), so no third-party tiling or editing software is needed, a gap found in practice with Seamly2D.
 
 **Tiling:**
 
@@ -529,7 +587,7 @@ OpenSloper prints patterns directly at true scale, with notes and text printed a
 
 **Layout before printing:**
 
-- Choose what to print: selected pieces, all pieces, one or several sizes
+- Choose what to print: pieces from one or more patterns, in one or several sizes
 - Arrange pieces to minimise pages: manual drag first, simple automatic packing later
 - Preview with the page grid over the pieces and a live page count
 
@@ -539,13 +597,13 @@ OpenSloper prints patterns directly at true scale, with notes and text printed a
 - Projector mode: dark background, thick light lines, no tiling, for projecting onto fabric
 - SVG and DXF exports, as in the Output layer
 
-**Print screen (the main gap in existing software).** Seamly2D lacked a friendly interface for multi-page printing, so the print workflow is one interactive screen rather than a dialog of settings:
+**Print screen (the main gap in existing software).** Seamly2D lacked a friendly interface for multi-page printing, so the publish app's main window is one interactive screen rather than a dialog of settings:
 
 - Large live preview: pieces on the page grid, page labels visible, blank pages greyed out
 - Pieces dragged and rotated directly on the preview; page count updates as you move them
 - Settings in a side panel (paper, margins, overlap, marks, calibration), with the preview updating instantly
 - Click a page to include or exclude it, e.g. to reprint one damaged sheet
-- Settings remembered per pattern, so reprinting after a measurement change is one click
+- Settings saved in the layout file, so reprinting after a measurement change is one click
 - One button each for tiled PDF, large-format PDF and projector PDF
 
 ## Annotations
@@ -579,7 +637,7 @@ Notes, callouts and a title block are first-class objects that print with the pa
 - Annotations sit on layers like everything else, so a whole set can be hidden
 - The print screen offers a title block template (position, which fields to show), placed once per print, with an optional copy on every tiled page
 
-**Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and annotations are saved in the pattern file with everything else.
+**Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and pattern-space annotations are saved in the pattern file with everything else. Sheet-space annotations (title block, sheet notes) belong to a printed layout, so they are edited in the publish app and saved in the layout file.
 
 ```json
 { "id": "n3", "type": "callout", "layer": "notes",
@@ -602,7 +660,7 @@ OpenSloper follows each platform's conventions and never writes app files into t
 
 On Linux, `XDG_*_HOME` environment variables are respected when set.
 
-**User documents** (`.sloper` patterns, `.slm` measurements) belong to the user, never in hidden folders. The first save defaults to `Documents/OpenSloper/`; after that the last-used folder is remembered.
+**User documents** (`.sloper` patterns, `.slm` measurements, `.slayout` layouts) belong to the user, never in hidden folders. The first save defaults to `Documents/OpenSloper/`; after that the last-used folder is remembered.
 
 **Implementation:**
 
@@ -687,7 +745,8 @@ opensloper/
 │   │   └── clipper2/       osclipper2.lpk, builds Clipper2 from the submodule
 │   ├── document/           TPatternDocument, undo/redo commands, notifications
 │   ├── ui/                 forms, canvas, tools, snapping, panels
-│   └── output/             PDF, SVG, DXF, Blender exporters
+│   └── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
+├── publish/                opensloper-publish: layouts and printing, using core + output
 ├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
 ├── tests/                  FPCUnit test project, regression patterns and expected JSON
 ├── packages/               git submodules, pinned commits
@@ -720,7 +779,7 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 **Command-line tools** (using the LCL-free core and ConsoleTools):
 
-- `opensloper-cli export`: regenerate PDFs for a pattern and one or more measurement files
+- `opensloper-cli export LAYOUT`: regenerate the PDFs for a layout file after patterns or measurements change
 - `opensloper-cli check PATTERN [-m FILE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors and invalid objects, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
 
 **ConsoleTools improvements noted:**
@@ -732,18 +791,6 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 - [x] Replace `TStrings.Contains` / `ContainsName` with `IndexOf` / `IndexOfName`, so it builds with FPC 3.2.x as shipped by stable Lazarus (now requires FPC 3.2.0+, tested on 3.2.2)
 
 ConsoleTools is public at [github.com/billbsing/console-tools](https://github.com/billbsing/console-tools), MIT licensed, with FPCUnit tests (parse, validation, sort order, colour).
-
-## Automation API` section, placed after the **Dependencies** section (it builds on the CLI described there).
-2. In **Roadmap and open questions**, insert a new step after step 5 (JSON save/load and undo/redo commands) and renumber the steps after it:
-   `Automation API, phase 1: opensloper-cli serve (JSON-RPC over stdio) with open, list_objects, set_formula, evaluate, check and render`
-3. In **Testing**, add this bullet under **Habits**:
-   `- End-to-end checks drive opensloper-cli serve through the Automation API and inspect render output, instead of GUI automation tools such as xdotool`
-4. In **Repository layout**, change the `cli/` line to:
-   `├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools`
-
-If anything in the repo version already conflicts with this note, keep the repo version and flag the conflict.
-
----
 
 ## Automation API
 
@@ -808,10 +855,10 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 5. Canvas with pan/zoom and the five core operations, snap-inferred
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render`
 7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
-8. True-scale tiled PDF printing
+8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
 9. Import Valentina/Seamly2D measurement files; SVG export
 10. Seams and seam-length checks
-11. DXF-AAMA export, simple layout
+11. DXF-AAMA export, automatic packing in the publish app
 12. Blender export for 3D preview
 
 Open questions:
@@ -821,3 +868,5 @@ Open questions:
 - [x] Expression engine: settled, our own recursive-descent parser behind TFormula (TFPExpressionParser was dropped after a probe); see Formula engine
 - [x] Project name: settled, OpenSloper (opensloper.com available; reserve domain and GitHub name; file extensions .sloper for patterns, .slm for measurements)
 - [x] Undo granularity: settled, see Key design decisions item 7
+- [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
+- [ ] Draft tabs: several drafting areas per pattern file as tabs along the bottom of the canvas; to decide whether names are global or per tab (`Bodice!A`)
