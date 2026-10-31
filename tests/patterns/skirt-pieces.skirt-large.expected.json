@@ -1,0 +1,376 @@
+{
+  "pattern": "skirt-pieces.sloper",
+  "measurements": "skirt-large.slm",
+  "variables": [
+    {
+      "id": 1,
+      "name": "hip_ease",
+      "state": "valid",
+      "value": 40
+    },
+    {
+      "id": 2,
+      "name": "waist_ease",
+      "state": "valid",
+      "value": 10
+    },
+    {
+      "id": 3,
+      "name": "suppression",
+      "state": "valid",
+      "value": 135
+    },
+    {
+      "id": 4,
+      "name": "side_take",
+      "state": "valid",
+      "value": 33.75
+    },
+    {
+      "id": 5,
+      "name": "back_dart",
+      "state": "valid",
+      "value": 40.5
+    },
+    {
+      "id": 6,
+      "name": "front_dart",
+      "state": "valid",
+      "value": 27
+    }
+  ],
+  "objects": [
+    {
+      "id": 7,
+      "name": "A",
+      "state": "valid",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": 8,
+      "name": "B",
+      "state": "valid",
+      "x": 0,
+      "y": -210
+    },
+    {
+      "id": 9,
+      "name": "C",
+      "state": "valid",
+      "x": 0,
+      "y": -640
+    },
+    {
+      "id": 10,
+      "name": "D",
+      "state": "valid",
+      "x": 590,
+      "y": 0
+    },
+    {
+      "id": 11,
+      "name": "Waist_line",
+      "state": "valid",
+      "length": 590
+    },
+    {
+      "id": 12,
+      "name": "E",
+      "state": "valid",
+      "x": 590,
+      "y": -210
+    },
+    {
+      "id": 13,
+      "name": "Hip_line",
+      "state": "valid",
+      "length": 590
+    },
+    {
+      "id": 14,
+      "name": "F",
+      "state": "valid",
+      "x": 590,
+      "y": -640
+    },
+    {
+      "id": 15,
+      "name": "Hem",
+      "state": "valid",
+      "length": 590
+    },
+    {
+      "id": 16,
+      "name": "Centre_back",
+      "state": "valid",
+      "length": 640
+    },
+    {
+      "id": 17,
+      "name": "Centre_front",
+      "state": "valid",
+      "length": 640
+    },
+    {
+      "id": 18,
+      "name": "G",
+      "state": "valid",
+      "x": 285,
+      "y": -210
+    },
+    {
+      "id": 19,
+      "name": "H",
+      "state": "valid",
+      "x": 285,
+      "y": 0
+    },
+    {
+      "id": 20,
+      "name": "J",
+      "state": "valid",
+      "x": 285,
+      "y": -640
+    },
+    {
+      "id": 21,
+      "name": "L",
+      "state": "valid",
+      "x": 251.25,
+      "y": 12
+    },
+    {
+      "id": 22,
+      "name": "M",
+      "state": "valid",
+      "x": 318.75,
+      "y": 12
+    },
+    {
+      "id": 23,
+      "name": "Back_waist",
+      "state": "valid",
+      "length": 251.559978
+    },
+    {
+      "id": 24,
+      "name": "Front_waist",
+      "state": "valid",
+      "length": 271.535921
+    },
+    {
+      "id": 25,
+      "name": "N",
+      "state": "valid",
+      "x": 125.675048,
+      "y": 4.823489
+    },
+    {
+      "id": 26,
+      "name": "O",
+      "state": "valid",
+      "x": 125.675048,
+      "y": -135.176511
+    },
+    {
+      "id": 27,
+      "name": "P",
+      "state": "valid",
+      "x": 105.45369,
+      "y": 3.74683
+    },
+    {
+      "id": 28,
+      "name": "Q",
+      "state": "valid",
+      "x": 145.893852,
+      "y": 5.947076
+    },
+    {
+      "id": 29,
+      "name": "Line_P_O",
+      "state": "valid",
+      "length": 140.387314
+    },
+    {
+      "id": 30,
+      "name": "Line_Q_O",
+      "state": "valid",
+      "length": 142.564606
+    },
+    {
+      "id": 31,
+      "name": "Curve_A_P",
+      "state": "valid",
+      "length": 105.529983
+    },
+    {
+      "id": 32,
+      "name": "Curve_P_L",
+      "state": "valid",
+      "length": 146.029995
+    },
+    {
+      "id": 33,
+      "name": "Curve_P_Q",
+      "state": "valid",
+      "length": 40.500009
+    },
+    {
+      "id": 34,
+      "name": "Curve_Q_L",
+      "state": "valid",
+      "length": 105.529986
+    },
+    {
+      "id": 35,
+      "name": "S",
+      "state": "valid",
+      "x": 454.328005,
+      "y": 4.823239
+    },
+    {
+      "id": 36,
+      "name": "S2",
+      "state": "valid",
+      "x": 454.328005,
+      "y": -5.176761
+    },
+    {
+      "id": 37,
+      "name": "Front_dart_centre",
+      "state": "valid",
+      "length": 10
+    },
+    {
+      "id": 38,
+      "name": "T",
+      "state": "valid",
+      "x": 0,
+      "y": -120
+    },
+    {
+      "id": 39,
+      "name": "U",
+      "state": "valid",
+      "x": 590,
+      "y": -120
+    },
+    {
+      "id": 40,
+      "name": "Front_dart_level",
+      "state": "valid",
+      "length": 590
+    },
+    {
+      "id": 41,
+      "name": "R",
+      "state": "valid",
+      "x": 454.328005,
+      "y": -120
+    },
+    {
+      "id": 42,
+      "name": "V",
+      "state": "valid",
+      "x": 467.812026,
+      "y": 4.166591
+    },
+    {
+      "id": 43,
+      "name": "W",
+      "state": "valid",
+      "x": 440.844826,
+      "y": 5.49695
+    },
+    {
+      "id": 44,
+      "name": "Line_V_R",
+      "state": "valid",
+      "length": 124.896602
+    },
+    {
+      "id": 45,
+      "name": "Line_W_R",
+      "state": "valid",
+      "length": 126.219176
+    },
+    {
+      "id": 46,
+      "name": "Curve_D_V",
+      "state": "valid",
+      "length": 122.26796
+    },
+    {
+      "id": 47,
+      "name": "Curve_V_M",
+      "state": "valid",
+      "length": 149.267962
+    },
+    {
+      "id": 48,
+      "name": "Curve_V_W",
+      "state": "valid",
+      "length": 27.000002
+    },
+    {
+      "id": 49,
+      "name": "Curve_W_M",
+      "state": "valid",
+      "length": 122.26796
+    },
+    {
+      "id": 50,
+      "name": "Back_side",
+      "state": "valid",
+      "length": 654.843807
+    },
+    {
+      "id": 51,
+      "name": "Front_side",
+      "state": "valid",
+      "length": 224.843807
+    },
+    {
+      "id": 52,
+      "name": "Line_C_J",
+      "state": "valid",
+      "length": 285
+    },
+    {
+      "id": 53,
+      "name": "Line_J_F",
+      "state": "valid",
+      "length": 305
+    },
+    {
+      "id": 54,
+      "name": "Path_L_G",
+      "state": "valid",
+      "length": 224.843807
+    },
+    {
+      "id": 55,
+      "name": "Path_G_J",
+      "state": "valid",
+      "length": 430
+    },
+    {
+      "id": 56,
+      "name": "Back",
+      "state": "valid",
+      "area": 177873.397575,
+      "perimeter": 2073.853524,
+      "cutArea": 198490.205278
+    },
+    {
+      "id": 57,
+      "name": "Front",
+      "state": "valid",
+      "area": 191922.122385,
+      "perimeter": 2095.493363,
+      "cutArea": 205928.720961
+    }
+  ]
+}

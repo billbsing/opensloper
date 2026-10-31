@@ -1,0 +1,590 @@
+{
+  "format": "pattern",
+  "version": 1,
+  "units": "mm",
+  "notes": "The straight skirt block with its pieces: Back, cut twice and mirrored, and Front, on the fold. A regression pattern for pieces and publishing.",
+  "measurementFile": "skirt-small.slm",
+  "nextId": 58,
+  "variables": [
+    {
+      "id": 1,
+      "name": "hip_ease",
+      "formula": "40",
+      "description": "Total ease at the hip"
+    },
+    {
+      "id": 2,
+      "name": "waist_ease",
+      "formula": "10",
+      "description": "Total ease at the waist"
+    },
+    {
+      "id": 3,
+      "name": "suppression",
+      "formula": "(@hip + {1} - @waist - {2}) / 2",
+      "description": "Waist shaping for the half skirt: side seam, back dart and front dart"
+    },
+    {
+      "id": 4,
+      "name": "side_take",
+      "formula": "{3} / 4",
+      "description": "Taken in at the side, on each panel"
+    },
+    {
+      "id": 5,
+      "name": "back_dart",
+      "formula": "{3} * 0.3",
+      "description": "Back dart width"
+    },
+    {
+      "id": 6,
+      "name": "front_dart",
+      "formula": "{3} * 0.2",
+      "description": "Front dart width"
+    }
+  ],
+  "objects": [
+    {
+      "id": 7,
+      "type": "freePoint",
+      "name": "A",
+      "x": "0",
+      "y": "0"
+    },
+    {
+      "id": 8,
+      "type": "offsetPoint",
+      "name": "B",
+      "base": 7,
+      "mode": "polar",
+      "length": "@waist_to_hip",
+      "angle": "270"
+    },
+    {
+      "id": 9,
+      "type": "offsetPoint",
+      "name": "C",
+      "base": 7,
+      "mode": "polar",
+      "length": "@skirt_length",
+      "angle": "270"
+    },
+    {
+      "id": 10,
+      "type": "offsetPoint",
+      "name": "D",
+      "base": 7,
+      "mode": "polar",
+      "length": "@hip / 2 + {1} / 2",
+      "angle": "0"
+    },
+    {
+      "id": 11,
+      "type": "line",
+      "name": "Waist_line",
+      "start": 7,
+      "end": 10,
+      "role": "construction"
+    },
+    {
+      "id": 12,
+      "type": "offsetPoint",
+      "name": "E",
+      "base": 8,
+      "mode": "polar",
+      "length": "{11}.length",
+      "angle": "0"
+    },
+    {
+      "id": 13,
+      "type": "line",
+      "name": "Hip_line",
+      "start": 8,
+      "end": 12,
+      "role": "construction"
+    },
+    {
+      "id": 14,
+      "type": "offsetPoint",
+      "name": "F",
+      "base": 9,
+      "mode": "polar",
+      "length": "{11}.length",
+      "angle": "0"
+    },
+    {
+      "id": 15,
+      "type": "line",
+      "name": "Hem",
+      "start": 9,
+      "end": 14,
+      "role": "outline"
+    },
+    {
+      "id": 16,
+      "type": "line",
+      "name": "Centre_back",
+      "start": 7,
+      "end": 9,
+      "role": "outline"
+    },
+    {
+      "id": 17,
+      "type": "line",
+      "name": "Centre_front",
+      "start": 10,
+      "end": 14,
+      "role": "outline"
+    },
+    {
+      "id": 18,
+      "type": "alongEdgePoint",
+      "name": "G",
+      "edge": 13,
+      "from": "start",
+      "mode": "length",
+      "value": "{13}.length / 2 - 10"
+    },
+    {
+      "id": 19,
+      "type": "projectPoint",
+      "name": "H",
+      "point": 18,
+      "edge": 11,
+      "direction": "perpendicular",
+      "extend": false
+    },
+    {
+      "id": 20,
+      "type": "projectPoint",
+      "name": "J",
+      "point": 18,
+      "edge": 15,
+      "direction": "perpendicular",
+      "extend": false
+    },
+    {
+      "id": 21,
+      "type": "offsetPoint",
+      "name": "L",
+      "base": 19,
+      "mode": "cartesian",
+      "dx": "-{4}",
+      "dy": "12"
+    },
+    {
+      "id": 22,
+      "type": "offsetPoint",
+      "name": "M",
+      "base": 19,
+      "mode": "cartesian",
+      "dx": "{4}",
+      "dy": "12"
+    },
+    {
+      "id": 23,
+      "type": "curve",
+      "name": "Back_waist",
+      "start": 7,
+      "end": 21,
+      "angle1": "0",
+      "length1": "60",
+      "angle2": "183",
+      "length2": "60",
+      "role": "construction"
+    },
+    {
+      "id": 24,
+      "type": "curve",
+      "name": "Front_waist",
+      "start": 10,
+      "end": 22,
+      "angle1": "180",
+      "length1": "60",
+      "angle2": "357",
+      "length2": "60",
+      "role": "construction"
+    },
+    {
+      "id": 25,
+      "type": "alongEdgePoint",
+      "name": "N",
+      "edge": 23,
+      "from": "start",
+      "mode": "ratio",
+      "value": "0.5"
+    },
+    {
+      "id": 26,
+      "type": "offsetPoint",
+      "name": "O",
+      "base": 25,
+      "mode": "polar",
+      "length": "140",
+      "angle": "270"
+    },
+    {
+      "id": 27,
+      "type": "circleEdgePoint",
+      "name": "P",
+      "centre": 25,
+      "edge": 23,
+      "extend": false,
+      "pick": 1,
+      "radius": "{5} / 2"
+    },
+    {
+      "id": 28,
+      "type": "circleEdgePoint",
+      "name": "Q",
+      "centre": 25,
+      "edge": 23,
+      "extend": false,
+      "pick": 2,
+      "radius": "{5} / 2"
+    },
+    {
+      "id": 29,
+      "type": "line",
+      "start": 27,
+      "end": 26,
+      "role": "outline"
+    },
+    {
+      "id": 30,
+      "type": "line",
+      "start": 28,
+      "end": 26,
+      "role": "outline"
+    },
+    {
+      "id": 31,
+      "type": "splitPart",
+      "edge": 23,
+      "point": 27,
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": 32,
+      "type": "splitPart",
+      "edge": 23,
+      "point": 27,
+      "part": 2,
+      "role": "construction"
+    },
+    {
+      "id": 33,
+      "type": "splitPart",
+      "edge": 32,
+      "point": 28,
+      "part": 1,
+      "role": "construction"
+    },
+    {
+      "id": 34,
+      "type": "splitPart",
+      "edge": 32,
+      "point": 28,
+      "part": 2,
+      "role": "outline"
+    },
+    {
+      "id": 35,
+      "type": "alongEdgePoint",
+      "name": "S",
+      "edge": 24,
+      "from": "end",
+      "mode": "length",
+      "value": "{24}.length / 2"
+    },
+    {
+      "id": 36,
+      "type": "offsetPoint",
+      "name": "S2",
+      "base": 35,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "-10"
+    },
+    {
+      "id": 37,
+      "type": "line",
+      "name": "Front_dart_centre",
+      "start": 35,
+      "end": 36,
+      "role": "construction"
+    },
+    {
+      "id": 38,
+      "type": "offsetPoint",
+      "name": "T",
+      "base": 8,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "90"
+    },
+    {
+      "id": 39,
+      "type": "offsetPoint",
+      "name": "U",
+      "base": 38,
+      "mode": "polar",
+      "length": "{11}.length",
+      "angle": "0"
+    },
+    {
+      "id": 40,
+      "type": "line",
+      "name": "Front_dart_level",
+      "start": 38,
+      "end": 39,
+      "role": "construction"
+    },
+    {
+      "id": 41,
+      "type": "intersectPoint",
+      "name": "R",
+      "edgeA": 37,
+      "edgeB": 40,
+      "extendA": true,
+      "extendB": false,
+      "pick": 1
+    },
+    {
+      "id": 42,
+      "type": "circleEdgePoint",
+      "name": "V",
+      "centre": 35,
+      "edge": 24,
+      "extend": false,
+      "pick": 1,
+      "radius": "{6} / 2"
+    },
+    {
+      "id": 43,
+      "type": "circleEdgePoint",
+      "name": "W",
+      "centre": 35,
+      "edge": 24,
+      "extend": false,
+      "pick": 2,
+      "radius": "{6} / 2"
+    },
+    {
+      "id": 44,
+      "type": "line",
+      "start": 42,
+      "end": 41,
+      "role": "outline"
+    },
+    {
+      "id": 45,
+      "type": "line",
+      "start": 43,
+      "end": 41,
+      "role": "outline"
+    },
+    {
+      "id": 46,
+      "type": "splitPart",
+      "edge": 24,
+      "point": 42,
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": 47,
+      "type": "splitPart",
+      "edge": 24,
+      "point": 42,
+      "part": 2,
+      "role": "construction"
+    },
+    {
+      "id": 48,
+      "type": "splitPart",
+      "edge": 47,
+      "point": 43,
+      "part": 1,
+      "role": "construction"
+    },
+    {
+      "id": 49,
+      "type": "splitPart",
+      "edge": 47,
+      "point": 43,
+      "part": 2,
+      "role": "outline"
+    },
+    {
+      "id": 50,
+      "type": "curvePath",
+      "name": "Back_side",
+      "nodes": [
+        {
+          "point": 21,
+          "angle": "275",
+          "lengthOut": "@waist_to_hip / 3"
+        },
+        {
+          "point": 18,
+          "angle": "270",
+          "lengthIn": "@waist_to_hip / 3",
+          "lengthOut": "50"
+        },
+        {
+          "point": 20,
+          "angle": "270",
+          "lengthIn": "50"
+        }
+      ],
+      "role": "outline"
+    },
+    {
+      "id": 51,
+      "type": "curve",
+      "name": "Front_side",
+      "start": 22,
+      "end": 18,
+      "angle1": "265",
+      "length1": "@waist_to_hip / 3",
+      "angle2": "90",
+      "length2": "@waist_to_hip / 3",
+      "role": "outline"
+    },
+    {
+      "id": 52,
+      "type": "splitPart",
+      "edge": 15,
+      "point": 20,
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": 53,
+      "type": "splitPart",
+      "edge": 15,
+      "point": 20,
+      "part": 2,
+      "role": "outline"
+    },
+    {
+      "id": 54,
+      "type": "splitPart",
+      "edge": 50,
+      "point": 18,
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": 55,
+      "type": "splitPart",
+      "edge": 50,
+      "point": 18,
+      "part": 2,
+      "role": "outline"
+    },
+    {
+      "id": 56,
+      "type": "piece",
+      "name": "Back",
+      "path": [
+        {
+          "edge": 31,
+          "reversed": false
+        },
+        {
+          "edge": 29,
+          "reversed": false
+        },
+        {
+          "edge": 30,
+          "reversed": true
+        },
+        {
+          "edge": 34,
+          "reversed": false
+        },
+        {
+          "edge": 54,
+          "reversed": false
+        },
+        {
+          "edge": 55,
+          "reversed": false
+        },
+        {
+          "edge": 52,
+          "reversed": true
+        },
+        {
+          "edge": 16,
+          "reversed": true
+        }
+      ],
+      "allowance": "10",
+      "grainline": {
+        "angle": "90"
+      },
+      "notches": [
+        {
+          "edge": 52,
+          "position": "100"
+        }
+      ],
+      "cut": {
+        "count": 2,
+        "mirrored": true
+      }
+    },
+    {
+      "id": 57,
+      "type": "piece",
+      "name": "Front",
+      "path": [
+        {
+          "edge": 53,
+          "reversed": true
+        },
+        {
+          "edge": 55,
+          "reversed": true
+        },
+        {
+          "edge": 51,
+          "reversed": true
+        },
+        {
+          "edge": 49,
+          "reversed": true
+        },
+        {
+          "edge": 45,
+          "reversed": false
+        },
+        {
+          "edge": 44,
+          "reversed": true
+        },
+        {
+          "edge": 46,
+          "reversed": true
+        },
+        {
+          "edge": 17,
+          "reversed": false
+        }
+      ],
+      "allowance": "10",
+      "grainline": {
+        "angle": "90"
+      },
+      "cut": {
+        "count": 1,
+        "mirrored": false
+      },
+      "foldEdge": 17
+    }
+  ]
+}

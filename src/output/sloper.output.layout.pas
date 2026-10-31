@@ -250,6 +250,8 @@ resourcestring
   rsLayoutPieceFailing = '%s: %s cannot be printed: %s';
   rsLayoutOffGrain = '%s: %s is turned %d°; pieces turn in 90° steps, to keep the grainline square to the sheet';
   rsLayoutUnplaced = '%s: %s (copy %d of %d) is not placed';
+  rsLayoutNoPieces = '%s has no pieces. Make them in the drafting app and save the pattern';
+  rsLayoutNothingPlaced = 'Nothing is placed, so there is nothing to print';
   rsLayoutTrayItem = '%s (copy %d of %d)';
   rsLayoutExtraCopy = '%s: %s is cut %d times now, but copy %d is still placed';
   rsLayoutOverlap = '%s overlaps %s';
@@ -1309,6 +1311,16 @@ begin
   end;
 end;
 
+function HasPieces(Source: TLayoutSource): boolean;
+var
+  Index: integer;
+begin
+  for Index := 0 to Source.Pattern.ObjectCount - 1 do
+    if Source.Pattern.Objects[Index] is TPieceObject then
+      Exit(True);
+  Result := False;
+end;
+
 function TLayout.Problems: TLayoutProblemArray;
 var
   Source: TLayoutSource;
@@ -1318,6 +1330,7 @@ var
   Node: TPieceObject;
   Found: TLayoutSource;
   Probe: TPlacement;
+  AllRead: boolean;
 
   procedure Add(const Text: string; Blocking: boolean);
   begin
@@ -1329,9 +1342,13 @@ var
 
 begin
   Result := nil;
+  AllRead := True;
   for Source in FSources do
     if Source.LoadError <> '' then
+    begin
       Add(Format(rsLayoutSourceProblem, [ExtractFileName(Source.PatternFile), Source.LoadError]), True);
+      AllRead := False;
+    end;
   for Placement in Placements do
   begin
     Source := FindSourceById(FSources, Placement.SourceId);
@@ -1360,6 +1377,12 @@ begin
     Add(Format(rsLayoutUnplaced, [ExtractFileName(Found.PatternFile), Node.DisplayName, Item.Copy, Node.CutCount]), False);
     Result[High(Result)].Unplaced := True;
   end;
+  for Source in FSources do
+    if (Source.Pattern <> nil) and (Source.LoadError = '') and not HasPieces(Source) then
+      Add(Format(rsLayoutNoPieces, [ExtractFileName(Source.PatternFile)]), False);
+  // A source that failed already says why; this is for a sheet that would print blank
+  if AllRead and (Placements = nil) then
+    Add(rsLayoutNothingPlaced, True);
   AddOverlapProblems(Result);
 end;
 

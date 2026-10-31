@@ -59,6 +59,9 @@ type
     procedure TestRotationQuarterTurn;
     procedure TestModelYPointsUp;
     procedure TestUnplacedIsAWarning;
+    procedure TestPatternWithoutPiecesIsNamed;
+    procedure TestNothingPlacedRefusesExport;
+    procedure TestSkirtPiecesPublish;
     procedure TestMissingPatternBlocks;
     procedure TestDeletedPieceBlocks;
     procedure TestFailingPieceBlocks;
@@ -508,12 +511,65 @@ procedure TTestLayout.TestUnplacedIsAWarning;
 var
   Problems: TLayoutProblemArray;
 begin
-  WritePattern;
+  WritePattern(2);
   Prepare;
+  AssertTrue(FLayout.PlaceCopyAt(FLayout.Unplaced[0], Vec2(100, 100), 1) >= 0);
   Problems := FLayout.Problems;
   AssertEquals(1, Length(Problems));
   AssertFalse(Problems[0].Blocking);
-  AssertEquals(Format(rsLayoutUnplaced, ['front.sloper', 'Front', 1, 1]), Problems[0].Text);
+  AssertEquals(Format(rsLayoutUnplaced, ['front.sloper', 'Front', 2, 2]), Problems[0].Text);
+end;
+
+// The draft of a pattern, with no piece made from it
+procedure TTestLayout.TestPatternWithoutPiecesIsNamed;
+var
+  Pattern: TPattern;
+  Reason: string;
+  Problems: TLayoutProblemArray;
+begin
+  Pattern := TPattern.Create;
+  try
+    Pattern.AddFreePoint('A', '0', '0');
+    AssertTrue(Reason, SavePatternToFile(Pattern, FPatternPath, Reason));
+  finally
+    FreeAndNil(Pattern);
+  end;
+  Prepare;
+  AssertEquals('nothing to place', 0, Length(FLayout.Unplaced));
+  Problems := FLayout.Problems;
+  AssertEquals(ProblemText, 2, Length(Problems));
+  AssertFalse(Problems[0].Blocking);
+  AssertEquals(Format(rsLayoutNoPieces, ['front.sloper']), Problems[0].Text);
+  AssertTrue(Problems[1].Blocking);
+  AssertEquals(rsLayoutNothingPlaced, Problems[1].Text);
+end;
+
+procedure TTestLayout.TestNothingPlacedRefusesExport;
+var
+  Target, ErrorMessage: string;
+begin
+  WritePattern;
+  Prepare;
+  Target := ConcatPaths([FFolder, 'out.pdf']);
+  AssertFalse(ExportLayoutPDF(FLayout, Target, ErrorMessage));
+  AssertTrue(ErrorMessage, Pos(rsLayoutNothingPlaced, ErrorMessage) > 0);
+  AssertFalse('nothing written', FileExists(Target));
+end;
+
+// The regression pattern with pieces, from file to PDF
+procedure TTestLayout.TestSkirtPiecesPublish;
+var
+  Target, ErrorMessage: string;
+begin
+  FLayout.FileName := ConcatPaths([ExtractFileDir(ExpandFileName(ParamStr(0))), 'patterns', 'skirt-pieces.slayout']);
+  FLayout.AddSource('skirt-pieces.sloper', '', '');
+  FLayout.LoadSources;
+  FLayout.PlaceNewPieces;
+  AssertEquals(ProblemText, 0, Length(FLayout.Problems));
+  AssertEquals('two of Back, one of Front', 3, Length(FLayout.PlacedPieces));
+  Target := ConcatPaths([FFolder, 'out.pdf']);
+  AssertTrue(ErrorMessage, ExportLayoutPDF(FLayout, Target, ErrorMessage));
+  AssertTrue('pages besides the cover', CountOf('/Type /Page ', LayoutToPDF(FLayout)) > 1);
 end;
 
 procedure TTestLayout.TestMissingPatternBlocks;

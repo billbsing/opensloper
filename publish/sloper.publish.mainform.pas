@@ -131,6 +131,7 @@ resourcestring
   rsCalibrationY = 'Calibration down';
   rsTray = 'Unplaced: drag onto the pages';
   rsTrayEmpty = 'Every piece is placed';
+  rsTrayNoPieces = 'No pieces to place';
   rsRemove = 'Back to tray';
   rsTabPieces = 'Pieces';
   rsTabOutput = 'Output';
@@ -221,6 +222,7 @@ begin
   FProblems.Parent := FColumn;
   FProblems.Align := alBottom;
   FProblems.Height := ProblemsHeight;
+  FProblems.ShowHint := True;
   FProblems.BorderSpacing.Around := SideGap;
   FTabs := TPageControl.Create(Self);
   FTabs.Parent := FColumn;
@@ -546,7 +548,9 @@ begin
   try
     for Item in FTrayCopies do
       Lines.Add(Item.Caption);
-    if Lines.Count = 0 then
+    if (Lines.Count = 0) and (FDocument.Layout.Placements = nil) then
+      Lines.Add(rsTrayNoPieces)
+    else if Lines.Count = 0 then
       Lines.Add(rsTrayEmpty);
     if not FTray.Items.Equals(Lines) then
       FTray.Items.Assign(Lines);
@@ -625,6 +629,8 @@ begin
   finally
     FProblems.Items.EndUpdate;
   end;
+  // The column is narrow, so long problems only fit in full here
+  FProblems.Hint := Trim(FProblems.Items.Text);
 end;
 
 procedure TPublishForm.RefreshControls;
