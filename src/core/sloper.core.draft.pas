@@ -132,6 +132,21 @@ type
     property Mode: TAlongMode read FMode;
   end;
 
+  // A point on the straight line from A to B, without needing an edge: a
+  // ratio of the way along, or a distance from A
+  TBetweenPoint = class(TPointObject)
+  private
+    FA, FB: string;
+    FMode: TAlongMode;
+  public
+    constructor Create(const AKey, APointA, APointB: string; AMode: TAlongMode);
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property PointA: string read FA;
+    property PointB: string read FB;
+    property Mode: TAlongMode read FMode;
+  end;
+
   // Lines, curves, curve paths and split parts. Each keeps its computed
   // geometry as segments, so length, positions along it and crossings work
   // the same for every kind of edge.
@@ -318,6 +333,7 @@ resourcestring
   rsDraftSamePlace = 'The start and end are at the same place';
   rsDraftPastEnd = 'The distance %s mm is past the end of %s (%s mm long)';
   rsDraftRatioRange = 'The ratio %s is outside 0 to 1';
+  rsDraftPastPoint = 'The distance %s mm is more than the %s mm between the points';
   rsDraftNegativeHandle = 'A handle length cannot be negative';
   rsDraftNoCrossing = '%s and %s do not cross';
   rsDraftPickMissing = 'There are only %d crossings, so crossing %d does not exist';
@@ -445,6 +461,50 @@ begin
       Exit(esError);
     FPosition := BasePos + Vec2(LengthOrDx, AngleOrDy);
   end;
+  Result := esValid;
+end;
+
+{ TBetweenPoint }
+
+constructor TBetweenPoint.Create(const AKey, APointA, APointB: string; AMode: TAlongMode);
+begin
+  inherited Create(AKey);
+  FA := APointA;
+  FB := APointB;
+  FMode := AMode;
+  AddField('value');
+end;
+
+function TBetweenPoint.InputKeys: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 2);
+  Result[0] := FA;
+  Result[1] := FB;
+end;
+
+function TBetweenPoint.Compute(Context: TEvalContext): TEvalState;
+var
+  First, Last: TVec2;
+  Amount, Gap: double;
+begin
+  if not InputPoint(Context, FA, First) or not InputPoint(Context, FB, Last) then
+    Exit(esError);
+  if not EvalField(Context, 'value', Amount) then
+    Exit(esError);
+  Gap := Distance(First, Last);
+  if FMode = amRatio then
+  begin
+    if (Amount < 0) or (Amount > 1) then
+      Exit(Fail(esInvalid, Format(rsDraftRatioRange, [FormatFloat('0.###', Amount)])));
+    FPosition := First + (Last - First) * Amount;
+    Exit(esValid);
+  end;
+  if Gap <= DefaultTolerance then
+    Exit(Fail(esInvalid, rsDraftSamePlace));
+  if (Amount < -DefaultTolerance) or (Amount > Gap + DefaultTolerance) then
+    Exit(Fail(esInvalid, Format(rsDraftPastPoint, [FormatMM(Amount), FormatMM(Gap)])));
+  FPosition := First + (Last - First) * (Amount / Gap);
   Result := esValid;
 end;
 

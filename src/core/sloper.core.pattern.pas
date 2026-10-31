@@ -59,6 +59,9 @@ type
     procedure AddVariableNode(Variable: TVariable);
     procedure AddObjectNode(DraftObject: TDraftObject);
     procedure KeepInputsBefore(Piece: TPieceObject);
+    // Files list each object after its inputs. A changed point may now read
+    // objects further down, so they move up; the rest stay in their order.
+    procedure OrderObjectsByInputs;
     function GetVariableCount: integer;
     function GetVariable(Index: integer): TVariable;
     function GetObjectCount: integer;
@@ -72,6 +75,11 @@ type
     function CheckEdgeTarget(const Id: string): boolean;
     function AddPointObject(APoint: TPointObject; const AName: string;
       const Names, Texts: array of string): boolean;
+    function CheckNotInCircle(Target: TEvalNode; const Key: string): boolean;
+    // Takes NewFormula once it is parsed, refusing anything that would make
+    // Node read itself; frees it either way
+    function InstallFormula(Node: TEvalNode; const AField: string; NewFormula: TFormula): boolean;
+    function ReplacePoint(Point, NewPoint: TPointObject; const Names, Texts: array of string): boolean;
     function AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
       const Names, Texts: array of string): boolean;
     function DerivedEdgeName(AEdge: TEdgeObject): string;
@@ -105,6 +113,7 @@ type
     function AddAlongEdgePoint(const AName, EdgeId: string; FromEnd: boolean;
       Mode: TAlongMode; const Value: string): TAlongEdgePoint;
     // Where two edges cross; Pick numbers the crossings from 1 along EdgeA
+    function AddBetweenPoint(const AName, FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
     function AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
       ExtendA, ExtendB: boolean; Pick: integer): TIntersectPoint;
     // Where a circle around CentreId crosses an edge (a compass step)
@@ -151,6 +160,16 @@ type
 
     // Editing returns False when refused, with the reason in LastError
     function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
+    // The same, for text in stored form ({12}.x), which does not go by names
+    function SetStoredFormula(Node: TEvalNode; const AField, Text: string): boolean;
+    // Change a point's operation. It keeps its ID, name and users, so what
+    // reads it carries on; Point is freed. Formulas are in stored form. Nil
+    // with LastError set on failure, when Point is left as it was.
+    function ConvertToFree(Point: TPointObject; const XText, YText: string): TFreePoint;
+    function ConvertToBetween(Point: TPointObject; const FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
+    function ConvertToAlongEdge(Point: TPointObject; const EdgeId: string; FromEnd: boolean; Mode: TAlongMode; const Value: string): TAlongEdgePoint;
+    // Whether From reads Target, directly or through others
+    function Reaches(From, Target: TEvalNode): boolean;
     function Rename(Node: TEvalNode; const NewName: string): boolean;
     // Refused while other nodes use Node
     function Delete(Node: TEvalNode): boolean;
@@ -670,6 +689,16 @@ begin
     Result := nil;
 end;
 
+function TPattern.AddBetweenPoint(const AName, FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
+begin
+  Result := nil;
+  if not CheckPoint(FirstId) or not CheckPoint(LastId) then
+    Exit;
+  Result := TBetweenPoint.Create(IntToStr(FNextId), FirstId, LastId, Mode);
+  if not AddPointObject(Result, AName, ['value'], [Value]) then
+    Result := nil;
+end;
+
 function TPattern.AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
   ExtendA, ExtendB: boolean; Pick: integer): TIntersectPoint;
 begin
@@ -911,6 +940,49 @@ end;
 
 // A file lists an object's inputs before it. Nothing uses a piece, so a piece
 // that takes on a newer point can simply move to the end.
+procedure TPattern.OrderObjectsByInputs;
+var
+  Ordered: array of TDraftObject;
+  Seen: TEvalNodeMap;
+  Index: integer;
+
+  procedure Visit(DraftObject: TDraftObject);
+  var
+    Key: string;
+    Input: TEvalNode;
+  begin
+    if Seen.ContainsKey(DraftObject.Key) then
+      Exit;
+    Seen.Add(DraftObject.Key, DraftObject);
+    for Key in DraftObject.InputKeys do
+    begin
+      Input := FindNode(Key);
+      if Input is TDraftObject then
+        Visit(TDraftObject(Input));
+    end;
+    Insert(DraftObject, Ordered, Length(Ordered));
+  end;
+
+begin
+  Ordered := nil;
+  Seen := TEvalNodeMap.Create;
+  try
+    for Index := 0 to FObjects.Count - 1 do
+      Visit(Objects[Index]);
+  finally
+    FreeAndNil(Seen);
+  end;
+  // Only the order changes, so the list must not free what it lets go of
+  FObjects.OwnsObjects := False;
+  try
+    FObjects.Clear;
+    for Index := 0 to High(Ordered) do
+      FObjects.Add(Ordered[Index]);
+  finally
+    FObjects.OwnsObjects := True;
+  end;
+end;
+
 procedure TPattern.KeepInputsBefore(Piece: TPieceObject);
 begin
   FObjects.Move(FObjects.IndexOf(Piece), FObjects.Count - 1);
@@ -1023,16 +1095,35 @@ end;
 function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
 var
   NewFormula: TFormula;
-  Ref: TFormulaReference;
-  Dep: TEvalNode;
 begin
   if Node.Field(AField) = nil then
     Exit(SetError(Format(rsPatternNoField, [Node.DisplayName, AField]), AField));
   NewFormula := TFormula.Create;
+  if NewFormula.Parse(Text, ResolverFor(Node)) then
+    Exit(InstallFormula(Node, AField, NewFormula));
+  Result := SetError(NewFormula.ErrorMessage, AField, NewFormula.ErrorPos);
+  FreeAndNil(NewFormula);
+end;
+
+function TPattern.SetStoredFormula(Node: TEvalNode; const AField, Text: string): boolean;
+var
+  NewFormula: TFormula;
+begin
+  if Node.Field(AField) = nil then
+    Exit(SetError(Format(rsPatternNoField, [Node.DisplayName, AField]), AField));
+  NewFormula := TFormula.Create;
+  if NewFormula.ParseStored(Text) then
+    Exit(InstallFormula(Node, AField, NewFormula));
+  Result := SetError(NewFormula.ErrorMessage, AField, NewFormula.ErrorPos);
+  FreeAndNil(NewFormula);
+end;
+
+function TPattern.InstallFormula(Node: TEvalNode; const AField: string; NewFormula: TFormula): boolean;
+var
+  Ref: TFormulaReference;
+  Dep: TEvalNode;
+begin
   try
-    if not NewFormula.Parse(Text, ResolverFor(Node)) then
-      Exit(SetError(NewFormula.ErrorMessage, AField, NewFormula.ErrorPos));
-    // Refuse anything that would make Node read itself
     for Ref in NewFormula.References do
     begin
       Dep := FindNode(ReferenceKey(Ref));
@@ -1048,6 +1139,88 @@ begin
   finally
     FreeAndNil(NewFormula);
   end;
+end;
+
+function TPattern.Reaches(From, Target: TEvalNode): boolean;
+begin
+  Result := TEvaluator.Reaches(From, Target, FContext);
+end;
+
+// Refuses Key when it would make Target read itself
+function TPattern.CheckNotInCircle(Target: TEvalNode; const Key: string): boolean;
+var
+  Dep: TEvalNode;
+begin
+  Result := True;
+  Dep := FindNode(Key);
+  if Dep = Target then
+    Exit(SetError(Format(rsPatternUsesItself, [Target.DisplayName])));
+  if (Dep <> nil) and TEvaluator.Reaches(Dep, Target, FContext) then
+    Exit(SetError(Format(rsPatternCycle, [Target.DisplayName, Dep.DisplayName, Dep.DisplayName, Target.DisplayName])));
+end;
+
+function TPattern.ReplacePoint(Point, NewPoint: TPointObject; const Names, Texts: array of string): boolean;
+var
+  Key: string;
+  FieldIndex: integer;
+  Ref: TFormulaReference;
+  Slot: integer;
+begin
+  Result := False;
+  try
+    for FieldIndex := 0 to High(Names) do
+      if not NewPoint.Field(Names[FieldIndex]).ParseStored(Texts[FieldIndex]) then
+      begin
+        SetError(NewPoint.Field(Names[FieldIndex]).ErrorMessage, Names[FieldIndex], NewPoint.Field(Names[FieldIndex]).ErrorPos);
+        Exit;
+      end;
+    for Key in NewPoint.InputKeys do
+      if not CheckNotInCircle(Point, Key) then
+        Exit;
+    for FieldIndex := 0 to NewPoint.FieldCount - 1 do
+      for Ref in NewPoint.Fields[FieldIndex].Formula.References do
+        if not CheckNotInCircle(Point, ReferenceKey(Ref)) then
+          Exit;
+    // The evaluator may hold the node; forget the old graph
+    FEvaluator.Rebuild(nil, FContext);
+    NewPoint.Name := Point.Name;
+    Slot := FObjects.IndexOf(Point);
+    FNodes.AddOrSetValue(Point.Key, NewPoint);
+    // The list owns its objects, so this frees the old one
+    FObjects[Slot] := NewPoint;
+    NewPoint := nil;
+    OrderObjectsByInputs;
+    Result := True;
+  finally
+    FreeAndNil(NewPoint);
+  end;
+end;
+
+function TPattern.ConvertToFree(Point: TPointObject; const XText, YText: string): TFreePoint;
+begin
+  Result := TFreePoint.Create(Point.Key);
+  if not ReplacePoint(Point, Result, ['x', 'y'], [XText, YText]) then
+    Result := nil;
+end;
+
+function TPattern.ConvertToBetween(Point: TPointObject; const FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
+begin
+  Result := nil;
+  if not CheckPoint(FirstId) or not CheckPoint(LastId) then
+    Exit;
+  Result := TBetweenPoint.Create(Point.Key, FirstId, LastId, Mode);
+  if not ReplacePoint(Point, Result, ['value'], [Value]) then
+    Result := nil;
+end;
+
+function TPattern.ConvertToAlongEdge(Point: TPointObject; const EdgeId: string; FromEnd: boolean; Mode: TAlongMode; const Value: string): TAlongEdgePoint;
+begin
+  Result := nil;
+  if not CheckEdgeTarget(EdgeId) then
+    Exit;
+  Result := TAlongEdgePoint.Create(Point.Key, EdgeId, FromEnd, Mode);
+  if not ReplacePoint(Point, Result, ['value'], [Value]) then
+    Result := nil;
 end;
 
 procedure TPattern.UpdateDerivedNames;

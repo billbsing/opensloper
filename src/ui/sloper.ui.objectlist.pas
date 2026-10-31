@@ -125,6 +125,7 @@ resourcestring
   rsTypeFree = 'Free point';
   rsTypeOffset = 'Offset point';
   rsTypeAlong = 'Point along an edge';
+  rsTypeBetween = 'Point between points';
   rsTypeIntersect = 'Crossing of two edges';
   rsTypeCircle = 'Compass step onto an edge';
   rsTypeProject = 'Point projected onto an edge';
@@ -192,6 +193,8 @@ begin
     Result := rsTypeOffset
   else if Node is TAlongEdgePoint then
     Result := rsTypeAlong
+  else if Node is TBetweenPoint then
+    Result := rsTypeBetween
   else if Node is TIntersectPoint then
     Result := rsTypeIntersect
   else if Node is TCircleEdgePoint then

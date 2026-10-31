@@ -28,7 +28,7 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel;
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel;
 
 type
 
@@ -91,6 +91,7 @@ type
     FObjects: TObjectsPanel;
     FVariables: TVariablesPanel;
     FMeasurements: TMeasurementsPanel;
+    FAlign: TAlignPanel;
     FNewSetDialog: TSaveDialog;
     FMeasurementWatch: TTimer;
     FChoosingVariable: boolean;
@@ -184,6 +185,7 @@ resourcestring
   rsTabObjects = 'Objects';
   rsTabVariables = 'Variables';
   rsTabMeasurements = 'Measurements';
+  rsTabAlign = 'Align';
   rsMenuViewLabels = '&Labels';
   rsLabelsContextual = '&Contextual';
   rsLabelsAll = '&All (hold N)';
@@ -335,11 +337,13 @@ procedure TMainForm.CreateSidePanel;
     Result := Panel;
   end;
 
+var
+  AlignSheet: TTabSheet;
 begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
   FSidePanel.Align := alLeft;
-  FSidePanel.Width := Scale96ToForm(360);
+  FSidePanel.Width := Scale96ToForm(420);
   FObjects := TObjectsPanel(AddTab(rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
@@ -351,6 +355,13 @@ begin
   FMeasurements.OnOpenSet := @MenuFileMeasurementsClick;
   FMeasurements.OnNewSet := @MeasurementsNewSet;
   FMeasurements.OnEditSet := @MeasurementsEditSet;
+  AlignSheet := FSidePanel.AddTabSheet;
+  AlignSheet.Caption := rsTabAlign;
+  FAlign := TAlignPanel.Create(Self);
+  FAlign.Parent := AlignSheet;
+  FAlign.Align := alClient;
+  FAlign.Document := FDocument;
+  FAlign.OnMessage := @ListPanelMessage;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
@@ -570,6 +581,7 @@ end;
 procedure TMainForm.CanvasSelectionChange(Sender: TObject);
 begin
   FObjects.ShowSelection(FCanvas.Selection);
+  FAlign.Selection := FCanvas.Selection;
   // Choosing a variable shows it in the properties itself
   if FChoosingVariable then
     Exit;

@@ -218,6 +218,11 @@
         <UnitName Value="Sloper.UI.FormulaCompleter"/>
       </Unit>
       <Unit>
+        <Filename Value="src/ui/sloper.ui.alignpanel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.AlignPanel"/>
+      </Unit>
+      <Unit>
         <Filename Value="src/ui/sloper.ui.listpanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.ListPanel"/>

@@ -66,6 +66,8 @@ type
     function DoSave(Params: TJSONObject): TJSONData;
     function DoGetMeasurements: TJSONData;
     function DoMissingMeasurements: TJSONData;
+    function DoArrange(Params: TJSONObject): TJSONData;
+    function ReferenceList(Params: TJSONObject; const AName: string): TStringArray;
     // Selects it, refusing one the set does not have; empty leaves it alone
     procedure UseSize(const Size: string);
     function DoSetMeasurement(Params: TJSONObject): TJSONData;
@@ -125,6 +127,7 @@ resourcestring
   rsApiGrainline = 'Change grainline';
   rsApiAddNotch = 'Add notch';
   rsApiRemoveNotch = 'Remove notch';
+  rsApiArrange = 'Arrange points';
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
   rsApiBadFold = 'Give an "edge", or "none": true';
@@ -135,7 +138,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
+  Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
 
 const
@@ -445,6 +448,87 @@ begin
   FreeAndNil(Empty);
 end;
 
+// Each item is an ID or a name
+function TApiServer.ReferenceList(Params: TJSONObject; const AName: string): TStringArray;
+var
+  List: TJSONData;
+  Index: integer;
+  Holder: TJSONObject;
+begin
+  Result := nil;
+  List := Params.Find(AName);
+  if (List = nil) or (List.JSONType <> jtArray) then
+    Exit;
+  Holder := TJSONObject.Create;
+  try
+    for Index := 0 to List.Count - 1 do
+    begin
+      Holder.Clear;
+      Holder.Add(AName, List.Items[Index].Clone);
+      Insert(Reference(Holder, AName), Result, Length(Result));
+    end;
+  finally
+    FreeAndNil(Holder);
+  end;
+end;
+
+function TApiServer.DoArrange(Params: TJSONObject): TJSONData;
+var
+  Request: TArrangeRequest;
+  Replace: TStringArray;
+  Items: TArrangeItemArray;
+  Item: TArrangeItem;
+  Err, Key: string;
+  Info: TJSONObject;
+  Changed, Asked, Kept: TJSONArray;
+  Wanted: boolean;
+begin
+  Request := Default(TArrangeRequest);
+  Request.Action := TArrangeAction(ChoiceParam(Params, 'action', ['alignVertical', 'alignHorizontal', 'distribute', 'distributeHorizontal',
+    'distributeVertical', 'distributeAlongEdge']));
+  Request.Points := ReferenceList(Params, 'points');
+  if Params.Find('reference') <> nil then
+    Request.Reference := Reference(Params, 'reference');
+  if Params.Find('edge') <> nil then
+    Request.Edge := Reference(Params, 'edge');
+  Replace := ReferenceList(Params, 'replace');
+  if not PlanArrange(FDocument.Pattern, Request, Items, Err) then
+    raise EApiError.Create(RpcRefused, Err);
+  Info := TJSONObject.Create;
+  try
+    Changed := TJSONArray.Create;
+    Info.Add('changed', Changed);
+    Asked := TJSONArray.Create;
+    Info.Add('asked', Asked);
+    Kept := TJSONArray.Create;
+    Info.Add('kept', Kept);
+    for Item in Items do
+    begin
+      Wanted := Item.Choice = acChange;
+      if Item.Choice = acAsk then
+        for Key in Replace do
+          Wanted := Wanted or (Key = Item.Key);
+      if Wanted then
+        Changed.Add(Item.Name)
+      else if Item.Choice = acAsk then
+        Asked.Add(Item.Name)
+      else
+        Kept.Add(Item.Name);
+    end;
+    FDocument.BeginChange(rsApiArrange);
+    if not ApplyArrange(FDocument.Pattern, Request, Replace, Err) then
+    begin
+      FDocument.CancelChange;
+      raise EApiError.Create(RpcRefused, Err);
+    end;
+    FDocument.Commit(True);
+    Result := Info;
+  except
+    FreeAndNil(Info);
+    raise;
+  end;
+end;
+
 function TApiServer.DoSave(Params: TJSONObject): TJSONData;
 var
   Err, Path: string;
@@ -747,6 +831,15 @@ begin
       FormulaA := FormulaParam(Params, 'value');
       FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddAlongEdgePoint(PointName, First, FromEnd, TAlongMode(Mode), FormulaA);
+    end;
+    'betweenPoint':
+    begin
+      First := Reference(Params, 'a');
+      Second := Reference(Params, 'b');
+      Mode := ChoiceParam(Params, 'mode', ['length', 'ratio']);
+      FormulaA := FormulaParam(Params, 'value');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddBetweenPoint(PointName, First, Second, TAlongMode(Mode), FormulaA);
     end;
     'intersectPoint':
     begin
@@ -1052,6 +1145,7 @@ begin
     'open': Result := DoOpen(Params);
     'save': Result := DoSave(Params);
     'get_measurements': Result := DoGetMeasurements;
+    'arrange': Result := DoArrange(Params);
     'set_measurement': Result := DoSetMeasurement(Params);
     'missing_measurements': Result := DoMissingMeasurements;
     'list_objects': Result := DoListObjects;

@@ -72,6 +72,10 @@ type
     procedure TestSetMeasurementInASize;
     procedure TestUnknownSizeRefused;
     procedure TestMissingMeasurements;
+    procedure TestAddBetweenPoint;
+    procedure TestArrangeAligns;
+    procedure TestArrangeLeavesFormulasUnlessTold;
+    procedure TestArrangeRefused;
     procedure TestSave;
     procedure TestSaveNeedsAPath;
     procedure TestBadJSON;
@@ -109,7 +113,8 @@ type
 implementation
 
 uses
-  Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.PieceDetect;
+  Sloper.Core.Arrange, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables,
+  Sloper.Core.Draft, Sloper.Core.PieceDetect;
 
 function PathParams(const Path: string): string;
 var
@@ -451,6 +456,46 @@ begin
   Call('set_measurement', '{"key": "waist", "value": 800, "size": "XL"}');
   AssertEquals(RpcRefused, ErrorCode);
   AssertEquals(Format(rsMeasurementUnknownSize, ['XL']), ErrorText);
+end;
+
+procedure TTestAPI.TestAddBetweenPoint;
+begin
+  OpenTestPattern;
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": "0", "y": "0"}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": "100", "y": "0"}');
+  Call('add_point', '{"type": "betweenPoint", "name": "R", "a": "P", "b": "Q", "mode": "ratio", "value": "0.25"}');
+  AssertNear('x', 25, ObjectNamed('R').Get('x', 0.0));
+end;
+
+procedure TTestAPI.TestArrangeAligns;
+begin
+  OpenTestPattern;
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": "70", "y": "0"}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": "10", "y": "5"}');
+  Call('arrange', '{"action": "alignVertical", "points": ["P", "Q"], "reference": "P"}');
+  AssertEquals('Q', TJSONArray(Answer.Find('changed')).Strings[0]);
+  AssertNear('x', 70, ObjectNamed('Q').Get('x', 0.0));
+  AssertTrue(FServer.Document.CanUndo);
+end;
+
+procedure TTestAPI.TestArrangeLeavesFormulasUnlessTold;
+begin
+  OpenTestPattern;
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": "70", "y": "0"}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": "10 + 5", "y": "5"}');
+  Call('arrange', '{"action": "alignVertical", "points": ["P", "Q"], "reference": "P"}');
+  AssertEquals('Q', TJSONArray(Answer.Find('asked')).Strings[0]);
+  AssertNear('left', 15, ObjectNamed('Q').Get('x', 0.0));
+  Call('arrange', '{"action": "alignVertical", "points": ["P", "Q"], "reference": "P", "replace": ["Q"]}');
+  AssertNear('replaced', 70, ObjectNamed('Q').Get('x', 0.0));
+end;
+
+procedure TTestAPI.TestArrangeRefused;
+begin
+  OpenTestPattern;
+  Call('arrange', '{"action": "distribute", "points": ["A"]}');
+  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(rsArrangeTooFewToDistribute, ErrorText);
 end;
 
 procedure TTestAPI.TestMissingMeasurements;

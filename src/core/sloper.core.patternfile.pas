@@ -72,6 +72,7 @@ const
   TypeFreePoint = 'freePoint';
   TypeOffsetPoint = 'offsetPoint';
   TypeAlongEdgePoint = 'alongEdgePoint';
+  TypeBetweenPoint = 'betweenPoint';
   TypeIntersectPoint = 'intersectPoint';
   TypeCircleEdgePoint = 'circleEdgePoint';
   TypeProjectPoint = 'projectPoint';
@@ -125,6 +126,8 @@ begin
     Result := TypeOffsetPoint
   else if DraftObject is TAlongEdgePoint then
     Result := TypeAlongEdgePoint
+  else if DraftObject is TBetweenPoint then
+    Result := TypeBetweenPoint
   else if DraftObject is TIntersectPoint then
     Result := TypeIntersectPoint
   else if DraftObject is TCircleEdgePoint then
@@ -276,6 +279,7 @@ var
   Index: integer;
   Offset: TOffsetPoint;
   Along: TAlongEdgePoint;
+  Between: TBetweenPoint;
   Intersect: TIntersectPoint;
   Circle: TCircleEdgePoint;
   Project: TProjectPoint;
@@ -301,6 +305,13 @@ begin
       Result.Add('edge', JSONId(Along.Edge));
       Result.Add('from', EdgeEndNames[Along.FromEnd]);
       Result.Add('mode', AlongModeNames[Along.Mode]);
+    end
+    else if DraftObject is TBetweenPoint then
+    begin
+      Between := TBetweenPoint(DraftObject);
+      Result.Add('a', JSONId(Between.PointA));
+      Result.Add('b', JSONId(Between.PointB));
+      Result.Add('mode', AlongModeNames[Between.Mode]);
     end
     else if DraftObject is TIntersectPoint then
     begin
@@ -791,6 +802,11 @@ begin
     if ReadInput(Item, 'edge', True, First) and ReadChoice(Item, 'from', EdgeEndNames, EndChoice) and
       ReadChoice(Item, 'mode', AlongModeNames, Choice) then
       Result := TAlongEdgePoint.Create(FId, First, EndChoice = 1, TAlongMode(Choice));
+  end
+  else if TypeText = TypeBetweenPoint then
+  begin
+    if ReadInput(Item, 'a', False, First) and ReadInput(Item, 'b', False, Second) and ReadChoice(Item, 'mode', AlongModeNames, Choice) then
+      Result := TBetweenPoint.Create(FId, First, Second, TAlongMode(Choice));
   end
   else if TypeText = TypeIntersectPoint then
   begin

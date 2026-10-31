@@ -268,7 +268,7 @@ Eight point operations and three edge types cover basic bodice, skirt and trouse
 | Between points | `a`, `b`, `mode` (ratio/length), `value` | A point on the straight line from `a` to `b`, without needing an edge; used by Distribute |
 | Repeat | `a` + `b`, or `edge`; `count`, `ends` (include or exclude the end points); `points[]` of `index`, `id` (generated points in use) | N evenly spaced points between two points or along an edge (equal arc length); buttons, pleats, tucks, gathers, notch rows, belt loops |
 
-**Generated points.** A Repeat produces points that any operation can use, like transform copies, named from the repeat and their index (`Btn[1]` … `Btn[6]` for a repeat named `Btn`). Only the repeat's name can be edited, and renaming it renames every point. Brackets are not allowed in names, so these can never clash with another object. Points' names and positions are read-only, the first point's included; they are moved by editing the repeat's points or edge, `count` or `ends`. `count` is a formula (e.g. `round({12}.length / 80)`), so the number of points can change when measurements do, and evaluating never hands out IDs. Generated points therefore start as virtual points with no ID: their number and positions are computed from the repeat's definition, and only the repeat itself is stored.
+**Generated points.** A Repeat produces points that any operation can use, like transform copies, named from the repeat and their index (`Btn[1]` … `Btn[6]` for a repeat named `Btn`). Brackets are not allowed in names, so these can never clash with another object. The repeat is edited through its first item: selecting `Btn[1]` shows the repeat's own fields (name, points or edge, `count` and `ends`), and a change there updates every item, so renaming it renames every point. Every other item shows its position, read-only, and no item has a position of its own to edit. `count` is a formula (e.g. `round({12}.length / 80)`), so the number of points can change when measurements do, and evaluating never hands out IDs. Generated points therefore start as virtual points with no ID: their number and positions are computed from the repeat's definition, and only the repeat itself is stored.
 
 A virtual point gets its ID on first use. The command that first uses `Btn[3]`, as an input or in a formula such as `Btn[3].x`, takes an ID from `nextId` and records it against index 3 in the repeat's `points[]`, in the same undo step. References are then ordinary IDs (`{41}.x`), and the ID stays with the index when the count changes. The index in a formula is a plain number, and one past the current count is rejected at entry like an unknown name. If the count drops, references to indices that no longer exist become errors ("Btn[6] no longer exists") rather than silently moving to another point; if the count rises again, the same point comes back. Creating or changing a repeat is one undoable command.
 
@@ -380,6 +380,10 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - Free points and points whose affected parameter is a plain number are converted. Points whose position comes from a formula are listed, with the choice to replace or skip each one; nothing formula-driven is overwritten silently.
 - Distribute re-defines points that already exist; Repeat creates new ones. Both use the same underlying operations, Between points and Along edge.
 - Snapping already records horizontal and vertical alignment while drawing; Align and distribute is for tidying up afterwards.
+- It is the Align tab beside Objects, Variables and Measurements. `Sloper.Core.Arrange` plans an action first, sorting each point into change, ask or leave, so the panel can ask before anything is touched. A point the reference reads is left alone, since it would read itself.
+- Formulas are written in stored form (`{1}.x`), so renaming the reference changes nothing. A cartesian offset keeps its base: its `dx` becomes `{A}.x - {base}.x`. Any other operation is only replaced on a yes; it becomes a free point, with its other coordinate fixed as a number.
+- Distribute evenly's two outermost points are the two farthest apart, and the rest keep the order they lie in along the line between them. Distribute along edge shares out the whole edge between its two ends, whichever points are selected; the edge is selected along with the points.
+- A point's operation changes in place (`TPattern.ConvertToFree`, `ConvertToBetween`, `ConvertToAlongEdge`), keeping its ID, name and users. Files list objects after their inputs, so the point's new inputs move up the list if they have to, and nothing else moves.
 
 **Canvas so far** (`Sloper.UI.Canvas`, with the LCL-free `Sloper.UI.View`, `Sloper.UI.Scene` and `Sloper.Core.Drag`):
 
@@ -1109,6 +1113,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `list_objects`, `get_object` | Names, IDs, operations, formulas (display form), computed values and state |
 | `add_point`, `add_edge`, `split_edge`, `add_variable` | Create objects with an operation and formula fields |
 | `set_formula`, `rename`, `delete` | Edit existing objects |
+| `arrange` | Align or distribute points; points a formula drives are left and listed unless named in `replace` |
 | `create_piece` | Detect and create a piece from a position inside a region (`x`, `y`, optional `name` and `allowance`, default 10 mm) |
 | `set_edge_allowance` | Give one edge of a piece its own seam allowance, or clear it |
 | `set_grainline` | Set a piece's grainline: `angle`, `start` and `end` points, or `none` |
@@ -1171,7 +1176,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
 4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
-6. Align and distribute, repeat along edge
+6. Align and distribute, repeat along edge (under way: Between points and Align and distribute are done, with `arrange` in the Automation API; Repeat remains)
 7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
