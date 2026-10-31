@@ -402,6 +402,15 @@ Handling the edge cases:
 - The piece is stored as edge references, so it follows measurement changes; detection re-runs only on request or to warn when a path no longer closes
 - Fallback: click a start edge, the app walks the path and highlights it for confirmation
 
+**Implementation** (`Sloper.Core.PieceDetect`, `Sloper.Core.Piece`, `Sloper.Core.SeamAllowance`):
+
+- `DetectPiecePath` returns a clockwise path of whole edges. A piece refers to whole edges, so a region whose boundary uses only part of an edge is refused, naming the edge to split.
+- An edge that has outline split parts is left out; the parts stand in for it, since it stays in the pattern and would overlap them.
+- **Overlapping panels.** Panels often overlap (a skirt's side seams cross above the hip), so crossings would cut each panel into faces that no whole edge bounds. When the faces fail, a second pass treats edges as whole and finds the smallest simple closed path around the click. Walking faces cannot do this: at a node the two panels share, the crossing turns the walk onto the wrong panel. A path where one edge's end lies part way along another is rejected, because it is really two regions joined at a point; the user splits that edge (a hem drawn once under a front and a back).
+- Not done yet: Shift-click merging and the start-edge fallback.
+- `TPieceObject` is an evaluator node whose inputs are its edges, so edges cannot be deleted while a piece uses them. A gap of more than 0.01 mm between neighbouring edges makes it invalid, and it keeps its last good outline. Nothing reads a piece's properties yet, so nothing depends on a piece.
+- **Seam allowance.** The field `allowance` is the piece's width; `SetEdgeAllowance` gives one edge its own, in a field such as `edge2.allowance` that exists only while it does. Zero suits an edge on a fold; a negative width is invalid. Clipper2's offset takes one width per path, so `OffsetOutline` builds the raw offset itself, the way Clipper2 does (mitres on convex corners, through the vertex on concave ones), with a width per segment, and Clipper2's union with a positive fill removes the loops. Corners with a mitre over four times the allowance are bevelled. A dart's allowance follows the dart as drawn; shaping it for a closed dart comes with notches.
+
 ## Draft tabs and layers
 
 A pattern file holds one or more drafts, shown as tabs along the bottom of the canvas like sheets in a spreadsheet workbook, and each draft holds layers for drawing order and visibility.
@@ -592,8 +601,9 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 | `curve` | `start`, `end`, `angle1`, `length1`, `angle2`, `length2`, `role` |
 | `curvePath` | `nodes[]` of `point`, `angle`, `lengthIn` (not on the first), `lengthOut` (not on the last); `role` |
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
+| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance` |
 
-Pieces and seams are added to the file when they exist in the model.
+Seams are added to the file when they exist in the model. Grainlines, notches, labels, cut counts and fold edges join `piece` as they are built.
 
 ## Measurements app
 
@@ -943,7 +953,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge` and `add_variable`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode; `create_piece` and `export` wait for pieces and the output layer.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece` and `set_edge_allowance`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode; `create_piece` and `export` wait for pieces and the output layer.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -955,7 +965,8 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `list_objects`, `get_object` | Names, IDs, operations, formulas (display form), computed values and state |
 | `add_point`, `add_edge`, `split_edge`, `add_variable` | Create objects with an operation and formula fields |
 | `set_formula`, `rename`, `delete` | Edit existing objects |
-| `create_piece` | Detect and create a piece from a position inside a region |
+| `create_piece` | Detect and create a piece from a position inside a region (`x`, `y`, optional `name` and `allowance`, default 10 mm) |
+| `set_edge_allowance` | Give one edge of a piece its own seam allowance, or clear it |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
 | `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
@@ -1000,7 +1011,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
-7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches
+7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (under way: detection, seam allowance, save/load and the API are done; grainlines, notches and the canvas tool are next)
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
 9. Measurements app: measurement and size table editing, Valentina/Seamly2D import; SVG export
 10. Seams and seam-length checks

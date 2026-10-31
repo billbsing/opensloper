@@ -29,7 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
-  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft;
+  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Piece;
 
 type
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
@@ -127,6 +127,12 @@ type
     // Splits an edge at a point on it into two new edges, which follow the
     // edge and the point. The edge itself stays.
     function SplitEdge(const EdgeId, PointId: string; out First, Second: TSplitPart): boolean;
+    // A piece around the closed Path, with Allowance as the seam allowance of
+    // every edge. An empty name takes the next free one: Piece, Piece2 and so on.
+    function AddPiece(const AName: string; const Path: TPiecePath; const Allowance: string): TPieceObject;
+    // Gives one edge of the path its own allowance; empty text goes back to
+    // the piece's own
+    function SetEdgeAllowance(Piece: TPieceObject; PathIndex: integer; const Text: string): boolean;
 
     // Editing returns False when refused, with the reason in LastError
     function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
@@ -180,6 +186,8 @@ resourcestring
   rsPatternPathTooShort = 'A curve path needs at least two points';
   rsPatternPathRepeats = 'A curve path cannot use the same point twice in a row';
   rsPatternPathArrays = 'A curve path needs an angle and handle lengths for every point';
+  rsPatternPieceTooShort = 'A piece needs at least two edges';
+  rsPatternPieceRepeats = 'A piece cannot use %s twice';
 
 implementation
 
@@ -189,6 +197,7 @@ uses
 const
   // Not translated: a name has to keep to the name rules
   NewVariableBaseName = 'variable';
+  NewPieceBaseName = 'Piece';
 
 type
   TPatternResolver = class(TNameResolver)
@@ -824,6 +833,67 @@ begin
   First := NewPart(1);
   Second := NewPart(2);
   Result := True;
+end;
+
+function TPattern.AddPiece(const AName: string; const Path: TPiecePath; const Allowance: string): TPieceObject;
+var
+  Index, Other: integer;
+  Msg, PieceName: string;
+begin
+  Result := nil;
+  if Length(Path) < 2 then
+  begin
+    SetError(rsPatternPieceTooShort);
+    Exit;
+  end;
+  for Index := 0 to High(Path) do
+  begin
+    if not CheckEdgeTarget(Path[Index].EdgeKey) then
+      Exit;
+    for Other := 0 to Index - 1 do
+      if Path[Other].EdgeKey = Path[Index].EdgeKey then
+      begin
+        SetError(Format(rsPatternPieceRepeats, [FindNode(Path[Index].EdgeKey).DisplayName]));
+        Exit;
+      end;
+  end;
+  PieceName := AName;
+  if PieceName = '' then
+  begin
+    FNameExclude := nil;
+    PieceName := NextFreeName(NewPieceBaseName, @ObjectNameTaken);
+  end
+  else if not CheckObjectName(PieceName, nil, Msg) then
+  begin
+    SetError(Msg);
+    Exit;
+  end;
+  Result := TPieceObject.Create(IntToStr(FNextId), Path);
+  if not ParseFields(Result, [PieceAllowanceField], [Allowance]) then
+  begin
+    FreeAndNil(Result);
+    Exit;
+  end;
+  Inc(FNextId);
+  Result.Name := PieceName;
+  AddObjectNode(Result);
+end;
+
+function TPattern.SetEdgeAllowance(Piece: TPieceObject; PathIndex: integer; const Text: string): boolean;
+var
+  Added: boolean;
+begin
+  if Text = '' then
+  begin
+    Piece.RemoveOverride(PathIndex);
+    Exit(True);
+  end;
+  Added := not Piece.HasOverride(PathIndex);
+  if Added then
+    Piece.AddOverride(PathIndex);
+  Result := SetFormula(Piece, Piece.OverrideField(PathIndex), Text);
+  if Added and not Result then
+    Piece.RemoveOverride(PathIndex);
 end;
 
 function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boolean;

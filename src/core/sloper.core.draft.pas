@@ -153,6 +153,8 @@ type
     function PropertyValue(const Prop: string): double; override;
     function Length: double;
     function PointAtLength(ADistance: double): TVec2;
+    // The edge as a polyline from start to end, within Tolerance of it
+    function Flatten(Tolerance: double): TVec2Array;
     // Direction of travel where the edge starts and where it ends
     function StartDirection: double;
     function EndDirection: double;
@@ -589,6 +591,37 @@ begin
     Remaining := Remaining - SegLength;
   end;
   Result := SegmentPointAtLength(FSegments[High(FSegments)], Remaining);
+end;
+
+function TEdgeObject.Flatten(Tolerance: double): TVec2Array;
+var
+  Count: integer;
+  Segment: TEdgeSegment;
+  Sample: TCurveSample;
+
+  procedure Add(const P: TVec2);
+  begin
+    if (Count > 0) and PointsNear(Result[Count - 1], P) then
+      Exit;
+    if Count = System.Length(Result) then
+      SetLength(Result, Count * 2 + 8);
+    Result[Count] := P;
+    Inc(Count);
+  end;
+
+begin
+  Result := nil;
+  Count := 0;
+  for Segment in FSegments do
+    if Segment.Kind = skLine then
+    begin
+      Add(Segment.Line.P1);
+      Add(Segment.Line.P2);
+    end
+    else
+      for Sample in Segment.Curve.Flatten(Tolerance) do
+        Add(Sample.Point);
+  SetLength(Result, Count);
 end;
 
 function TEdgeObject.StartDirection: double;

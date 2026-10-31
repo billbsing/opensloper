@@ -79,6 +79,8 @@ type
     function DoAddPoint(Params: TJSONObject): TJSONData;
     function DoAddEdge(Params: TJSONObject): TJSONData;
     function DoSplitEdge(Params: TJSONObject): TJSONData;
+    function DoCreatePiece(Params: TJSONObject): TJSONData;
+    function DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -107,16 +109,20 @@ resourcestring
   rsApiBadChoice = 'Parameter "%s" must be one of: %s';
   rsApiBadNodes = 'A curve path needs a "nodes" list, each with a point and angle';
   rsApiRenderFormat = 'Format "%s" is not available; use svg';
+  rsApiNotAPiece = '%s is not a piece';
+  rsApiNotInPiece = '%s is not part of %s';
+  rsApiEdgeAllowance = 'Change seam allowance';
   rsApiBadRegion = 'A region needs minX, minY, maxX and maxY, with each max above its min';
 
 implementation
 
 uses
   Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
-  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Output.DraftSVG;
+  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
 
 const
   VariableType = 'variable';
+  PieceType = 'piece';
   RenderFormatSVG = 'svg';
 
 constructor EApiError.Create(ACode: integer; const AMessage: string; const AFieldName: string; APosition: integer);
@@ -192,6 +198,26 @@ begin
 end;
 
 // Name, type, state and what it computes to, then its formulas with names
+function PiecePathToJSON(Piece: TPieceObject): TJSONArray;
+var
+  Entry: TPieceEdge;
+  Item: TJSONObject;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Entry in Piece.Path do
+    begin
+      Item := TJSONObject.Create;
+      Result.Add(Item);
+      Item.Add('edge', StrToInt(Entry.EdgeKey));
+      Item.Add('reversed', Entry.Reversed);
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
 function NodeToJSON(Document: TPatternDocument; Node: TEvalNode): TJSONObject;
 var
   Formulas: TJSONObject;
@@ -223,7 +249,13 @@ begin
         Result.Add('y', ReportFloat(TPointObject(Node).Position.Y));
       end
       else if Node is TEdgeObject then
-        Result.Add('length', ReportFloat(TEdgeObject(Node).Length));
+        Result.Add('length', ReportFloat(TEdgeObject(Node).Length))
+      else if Node is TPieceObject then
+      begin
+        Result.Add('area', ReportFloat(TPieceObject(Node).Area));
+        Result.Add('perimeter', ReportFloat(TPieceObject(Node).Perimeter));
+        Result.Add('path', PiecePathToJSON(TPieceObject(Node)));
+      end;
     Formulas := TJSONObject.Create;
     Result.Add('formulas', Formulas);
     for Index := 0 to Node.FieldCount - 1 do
@@ -765,6 +797,47 @@ begin
   end;
 end;
 
+function TApiServer.DoCreatePiece(Params: TJSONObject): TJSONData;
+var
+  At: TVec2;
+  Path: TPiecePath;
+  PieceName, Allowance, Reason: string;
+begin
+  if not GetJSONNumber(Params, 'x', At.X) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['x']));
+  if not GetJSONNumber(Params, 'y', At.Y) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['y']));
+  PieceName := OptionalString(Params, 'name');
+  Allowance := OptionalFormula(Params, PieceAllowanceField);
+  if Allowance = '' then
+    Allowance := DefaultPieceAllowance;
+  if not DetectPiecePath(FDocument.Pattern, At, Path, Reason) then
+    raise EApiError.Create(RpcRefused, Reason);
+  FDocument.BeginChange(Format(rsApiAdd, [PieceType]));
+  Result := AddedNode(FDocument.Pattern.AddPiece(PieceName, Path, Allowance));
+end;
+
+// An empty or missing allowance puts the edge back on the piece's own
+function TApiServer.DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
+var
+  Target: TEvalNode;
+  Edge, Allowance: string;
+  PathIndex: integer;
+begin
+  Target := FindTarget(Params);
+  if not (Target is TPieceObject) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotAPiece, [Target.DisplayName]));
+  Edge := Reference(Params, 'edge');
+  PathIndex := TPieceObject(Target).PathIndexOf(Edge);
+  if PathIndex < 0 then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotInPiece, [FDocument.Pattern.FindNode(Edge).DisplayName, Target.DisplayName]));
+  Allowance := OptionalFormula(Params, PieceAllowanceField);
+  FDocument.BeginChange(rsApiEdgeAllowance);
+  if not FDocument.Pattern.SetEdgeAllowance(TPieceObject(Target), PathIndex, Allowance) then
+    RefuseChange;
+  Result := AddedNode(Target);
+end;
+
 function TApiServer.CallMethod(const Method: string; Params: TJSONObject): TJSONData;
 begin
   case Method of
@@ -786,6 +859,8 @@ begin
     'add_point': Result := DoAddPoint(Params);
     'add_edge': Result := DoAddEdge(Params);
     'split_edge': Result := DoSplitEdge(Params);
+    'create_piece': Result := DoCreatePiece(Params);
+    'set_edge_allowance': Result := DoSetEdgeAllowance(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;

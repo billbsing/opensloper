@@ -57,6 +57,11 @@
         <UnitName Value="Sloper.Tests.Clipper"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.piece.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Piece"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.numeric.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Numeric"/>

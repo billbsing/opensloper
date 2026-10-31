@@ -128,6 +128,21 @@
         <UnitName Value="Sloper.Core.Pattern"/>
       </Unit>
       <Unit>
+        <Filename Value="src/core/sloper.core.seamallowance.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.SeamAllowance"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.piece.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Piece"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.piecedetect.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.PieceDetect"/>
+      </Unit>
+      <Unit>
         <Filename Value="src/core/sloper.core.patternfile.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.PatternFile"/>

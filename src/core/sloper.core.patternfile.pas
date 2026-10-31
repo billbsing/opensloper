@@ -66,7 +66,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables;
+  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Piece;
 
 const
   TypeFreePoint = 'freePoint';
@@ -79,6 +79,7 @@ const
   TypeCurve = 'curve';
   TypeCurvePath = 'curvePath';
   TypeSplitPart = 'splitPart';
+  TypePiece = 'piece';
 
   RoleNames: array[TEdgeRole] of string = ('construction', 'outline');
   OffsetModeNames: array[TOffsetMode] of string = ('polar', 'cartesian');
@@ -104,6 +105,7 @@ type
     function LoadObjects(Data: TJSONData): boolean;
     function CreateObject(Item: TJSONObject; const TypeText: string): TDraftObject;
     function CreateCurvePath(Item: TJSONObject): TDraftObject;
+    function CreatePiece(Item: TJSONObject): TDraftObject;
     function LoadObject(Item: TJSONObject): boolean;
   public
     constructor Create(APattern: TPattern);
@@ -133,6 +135,8 @@ begin
     Result := TypeCurvePath
   else if DraftObject is TSplitPart then
     Result := TypeSplitPart
+  else if DraftObject is TPieceObject then
+    Result := TypePiece
   else
     raise Exception.CreateFmt('No file type for %s', [DraftObject.ClassName]);
 end;
@@ -178,6 +182,28 @@ begin
         NodeItem.Add('lengthIn', Path.Field(NodeName + '.lengthIn').StoredText);
       if Index < High(Path.NodeKeys) then
         NodeItem.Add('lengthOut', Path.Field(NodeName + '.lengthOut').StoredText);
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+function SavePiecePath(Piece: TPieceObject): TJSONArray;
+var
+  Index: integer;
+  Item: TJSONObject;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Index := 0 to High(Piece.Path) do
+    begin
+      Item := TJSONObject.Create;
+      Result.Add(Item);
+      Item.Add('edge', JSONId(Piece.Path[Index].EdgeKey));
+      Item.Add('reversed', Piece.Path[Index].Reversed);
+      if Piece.HasOverride(Index) then
+        Item.Add(PieceAllowanceField, Piece.Field(Piece.OverrideField(Index)).StoredText);
     end;
   except
     FreeAndNil(Result);
@@ -258,6 +284,11 @@ begin
 
     if DraftObject is TCurvePathObject then
       Result.Add('nodes', SaveCurvePathNodes(TCurvePathObject(DraftObject)))
+    else if DraftObject is TPieceObject then
+    begin
+      Result.Add('path', SavePiecePath(TPieceObject(DraftObject)));
+      Result.Add(PieceAllowanceField, DraftObject.Field(PieceAllowanceField).StoredText);
+    end
     else
       for Index := 0 to DraftObject.FieldCount - 1 do
         Result.Add(DraftObject.Fields[Index].Name, DraftObject.Fields[Index].Formula.StoredText);
@@ -508,6 +539,66 @@ begin
   end;
 end;
 
+function TPatternLoader.CreatePiece(Item: TJSONObject): TDraftObject;
+var
+  Entries: TJSONData;
+  Entry: TJSONObject;
+  Path: TPiecePath;
+  Index, Other: integer;
+  Piece: TPieceObject;
+begin
+  Result := nil;
+  Entries := Item.Find('path');
+  if (Entries = nil) or (Entries.JSONType <> jtArray) then
+  begin
+    Missing('path');
+    Exit;
+  end;
+  if Entries.Count < 2 then
+  begin
+    Problem(rsPatternPieceTooShort);
+    Exit;
+  end;
+  Path := nil;
+  SetLength(Path, Entries.Count);
+  for Index := 0 to Entries.Count - 1 do
+  begin
+    if Entries.Items[Index].JSONType <> jtObject then
+    begin
+      Missing('path');
+      Exit;
+    end;
+    Entry := TJSONObject(Entries.Items[Index]);
+    if not ReadInput(Entry, 'edge', True, Path[Index].EdgeKey) or not ReadBoolean(Entry, 'reversed', Path[Index].Reversed) then
+      Exit;
+    for Other := 0 to Index - 1 do
+      if Path[Other].EdgeKey = Path[Index].EdgeKey then
+      begin
+        Problem(Format(rsPatternPieceRepeats, [NodeLabel(FPattern.FindNode(Path[Index].EdgeKey))]));
+        Exit;
+      end;
+  end;
+  Piece := TPieceObject.Create(FId, Path);
+  Result := Piece;
+  if not ReadFormula(Item, PieceAllowanceField, Piece, PieceAllowanceField) then
+  begin
+    FreeAndNil(Result);
+    Exit;
+  end;
+  for Index := 0 to High(Path) do
+  begin
+    Entry := TJSONObject(Entries.Items[Index]);
+    if Entry.Find(PieceAllowanceField) = nil then
+      Continue;
+    Piece.AddOverride(Index);
+    if not ReadFormula(Entry, PieceAllowanceField, Piece, Piece.OverrideField(Index)) then
+    begin
+      FreeAndNil(Result);
+      Exit;
+    end;
+  end;
+end;
+
 // The object with its inputs and options; formulas come later. nil on failure.
 function TPatternLoader.CreateObject(Item: TJSONObject; const TypeText: string): TDraftObject;
 var
@@ -562,6 +653,8 @@ begin
   end
   else if TypeText = TypeCurvePath then
     Result := CreateCurvePath(Item)
+  else if TypeText = TypePiece then
+    Result := CreatePiece(Item)
   else if TypeText = TypeSplitPart then
   begin
     if ReadInput(Item, 'edge', True, First) and ReadInput(Item, 'point', False, Second) then
@@ -587,17 +680,17 @@ begin
   if DraftObject = nil then
     Exit(False);
   try
-    // Points need a name; an edge without one is named after its ends
+    // Points and pieces need a name; an edge without one is named after its ends
     ObjectName := '';
     HasName := Item.Find('name') <> nil;
-    if HasName or (DraftObject is TPointObject) then
+    if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) then
     begin
       if not GetJSONString(Item, 'name', ObjectName) then
         Exit(Missing('name'));
       if not FPattern.CheckObjectName(ObjectName, nil, Msg) then
         Exit(Problem(Msg));
     end;
-    if not (DraftObject is TCurvePathObject) then
+    if not (DraftObject is TCurvePathObject) and not (DraftObject is TPieceObject) then
       for Index := 0 to DraftObject.FieldCount - 1 do
         if not ReadFormula(Item, DraftObject.Fields[Index].Name, DraftObject, DraftObject.Fields[Index].Name) then
           Exit(False);

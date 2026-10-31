@@ -61,6 +61,7 @@ type
     function GetField(Index: integer): TFormulaField;
   protected
     procedure AddField(const AName: string);
+    procedure RemoveField(const AName: string);
     // Evaluates a field; on failure sets Message and returns False
     function EvalField(Context: TEvalContext; const AName: string; out Value: double): boolean;
     // Sets Message and returns AState, for use as "Exit(Fail(esInvalid, ...))"
@@ -182,6 +183,19 @@ begin
   SetLength(FFields, Count + 1);
   FFields[Count].Name := AName;
   FFields[Count].Formula := TFormula.Create;
+end;
+
+procedure TEvalNode.RemoveField(const AName: string);
+var
+  Index: integer;
+begin
+  for Index := 0 to High(FFields) do
+    if SameText(FFields[Index].Name, AName) then
+    begin
+      FreeAndNil(FFields[Index].Formula);
+      System.Delete(FFields, Index, 1);
+      Exit;
+    end;
 end;
 
 function TEvalNode.Field(const AName: string): TFormula;

@@ -33,6 +33,7 @@ type
     FReply: TJSONObject;
     procedure WriteFiles;
     procedure OpenTestPattern;
+    procedure AddSquare;
     procedure Keep(const Reply: string);
     // Sends a request with id 1 and keeps the parsed reply for the test
     procedure Call(const Method: string; const Params: string = '{}');
@@ -84,6 +85,9 @@ type
     procedure TestEveryPointType;
     procedure TestCurves;
     procedure TestSplitEdge;
+    procedure TestCreatePiece;
+    procedure TestCreatePieceRefusals;
+    procedure TestEdgeAllowance;
     procedure TestAddVariable;
     procedure TestAddIsOneUndoStep;
     procedure TestAddRefusals;
@@ -96,7 +100,7 @@ type
 implementation
 
 uses
-  Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft;
+  Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.PieceDetect;
 
 function PathParams(const Path: string): string;
 var
@@ -577,6 +581,60 @@ begin
   AssertEquals('curvePath', Answer.Get('type', ''));
   AssertEquals('Path_A_C', Answer.Get('name', ''));
   AssertEquals('valid', Answer.Get('state', ''));
+end;
+
+procedure TTestAPI.AddSquare;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "B", "x": 100, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "C", "x": 100, "y": 100}');
+  Call('add_point', '{"type": "freePoint", "name": "D", "x": 0, "y": 100}');
+  Call('add_edge', '{"type": "line", "start": "A", "end": "B", "role": "outline"}');
+  Call('add_edge', '{"type": "line", "start": "B", "end": "C", "role": "outline"}');
+  Call('add_edge', '{"type": "line", "start": "C", "end": "D", "role": "outline"}');
+  Call('add_edge', '{"type": "line", "start": "D", "end": "A", "role": "outline"}');
+end;
+
+procedure TTestAPI.TestCreatePiece;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Front", "allowance": 15}');
+  AssertEquals('Front', Answer.Get('name', ''));
+  AssertEquals('piece', Answer.Get('type', ''));
+  AssertEquals('valid', Answer.Get('state', ''));
+  AssertNear('area', 10000, Answer.Get('area', 0.0));
+  AssertNear('perimeter', 400, Answer.Get('perimeter', 0.0));
+  AssertEquals('path', 4, Answer.Arrays['path'].Count);
+  AssertEquals('15', FormulaOf(Answer, 'allowance'));
+  Call('undo', '{}');
+  Call('list_objects', '{}');
+  AssertNull('one undo step', ObjectNamed('Front'));
+end;
+
+procedure TTestAPI.TestCreatePieceRefusals;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 500, "y": 50}');
+  AssertEquals('refused', RpcRefused, ErrorCode);
+  AssertEquals(rsDetectNoRegion, ErrorText);
+  Call('create_piece', '{"y": 50}');
+  AssertEquals('no x', RpcInvalidParams, ErrorCode);
+  Call('create_piece', '{"x": 50, "y": 50, "allowance": "1 +"}');
+  AssertEquals('bad formula', RpcRefused, ErrorCode);
+end;
+
+procedure TTestAPI.TestEdgeAllowance;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
+  AssertEquals('10', FormulaOf(Answer, 'allowance'));
+  Call('set_edge_allowance', '{"name": "Front", "edge": "Line_A_B", "allowance": 30}');
+  AssertEquals('state', 'valid', Answer.Get('state', ''));
+  AssertEquals('two formulas', 2, Answer.Objects['formulas'].Count);
+  Call('set_edge_allowance', '{"name": "Front", "edge": "Line_A_B"}');
+  AssertEquals('back to one', 1, Answer.Objects['formulas'].Count);
+  Call('set_edge_allowance', '{"name": "A", "edge": "Line_A_B"}');
+  AssertEquals('not a piece', RpcRefused, ErrorCode);
 end;
 
 procedure TTestAPI.TestSplitEdge;

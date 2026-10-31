@@ -36,7 +36,7 @@ procedure IncludeObject(var Bounds: TRect2; var Empty: boolean; DraftObject: TDr
 implementation
 
 uses
-  Math, Sloper.Core.Bezier;
+  Math, Sloper.Core.Bezier, Sloper.Core.Piece;
 
 procedure Include(var Bounds: TRect2; var Empty: boolean; const P: TVec2);
 begin
@@ -59,11 +59,15 @@ procedure IncludeObject(var Bounds: TRect2; var Empty: boolean; DraftObject: TDr
 var
   Segment: TEdgeSegment;
   CurveBounds: TRect2;
+  Corner: TVec2;
 begin
   if not DraftObject.HasResult then
     Exit;
   if DraftObject is TPointObject then
     Include(Bounds, Empty, TPointObject(DraftObject).Position)
+  else if DraftObject is TPieceObject then
+    for Corner in TPieceObject(DraftObject).CutLine do
+      Include(Bounds, Empty, Corner)
   else if DraftObject is TEdgeObject then
     for Segment in TEdgeObject(DraftObject).Segments do
       if Segment.Kind = skLine then

@@ -42,7 +42,7 @@ function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Draft;
+  SysUtils, Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Piece;
 
 const
   CoordinateDecimals = 3;
@@ -58,6 +58,7 @@ const
   ConstructionColor = '#808080';
   ErrorColor = '#c02020';
   BlockedColor = '#e08000';
+  PieceFill = '#f3efe6';
 
 type
   TDraftView = record
@@ -175,6 +176,22 @@ begin
     [Edge.Key, EscapeXML(Edge.DisplayName), EdgePath(Edge), StateColor(Edge.State, Color), Num(Stroke), Dash]) + #10;
 end;
 
+// The cutting line, filled, so the edges drawn over it show the seam line
+function PieceElement(Piece: TPieceObject; Extent: double): string;
+var
+  Index: integer;
+  PathText: string;
+begin
+  PathText := '';
+  for Index := 0 to High(Piece.CutLine) do
+    if Index = 0 then
+      PathText := 'M ' + Coord(Piece.CutLine[Index])
+    else
+      PathText := PathText + ' L ' + Coord(Piece.CutLine[Index]);
+  Result := Format('<path data-id="%s" data-name="%s" d="%s Z" fill="%s" stroke="%s" stroke-width="%s"/>',
+    [Piece.Key, EscapeXML(Piece.DisplayName), PathText, PieceFill, StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
+end;
+
 function PointElement(Point: TPointObject; Extent: double; Labels: boolean): string;
 var
   Radius: double;
@@ -198,7 +215,13 @@ var
 begin
   View := DraftView(Pattern, Options);
   Result := SVGStart(View);
-  // Edges under points
+  // Pieces under edges, edges under points
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if (DraftObject is TPieceObject) and DraftObject.HasResult then
+      Result := Result + PieceElement(TPieceObject(DraftObject), View.Extent);
+  end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];

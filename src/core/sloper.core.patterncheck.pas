@@ -41,8 +41,8 @@ function StateName(State: TEvalState): string;
 // "Name (error): message". Blocked ones fail because of these, so they are
 // only counted.
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
-// Every variable's value and every object's position (points) or length
-// (edges), with its state; failing ones have a message instead of values.
+// Every variable's value and every object's position (points), length (edges)
+// or areas and perimeter (pieces), with its state; failing ones have a message instead of values.
 // PatternName and MeasurementName are written as given. The caller frees it.
 function PatternReport(Pattern: TPattern; const PatternName, MeasurementName: string): TJSONObject;
 
@@ -54,7 +54,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft;
+  Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.Piece;
 
 function StateName(State: TEvalState): string;
 begin
@@ -155,7 +155,13 @@ begin
           Item.Add('y', ReportFloat(TPointObject(DraftObject).Position.Y));
         end
         else if DraftObject is TEdgeObject then
-          Item.Add('length', ReportFloat(TEdgeObject(DraftObject).Length));
+          Item.Add('length', ReportFloat(TEdgeObject(DraftObject).Length))
+        else if DraftObject is TPieceObject then
+        begin
+          Item.Add('area', ReportFloat(TPieceObject(DraftObject).Area));
+          Item.Add('perimeter', ReportFloat(TPieceObject(DraftObject).Perimeter));
+          Item.Add('cutArea', ReportFloat(Abs(SignedArea(TPieceObject(DraftObject).CutLine))));
+        end;
     end;
   except
     FreeAndNil(Result);

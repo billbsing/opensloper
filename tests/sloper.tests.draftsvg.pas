@@ -50,12 +50,13 @@ type
     procedure TestNotComputedIsLeftOut;
     procedure TestEmptyPattern;
     procedure TestSizesFollowTheDrawing;
+    procedure TestPieceIsDrawnUnderItsEdges;
   end;
 
 implementation
 
 uses
-  Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Output.DraftSVG;
+  Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
 
 procedure TTestDraftSVG.SetUp;
 begin
@@ -214,6 +215,27 @@ begin
   FPattern.Evaluate;
   // A point is 0.3% of the longer side
   AssertHas('radius', 'r="3"', Render);
+end;
+
+procedure TTestDraftSVG.TestPieceIsDrawnUnderItsEdges;
+var
+  A, B, C: string;
+  Path: TPiecePath;
+  Text, ErrorMessage: string;
+begin
+  A := FPattern.AddFreePoint('P', '0', '0').Key;
+  B := FPattern.AddFreePoint('Q', '100', '0').Key;
+  C := FPattern.AddFreePoint('R', '0', '100').Key;
+  FPattern.AddLine(A, B, erOutline);
+  FPattern.AddLine(B, C, erOutline);
+  FPattern.AddLine(C, A, erOutline);
+  FPattern.Evaluate;
+  AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(10, 10), Path, ErrorMessage));
+  FPattern.AddPiece('Front', Path, '10');
+  FPattern.Evaluate;
+  Text := Render;
+  AssertHas('the piece', 'data-name="Front"', Text);
+  AssertTrue('under the edges', Pos('data-name="Front"', Text) < Pos('data-name="Line_P_Q"', Text));
 end;
 
 initialization

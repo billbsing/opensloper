@@ -93,6 +93,7 @@ function SelectionAfterClick(const Visible, Selected: TStringArray; const Anchor
 resourcestring
   rsObjectPosition = '%s, %s mm';
   rsObjectLength = '%s mm';
+  rsObjectPerimeter = '%s mm round';
   rsObjectFormula = '%s = %s';
   rsObjectFormulaGap = '; ';
   rsMeasurementChanged = '@%s %s → %s mm saved to %s';
@@ -127,12 +128,13 @@ resourcestring
   rsTypeCurve = 'Curve';
   rsTypePath = 'Curve path';
   rsTypePart = 'Part of a split edge';
+  rsTypePiece = 'Piece';
   rsTypeVariable = 'Variable';
 
 implementation
 
 uses
-  Sloper.Core.Drag, Sloper.Core.JSON;
+  Sloper.Core.Drag, Sloper.Core.JSON, Sloper.Core.Piece;
 
 const
   VariableDecimals = 4;
@@ -194,6 +196,8 @@ begin
     Result := rsTypePath
   else if Node is TSplitPart then
     Result := rsTypePart
+  else if Node is TPieceObject then
+    Result := rsTypePiece
   else if Node is TVariable then
     Result := rsTypeVariable
   else
@@ -220,7 +224,9 @@ begin
     Result := Format(rsObjectPosition, [RoundedText(TPointObject(DraftObject).Position.X, 1),
       RoundedText(TPointObject(DraftObject).Position.Y, 1)])
   else if DraftObject is TEdgeObject then
-    Result := Format(rsObjectLength, [RoundedText(TEdgeObject(DraftObject).Length, 1)]);
+    Result := Format(rsObjectLength, [RoundedText(TEdgeObject(DraftObject).Length, 1)])
+  else if DraftObject is TPieceObject then
+    Result := Format(rsObjectPerimeter, [RoundedText(TPieceObject(DraftObject).Perimeter, 1)]);
 end;
 
 function FormulasText(Pattern: TPattern; DraftObject: TDraftObject): string;
