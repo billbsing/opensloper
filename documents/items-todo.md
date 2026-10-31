@@ -1,6 +1,6 @@
 # Items to do
 
-Review and testing before moving on to step 9, from `ffed2e4` on `development`. Run `./build.sh` first, which builds all three programs, including `publish/opensloper-publish`.
+Review and testing before moving on to step 10, from `ffed2e4` on `development`. Run `./build.sh` first, which builds all three programs, including `publish/opensloper-publish`.
 
 ## To test
 

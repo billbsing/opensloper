@@ -49,6 +49,7 @@ A pattern is a graph of draft objects whose positions come from measurements, va
 | Edge | Line, Bézier curve or arc between points | Curve handles have angle and length formulas |
 | Role | Each edge is *construction* (guide, dashed) or *outline* | Only outline edges form piece boundaries |
 | Piece | Closed path: ordered edge references, each with a reversed flag | Seam allowance (default + per edge), grainline, notches, labels, cut count, fold line |
+| Fabric | A named fabric in the pattern (Main, Lining, Contrast, Interfacing) with a colour and fill style | Pieces are assigned a fabric; drives piece fills, the cut list, and later layout and 3D textures |
 | Seam | Pairing of edges on two pieces that are sewn together, with direction | Drives seam-length checks and 3D export |
 | Draft | A drafting area within a pattern file, shown as a tab | E.g. bodice, sleeve, collar; drafts share measurements, variables and names |
 | Layer | Ordered group within a draft, for drawing order and visibility | E.g. original draft vs rotated dart; can be hidden or locked |
@@ -186,7 +187,7 @@ References are stored as IDs and shown as names, so renaming an object changes o
 
 **Formulas.** The user types names (`Line_A_B.length + @waist/4 + #ease`) with autocomplete. On commit the parser resolves each name and stores the ID form (`{12}.length + @waist/4 + {3}`): objects as `{id}.property`, variables as `{id}`, measurements by their stable key. Unknown names are rejected at entry. Formula fields, tooltips and error messages convert IDs back to current names for display.
 
-**IDs.** Positive integers from one counter per pattern file, like database keys, shared by every kind of object: variables, points, edges, pieces, drafts, layers and annotations. The object's kind is in its `type`, so the ID carries no prefix.
+**IDs.** Positive integers from one counter per pattern file, like database keys, shared by every kind of object: variables, points, edges, pieces, fabrics, drafts, layers and annotations. The object's kind is in its `type`, so the ID carries no prefix.
 
 - Each new object takes the counter's value and the counter goes up by one. It is saved in the file as `nextId` and only ever increases, so an ID that has been saved is never reused: not after deleting, undoing, saving or reopening. An ID handed out and undone before any save can come back after reopening; that is harmless, because no file refers to it.
 - This matters beyond the file: layouts refer to pieces by pattern and piece ID, so a reused ID would silently put a different piece in an old piece's place.
@@ -200,7 +201,7 @@ Measurements are the exception: patterns refer to them by a stable key such as `
 - Letters, digits and underscore, not starting with a digit; no dashes or dots, which clash with formula syntax (`A-2`, `A.x`)
 - Function names and formula keywords are reserved
 - Case is preserved for display but compared case-insensitively
-- Unique within each namespace: draft objects (points, edges, pieces share one), `#` variables, `@` measurements
+- Unique within each namespace: draft objects (points, edges, pieces share one), `#` variables, `@` measurements, fabrics
 - Auto-naming counts like spreadsheet columns: `A` to `Z`, then `AA`, `AB` … `AZ`, `BA` … `ZZ`, then `AAA`. It always takes the next free name across the whole pattern, skipping names that are taken or reserved (such as `ABS`, `COS`, `MAX`). Auto-names never contain digits, so a trailing number always means a copy
 - Line names are derived from endpoints (`Line_A_B`) unless the user sets a custom one
 
@@ -245,7 +246,7 @@ end;
 
 ## Operation set
 
-Six point operations and three edge types cover basic bodice, skirt and trouser blocks; many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
+Eight point operations and three edge types cover basic bodice, skirt and trouser blocks; many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
 
 **Conventions:**
 
@@ -264,6 +265,10 @@ Six point operations and three edge types cover basic bodice, skirt and trouser 
 | Intersect edges | `edgeA`, `edgeB`, `extendA`, `extendB`, `pick` | Line×line, line×curve, curve×curve |
 | Circle × edge | `centre`, `radius`, `edge`, `extend`, `pick` | Compass step, e.g. shoulder length from neck point onto the shoulder slope line |
 | Project onto edge | `point`, `edge`, `direction` (perpendicular/angle), `angle`, `extend` | Foot of a perpendicular; drop vertically from a point to the hem line |
+| Between points | `a`, `b`, `mode` (ratio/length), `value` | A point on the straight line from `a` to `b`, without needing an edge; used by Distribute |
+| Repeat | `a` + `b`, or `edge`; `count`, `ends` (include or exclude the end points), `prefix` | N evenly spaced points between two points or along an edge (equal arc length); buttons, pleats, tucks, gathers, notch rows, belt loops |
+
+**Generated points.** A Repeat produces real point objects that any operation can use, like transform copies. Unlike transform copies, they have no IDs of their own: `count` is a formula (e.g. `round({12}.length / 80)`), and evaluating never creates objects. They are named from the prefix and their index (`Btn1` … `Btn6`) and are addressed by the repeat's ID plus index, so references stay stable when the count changes. If the count drops, references to indices that no longer exist become errors ("Btn6 no longer exists") rather than silently moving to another point. Creating or changing a repeat is one undoable command.
 
 `extend` treats a line as infinite (or extends a curve along its end tangent), so long construction lines aren't needed just to find an intersection. `pick` is a stored crossing number, so the result stays stable when measurements change: crossings are numbered from 1 by distance along the first edge (`edgeA`, or the edge for circle × edge), counting from the start of its extension when extended. Project onto edge has no `pick`; it takes the result nearest the point. A perpendicular onto a curve counts only where the line meets the curve square, not where the curve simply ends.
 
@@ -282,7 +287,7 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 
 | Object | Fields |
 | --- | --- |
-| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set) |
+| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `fabric` (fabric ID); `fill` (optional per-piece override) |
 | Seam | `pieceA`, `edgesA[]`, `pieceB`, `edgesB[]`, `reversed`, `tolerance` |
 
 **Deferred to phase two:** bisector; circle × circle; arcs (approximated by curve paths at first); tangent from a point to a curve.
@@ -357,6 +362,22 @@ Inkscape itself was considered and rejected as the drawing tool: it stores absol
 This is construction-based (an explicit dependency graph), not constraint-based like FreeCAD's Sketcher, so no numerical solver is needed.
 
 **Borrowed from Inkscape:** node editor with draggable Bézier handles, smart snapping with visual hints, layers, smooth pan/zoom, and a properties panel where formulas for the selection are edited.
+
+**Align and distribute.** An Align panel modelled on Inkscape's Align and Distribute dialog. Unlike Inkscape, which moves objects to new absolute positions, each action rewrites the selected points' definitions, so the arrangement holds when measurements change.
+
+| Action | Result |
+| --- | --- |
+| Align vertically to A | Each selected point's x becomes `{A}.x`; y unchanged |
+| Align horizontally to A | Each selected point's y becomes `{A}.y`; x unchanged |
+| Distribute evenly | The two outermost points stay; point i of n inner points becomes a Between points point at ratio `i/(n+1)` |
+| Distribute horizontally / vertically | Only x (or y) is spaced evenly between the outer points; the other coordinate unchanged |
+| Distribute along edge | Inner points become Along edge points at equal arc-length steps; works on curves |
+
+- "Relative to" chooses the reference: first selected, last selected, or a chosen anchor point.
+- The whole action is one undo step.
+- Free points and points whose affected parameter is a plain number are converted. Points whose position comes from a formula are listed, with the choice to replace or skip each one; nothing formula-driven is overwritten silently.
+- Distribute re-defines points that already exist; Repeat creates new ones. Both use the same underlying operations, Between points and Along edge.
+- Snapping already records horizontal and vertical alignment while drawing; Align and distribute is for tidying up afterwards.
 
 **Canvas so far** (`Sloper.UI.Canvas`, with the LCL-free `Sloper.UI.View`, `Sloper.UI.Scene` and `Sloper.Core.Drag`):
 
@@ -620,7 +641,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
   "notes": "",
   "measurementFile": "bill.slm",
   "size": "",
-  "nextId": 7,
+  "nextId": 9,
   "drafts": [
     { "id": 1, "name": "Skirt", "layers": [ { "id": 2, "name": "Draft" } ] }
   ],
@@ -632,6 +653,10 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
     { "id": 5, "type": "offsetPoint", "name": "B", "layer": 2,
       "base": 4, "mode": "polar", "length": "@waist/4 + {3}", "angle": "0" },
     { "id": 6, "type": "line", "layer": 2, "start": 4, "end": 5, "role": "outline" }
+  ],
+  "fabrics": [
+    { "id": 7, "name": "Main", "color": "#5B8DB8", "fill": "tint" },
+    { "id": 8, "name": "Lining", "color": "#C9A227", "fill": "hatch" }
   ],
   "view": { "draft": 1 }
 }
@@ -645,7 +670,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 - Each object has `id`, `type`, `name` and `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
-- Loading checks IDs (positive integers, unique across drafts, layers, variables and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
+- Loading checks IDs (positive integers, unique across drafts, layers, variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
 
 | `type` | Members besides `id`, `type`, `name` |
 | --- | --- |
@@ -661,7 +686,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
 | `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional) |
 
-Seams are added to the file when they exist in the model. Labels join `piece` when they are built.
+Seams are added to the file when they exist in the model. Labels, `fabric` and `fill` join `piece` when they are built, and `fabrics` joins the file with them (see Fabrics).
 
 ## Measurements app
 
@@ -795,6 +820,25 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Sheet notes.** `sheetNotes` lists `text`, `x`, `y` and `size` (points): plain text in layout space, one or more lines, with `{pattern.name}`, `{measurements.name}`, `{layout.name}`, `{date}`, `{page}` and `{pages}` filled in when printed (the cover counts as page 1). A note makes the page it is on print, even with no piece there, and extends the page grid. It prints on every tile it reaches. In the window a note is selected and dragged like a piece, and lies over them; the Notes tab holds the note's text and size and the title block. A note over a piece is a warning. Text width is an estimate, since the PDF uses Helvetica unembedded, so these checks are approximate.
 - Not done yet: bold, italic, alignment and boxes in notes, and `{=Line_A_B.length}` fields, which come with pattern-space annotations.
 
+## Fabrics
+
+Pieces are coloured by the fabric they are cut from, so colour carries meaning (main, lining, contrast, interfacing) as well as making pieces easier to tell apart.
+
+**Fabric list.** Each pattern has a list of fabrics, each with an ID, a name, a colour and a fill style (solid tint or hatching). A new pattern starts with one fabric, Main. Fabrics are ordinary objects: adding, renaming, recolouring and deleting are undoable commands, and names follow the name rules.
+
+**Assignment.** Each piece is assigned a fabric and takes its fill from it, with an optional per-piece override of colour or fill style. A piece with no fabric is drawn unfilled and flagged in the problems panel. Deleting a fabric that pieces use is refused, like deleting any object with dependents.
+
+**Display:**
+
+- Fills are semi-transparent and drawn beneath all lines, so seams, notches, labels and overlapping pieces stay readable.
+- Only pieces are filled; draft and construction lines stay neutral.
+- The default palette stays distinguishable for colour-blind users, and the fabric name appears in the piece label, so colour is never the only cue.
+- A display toggle turns fills off.
+
+**Printing.** Fills are off by default, to save ink and keep tracing clean. The print screen offers a light tint or hatching per print; hatching suits black-and-white printers.
+
+**Cut list.** Built from the fabric assignments and each piece's cut settings, grouped by fabric, for example "Main: Front ×1 on fold, Back ×2 · Lining: Front ×1 on fold, Back ×2". Available as the `{cutlist}` live field for the title block or a sheet note.
+
 ## Printing
 
 The publish app (see Publish app) prints patterns directly at true scale, with notes and text printed alongside them (see Annotations), so no third-party tiling or editing software is needed, a gap found in practice with Seamly2D.
@@ -824,6 +868,7 @@ The publish app (see Publish app) prints patterns directly at true scale, with n
 - Single large-format PDF (A0 or copy-shop width)
 - Projector mode: dark background, thick light lines, no tiling, for projecting onto fabric
 - SVG and DXF exports, as in the Output layer
+- Piece fills: off by default; optional light tint or hatching (for black-and-white printers), set per print
 
 **Print screen (the main gap in existing software).** Seamly2D lacked a friendly interface for multi-page printing, so the publish app's main window is one interactive screen rather than a dialog of settings:
 
@@ -852,7 +897,7 @@ Notes, callouts and a title block are first-class objects that print with the pa
 
 **Live text fields.** Text can include fields filled in at display and print time:
 
-- `{pattern.name}`, `{pattern.version}`, `{measurements.name}`, `{date}`, `{page}`, `{pages}`
+- `{pattern.name}`, `{pattern.version}`, `{measurements.name}`, `{date}`, `{page}`, `{pages}`, `{cutlist}` (cut list grouped by fabric), `{fabrics}` (fabric names)
 - Values from the draft, e.g. `Seam length {=Line_A_B.length} mm`, using the formula engine and the same name-to-ID storage, so renames never break a note
 
 **Text and style:**
@@ -939,7 +984,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Formula engine | Parsing, precedence, degree-based trig, reference lists, name↔ID round trip, error messages and positions |
 | Evaluator | Ordering, dirty propagation, cycle rejection, invalid and blocked states |
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
-| Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end) |
+| Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
 | Storage | Save → load → save produces identical JSON |
 | Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
@@ -1088,22 +1133,37 @@ Writing a cloth simulator (triangulation, sewing constraints, body and self-coll
 
 The only requirement now is the **seam** concept in the core model, which also drives 2D seam-length checks. Any 3D module stays separate and reads computed geometry only.
 
+## Future ideas
+
+Ideas worth keeping that are deliberately outside the roadmap. Each is added only when the core is solid, or when the community asks for it.
+
+| Idea | Notes |
+| --- | --- |
+| Notions library | A catalogue of haberdashery (zips, buttons, hooks and eyes, snaps, eyelets, elastic), placed on a pattern like KiCad footprints: markings on the seam (zip stops, button and buttonhole positions via Repeat), rules (buttonhole = button diameter + thickness; warn if a zip is longer than its opening), and an automatic notions list for the title block via live fields |
+| Multi-size output | Nested sizes on one sheet for publishing patterns; see Printing |
+| Size overlay | Screen-only overlay of several sizes for checking grading |
+| Scaled body figure | Measurement editor figure scaled to the entered values |
+| ISO 8559-1 check | Check catalogue definitions against the standard and add clause references, if the project gains traction |
+| Spread tool | Generates the chain of rotations for slash and spread in one step; see Transforms |
+| Fabric textures and properties | Image textures (e.g. a photo of the actual fabric) for fills and the Blender export; fabric width and nap direction for automatic layout |
+
 ## Roadmap and open questions
 
-Save/load and undo come before the canvas, so the canvas is built on document commands from the start and saved patterns can serve as regression tests. The app becomes personally useful at step 8; community release follows if it proves easy to use.
+Save/load and undo come before the canvas, so the canvas is built on document commands from the start and saved patterns can serve as regression tests. The app becomes personally useful at step 9; community release follows if it proves easy to use.
 
 1. Geometry core unit (points, lines, Béziers, intersections) with unit tests, no UI
 2. Measurement sets, variables and the formula engine
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
 4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
-6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
-7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (done for now; Shift-click merging, the start-edge fallback and custom piece labels remain)
-8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-9. Measurements app: measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
-10. Seams and seam-length checks
-11. DXF-AAMA export, automatic packing in the publish app
-12. Blender export for 3D preview
+6. Align and distribute, repeat along edge
+7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
+8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
+9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
+10. Measurements app: measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
+11. Seams and seam-length checks
+12. DXF-AAMA export, automatic packing in the publish app
+13. Blender export for 3D preview
 
 Open questions:
 
