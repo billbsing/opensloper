@@ -32,7 +32,7 @@ uses
 
 type
   // ofProblems: anything not valid
-  TObjectFilter = (ofAll, ofPoints, ofEdges, ofProblems);
+  TObjectFilter = (ofAll, ofPoints, ofEdges, ofPieces, ofProblems);
 
   TObjectRow = record
     Key: string;
@@ -93,7 +93,7 @@ function SelectionAfterClick(const Visible, Selected: TStringArray; const Anchor
 resourcestring
   rsObjectPosition = '%s, %s mm';
   rsObjectLength = '%s mm';
-  rsObjectPerimeter = '%s mm round';
+  rsObjectPerimeter = '%s mm';
   rsObjectFormula = '%s = %s';
   rsObjectFormulaGap = '; ';
   rsMeasurementChanged = '@%s %s → %s mm saved to %s';
@@ -110,6 +110,8 @@ resourcestring
   rsFieldDY = 'Up';
   rsFieldValue = 'Distance or ratio';
   rsFieldRadius = 'Radius';
+  rsFieldAllowance = 'Seam allowance';
+  rsFieldEdgeAllowance = 'Edge %s seam allowance';
   rsFieldAngle1 = 'Start angle';
   rsFieldLength1 = 'Start handle';
   rsFieldAngle2 = 'End angle';
@@ -145,6 +147,8 @@ var
   NodeNumber, Part: string;
 begin
   Dot := Pos('.', FieldName);
+  if (Dot > 0) and (Copy(FieldName, 1, 4) = 'edge') then
+    Exit(Format(rsFieldEdgeAllowance, [Copy(FieldName, 5, Dot - 5)]));
   if (Dot > 0) and (Copy(FieldName, 1, 4) = 'node') then
   begin
     NodeNumber := Copy(FieldName, 5, Dot - 5);
@@ -164,6 +168,7 @@ begin
     'dy': Result := rsFieldDY;
     'value': Result := rsFieldValue;
     'radius': Result := rsFieldRadius;
+    'allowance': Result := rsFieldAllowance;
     'angle1': Result := rsFieldAngle1;
     'length1': Result := rsFieldLength1;
     'angle2': Result := rsFieldAngle2;
@@ -262,6 +267,7 @@ begin
   case Filter of
     ofPoints: Result := DraftObject is TPointObject;
     ofEdges: Result := DraftObject is TEdgeObject;
+    ofPieces: Result := DraftObject is TPieceObject;
     ofProblems: Result := DraftObject.State <> esValid;
     else
       Result := True;

@@ -617,6 +617,10 @@ begin
   Call('create_piece', '{"x": 500, "y": 50}');
   AssertEquals('refused', RpcRefused, ErrorCode);
   AssertEquals(rsDetectNoRegion, ErrorText);
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
+  Call('create_piece', '{"x": 50, "y": 50}');
+  AssertEquals('one piece per region', RpcRefused, ErrorCode);
+  Call('undo');
   Call('create_piece', '{"y": 50}');
   AssertEquals('no x', RpcInvalidParams, ErrorCode);
   Call('create_piece', '{"x": 50, "y": 50, "allowance": "1 +"}');

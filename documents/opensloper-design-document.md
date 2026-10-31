@@ -366,7 +366,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Dragging points:** only fields that are plain numbers change (free x/y, offset length/angle or dx/dy, along-edge value), rounded to 0.1 mm, 0.1° or 0.0001. A point placed by a formula or by other objects is refused, with the reason shown until the mouse button is released. One drag is one undo step; Escape cancels it.
 - **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
-- **Tools:** Select (S), Point (P), Line (L) and Curve (C), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
+- **Tools:** Select (S), Point (P), Line (L), Curve (C) and Piece (K), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
 - **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
   1. An existing point is reused.
   2. A crossing of two nearby edges becomes an intersect point, with its `pick`. An edge and its own split parts are not treated as crossing.
@@ -384,7 +384,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Formula autocomplete** (`Sloper.UI.FormulaCompleter`, with the LCL-free `Sloper.UI.Completion`): a formula field offers suggestions under the caret as you type. `@` lists measurements, `#` lists variables, and after an object's dot its properties. A bare word lists objects, variables, measurements and functions, names starting with the word first; choosing an object adds its dot and goes straight on to its properties. The object being edited is left out, as are objects in a variable's formula, since neither would be accepted. Ctrl/Cmd+Space shows everything. Up and Down move, Enter or Tab take the suggestion, Escape closes the list, and the mouse works too. Enter commits the field once the list is closed.
 - **Measurements tab** (`Sloper.UI.MeasurementsPanel`): the current set's keys, values and descriptions, searchable, with New and Open for the set. Keys the pattern uses and the set lacks are listed in red as Missing. Selecting a row fills the fields below the list; Enter or Save writes the change straight to the file through `TPatternDocument.ChangeMeasurement`, and the status bar says what changed. Add starts a new key. Saving with no file asks for a new one first. See Small edits from the drafting app. Not done yet: switching size, which waits for size tables in the core; watching the file for changes made elsewhere; and the button that opens the measurements app, which does not exist yet.
 - **Curve handles** (`CurveHandles` in `Sloper.Core.Drag`): selecting a curve or curve path shows its tangent lines. Dragging a handle's end sets its angle and length, rounded like point drags, as one undo step; Escape cancels. As with points, only plain numbers change: a handle whose angle or length is a formula is drawn hollow and refuses the drag with the reason. The two handles at a path's inner node share one angle, so dragging either turns both and the join stays smooth, while each keeps its own length. A split part follows its source curve and has no handles. A handle lies over the objects under it.
-- **Next:** the canvas is complete; see the Automation API, roadmap step 6.
+- **Pieces:** with the Piece tool, one click inside a closed outline makes a piece with a 10 mm allowance, as one undo step, and selects it; a refusal shows in the status bar, and a region that already has a piece selects that piece instead of adding another. The tool stays on until Escape. The cutting line is drawn in a light tint under the edges. In the Select tool a click inside a piece selects it, with points and edges taking precedence, so to clear the selection click off the piece or press Escape. Hovering or selecting a piece shows chevrons at each edge's middle (see Links and problem display). Its name label sits in the middle of its extent. The properties show its allowance and any per-edge allowances; adding an edge's own allowance is only in the Automation API so far.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -1011,7 +1011,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
-7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (under way: detection, seam allowance, save/load and the API are done; grainlines, notches and the canvas tool are next)
+7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (under way: detection, seam allowance, save/load, the API and the canvas tool are done; grainlines and notches are next)
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
 9. Measurements app: measurement and size table editing, Valentina/Seamly2D import; SVG export
 10. Seams and seam-length checks

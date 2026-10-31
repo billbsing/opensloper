@@ -28,10 +28,20 @@ unit Sloper.UI.Scene;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Settings;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Piece,
+  Sloper.Core.Settings;
 
 const
   MinFocusSize = 60;
+
+type
+  // A mark showing which way a piece's path runs along one of its edges
+  TPieceChevron = record
+    Position: TVec2;
+    Angle: double;
+  end;
+
+  TPieceChevronArray = array of TPieceChevron;
 
 // Extent of the objects with these keys, at least MinFocusSize mm each way so
 // that a single point has an area to zoom to; False when none is shown
@@ -42,6 +52,12 @@ function EdgePolyline(Edge: TEdgeObject; Tolerance: double): TVec2Array;
 function PointAt(Pattern: TPattern; const At: TVec2; Radius: double): TPointObject;
 // The nearest edge within Radius mm of At, or nil
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
+// The smallest piece whose cutting line contains At, or nil
+function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
+// Where a piece's name goes: the middle of its extent
+function PieceMiddle(Piece: TPieceObject): TVec2;
+// One chevron at the middle of each edge of the piece, pointing along the path
+function PieceChevrons(Pattern: TPattern; Piece: TPieceObject): TPieceChevronArray;
 // The handles of the selected curves
 function SelectionHandles(Pattern: TPattern; const Selection: TStringArray): TCurveHandleArray;
 // The nearest handle of the selected curves within Radius mm of At
@@ -166,6 +182,70 @@ begin
       Best := Offset;
       Result := TEdgeObject(DraftObject);
     end;
+  end;
+end;
+
+function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
+var
+  Index: integer;
+  Piece: TPieceObject;
+  Best, Size: double;
+begin
+  Result := nil;
+  Best := Infinity;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult then
+    begin
+      Piece := TPieceObject(Pattern.Objects[Index]);
+      Size := Abs(SignedArea(Piece.CutLine));
+      if (Size < Best) and PointInPolygon(At, Piece.CutLine) then
+      begin
+        Best := Size;
+        Result := Piece;
+      end;
+    end;
+end;
+
+function PieceMiddle(Piece: TPieceObject): TVec2;
+var
+  P: TVec2;
+  MinX, MinY, MaxX, MaxY: double;
+begin
+  MinX := Infinity;
+  MinY := Infinity;
+  MaxX := -Infinity;
+  MaxY := -Infinity;
+  for P in Piece.Outline do
+  begin
+    MinX := Min(MinX, P.X);
+    MinY := Min(MinY, P.Y);
+    MaxX := Max(MaxX, P.X);
+    MaxY := Max(MaxY, P.Y);
+  end;
+  Result := Vec2((MinX + MaxX) / 2, (MinY + MaxY) / 2);
+end;
+
+function PieceChevrons(Pattern: TPattern; Piece: TPieceObject): TPieceChevronArray;
+const
+  // Measured across the middle, so a curve's direction is its tangent there
+  DirectionSpan = 0.5;
+var
+  Index: integer;
+  Edge: TEdgeObject;
+  Middle, Span: double;
+begin
+  Result := nil;
+  SetLength(Result, Length(Piece.Path));
+  for Index := 0 to High(Piece.Path) do
+  begin
+    Edge := TEdgeObject(Pattern.FindNode(Piece.Path[Index].EdgeKey));
+    Middle := Edge.Length / 2;
+    Span := Min(DirectionSpan, Middle);
+    Result[Index].Position := Edge.PointAtLength(Middle);
+    if Piece.Path[Index].Reversed then
+      Result[Index].Angle := AngleBetween(Edge.PointAtLength(Middle + Span), Edge.PointAtLength(Middle - Span))
+    else
+      Result[Index].Angle := AngleBetween(Edge.PointAtLength(Middle - Span), Edge.PointAtLength(Middle + Span));
   end;
 end;
 

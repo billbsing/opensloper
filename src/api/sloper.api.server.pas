@@ -109,6 +109,7 @@ resourcestring
   rsApiBadChoice = 'Parameter "%s" must be one of: %s';
   rsApiBadNodes = 'A curve path needs a "nodes" list, each with a point and angle';
   rsApiRenderFormat = 'Format "%s" is not available; use svg';
+  rsApiPieceExists = '%s already covers this region';
   rsApiNotAPiece = '%s is not a piece';
   rsApiNotInPiece = '%s is not part of %s';
   rsApiEdgeAllowance = 'Change seam allowance';
@@ -802,6 +803,7 @@ var
   At: TVec2;
   Path: TPiecePath;
   PieceName, Allowance, Reason: string;
+  Existing: TPieceObject;
 begin
   if not GetJSONNumber(Params, 'x', At.X) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['x']));
@@ -813,6 +815,9 @@ begin
     Allowance := DefaultPieceAllowance;
   if not DetectPiecePath(FDocument.Pattern, At, Path, Reason) then
     raise EApiError.Create(RpcRefused, Reason);
+  Existing := PieceOnPath(FDocument.Pattern, Path);
+  if Existing <> nil then
+    raise EApiError.Create(RpcRefused, Format(rsApiPieceExists, [Existing.DisplayName]));
   FDocument.BeginChange(Format(rsApiAdd, [PieceType]));
   Result := AddedNode(FDocument.Pattern.AddPiece(PieceName, Path, Allowance));
 end;

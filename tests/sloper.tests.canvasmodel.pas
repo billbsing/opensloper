@@ -25,13 +25,14 @@ unit Sloper.Tests.CanvasModel;
 interface
 
 uses
-  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Pattern;
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Pattern, Sloper.Core.Piece;
 
 type
   TTestCanvasModel = class(TOSTestCase)
   private
     FPattern: TPattern;
     procedure Build;
+    function BuildPiece: TPieceObject;
     procedure AssertLabels(const Msg, Expected: string; const Keys: TStringArray);
   protected
     procedure SetUp; override;
@@ -50,6 +51,9 @@ type
     procedure TestPolylines;
     procedure TestPolylineMiddle;
     procedure TestHandleAt;
+    procedure TestPieceAt;
+    procedure TestPieceChevrons;
+    procedure TestPieceLabelledInAllMode;
     procedure TestObjectsBounds;
     procedure TestRevealLeavesVisibleAlone;
     procedure TestRevealCentresWithoutZooming;
@@ -64,7 +68,8 @@ type
 implementation
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings, Sloper.UI.View, Sloper.UI.Scene;
+  Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.PieceDetect, Sloper.Core.Settings, Sloper.UI.View,
+  Sloper.UI.Scene;
 
 function MakeRect(MinX, MinY, MaxX, MaxY: double): TRect2;
 begin
@@ -258,6 +263,67 @@ begin
   AssertNear('zoom kept', 2, View.Scale);
   Centre := View.ToScreen(Vec2(1050, -450));
   AssertPointsNear('centred', Vec2(400, 200), Centre);
+end;
+
+// Square A (0, 0), B (100, 0), C (100, 100), D (0, 100), allowance 10
+function TTestCanvasModel.BuildPiece: TPieceObject;
+var
+  A, B, C, D, ErrorMessage: string;
+  Path: TPiecePath;
+begin
+  A := FPattern.AddFreePoint('A', '0', '0').Key;
+  B := FPattern.AddFreePoint('B', '100', '0').Key;
+  C := FPattern.AddFreePoint('C', '100', '100').Key;
+  D := FPattern.AddFreePoint('D', '0', '100').Key;
+  FPattern.AddLine(A, B, erOutline);
+  FPattern.AddLine(B, C, erOutline);
+  FPattern.AddLine(C, D, erOutline);
+  FPattern.AddLine(D, A, erOutline);
+  FPattern.Evaluate;
+  AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(50, 50), Path, ErrorMessage));
+  Result := FPattern.AddPiece('Front', Path, '10');
+  FPattern.Evaluate;
+end;
+
+procedure TTestCanvasModel.TestPieceAt;
+var
+  Piece: TPieceObject;
+begin
+  Piece := BuildPiece;
+  AssertTrue('inside', PieceAt(FPattern, Vec2(50, 50)) = Piece);
+  AssertTrue('in the allowance', PieceAt(FPattern, Vec2(105, 50)) = Piece);
+  AssertNull('outside', PieceAt(FPattern, Vec2(120, 50)));
+  AssertPointsNear('middle', Vec2(50, 50), PieceMiddle(Piece));
+end;
+
+procedure TTestCanvasModel.TestPieceChevrons;
+var
+  Chevrons: TPieceChevronArray;
+  Item: TPieceChevron;
+  Piece: TPieceObject;
+begin
+  Piece := BuildPiece;
+  Chevrons := PieceChevrons(FPattern, Piece);
+  AssertEquals(4, Length(Chevrons));
+  // Clockwise round the square: rightwards along the top, leftwards along the bottom
+  for Item in Chevrons do
+    if PointsNear(Item.Position, Vec2(50, 100)) then
+      AssertNear('top runs right', 0, Item.Angle)
+    else if PointsNear(Item.Position, Vec2(50, 0)) then
+      AssertNear('bottom runs left', 180, Item.Angle);
+end;
+
+procedure TTestCanvasModel.TestPieceLabelledInAllMode;
+var
+  Key: string;
+  Found: boolean;
+  Piece: TPieceObject;
+begin
+  Piece := BuildPiece;
+  Found := False;
+  for Key in LabelKeys(FPattern, lmAll, nil, '', nil) do
+    Found := Found or (Key = Piece.Key);
+  AssertTrue(Found);
 end;
 
 procedure TTestCanvasModel.TestHandleAt;

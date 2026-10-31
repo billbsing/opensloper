@@ -34,6 +34,9 @@ uses
 // have to be split first.
 function DetectPiecePath(Pattern: TPattern; const At: TVec2; out Path: TPiecePath; out ErrorMessage: string): boolean;
 
+// The piece that already runs along these edges, or nil
+function PieceOnPath(Pattern: TPattern; const Path: TPiecePath): TPieceObject;
+
 resourcestring
   rsDetectNoRegion = 'There is no closed outline around this place';
   rsDetectNeedsSplit = '%s crosses another edge here; split it at the crossing first';
@@ -444,6 +447,26 @@ begin
     Path[High(Face) - Index].Reversed := Arc.FromPos < Arc.ToPos;
   end;
   Result := True;
+end;
+
+function PieceOnPath(Pattern: TPattern; const Path: TPiecePath): TPieceObject;
+var
+  Index: integer;
+  Piece: TPieceObject;
+  Entry: TPieceEdge;
+  Same: boolean;
+begin
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if Pattern.Objects[Index] is TPieceObject then
+    begin
+      Piece := TPieceObject(Pattern.Objects[Index]);
+      Same := Length(Piece.Path) = Length(Path);
+      for Entry in Path do
+        Same := Same and (Piece.PathIndexOf(Entry.EdgeKey) >= 0);
+      if Same then
+        Exit(Piece);
+    end;
+  Result := nil;
 end;
 
 function DetectPiecePath(Pattern: TPattern; const At: TVec2; out Path: TPiecePath; out ErrorMessage: string): boolean;

@@ -41,6 +41,7 @@ resourcestring
   rsObjectsAll = 'All objects';
   rsObjectsPoints = 'Points';
   rsObjectsEdges = 'Edges';
+  rsObjectsPieces = 'Pieces';
   rsObjectsProblems = 'Problems';
   rsColumnName = 'Name';
   rsColumnOperation = 'Operation';
@@ -65,6 +66,7 @@ begin
   FFilter.Items.Add(rsObjectsAll);
   FFilter.Items.Add(rsObjectsPoints);
   FFilter.Items.Add(rsObjectsEdges);
+  FFilter.Items.Add(rsObjectsPieces);
   FFilter.Items.Add(rsObjectsProblems);
   FFilter.ItemIndex := Ord(ofAll);
   FFilter.OnChange := @SearchChange;

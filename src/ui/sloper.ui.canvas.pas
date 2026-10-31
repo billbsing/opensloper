@@ -28,13 +28,14 @@ interface
 
 uses
   Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
+  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
   // cmRefused: a drag was refused; the reason stays up until the button is released
   TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging, cmRefused);
-  // ctSelect selects and drags; the others add points, lines and curves where the snap points
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve);
+  // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
+  // the snap points; ctPiece makes a piece of the region clicked
+  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctPiece);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -89,12 +90,16 @@ type
     procedure ClickTool;
     procedure AddPointHere;
     procedure AddEdgeHere;
+    procedure AddPieceHere(X, Y: integer);
+    function UsesSnap: boolean;
     procedure CancelStart;
     procedure SetLabelMode(Value: TLabelMode);
     procedure SetLabelsHeld(Value: boolean);
     function ShownLabelMode: TLabelMode;
     function ToolLabelKeys: TStringArray;
     procedure DrawGrid;
+    procedure DrawPiece(Piece: TPieceObject);
+    procedure DrawChevrons(Piece: TPieceObject);
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
     procedure DrawPattern;
@@ -149,15 +154,18 @@ resourcestring
   rsCanvasAddPoint = 'Add point';
   rsCanvasAddLine = 'Add line';
   rsCanvasAddCurve = 'Add curve';
+  rsCanvasAddPiece = 'Add piece';
   rsCanvasToolSelect = 'Select: click to select, drag a point to move it';
   rsCanvasToolPoint = 'Point: click to add a point where it snaps';
   rsCanvasToolLine = 'Line: click the start, then the end; Escape stops';
   rsCanvasToolCurve = 'Curve: click the start, then the end; Escape stops';
+  rsCanvasToolPiece = 'Piece: click inside a closed outline';
+  rsCanvasPieceExists = '%s already covers this region';
 
 implementation
 
 uses
-  Math, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.UI.Scene;
+  Math, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.UI.Scene;
 
 const
   // Screen pixels
@@ -173,6 +181,8 @@ const
   WheelPanPixels = 60;
   SnapRadius = 8;
   SnapMarkerSize = 6;
+  ChevronSize = 7;
+  ChevronSpread = 150;
   // A line or curve shorter than this (mm) is ignored
   MinEdgeLength = 0.05;
   // Curve handles start this fraction of the way along the chord
@@ -214,6 +224,16 @@ end;
 function SnapInk: TBGRAPixel;
 begin
   Result := BGRA(196, 48, 140);
+end;
+
+function PieceTint: TBGRAPixel;
+begin
+  Result := BGRA(214, 190, 140, 45);
+end;
+
+function PieceHoverTint: TBGRAPixel;
+begin
+  Result := BGRA(37, 116, 214, 30);
 end;
 
 function HoverHalo: TBGRAPixel;
@@ -300,11 +320,13 @@ begin
   Result := FView.ToModel(Vec2(X, Y));
 end;
 
-// Points take precedence over edges, so a point on an edge can be picked
+// Points take precedence over edges, so a point on an edge can be picked, and
+// edges over pieces, which fill the space around them
 function TPatternCanvas.ObjectKeyAt(X, Y: integer): string;
 var
   Point: TPointObject;
   Edge: TEdgeObject;
+  Piece: TPieceObject;
 begin
   Result := '';
   if FDocument = nil then
@@ -314,7 +336,10 @@ begin
     Exit(Point.Key);
   Edge := EdgeAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(EdgeHitRadius));
   if Edge <> nil then
-    Result := Edge.Key;
+    Exit(Edge.Key);
+  Piece := PieceAt(FDocument.Pattern, ModelAt(X, Y));
+  if Piece <> nil then
+    Result := Piece.Key;
 end;
 
 function TPatternCanvas.IsSelected(const Key: string): boolean;
@@ -585,10 +610,16 @@ begin
     ctPoint: ShowMessageText(rsCanvasToolPoint);
     ctLine: ShowMessageText(rsCanvasToolLine);
     ctCurve: ShowMessageText(rsCanvasToolCurve);
+    ctPiece: ShowMessageText(rsCanvasToolPiece);
   end;
   Invalidate;
   if Assigned(FOnToolChange) then
     FOnToolChange(Self);
+end;
+
+function TPatternCanvas.UsesSnap: boolean;
+begin
+  Result := FTool in [ctPoint, ctLine, ctCurve];
 end;
 
 procedure TPatternCanvas.UpdateSnap(X, Y: integer);
@@ -707,6 +738,38 @@ begin
   FHasStart := True;
 end;
 
+// One click makes one piece, with the default allowance to edit in the
+// properties; a region that already has a piece selects that piece
+procedure TPatternCanvas.AddPieceHere(X, Y: integer);
+var
+  Path: TPiecePath;
+  Reason, Key: string;
+  Existing, Piece: TPieceObject;
+begin
+  if not DetectPiecePath(FDocument.Pattern, ModelAt(X, Y), Path, Reason) then
+  begin
+    ShowMessageText(Reason);
+    Exit;
+  end;
+  Existing := PieceOnPath(FDocument.Pattern, Path);
+  if Existing <> nil then
+  begin
+    ShowMessageText(Format(rsCanvasPieceExists, [Existing.DisplayName]));
+    SetSelection([Existing.Key]);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddPiece);
+  Piece := FDocument.Pattern.AddPiece('', Path, DefaultPieceAllowance);
+  Key := '';
+  if Piece <> nil then
+    Key := Piece.Key;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Piece <> nil) then
+    SetSelection([Key])
+  else
+    ShowMessageText(Reason);
+end;
+
 procedure TPatternCanvas.ClickTool;
 begin
   case FTool of
@@ -739,6 +802,12 @@ begin
   end;
   if FDocument = nil then
     Exit;
+  if FTool = ctPiece then
+  begin
+    if Button = mbLeft then
+      AddPieceHere(X, Y);
+    Exit;
+  end;
   if FTool <> ctSelect then
   begin
     // Right click stops a line or curve
@@ -793,9 +862,9 @@ begin
     cmDragging:
       DragTo(X, Y);
     cmIdle:
-      if (FDocument <> nil) and (FTool <> ctSelect) then
+      if (FDocument <> nil) and UsesSnap then
         UpdateSnap(X, Y)
-      else if FDocument <> nil then
+      else if (FDocument <> nil) and (FTool = ctSelect) then
       begin
         if UpdateHoverHandle(X, Y) then
           Invalidate;
@@ -880,7 +949,7 @@ begin
         SelectNone;
     VK_DELETE, VK_BACK:
       DeleteSelection;
-    VK_S, VK_P, VK_L, VK_C:
+    VK_S, VK_P, VK_L, VK_C, VK_K:
     begin
       if Shift <> [] then
         Exit;
@@ -889,6 +958,7 @@ begin
         VK_P: SetTool(ctPoint);
         VK_L: SetTool(ctLine);
         VK_C: SetTool(ctCurve);
+        VK_K: SetTool(ctPiece);
       end;
     end;
     VK_N:
@@ -984,6 +1054,50 @@ begin
   end;
 end;
 
+// The cutting line, tinted; the seam line is the edges drawn over it
+procedure TPatternCanvas.DrawPiece(Piece: TPieceObject);
+var
+  Screen: array of TPointF;
+  Index: integer;
+  LineColor: TBGRAPixel;
+  LineWidth: single;
+begin
+  if Piece.CutLine = nil then
+    Exit;
+  Screen := nil;
+  SetLength(Screen, Length(Piece.CutLine));
+  for Index := 0 to High(Screen) do
+    Screen[Index] := ScreenPoint(FView.ToScreen(Piece.CutLine[Index]));
+  FBitmap.FillPolyAntialias(Screen, PieceTint);
+  if Piece.Key = FHoverKey then
+    FBitmap.FillPolyAntialias(Screen, PieceHoverTint);
+  LineColor := Faded(StateInk(Piece.State, ConstructionInk), Piece.State);
+  LineWidth := 1;
+  if IsSelected(Piece.Key) then
+  begin
+    LineColor := SelectedInk;
+    LineWidth := 2;
+  end;
+  FBitmap.DrawPolygonAntialias(Screen, LineColor, LineWidth);
+end;
+
+// Shown over the edges while a piece is hovered or selected
+procedure TPatternCanvas.DrawChevrons(Piece: TPieceObject);
+var
+  Item: TPieceChevron;
+  Tip, WingA, WingB: TVec2;
+  Size: double;
+begin
+  Size := FView.PixelsToMM(ChevronSize);
+  for Item in PieceChevrons(FDocument.Pattern, Piece) do
+  begin
+    Tip := FView.ToScreen(Item.Position);
+    WingA := FView.ToScreen(PolarPoint(Item.Position, Size, Item.Angle + ChevronSpread));
+    WingB := FView.ToScreen(PolarPoint(Item.Position, Size, Item.Angle - ChevronSpread));
+    FBitmap.DrawPolyLineAntialias([PointF(WingA.X, WingA.Y), PointF(Tip.X, Tip.Y), PointF(WingB.X, WingB.Y)], SelectedInk, 2);
+  end;
+end;
+
 procedure TPatternCanvas.DrawEdge(Edge: TEdgeObject);
 var
   Model: TVec2Array;
@@ -1051,12 +1165,24 @@ var
   Index: integer;
   DraftObject: TDraftObject;
 begin
-  // Edges under points
+  // Pieces under edges, edges under points
+  for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := FDocument.Pattern.Objects[Index];
+    if (DraftObject is TPieceObject) and DraftObject.HasResult then
+      DrawPiece(TPieceObject(DraftObject));
+  end;
   for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
   begin
     DraftObject := FDocument.Pattern.Objects[Index];
     if (DraftObject is TEdgeObject) and DraftObject.HasResult then
       DrawEdge(TEdgeObject(DraftObject));
+  end;
+  for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := FDocument.Pattern.Objects[Index];
+    if (DraftObject is TPieceObject) and DraftObject.HasResult and (IsSelected(DraftObject.Key) or (DraftObject.Key = FHoverKey)) then
+      DrawChevrons(TPieceObject(DraftObject));
   end;
   for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
   begin
@@ -1109,6 +1235,8 @@ begin
       Screen := FView.ToScreen(TPointObject(Node).Position);
       Screen := Vec2(Screen.X + 6, Screen.Y - LabelFontHeight - 2);
     end
+    else if Node is TPieceObject then
+      Screen := FView.ToScreen(PieceMiddle(TPieceObject(Node)))
     else
     begin
       Model := EdgePolyline(TEdgeObject(Node), FView.PixelsToMM(FlattenPixels));

@@ -58,6 +58,7 @@ type
     procedure TestDetectOverlappingPanels;
     procedure TestDetectUsesSplitParts;
     procedure TestDetectLineAndCurve;
+    procedure TestPieceOnPath;
     procedure TestPieceCuttingLine;
     procedure TestPieceFollowsMeasurementChange;
     procedure TestPieceAllowanceFormula;
@@ -389,6 +390,19 @@ begin
   AssertNotNull(FPattern.LastError, Curve);
   Path := Detect(50, 10);
   AssertEquals('edges', 2, Length(Path));
+end;
+
+procedure TTestPiece.TestPieceOnPath;
+var
+  Piece: TPieceObject;
+  Path: TPiecePath;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue('found', PieceOnPath(FPattern, Detect(50, 50)) = Piece);
+  // A triangle made of other edges
+  Line(FPattern.FindObject('A').Key, FPattern.FindObject('C').Key);
+  Path := Detect(25, 75);
+  AssertNull('another path', PieceOnPath(FPattern, Path));
 end;
 
 procedure TTestPiece.TestPieceCuttingLine;

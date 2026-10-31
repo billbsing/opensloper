@@ -191,6 +191,7 @@ end;
 procedure TTestObjectList.TestSharedCaptions;
 begin
   AssertEquals(rsFieldAngle1, FieldCaption('angle1'));
+  AssertEquals(Format(rsFieldEdgeAllowance, ['2']), FieldCaption('edge2.allowance'));
   AssertEquals(Format(rsFieldNodeIn, ['2']), FieldCaption('node2.lengthIn'));
   AssertEquals('unknown field', 'odd', FieldCaption('odd'));
   AssertEquals(rsStateBlocked, StateCaption(esBlocked));

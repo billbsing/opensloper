@@ -143,6 +143,7 @@ resourcestring
   rsPropOutline = 'Outline';
   rsPropPosition = 'Position';
   rsPropLength = 'Length';
+  rsPropPerimeter = 'Perimeter';
   rsPropValue = 'Value';
   rsPropEdit = 'Change %s';
   rsPropRename = 'Rename';
@@ -153,7 +154,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings,
+  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Drag, Sloper.Core.Settings,
   Sloper.UI.GridColumns, Sloper.UI.ObjectList;
 
 const
@@ -553,6 +554,8 @@ begin
       FResult := AddTextRow(rsPropPosition, '', Gap)
     else if Node is TEdgeObject then
       FResult := AddTextRow(rsPropLength, '', Gap)
+    else if Node is TPieceObject then
+      FResult := AddTextRow(rsPropPerimeter, '', Gap)
     else if Node is TVariable then
       FResult := AddTextRow(rsPropValue, '', Gap);
     FProblem := AddLabel('', Gap);
