@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the GUI app and the command-line tool.
+# Build the GUI apps and the command-line tool.
 # Usage: ./build.sh [lazbuild options], e.g. ./build.sh --build-mode=Release
 # Toolchain overrides (LAZBUILD, LAZARUS_PCP, LCL_WIDGETSET) can go in build.local.sh.
 set -euo pipefail
@@ -19,3 +19,4 @@ git submodule update --init --recursive
 
 "$LAZBUILD" "${PCP_ARGS[@]}" -q cli/opensloper_cli.lpi "$@"
 "$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" opensloper.lpi "$@"
+"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" publish/opensloper-publish.lpi "$@"

@@ -18,6 +18,7 @@ backup/
 # Built executables
 /opensloper
 /cli/opensloper-cli
+/publish/opensloper-publish
 /tests/opensloper_tests
 *.exe
 *.dll

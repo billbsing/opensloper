@@ -68,10 +68,7 @@ type
     FWriter: TPDFWriter;
     FShapes: TPlacedPieceArray;
     FPages: TTilePageArray;
-    FWanted: array of boolean;
     FRowCount, FColumnCount: integer;
-    function TileExtent: TVec2;
-    procedure FindPages;
     function PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
     function PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
     procedure DrawCover;
@@ -89,32 +86,6 @@ constructor TLayoutPrinter.Create(ALayout: TLayout; AWriter: TPDFWriter);
 begin
   FLayout := ALayout;
   FWriter := AWriter;
-end;
-
-function TLayoutPrinter.TileExtent: TVec2;
-var
-  Shape: TPlacedPiece;
-begin
-  Result := Vec2(0, 0);
-  for Shape in FShapes do
-  begin
-    Result.X := Max(Result.X, Shape.Bounds.MaxX);
-    Result.Y := Max(Result.Y, Shape.Bounds.MaxY);
-  end;
-end;
-
-procedure TLayoutPrinter.FindPages;
-var
-  Index: integer;
-  Shape: TPlacedPiece;
-begin
-  FPages := TilePages(TileExtent, FLayout.Output.Tiles, FRowCount, FColumnCount);
-  FWanted := nil;
-  SetLength(FWanted, Length(FPages));
-  for Index := 0 to High(FPages) do
-    for Shape in FShapes do
-      if PolygonTouches(Shape.CutLine, FPages[Index].Area) then
-        FWanted[Index] := True;
 end;
 
 // Layout space to the page. Calibration corrects a printer that is
@@ -147,7 +118,7 @@ begin
     Cell.MaxX := Cell.MinX + MapCell;
     Cell.MaxY := Cell.MinY + MapCell;
     FWriter.Rectangle(Cell);
-    if FWanted[Index] then
+    if not FPages[Index].Blank then
       FWriter.Text(Cell.MinX + 2, Cell.MinY + 7, CaptionSize, FPages[Index].Caption);
   end;
 end;
@@ -181,8 +152,8 @@ begin
   FWriter.Rectangle(Square);
   Printed := 0;
   Left := 0;
-  for Index := 0 to High(FWanted) do
-    if FWanted[Index] then
+  for Index := 0 to High(FPages) do
+    if not FPages[Index].Blank then
       Inc(Printed)
     else
       Inc(Left);
@@ -277,10 +248,10 @@ var
   Index: integer;
 begin
   FShapes := FLayout.PlacedPieces;
-  FindPages;
+  FPages := FLayout.Pages(FShapes, FRowCount, FColumnCount);
   DrawCover;
   for Index := 0 to High(FPages) do
-    if FWanted[Index] then
+    if not FPages[Index].Blank then
       DrawTile(FPages[Index]);
 end;
 

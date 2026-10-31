@@ -72,13 +72,25 @@ type
     procedure TestExportRefuses;
     procedure TestExportWrites;
     procedure TestCalibrationScales;
+    procedure TestPagesMarkBlank;
+    procedure TestViewRoundTrip;
+    procedure TestViewZoomKeepsAnchor;
+    procedure TestViewFit;
+    procedure TestShapeAt;
+    procedure TestRoundToStep;
+    procedure TestDocumentUndoRedo;
+    procedure TestDocumentMergesByKey;
+    procedure TestDocumentCancel;
+    procedure TestDocumentModified;
+    procedure TestDocumentNewForPattern;
+    procedure TestDocumentNoChangeNoStep;
   end;
 
 implementation
 
 uses
   Classes, Math, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.Measurements, Sloper.Core.PatternFile, Sloper.Core.PieceDetect,
-  Sloper.Output.LayoutPDF, Sloper.Output.PDFWriter;
+  Sloper.Output.LayoutDocument, Sloper.Output.LayoutPDF, Sloper.Output.PDFWriter, Sloper.Output.Preview;
 
 function CountOf(const Part, Text: rawbytestring): integer;
 var
@@ -618,6 +630,204 @@ begin
   FLayout.Output.CalibrationX := 1.01;
   Scaled := LayoutToPDF(FLayout);
   AssertTrue('the drawing changes', Plain <> Scaled);
+end;
+
+procedure TTestLayout.TestPagesMarkBlank;
+var
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+begin
+  WritePattern(2);
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Placements[1].X := 400;
+  Pages := FLayout.Pages(FLayout.PlacedPieces, Rows, Columns);
+  AssertEquals('three across', 3, Columns);
+  AssertFalse('first in use', Pages[0].Blank);
+  AssertTrue('second empty', Pages[1].Blank);
+  AssertFalse('third in use', Pages[2].Blank);
+end;
+
+procedure TTestLayout.TestViewRoundTrip;
+var
+  View: TPreviewView;
+begin
+  View := DefaultPreviewView;
+  View.Scale := 2.5;
+  View.OriginX := 30;
+  View.OriginY := -12;
+  AssertPointsNear('there and back', Vec2(40, 70), View.ToLayout(View.ToScreen(Vec2(40, 70))));
+  AssertNear('y stays down', 2.5 * 70 - 12, View.ToScreen(Vec2(40, 70)).Y);
+end;
+
+procedure TTestLayout.TestViewZoomKeepsAnchor;
+var
+  View: TPreviewView;
+  Before: TVec2;
+begin
+  View := DefaultPreviewView;
+  Before := View.ToLayout(Vec2(200, 100));
+  View.ZoomAt(1.5, Vec2(200, 100));
+  AssertPointsNear('stays under the cursor', Before, View.ToLayout(Vec2(200, 100)));
+  AssertNear('zoomed', 1.5, View.Scale);
+end;
+
+procedure TTestLayout.TestViewFit;
+var
+  View: TPreviewView;
+  Area: TRect2;
+begin
+  View := DefaultPreviewView;
+  Area := Default(TRect2);
+  Area.MaxX := 400;
+  Area.MaxY := 200;
+  View.Fit(Area, 1000, 1000, 100);
+  AssertNear('limited by the width', 2, View.Scale);
+  AssertPointsNear('centred', Vec2(500, 500), View.ToScreen(Vec2(200, 100)));
+end;
+
+procedure TTestLayout.TestShapeAt;
+var
+  Shapes: TPlacedPieceArray;
+begin
+  WritePattern(2);
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Shapes := FLayout.PlacedPieces;
+  AssertEquals('first', 0, ShapeAt(Shapes, Vec2(50, 50)));
+  AssertEquals('second', 1, ShapeAt(Shapes, Vec2(190, 50)));
+  AssertEquals('between', -1, ShapeAt(Shapes, Vec2(125, 50)));
+end;
+
+procedure TTestLayout.TestRoundToStep;
+begin
+  AssertNear('down', 12.5, RoundToStep(12.6));
+  AssertNear('up', 13, RoundToStep(12.8));
+end;
+
+procedure TTestLayout.TestDocumentUndoRedo;
+var
+  Document: TLayoutDocument;
+  Reason: string;
+begin
+  WritePattern;
+  Document := TLayoutDocument.Create;
+  try
+    FLayout.AddSource('front.sloper', '', '');
+    AssertTrue(Reason, FLayout.SaveToFile(FLayout.FileName, Reason));
+    AssertTrue(Reason, Document.Open(FLayout.FileName, Reason));
+    Document.BeginChange('Place');
+    Document.Layout.PlaceNewPieces;
+    Document.EndChange;
+    Document.BeginChange('Move');
+    Document.Layout.Placements[0].X := 75;
+    Document.EndChange;
+    AssertEquals('Move', Document.UndoDescription);
+    Document.Undo;
+    AssertNear('moved back', 0, Document.Layout.Placements[0].X);
+    AssertEquals('patterns read again', 1, Length(Document.Layout.PlacedPieces));
+    AssertEquals('Place', Document.UndoDescription);
+    Document.Redo;
+    AssertNear('moved again', 75, Document.Layout.Placements[0].X);
+    AssertEquals('file name kept', FLayout.FileName, Document.Layout.FileName);
+    Document.Undo;
+    Document.Undo;
+    AssertEquals('nothing placed', 0, Length(Document.Layout.Placements));
+    AssertFalse(Document.CanUndo);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestDocumentMergesByKey;
+var
+  Document: TLayoutDocument;
+begin
+  Document := TLayoutDocument.Create;
+  try
+    Document.BeginChange('Paper');
+    Document.Layout.Output.Tiles.Margin := 7;
+    Document.EndChange('paper');
+    Document.BeginChange('Paper');
+    Document.Layout.Output.Tiles.Margin := 8;
+    Document.EndChange('paper');
+    Document.Undo;
+    AssertFalse('one step', Document.CanUndo);
+    AssertNear('back to the start', 6, Document.Layout.Output.Tiles.Margin);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestDocumentCancel;
+var
+  Document: TLayoutDocument;
+begin
+  Document := TLayoutDocument.Create;
+  try
+    Document.BeginChange('Paper');
+    Document.Layout.Output.Tiles.Margin := 9;
+    Document.CancelChange;
+    AssertNear('put back', 6, Document.Layout.Output.Tiles.Margin);
+    AssertFalse('no step', Document.CanUndo);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestDocumentModified;
+var
+  Document: TLayoutDocument;
+  Reason, Path: string;
+begin
+  Path := ConcatPaths([FFolder, 'saved.slayout']);
+  Document := TLayoutDocument.Create;
+  try
+    AssertFalse('new', Document.Modified);
+    Document.BeginChange('Paper');
+    Document.Layout.Output.Tiles.Margin := 9;
+    Document.EndChange;
+    AssertTrue('changed', Document.Modified);
+    AssertTrue(Reason, Document.Save(Path, Reason));
+    AssertFalse('saved', Document.Modified);
+    Document.Undo;
+    AssertTrue('undone past the save', Document.Modified);
+    Document.Redo;
+    AssertFalse('back at the save', Document.Modified);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestDocumentNewForPattern;
+var
+  Document: TLayoutDocument;
+begin
+  WritePattern(2);
+  Document := TLayoutDocument.Create;
+  try
+    Document.NewForPattern(FPatternPath);
+    AssertEquals('named after it', 'front', Document.Layout.Name);
+    AssertEquals('copies placed', 2, Length(Document.Layout.Placements));
+    AssertEquals('beside it', ChangeFileExt(FPatternPath, LayoutExtension), Document.Layout.FileName);
+    AssertTrue('not saved yet', Document.Modified);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestDocumentNoChangeNoStep;
+var
+  Document: TLayoutDocument;
+begin
+  Document := TLayoutDocument.Create;
+  try
+    Document.BeginChange('Nothing');
+    Document.EndChange;
+    AssertFalse(Document.CanUndo);
+  finally
+    FreeAndNil(Document);
+  end;
 end;
 
 initialization

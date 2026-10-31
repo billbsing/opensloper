@@ -37,6 +37,8 @@ type
     Row, Column: integer;
     Area: TRect2;
     Caption: string;
+    // Nothing is on it, so it is left out of the print
+    Blank: boolean;
   end;
 
   TTilePageArray = array of TTilePage;

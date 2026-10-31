@@ -125,6 +125,8 @@ type
     // already placed. Plain rows, not packing. Returns how many were added.
     function PlaceNewPieces: integer;
     function PlacedPieces: TPlacedPieceArray;
+    // The pages Shapes need, with the empty ones marked Blank
+    function Pages(const Shapes: TPlacedPieceArray; out RowCount, ColumnCount: integer): TTilePageArray;
     function Problems: TLayoutProblemArray;
     property Sources: TLayoutSourceList read FSources;
   end;
@@ -752,6 +754,31 @@ begin
       Inc(Count);
     end;
   SetLength(Result, Count);
+end;
+
+function TLayout.Pages(const Shapes: TPlacedPieceArray; out RowCount, ColumnCount: integer): TTilePageArray;
+var
+  Extent: TVec2;
+  Shape: TPlacedPiece;
+  Index: integer;
+begin
+  Extent := Vec2(0, 0);
+  for Shape in Shapes do
+  begin
+    Extent.X := Max(Extent.X, Shape.Bounds.MaxX);
+    Extent.Y := Max(Extent.Y, Shape.Bounds.MaxY);
+  end;
+  Result := TilePages(Extent, Output.Tiles, RowCount, ColumnCount);
+  for Index := 0 to High(Result) do
+  begin
+    Result[Index].Blank := True;
+    for Shape in Shapes do
+      if PolygonTouches(Shape.CutLine, Result[Index].Area) then
+      begin
+        Result[Index].Blank := False;
+        Break;
+      end;
+  end;
 end;
 
 function ClipperPaths(const Points: TVec2Array): TPathsD;
