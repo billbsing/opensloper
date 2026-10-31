@@ -54,7 +54,8 @@ uses
   Sloper.Tests.Clipper,
   Sloper.Tests.Piece,
   Sloper.Tests.Layout,
-  Sloper.Tests.MeasurementDocument;
+  Sloper.Tests.MeasurementDocument,
+  Sloper.Tests.Catalogue;
 
 var
   App: TTestRunner;

@@ -24,6 +24,10 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="BGRABitmapPack"/>
+        <DefaultFilename Value="../packages/bgrabitmap/bgrabitmap/bgrabitmappack.lpk" Prefer="True"/>
+      </Item>
+      <Item>
         <PackageName Value="LCL"/>
       </Item>
     </RequiredPackages>
@@ -36,6 +40,11 @@
         <Filename Value="sloper.measurements.mainform.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Measurements.MainForm"/>
+      </Unit>
+      <Unit>
+        <Filename Value="sloper.measurements.bodyfigure.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Measurements.BodyFigure"/>
       </Unit>
     </Units>
   </ProjectOptions>

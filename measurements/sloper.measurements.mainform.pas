@@ -17,8 +17,8 @@
 }
 
 // The measurements app's one window: a table of keys, values and descriptions,
-// with a column per size. Every edit goes through TMeasurementDocument. Built
-// in code, so it has no form file.
+// with a column per size, beside the body figure and the catalogue. Every edit
+// goes through TMeasurementDocument. Built in code, so it has no form file.
 unit Sloper.Measurements.MainForm;
 
 {$mode ObjFPC}{$H+}
@@ -26,13 +26,24 @@ unit Sloper.Measurements.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, Sloper.Core.Measurements,
-  Sloper.Document.MeasurementDocument;
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, Sloper.Core.Catalogue, Sloper.Core.Measurements,
+  Sloper.Document.MeasurementDocument, Sloper.Measurements.BodyFigure;
 
 type
   TMeasurementsForm = class(TForm)
   private
     FDocument: TMeasurementDocument;
+    FCatalogue: TCatalogue;
+    FFigure: TBodyFigure;
+    FGroupBox: TComboBox;
+    FSearchEdit: TEdit;
+    FEntryList: TListBox;
+    FEntryInfo: TMemo;
+    // What each line of the list stands for
+    FListed: TCatalogueEntryArray;
+    FAddKnownButton: TButton;
+    // The key the mouse is over in the table, ''  when none
+    FGridHover: string;
     FGrid: TStringGrid;
     FNameEdit, FNotesEdit: TEdit;
     FUnitBox: TComboBox;
@@ -46,6 +57,22 @@ type
     procedure BuildHeader;
     procedure BuildBar;
     procedure BuildGrid;
+    procedure BuildSide;
+    procedure LoadCatalogue;
+    procedure RefreshEntries;
+    procedure RefreshFigure;
+    function SelectedKey: string;
+    procedure ShowEntry(const Key: string);
+    function WarnRange(Index: integer; Value: double): boolean;
+    procedure GridSelection(Sender: TObject; aCol, aRow: integer);
+    procedure GridMouseMove(Sender: TObject; Shift: TShiftState; X, Y: integer);
+    procedure GridMouseLeave(Sender: TObject);
+    procedure GridPrepareCanvas(Sender: TObject; aCol, aRow: integer; aState: TGridDrawState);
+    procedure FigurePick(Sender: TObject; const Key: string);
+    procedure FigureHover(Sender: TObject; const Key: string);
+    procedure FilterChange(Sender: TObject);
+    procedure EntryClick(Sender: TObject);
+    procedure AddKnownClick(Sender: TObject);
     function AddButton(const ACaption: string; AHandler: TNotifyEvent): TButton;
     procedure DocumentChanged(Sender: TObject);
     procedure RefreshLater(Data: PtrInt);
@@ -121,6 +148,23 @@ resourcestring
   rsDeleteSize = 'Delete size';
   rsSizeLeft = 'Size left';
   rsSizeRight = 'Size right';
+  rsCatalogueTitle = 'Add from the catalogue';
+  rsAddKnown = 'Add to the file';
+  rsAllGroups = 'All groups';
+  rsGroupHeights = 'Heights and lengths';
+  rsGroupCircumferences = 'Circumferences';
+  rsGroupWidths = 'Widths';
+  rsGroupArm = 'Arm';
+  rsGroupLeg = 'Leg';
+  rsGroupCrotch = 'Crotch';
+  rsGroupHead = 'Head';
+  rsGroupHand = 'Hand';
+  rsGroupFoot = 'Foot';
+  rsSearchHint = 'Search';
+  rsTypicalRange = 'Typically %s to %s %s';
+  rsOutsideRange = '@%s is outside the usual %s to %s %s; it is kept, in case that is right';
+  rsNoCatalogue = 'The measurement catalogue could not be read: %s';
+  rsCatalogueMissing = 'The measurement catalogue was not found';
   rsColumnKey = 'Key';
   rsColumnValue = 'Value';
   rsColumnDescription = 'Description';
@@ -150,12 +194,18 @@ uses
 
 const
   HeaderHeight = 30;
+  SideWidth = 430;
+  CatalogueHeight = 410;
+  EntryInfoHeight = 120;
+  GroupNames: array[0..High(CatalogueGroups)] of string = (rsGroupHeights, rsGroupCircumferences, rsGroupWidths, rsGroupArm, rsGroupLeg,
+    rsGroupCrotch, rsGroupHead, rsGroupHand, rsGroupFoot);
   SideGap = 6;
   LabelWidth = 50;
   KeyColumnWidth = 190;
   ValueColumnWidth = 80;
   DescriptionColumnWidth = 320;
   WatchMilliseconds = 1000;
+  OutOfRangeColour = $B8E6FF;
   MeasurementExtension = 'slm';
   // The key is the first column and the values follow
   KeyColumn = 0;
@@ -165,20 +215,23 @@ constructor TMeasurementsForm.Create(AOwner: TComponent);
 begin
   inherited CreateNew(AOwner);
   Caption := rsMeasurementsTitle;
-  Width := 900;
-  Height := 620;
+  Width := 1280;
+  Height := 800;
   Position := poScreenCenter;
   OnCloseQuery := @CloseAsked;
   LoadUnit;
+  FCatalogue := TCatalogue.Create;
   FDocument := TMeasurementDocument.Create;
   FDocument.OnChange := @DocumentChanged;
   BuildMenu;
   FStatus := TStatusBar.Create(Self);
   FStatus.Parent := Self;
   FStatus.SimplePanel := True;
+  BuildSide;
   BuildHeader;
   BuildBar;
   BuildGrid;
+  LoadCatalogue;
   RefreshAll;
   FWatch := TTimer.Create(Self);
   FWatch.Interval := WatchMilliseconds;
@@ -191,6 +244,7 @@ destructor TMeasurementsForm.Destroy;
 begin
   Application.RemoveAsyncCalls(Self);
   FreeAndNil(FDocument);
+  FreeAndNil(FCatalogue);
   inherited Destroy;
 end;
 
@@ -327,6 +381,276 @@ begin
   FGrid.Options := FGrid.Options + [goEditing, goColSizing, goTabs, goAlwaysShowEditor] - [goRangeSelect];
   FGrid.OnValidateEntry := @GridValidate;
   FGrid.OnSetEditText := @GridEditText;
+  FGrid.OnSelection := @GridSelection;
+  FGrid.OnMouseMove := @GridMouseMove;
+  FGrid.OnMouseLeave := @GridMouseLeave;
+  FGrid.OnPrepareCanvas := @GridPrepareCanvas;
+end;
+
+procedure TMeasurementsForm.BuildSide;
+var
+  Side, Browser, Buttons: TPanel;
+  Title: TLabel;
+  Group: string;
+begin
+  Side := TPanel.Create(Self);
+  Side.Parent := Self;
+  Side.Align := alRight;
+  Side.Width := SideWidth;
+  Side.BevelOuter := bvNone;
+  Browser := TPanel.Create(Self);
+  Browser.Parent := Side;
+  Browser.Align := alBottom;
+  Browser.Height := CatalogueHeight;
+  Browser.BevelOuter := bvNone;
+  Title := TLabel.Create(Self);
+  Title.Parent := Browser;
+  Title.Align := alTop;
+  Title.Caption := rsCatalogueTitle;
+  Title.BorderSpacing.Around := SideGap;
+  FGroupBox := TComboBox.Create(Self);
+  FGroupBox.Parent := Browser;
+  FGroupBox.Align := alTop;
+  FGroupBox.Top := 100;
+  FGroupBox.Style := csDropDownList;
+  FGroupBox.BorderSpacing.Left := SideGap;
+  FGroupBox.BorderSpacing.Right := SideGap;
+  FGroupBox.Items.Add(rsAllGroups);
+  for Group in GroupNames do
+    FGroupBox.Items.Add(Group);
+  FGroupBox.ItemIndex := 0;
+  FGroupBox.OnChange := @FilterChange;
+  FSearchEdit := TEdit.Create(Self);
+  FSearchEdit.Parent := Browser;
+  FSearchEdit.Align := alTop;
+  FSearchEdit.Top := 200;
+  FSearchEdit.TextHint := rsSearchHint;
+  FSearchEdit.BorderSpacing.Around := SideGap;
+  FSearchEdit.OnChange := @FilterChange;
+  Buttons := TPanel.Create(Self);
+  Buttons.Parent := Browser;
+  Buttons.Align := alBottom;
+  Buttons.AutoSize := True;
+  Buttons.BevelOuter := bvNone;
+  FAddKnownButton := TButton.Create(Self);
+  FAddKnownButton.Parent := Buttons;
+  FAddKnownButton.Align := alLeft;
+  FAddKnownButton.AutoSize := True;
+  FAddKnownButton.BorderSpacing.Around := SideGap;
+  FAddKnownButton.Caption := rsAddKnown;
+  FAddKnownButton.OnClick := @AddKnownClick;
+  FEntryInfo := TMemo.Create(Self);
+  FEntryInfo.Parent := Browser;
+  FEntryInfo.Align := alBottom;
+  FEntryInfo.Height := EntryInfoHeight;
+  FEntryInfo.ReadOnly := True;
+  FEntryInfo.WordWrap := True;
+  FEntryInfo.ScrollBars := ssAutoVertical;
+  FEntryInfo.BorderSpacing.Left := SideGap;
+  FEntryInfo.BorderSpacing.Right := SideGap;
+  FEntryList := TListBox.Create(Self);
+  FEntryList.Parent := Browser;
+  FEntryList.Align := alClient;
+  FEntryList.BorderSpacing.Left := SideGap;
+  FEntryList.BorderSpacing.Right := SideGap;
+  FEntryList.BorderSpacing.Bottom := SideGap;
+  FEntryList.OnClick := @EntryClick;
+  FEntryList.OnDblClick := @AddKnownClick;
+  FFigure := TBodyFigure.Create(Self);
+  FFigure.Parent := Side;
+  FFigure.Align := alClient;
+  FFigure.BorderSpacing.Around := SideGap;
+  FFigure.OnPick := @FigurePick;
+  FFigure.OnHover := @FigureHover;
+end;
+
+// Nothing depends on the catalogue, so without it the table still works
+procedure TMeasurementsForm.LoadCatalogue;
+var
+  Path, Reason: string;
+begin
+  Path := TAppPaths.CatalogueFile;
+  if Path = '' then
+    ShowStatus(rsCatalogueMissing)
+  else if FCatalogue.LoadFromFile(Path, Reason) then
+    FFigure.Catalogue := FCatalogue
+  else
+    ShowStatus(Format(rsNoCatalogue, [Reason]));
+end;
+
+// Only what the file does not have yet, since a file keeps what a person needs
+procedure TMeasurementsForm.RefreshEntries;
+var
+  Entry: TCatalogueEntry;
+  Group: string;
+  Lines: TStringList;
+begin
+  Group := '';
+  if FGroupBox.ItemIndex > 0 then
+    Group := CatalogueGroups[FGroupBox.ItemIndex - 1];
+  FListed := nil;
+  Lines := TStringList.Create;
+  try
+    for Entry in FCatalogue.Search(Group, FSearchEdit.Text) do
+      if FDocument.Measurements.Find(Entry.Key) = nil then
+      begin
+        Insert(Entry, FListed, Length(FListed));
+        Lines.Add(Entry.Name);
+      end;
+    if not FEntryList.Items.Equals(Lines) then
+      FEntryList.Items.Assign(Lines);
+  finally
+    FreeAndNil(Lines);
+  end;
+  FAddKnownButton.Enabled := FEntryList.ItemIndex >= 0;
+end;
+
+procedure TMeasurementsForm.RefreshFigure;
+var
+  Keys: TStringArray;
+  Index: integer;
+begin
+  Keys := nil;
+  SetLength(Keys, FDocument.Measurements.Count);
+  for Index := 0 to High(Keys) do
+    Keys[Index] := FDocument.Measurements[Index].Key;
+  FFigure.Keys := Keys;
+end;
+
+function TMeasurementsForm.SelectedKey: string;
+var
+  Index: integer;
+begin
+  Result := '';
+  Index := RowIndex(FGrid.Row);
+  if Index >= 0 then
+    Result := FDocument.Measurements[Index].Key;
+end;
+
+procedure TMeasurementsForm.ShowEntry(const Key: string);
+var
+  Entry: TCatalogueEntry;
+begin
+  FFigure.Highlight := Key;
+  Entry := FCatalogue.Find(Key);
+  FEntryInfo.Lines.BeginUpdate;
+  try
+    FEntryInfo.Clear;
+    if Entry = nil then
+      Exit;
+    FEntryInfo.Lines.Add(Entry.Name);
+    FEntryInfo.Lines.Add(Entry.Description);
+    FEntryInfo.Lines.Add(Entry.HowTo);
+    FEntryInfo.Lines.Add(Format(rsTypicalRange, [FormatMeasure(Entry.RangeMin, FUnit), FormatMeasure(Entry.RangeMax, FUnit), MeasureUnitNames[FUnit]]));
+  finally
+    FEntryInfo.Lines.EndUpdate;
+  end;
+  FEntryInfo.SelStart := 0;
+end;
+
+function TMeasurementsForm.WarnRange(Index: integer; Value: double): boolean;
+var
+  Entry: TCatalogueEntry;
+begin
+  Entry := FCatalogue.Find(FDocument.Measurements[Index].Key);
+  Result := (Entry <> nil) and not Entry.InRange(Value);
+  if Result then
+    ShowStatus(Format(rsOutsideRange, [Entry.Key, FormatMeasure(Entry.RangeMin, FUnit), FormatMeasure(Entry.RangeMax, FUnit), MeasureUnitNames[FUnit]]));
+end;
+
+procedure TMeasurementsForm.GridSelection(Sender: TObject; aCol, aRow: integer);
+begin
+  if not FRefreshing then
+    ShowEntry(SelectedKey);
+end;
+
+procedure TMeasurementsForm.GridMouseMove(Sender: TObject; Shift: TShiftState; X, Y: integer);
+var
+  Column, Row, Index: integer;
+  Key: string;
+begin
+  Key := '';
+  FGrid.MouseToCell(X, Y, Column, Row);
+  Index := RowIndex(Row);
+  if Index >= 0 then
+    Key := FDocument.Measurements[Index].Key;
+  if Key = FGridHover then
+    Exit;
+  FGridHover := Key;
+  if Key = '' then
+    FFigure.Highlight := SelectedKey
+  else
+    FFigure.Highlight := Key;
+end;
+
+procedure TMeasurementsForm.GridMouseLeave(Sender: TObject);
+begin
+  FGridHover := '';
+  FFigure.Highlight := SelectedKey;
+end;
+
+// A typical range only warns, so the value stays and its cell is tinted
+procedure TMeasurementsForm.GridPrepareCanvas(Sender: TObject; aCol, aRow: integer; aState: TGridDrawState);
+var
+  Index, Size: integer;
+  Measurement: TMeasurement;
+  Entry: TCatalogueEntry;
+begin
+  Index := RowIndex(aRow);
+  Size := ColumnSize(aCol);
+  if (Index < 0) or (Size < 0) or (gdSelected in aState) then
+    Exit;
+  Measurement := FDocument.Measurements[Index];
+  Entry := FCatalogue.Find(Measurement.Key);
+  if (Entry <> nil) and Measurement.HasValueFor(Size) and not Entry.InRange(Measurement.ValueFor(Size)) then
+    FGrid.Canvas.Brush.Color := OutOfRangeColour;
+end;
+
+procedure TMeasurementsForm.FigurePick(Sender: TObject; const Key: string);
+begin
+  SelectCell(FDocument.Measurements.IndexOf(Key), FirstValueColumn);
+  ShowEntry(Key);
+  FGrid.SetFocus;
+end;
+
+procedure TMeasurementsForm.FigureHover(Sender: TObject; const Key: string);
+begin
+  if Key = '' then
+    ShowEntry(SelectedKey)
+  else
+    ShowEntry(Key);
+end;
+
+procedure TMeasurementsForm.FilterChange(Sender: TObject);
+begin
+  RefreshEntries;
+end;
+
+procedure TMeasurementsForm.EntryClick(Sender: TObject);
+begin
+  FAddKnownButton.Enabled := FEntryList.ItemIndex >= 0;
+  if FEntryList.ItemIndex >= 0 then
+    ShowEntry(FListed[FEntryList.ItemIndex].Key);
+end;
+
+procedure TMeasurementsForm.AddKnownClick(Sender: TObject);
+var
+  Entry: TCatalogueEntry;
+  Reason: string;
+begin
+  if FEntryList.ItemIndex < 0 then
+    Exit;
+  Entry := FListed[FEntryList.ItemIndex];
+  if FDocument.AddKnown(Entry.Key, Entry.Description, Reason) then
+  begin
+    // Or the next line slides under the mouse, ready to be added by mistake
+    FEntryList.ItemIndex := -1;
+    SelectCell(FDocument.Measurements.IndexOf(Entry.Key), FirstValueColumn);
+    ShowEntry(Entry.Key);
+    FGrid.SetFocus;
+  end
+  else
+    ShowRefusal(Reason);
 end;
 
 function TMeasurementsForm.ValueColumns: integer;
@@ -415,6 +739,9 @@ var
   FileTitle: string;
 begin
   RefreshGrid;
+  RefreshEntries;
+  RefreshFigure;
+  ShowEntry(SelectedKey);
   FRefreshing := True;
   try
     if not FNameEdit.Focused then
@@ -482,7 +809,10 @@ begin
     begin
       Result := ParseMeasure(NewText, FUnit, Value);
       if Result then
-        FDocument.SetValue(Index, Size, Value)
+      begin
+        FDocument.SetValue(Index, Size, Value);
+        WarnRange(Index, Value);
+      end
       else
         Reason := rsBadValue;
     end;

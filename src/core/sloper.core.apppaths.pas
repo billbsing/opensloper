@@ -42,6 +42,10 @@ type
     // opensloper-measurements, found the same way; '' when it is not there
     class function MeasurementsProgram: string;
     class function MeasurementsProgramIn(const Folder: string): string;
+    // The measurement catalogue, in data beside this program when installed
+    // or a folder up in the source tree; '' when it is not there
+    class function CatalogueFile: string;
+    class function CatalogueFileIn(const Folder: string): string;
     // Creates Dir if missing and returns it; folders are made on first use
     class function ForceDir(const Dir: string): string;
     // XDG rule: EnvValue when it is an absolute path, else Home + Fallback
@@ -58,6 +62,8 @@ const
   SettingsFileName = 'settings.json';
   PublishFolder = 'publish';
   MeasurementsFolder = 'measurements';
+  DataFolder = 'data';
+  CatalogueFileName = 'measurement-catalogue.json';
   {$IFDEF WINDOWS}
   PublishFileName = 'opensloper-publish.exe';
   MeasurementsFileName = 'opensloper-measurements.exe';
@@ -188,6 +194,21 @@ end;
 class function TAppPaths.PublishProgramIn(const Folder: string): string;
 begin
   Result := CompanionIn(Folder, PublishFolder, PublishFileName);
+end;
+
+class function TAppPaths.CatalogueFile: string;
+begin
+  Result := CatalogueFileIn(ExeDir);
+end;
+
+class function TAppPaths.CatalogueFileIn(const Folder: string): string;
+begin
+  Result := ConcatPaths([Folder, DataFolder, CatalogueFileName]);
+  if FileExists(Result) then
+    Exit;
+  Result := ExpandFileName(ConcatPaths([Folder, '..', DataFolder, CatalogueFileName]));
+  if not FileExists(Result) then
+    Result := '';
 end;
 
 class function TAppPaths.MeasurementsProgram: string;

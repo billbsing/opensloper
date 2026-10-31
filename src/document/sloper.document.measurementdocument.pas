@@ -59,6 +59,7 @@ type
     procedure AdoptFile(const Text: string);
     function Merge(const FileText: string; const TakeTheirs: TStringArray; out MergedText: string; out Conflicts: TStringArray): boolean;
     function FreeKey: string;
+    function AddKey(const Key, Description: string): TMeasurement;
   public
     constructor Create;
     destructor Destroy; override;
@@ -85,6 +86,8 @@ type
     procedure SetName(const AName: string);
     procedure SetNotes(const ANotes: string);
     function AddMeasurement: TMeasurement;
+    // A named one, as from the catalogue
+    function AddKnown(const Key, Description: string; out ErrorMessage: string): boolean;
     procedure DeleteMeasurement(Index: integer);
     procedure MoveMeasurement(Index, NewIndex: integer);
     function RenameKey(Index: integer; const NewKey: string; out ErrorMessage: string): boolean;
@@ -415,15 +418,28 @@ begin
   end;
 end;
 
-function TMeasurementDocument.AddMeasurement: TMeasurement;
+// A size table starts with no values; a personal set has to have one
+function TMeasurementDocument.AddKey(const Key, Description: string): TMeasurement;
 var
   Index: integer;
 begin
   BeginChange(rsChangeAdd);
-  Result := FSet.Add(FreeKey, 0);
+  Result := FSet.Add(Key, 0, Description);
   for Index := 0 to FSet.SizeCount - 1 do
     Result.ClearValueFor(Index);
   EndChange;
+end;
+
+function TMeasurementDocument.AddMeasurement: TMeasurement;
+begin
+  Result := AddKey(FreeKey, '');
+end;
+
+function TMeasurementDocument.AddKnown(const Key, Description: string; out ErrorMessage: string): boolean;
+begin
+  Result := FSet.CheckKey(Key, nil, ErrorMessage);
+  if Result then
+    AddKey(Key, Description);
 end;
 
 procedure TMeasurementDocument.DeleteMeasurement(Index: integer);

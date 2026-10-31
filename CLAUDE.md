@@ -12,6 +12,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/output/` — PDF, SVG, DXF and Blender exporters; read computed geometry only.
 - `src/api/` — the Automation API (JSON-RPC 2.0). Depends only on the document and core; every edit goes through document commands.
 - `measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
+- `data/` — files the apps read at run time: the measurement catalogue and its body figures.
 - `cli/` — `opensloper-cli` (export, check, serve), built on the core and ConsoleTools.
 - `tests/` — FPCUnit test project and regression patterns.
 - `packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.

@@ -51,6 +51,7 @@ type
     procedure TestSaveIsNotAnUndoBarrier;
     procedure TestAddNumbersKeys;
     procedure TestAddToTableHasNoValues;
+    procedure TestAddKnown;
     procedure TestRenameRefused;
     procedure TestRenameUndone;
     procedure TestMoveMeasurement;
@@ -225,6 +226,20 @@ begin
   Added := FDocument.AddMeasurement;
   AssertFalse(Added.HasValueFor(0));
   AssertFalse(Added.HasValueFor(1));
+end;
+
+procedure TTestMeasurementDocument.TestAddKnown;
+var
+  Err: string;
+begin
+  OpenSample;
+  AssertTrue(Err, FDocument.AddKnown('neck_circumference', 'Round the neck', Err));
+  AssertEquals('Round the neck', FDocument.Measurements.Find('neck_circumference').Description);
+  FDocument.Undo;
+  AssertNull(FDocument.Measurements.Find('neck_circumference'));
+  AssertFalse('already there', FDocument.AddKnown('waist', '', Err));
+  AssertEquals(Format(rsNameTaken, ['waist']), Err);
+  AssertEquals('nothing added', 2, FDocument.Measurements.Count);
 end;
 
 procedure TTestMeasurementDocument.TestRenameRefused;

@@ -545,7 +545,8 @@ Measurements are entered against a built-in catalogue of standard body measureme
 
 ### Measurement catalogue
 
-- A JSON catalogue ships with the app, listing the standard measurements.
+- A JSON catalogue ships with the app, `data/measurement-catalogue.json`, listing the standard measurements. It holds the base figures too, so one file describes everything the panel draws. An install puts `data` beside the programs; in the source tree it is found a folder up. It is read by `Sloper.Core.Catalogue`, and without it the table still works.
+- It lists 72 measurements so far, the ones most drafting needs, from the 246 in Seamly2D; more are added as entries, with no code change.
 - Keys are as short as they can be in whole words, with no abbreviations: `waist_circumference`, not `waist_circ`.
 - Each entry lists the names it goes by in other programs' measurement files (check Seamly2D's and Valentina's against their source, which is GPLv3), so the catalogue is also the translation table for import and export. Our keys need not match theirs.
 - Definitions follow ISO 8559-1:2017 (anthropometric definitions for body measurement) in meaning; descriptions are our own wording, since the standard's text cannot be copied.
@@ -563,7 +564,7 @@ Measurements are entered against a built-in catalogue of standard body measureme
 | `overlay` | Line or path on the figure, in figure coordinates |
 | `range` | Typical minimum and maximum in mm, for typo warnings |
 
-Values outside the typical range produce a warning, never a refusal, so unusual bodies are not blocked.
+Values outside the typical range produce a warning, never a refusal, so unusual bodies are not blocked: the status bar says so and the cell is tinted.
 
 ### Importing and exporting other formats
 
@@ -579,14 +580,14 @@ Seamly2D and Valentina `.vit` and `.vst` files come first; other programs' files
 ### Body figure
 
 - A panel beside the measurement list shows simple front, back and side outlines, drawn by us (no third-party images, so no licence questions).
-- Selecting or hovering over a field highlights its measurement line on the figure; clicking a line on the figure selects its field.
+- The measurements in the file are drawn faintly. Selecting or hovering over a field highlights its measurement line on the figure, as does choosing an entry in the catalogue; clicking a line on the figure selects its field. Below it is the entry's description, how to take it and its typical range.
 - One base figure per view, with each measurement's line drawn from the catalogue `overlay`, so adding a measurement means adding a catalogue entry, not drawing a new picture.
 - Drawn with BGRABitmap like the canvas; the catalogue and figure live in the core/data layer and the panel in the measurements app.
 - Later: scale the figure to the entered values, so unusual proportions or likely typos stand out visually.
 
 ### Editing
 
-- Add from the catalogue by group, with search; only the measurements a person needs are kept in their file.
+- Add from the catalogue by group, with search; only the measurements a person needs are kept in their file, so the list leaves out those already in it. An added measurement takes the catalogue's description. In a personal set it starts at 0, which the range warning points out, and in a size table with no values.
 - Values are entered in the display unit (mm, cm or inches) and stored in mm.
 - When a pattern is opened with a measurement set that lacks a key the pattern uses, the editor lists the missing keys so they can be added (the evaluator already reports them as errors).
 
@@ -1034,6 +1035,7 @@ opensloper/
 │   ├── ui/                 forms, canvas, tools, snapping, panels
 │   ├── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
 │   └── api/                Automation API: JSON-RPC 2.0 over the document layer
+├── data/                   measurement catalogue and body figures, read at run time
 ├── measurements/           opensloper-measurements: measurement files and size tables, using core
 ├── publish/                opensloper-publish: layouts and printing, using core + output
 ├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
@@ -1168,7 +1170,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-10. Measurements app (under way: size tables, the `opensloper-measurements` table editor with undo, units and merging, and the size chooser and file watching in the drafting app are done; the catalogue, body figure, import and export, and `opensloper-cli measurements` remain): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
+10. Measurements app (under way: size tables, the `opensloper-measurements` table editor with undo, units and merging, and the size chooser and file watching in the drafting app are done; the catalogue and body figure are done too; the list of keys a pattern is missing, import and export, and `opensloper-cli measurements` remain): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
 11. Seams and seam-length checks
 12. DXF-AAMA export, automatic packing in the publish app
 13. Blender export for 3D preview
