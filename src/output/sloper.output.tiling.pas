@@ -39,6 +39,8 @@ type
     Caption: string;
     // Nothing is on it, so it is left out of the print
     Blank: boolean;
+    // The user left it out, as when reprinting one damaged sheet
+    Excluded: boolean;
   end;
 
   TTilePageArray = array of TTilePage;

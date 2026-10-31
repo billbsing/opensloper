@@ -85,6 +85,18 @@ type
     procedure TestDocumentNewForPattern;
     procedure TestDocumentNoChangeNoStep;
     procedure TestPublishTarget;
+    procedure TestTogglePage;
+    procedure TestExcludedPagesSaved;
+    procedure TestExcludedPageIsNotPrinted;
+    procedure TestBlankStaysBlankWhenExcluded;
+    procedure TestPageCaptionAt;
+    procedure TestLargeIsOneSheet;
+    procedure TestLargeSheetSize;
+    procedure TestLargeRoundTrip;
+    procedure TestLargeCheckBlock;
+    procedure TestLargeWiderThanRollWarns;
+    procedure TestLargeIgnoresExclusions;
+    procedure TestLargeNarrowRollRefused;
     procedure TestPublishProgram;
     procedure TestWatchWaitsForAStableFile;
     procedure TestWatchIgnoresUnchangedFiles;
@@ -948,6 +960,174 @@ begin
   finally
     FreeAndNil(Document);
   end;
+end;
+
+procedure TTestLayout.TestTogglePage;
+var
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.TogglePage('A1');
+  Pages := FLayout.Pages(FLayout.PlacedPieces, Rows, Columns);
+  AssertTrue('left out', Pages[0].Excluded);
+  FLayout.TogglePage('A1');
+  Pages := FLayout.Pages(FLayout.PlacedPieces, Rows, Columns);
+  AssertFalse('put back', Pages[0].Excluded);
+  AssertEquals('none listed', 0, Length(FLayout.Output.ExcludedPages));
+end;
+
+procedure TTestLayout.TestExcludedPagesSaved;
+var
+  Text, ErrorMessage: string;
+  Other: TLayout;
+begin
+  FLayout.TogglePage('B2');
+  Text := FLayout.SaveToText;
+  Other := TLayout.Create;
+  try
+    AssertTrue(ErrorMessage, Other.LoadFromText(Text, ErrorMessage));
+    AssertEquals('B2', Other.Output.ExcludedPages[0]);
+    AssertEquals('same text', Text, Other.SaveToText);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestLayout.TestExcludedPageIsNotPrinted;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern(2);
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Placements[1].X := 400;
+  AssertEquals('cover and two tiles', 3, CountOf('/Type /Page ', LayoutToPDF(FLayout)));
+  FLayout.TogglePage('A1');
+  Bytes := LayoutToPDF(FLayout);
+  AssertEquals('one fewer', 2, CountOf('/Type /Page ', Bytes));
+  AssertTrue('counted on the cover', Pos(Format(rsPDFPages, [1, 1, 1]), Bytes) > 0);
+end;
+
+procedure TTestLayout.TestBlankStaysBlankWhenExcluded;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern(2);
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Placements[1].X := 400;
+  FLayout.TogglePage('A2');
+  Bytes := LayoutToPDF(FLayout);
+  AssertTrue(Pos(Format(rsPDFPages, [2, 1, 0]), Bytes) > 0);
+end;
+
+procedure TTestLayout.TestPageCaptionAt;
+var
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+begin
+  Pages := TilePages(Vec2(300, 100), Tiles, Rows, Columns);
+  AssertEquals('first', 'A1', PageCaptionAt(Pages, Vec2(20, 50)));
+  AssertEquals('second', 'A2', PageCaptionAt(Pages, Vec2(300, 50)));
+  AssertEquals('overlap goes by the nearer middle', 'A2', PageCaptionAt(Pages, Vec2(198, 150)));
+  AssertEquals('off the pages', '', PageCaptionAt(Pages, Vec2(-5, 50)));
+end;
+
+procedure TTestLayout.TestLargeIsOneSheet;
+var
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+begin
+  WritePattern(2);
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okLarge;
+  Pages := FLayout.Pages(FLayout.PlacedPieces, Rows, Columns);
+  AssertEquals('one page', 1, Length(Pages));
+  AssertEquals(1, CountOf('/Type /Page ', LayoutToPDF(FLayout)));
+end;
+
+procedure TTestLayout.TestLargeSheetSize;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okLarge;
+  FLayout.Output.RollWidth := 1000;
+  Bytes := LayoutToPDF(FLayout);
+  // 1000 mm wide; margin 6 + header 140 + piece 120 + margin 6 = 272 mm long
+  AssertTrue(Bytes, Pos('/MediaBox [0 0 2834.646 771.024]', Bytes) > 0);
+  AssertNear('the same length for the status bar', 272, LargeSheetLength(FLayout, 120));
+end;
+
+procedure TTestLayout.TestLargeRoundTrip;
+var
+  Text, ErrorMessage: string;
+  Other: TLayout;
+begin
+  FLayout.Output.Kind := okLarge;
+  FLayout.Output.RollWidth := 610;
+  Text := FLayout.SaveToText;
+  Other := TLayout.Create;
+  try
+    AssertTrue(ErrorMessage, Other.LoadFromText(Text, ErrorMessage));
+    AssertTrue(Other.Output.Kind = okLarge);
+    AssertNear('roll', 610, Other.Output.RollWidth);
+    AssertEquals('same text', Text, Other.SaveToText);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestLayout.TestLargeCheckBlock;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okLarge;
+  Bytes := LayoutToPDF(FLayout);
+  AssertTrue('reminder', Pos('100%', Bytes) > 0);
+  AssertTrue('test square', Pos(' 283.465 283.465 re S', Bytes) > 0);
+end;
+
+procedure TTestLayout.TestLargeWiderThanRollWarns;
+var
+  Problems: TLayoutProblemArray;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okLarge;
+  FLayout.Output.RollWidth := 120;
+  Problems := FLayout.Problems;
+  AssertEquals(ProblemText, 1, Length(Problems));
+  AssertFalse(Problems[0].Blocking);
+  AssertEquals(Format(rsLayoutWiderThanRoll, ['Front, cut 1', '120']), Problems[0].Text);
+end;
+
+procedure TTestLayout.TestLargeIgnoresExclusions;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.TogglePage('A1');
+  FLayout.Output.Kind := okLarge;
+  AssertEquals('still printed', 1, CountOf('/Type /Page ', LayoutToPDF(FLayout)));
+end;
+
+procedure TTestLayout.TestLargeNarrowRollRefused;
+var
+  ErrorMessage: string;
+begin
+  AssertFalse(FLayout.LoadFromText('{"format": "layout", "version": 1, "sources": [], "output": {"kind": "large", "rollWidth": 5}}', ErrorMessage));
+  AssertEquals(rsLayoutBadRoll, ErrorMessage);
 end;
 
 initialization

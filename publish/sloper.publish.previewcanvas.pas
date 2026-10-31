@@ -50,6 +50,7 @@ type
     FOnSelectionChange: TNotifyEvent;
     procedure SetSelected(Value: integer);
     procedure DragTo(X, Y: integer);
+    procedure TogglePageAt(const At: TVec2);
     procedure DrawPage(const Page: TTilePage);
     procedure DrawShape(const Shape: TPlacedPiece);
     function ScreenPoints(const Points: TVec2Array): specialize TArray<TPointF>;
@@ -74,6 +75,7 @@ type
 
 resourcestring
   rsPreviewMove = 'Move piece';
+  rsPreviewTogglePage = 'Leave page out';
 
 implementation
 
@@ -99,6 +101,11 @@ end;
 function BlankPaperInk: TBGRAPixel;
 begin
   Result := BGRA(205, 206, 210);
+end;
+
+function LeftOutInk: TBGRAPixel;
+begin
+  Result := BGRA(190, 60, 60);
 end;
 
 function EdgeInk: TBGRAPixel;
@@ -175,6 +182,18 @@ begin
   FDocument.LiveUpdate;
 end;
 
+procedure TPreviewCanvas.TogglePageAt(const At: TVec2);
+var
+  PageName: string;
+begin
+  PageName := PageCaptionAt(FPages, At);
+  if PageName = '' then
+    Exit;
+  FDocument.BeginChange(rsPreviewTogglePage);
+  FDocument.Layout.TogglePage(PageName);
+  FDocument.EndChange;
+end;
+
 procedure TPreviewCanvas.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
 var
   Hit: integer;
@@ -189,9 +208,17 @@ begin
     FMode := pmPanning;
     Exit;
   end;
-  if (Button <> mbLeft) or (FDocument = nil) then
+  if FDocument = nil then
     Exit;
   At := FView.ToLayout(Vec2(X, Y));
+  // A page is often all piece, so right click reaches it whatever is on it
+  if Button = mbRight then
+  begin
+    TogglePageAt(At);
+    Exit;
+  end;
+  if Button <> mbLeft then
+    Exit;
   Hit := ShapeAt(FShapes, At);
   if Hit < 0 then
   begin
@@ -289,12 +316,17 @@ var
 begin
   TopLeft := FView.ToScreen(Vec2(Page.Area.MinX, Page.Area.MinY));
   BottomRight := FView.ToScreen(Vec2(Page.Area.MaxX, Page.Area.MaxY));
-  if Page.Blank then
+  if Page.Blank or Page.Excluded then
     Fill := BlankPaperInk
   else
     Fill := PaperInk;
   FBitmap.FillRectAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, Fill);
   FBitmap.RectangleAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, EdgeInk, 1);
+  if Page.Excluded then
+  begin
+    FBitmap.DrawLineAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, LeftOutInk, 1.5);
+    FBitmap.DrawLineAntialias(BottomRight.X, TopLeft.Y, TopLeft.X, BottomRight.Y, LeftOutInk, 1.5);
+  end;
   FBitmap.FontHeight := CaptionHeight;
   FBitmap.TextOut(TopLeft.X + 4, TopLeft.Y + 2, Page.Caption, EdgeInk);
 end;
@@ -355,7 +387,10 @@ begin
     if Page.Blank then
       DrawPage(Page);
   for Page in FPages do
-    if not Page.Blank then
+    if not Page.Blank and not Page.Excluded then
+      DrawPage(Page);
+  for Page in FPages do
+    if Page.Excluded and not Page.Blank then
       DrawPage(Page);
   for Shape in FShapes do
     DrawShape(Shape);

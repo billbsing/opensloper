@@ -27,7 +27,7 @@ unit Sloper.Output.Preview;
 interface
 
 uses
-  Sloper.Core.Geometry, Sloper.Output.Layout;
+  Sloper.Core.Geometry, Sloper.Output.Layout, Sloper.Output.Tiling;
 
 const
   PreviewZoomStep = 1.25;
@@ -52,6 +52,9 @@ type
 function DefaultPreviewView: TPreviewView;
 // The index in Shapes of the smallest piece containing At, or -1
 function ShapeAt(const Shapes: TPlacedPieceArray; const At: TVec2): integer;
+// The caption of the page At falls on, nearest its middle where two overlap;
+// '' when there is none
+function PageCaptionAt(const Pages: TTilePageArray; const At: TVec2): string;
 function RoundToStep(Value: double): double;
 
 implementation
@@ -123,6 +126,26 @@ begin
       Result := Index;
     end;
   end;
+end;
+
+function PageCaptionAt(const Pages: TTilePageArray; const At: TVec2): string;
+var
+  Page: TTilePage;
+  Middle: TVec2;
+  Best: double;
+begin
+  Result := '';
+  Best := Infinity;
+  for Page in Pages do
+    if (At.X >= Page.Area.MinX) and (At.X <= Page.Area.MaxX) and (At.Y >= Page.Area.MinY) and (At.Y <= Page.Area.MaxY) then
+    begin
+      Middle := Vec2((Page.Area.MinX + Page.Area.MaxX) / 2, (Page.Area.MinY + Page.Area.MaxY) / 2);
+      if Distance(Middle, At) < Best then
+      begin
+        Best := Distance(Middle, At);
+        Result := Page.Caption;
+      end;
+    end;
 end;
 
 function RoundToStep(Value: double): double;

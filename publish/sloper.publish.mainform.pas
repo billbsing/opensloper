@@ -36,8 +36,8 @@ type
     FPreview: TPreviewCanvas;
     FSide: TPanel;
     FStatus: TStatusBar;
-    FPaperBox: TComboBox;
-    FMarginEdit, FOverlapEdit, FCalibrationXEdit, FCalibrationYEdit: TFloatSpinEdit;
+    FKindBox, FPaperBox: TComboBox;
+    FRollEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit, FCalibrationYEdit: TFloatSpinEdit;
     FProblems: TListBox;
     FTurnButton, FFlipButton: TButton;
     FUndoItem, FRedoItem: TMenuItem;
@@ -94,6 +94,10 @@ resourcestring
   rsMenuView = '&View';
   rsMenuFit = '&Fit Pages';
   rsMenuReload = '&Reload Patterns';
+  rsOutput = 'Output';
+  rsOutputTiled = 'Tiled pages';
+  rsOutputLarge = 'Large format';
+  rsRollWidth = 'Roll width (mm)';
   rsPaper = 'Paper';
   rsMargin = 'Margin (mm)';
   rsOverlap = 'Overlap (mm)';
@@ -110,7 +114,8 @@ resourcestring
   rsTurnChange = 'Turn piece';
   rsFlipChange = 'Flip piece';
   rsDiscardQuestion = 'Discard the changes to this layout?';
-  rsPages = '%d pages, %d blank';
+  rsPages = '%d pages, %d blank, %d left out. Right-click a page to leave it out.';
+  rsLargeSheet = 'One sheet %s mm wide, %s mm long';
   rsReloaded = '%s changed on disk, so it was read again';
   rsExported = 'Wrote %s';
   rsFilterOpen = 'Layouts and patterns (*.slayout;*.sloper)|*.slayout;*.sloper';
@@ -130,6 +135,7 @@ const
   SpinDecimals = 1;
   CalibrationDecimals = 3;
   MaxMillimetres = 100;
+  MaxRollWidth = 2000;
   MaxCalibration = 2;
   PatternExtension = '.sloper';
   PaperNames: array[0..2] of string = ('A4', 'A3', 'Letter');
@@ -255,6 +261,15 @@ procedure TPublishForm.BuildSide;
 var
   PaperName: string;
 begin
+  AddLabel(rsOutput);
+  FKindBox := TComboBox.Create(Self);
+  PlaceRow(FKindBox);
+  FKindBox.Style := csDropDownList;
+  // In the order of TOutputKind
+  FKindBox.Items.Add(rsOutputTiled);
+  FKindBox.Items.Add(rsOutputLarge);
+  FKindBox.OnChange := @SettingChange;
+  FRollEdit := AddSpin(rsRollWidth, MaxRollWidth, 1, 0);
   AddLabel(rsPaper);
   FPaperBox := TComboBox.Create(Self);
   PlaceRow(FPaperBox);
@@ -325,11 +340,16 @@ var
   Layout: TLayout;
   Pages: TTilePageArray;
   Page: TTilePage;
-  Rows, Columns, Blank: integer;
+  Rows, Columns, Blank, LeftOut: integer;
 begin
   FRefreshing := True;
   try
     Layout := FDocument.Layout;
+    FKindBox.ItemIndex := Ord(Layout.Output.Kind);
+    FRollEdit.Value := Layout.Output.RollWidth;
+    FRollEdit.Enabled := Layout.Output.Kind = okLarge;
+    FPaperBox.Enabled := Layout.Output.Kind = okTiled;
+    FOverlapEdit.Enabled := Layout.Output.Kind = okTiled;
     FPaperBox.ItemIndex := FPaperBox.Items.IndexOf(Layout.Output.Paper);
     FMarginEdit.Value := Layout.Output.Tiles.Margin;
     FOverlapEdit.Value := Layout.Output.Tiles.Overlap;
@@ -352,29 +372,45 @@ begin
     Caption := rsPublishTitle;
   RefreshProblems;
   Pages := Layout.Pages(Layout.PlacedPieces, Rows, Columns);
+  if Layout.Output.Kind = okLarge then
+  begin
+    ShowStatus(Format(rsLargeSheet, [FormatFloat('0', Layout.Output.RollWidth), FormatFloat('0', LargeSheetLength(Layout, Pages[0].Area.MaxY))]));
+    Exit;
+  end;
   Blank := 0;
+  LeftOut := 0;
   for Page in Pages do
     if Page.Blank then
-      Inc(Blank);
-  ShowStatus(Format(rsPages, [Length(Pages), Blank]));
+      Inc(Blank)
+    else if Page.Excluded then
+      Inc(LeftOut);
+  ShowStatus(Format(rsPages, [Length(Pages), Blank, LeftOut]));
 end;
 
 // A run of spin clicks is one undo step. A paper that leaves no room to
 // print is put back.
 procedure TPublishForm.SettingChange(Sender: TObject);
 var
-  Output: TLayoutOutput;
+  Output, Before: TLayoutOutput;
 begin
   if FRefreshing or (FPaperBox.ItemIndex < 0) then
     Exit;
   Output := FDocument.Layout.Output;
+  Before := Output;
+  Output.Kind := TOutputKind(FKindBox.ItemIndex);
+  Output.RollWidth := FRollEdit.Value;
   Output.Paper := FPaperBox.Text;
   PaperSize(Output.Paper, Output.Tiles.PaperWidth, Output.Tiles.PaperHeight);
   Output.Tiles.Margin := FMarginEdit.Value;
   Output.Tiles.Overlap := FOverlapEdit.Value;
   Output.CalibrationX := FCalibrationXEdit.Value;
   Output.CalibrationY := FCalibrationYEdit.Value;
-  if not TilesAreUsable(Output.Tiles) or (Output.CalibrationX <= 0) or (Output.CalibrationY <= 0) then
+  // Page names mean other sheets once the grid moves
+  if (Output.Paper <> Before.Paper) or (Output.Tiles.Margin <> Before.Tiles.Margin) or (Output.Tiles.Overlap <> Before.Tiles.Overlap) or
+    (Output.Kind <> Before.Kind) then
+    Output.ExcludedPages := nil;
+  if not TilesAreUsable(Output.Tiles) or (Output.RollWidth <= 2 * Output.Tiles.Margin) or (Output.CalibrationX <= 0) or
+    (Output.CalibrationY <= 0) then
   begin
     ShowStatus(rsLayoutNoPrintArea);
     RefreshControls;

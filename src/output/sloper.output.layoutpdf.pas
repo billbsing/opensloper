@@ -31,13 +31,16 @@ uses
 
 // The PDF as bytes, whatever problems the layout has; callers check first
 function LayoutToPDF(Layout: TLayout): rawbytestring;
+// How long the large-format sheet comes out for pages from TLayout.Pages
+// (one page, in that kind of output)
+function LargeSheetLength(Layout: TLayout; const PageHeight: double): double;
 // Refuses, listing the blocking problems in ErrorMessage, or writes the file
 function ExportLayoutPDF(Layout: TLayout; const FileName: string; out ErrorMessage: string): boolean;
 
 resourcestring
   rsPDFPrintFullSize = 'Print at 100% / actual size. Do not "fit to page".';
   rsPDFCheckSquare = 'This square must measure %s. If it does not, set the calibration factors.';
-  rsPDFPages = '%d pages to print, %d left out because they are blank';
+  rsPDFPages = '%d pages to print, %d blank, %d left out';
   rsPDFRefused = 'The layout cannot be exported:';
 
 implementation
@@ -60,6 +63,8 @@ const
   SeamDash = 2;
   OverlapDash = 1.5;
   DiamondSize = 3;
+  // Room for the title, reminder and test square above a large sheet
+  LargeHeaderHeight = 140;
 
 type
   TLayoutPrinter = class
@@ -69,10 +74,14 @@ type
     FShapes: TPlacedPieceArray;
     FPages: TTilePageArray;
     FRowCount, FColumnCount: integer;
+    // Where the top left of the page's area lands on the paper
+    FOrigin: TVec2;
     function PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
     function PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
     procedure DrawCover;
     procedure DrawMap(Top: double);
+    function DrawCheckBlock(Left, Top: double): double;
+    procedure DrawLarge;
     procedure DrawTile(const Page: TTilePage);
     procedure DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
     procedure DrawDiamond(const Page: TTilePage; const Centre: TVec2);
@@ -92,8 +101,8 @@ end;
 // consistently a little off, so it scales everything drawn at true size.
 function TLayoutPrinter.PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
 begin
-  Result.X := FLayout.Output.Tiles.Margin + (P.X - Page.Area.MinX) * FLayout.Output.CalibrationX;
-  Result.Y := FLayout.Output.Tiles.Margin + (P.Y - Page.Area.MinY) * FLayout.Output.CalibrationY;
+  Result.X := FOrigin.X + (P.X - Page.Area.MinX) * FLayout.Output.CalibrationX;
+  Result.Y := FOrigin.Y + (P.Y - Page.Area.MinY) * FLayout.Output.CalibrationY;
 end;
 
 function TLayoutPrinter.PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
@@ -120,20 +129,21 @@ begin
     FWriter.Rectangle(Cell);
     if not FPages[Index].Blank then
       FWriter.Text(Cell.MinX + 2, Cell.MinY + 7, CaptionSize, FPages[Index].Caption);
+    if FPages[Index].Excluded then
+      FWriter.Line(Vec2(Cell.MinX, Cell.MinY), Vec2(Cell.MaxX, Cell.MaxY));
   end;
 end;
 
-procedure TLayoutPrinter.DrawCover;
+// The title, the reminder and the test square, from (Left, Top). Returns
+// where the block ends.
+function TLayoutPrinter.DrawCheckBlock(Left, Top: double): double;
 var
   Side: double;
   Square: TRect2;
-  Printed, Left, Index: integer;
   Width: string;
 begin
-  FWriter.BeginPage(FLayout.Output.Tiles.PaperWidth, FLayout.Output.Tiles.PaperHeight);
-  FWriter.SetLineWidth(MarkLineWidth);
-  FWriter.Text(CoverMargin, CoverMargin + 6, TitleSize, FLayout.Name);
-  FWriter.Text(CoverMargin, CoverMargin + 15, BodySize, rsPDFPrintFullSize);
+  FWriter.Text(Left, Top + 6, TitleSize, FLayout.Name);
+  FWriter.Text(Left, Top + 15, BodySize, rsPDFPrintFullSize);
   if FLayout.Output.Paper = 'Letter' then
   begin
     Side := LetterTestSquareSide;
@@ -144,21 +154,62 @@ begin
     Side := TestSquareSide;
     Width := '10 cm';
   end;
-  FWriter.Text(CoverMargin, CoverMargin + 22, BodySize, Format(rsPDFCheckSquare, [Width]));
-  Square.MinX := CoverMargin;
-  Square.MinY := CoverMargin + 27;
+  FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFCheckSquare, [Width]));
+  Square.MinX := Left;
+  Square.MinY := Top + 27;
   Square.MaxX := Square.MinX + Side * FLayout.Output.CalibrationX;
   Square.MaxY := Square.MinY + Side * FLayout.Output.CalibrationY;
   FWriter.Rectangle(Square);
+  Result := Square.MaxY;
+end;
+
+procedure TLayoutPrinter.DrawCover;
+var
+  Bottom: double;
+  Printed, Blank, Excluded: integer;
+  Page: TTilePage;
+begin
+  FWriter.BeginPage(FLayout.Output.Tiles.PaperWidth, FLayout.Output.Tiles.PaperHeight);
+  FWriter.SetLineWidth(MarkLineWidth);
+  Bottom := DrawCheckBlock(CoverMargin, CoverMargin);
   Printed := 0;
-  Left := 0;
-  for Index := 0 to High(FPages) do
-    if not FPages[Index].Blank then
-      Inc(Printed)
+  Blank := 0;
+  Excluded := 0;
+  for Page in FPages do
+    if Page.Blank then
+      Inc(Blank)
+    else if Page.Excluded then
+      Inc(Excluded)
     else
-      Inc(Left);
-  FWriter.Text(CoverMargin, Square.MaxY + 10, BodySize, Format(rsPDFPages, [Printed, Left]));
-  DrawMap(Square.MaxY + 15);
+      Inc(Printed);
+  FWriter.Text(CoverMargin, Bottom + 10, BodySize, Format(rsPDFPages, [Printed, Blank, Excluded]));
+  DrawMap(Bottom + 15);
+end;
+
+// One sheet: the check block across the top, then the layout, as long as it
+// needs to be
+procedure TLayoutPrinter.DrawLarge;
+var
+  Margin, Bottom: double;
+  Page: TTilePage;
+  Printable: TRect2;
+  Shape: TPlacedPiece;
+begin
+  Margin := FLayout.Output.Tiles.Margin;
+  Page := FPages[0];
+  Bottom := Margin + LargeHeaderHeight;
+  FWriter.BeginPage(FLayout.Output.RollWidth, LargeSheetLength(FLayout, Page.Area.MaxY - Page.Area.MinY));
+  FWriter.SetLineWidth(MarkLineWidth);
+  DrawCheckBlock(Margin, Margin);
+  FOrigin := Vec2(Margin, Bottom);
+  Printable.MinX := Margin;
+  Printable.MinY := Bottom;
+  Printable.MaxX := FLayout.Output.RollWidth - Margin;
+  Printable.MaxY := LargeSheetLength(FLayout, Page.Area.MaxY - Page.Area.MinY) - Margin;
+  FWriter.PushClip(Printable);
+  for Shape in FShapes do
+    DrawShape(Page, Shape);
+  FWriter.PopClip;
 end;
 
 procedure TLayoutPrinter.DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
@@ -249,10 +300,21 @@ var
 begin
   FShapes := FLayout.PlacedPieces;
   FPages := FLayout.Pages(FShapes, FRowCount, FColumnCount);
+  if FLayout.Output.Kind = okLarge then
+  begin
+    DrawLarge;
+    Exit;
+  end;
+  FOrigin := Vec2(FLayout.Output.Tiles.Margin, FLayout.Output.Tiles.Margin);
   DrawCover;
   for Index := 0 to High(FPages) do
-    if not FPages[Index].Blank then
+    if not FPages[Index].Blank and not FPages[Index].Excluded then
       DrawTile(FPages[Index]);
+end;
+
+function LargeSheetLength(Layout: TLayout; const PageHeight: double): double;
+begin
+  Result := 2 * Layout.Output.Tiles.Margin + LargeHeaderHeight + PageHeight * Layout.Output.CalibrationY;
 end;
 
 function LayoutToPDF(Layout: TLayout): rawbytestring;

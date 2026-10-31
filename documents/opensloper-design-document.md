@@ -516,6 +516,44 @@ Labels never print unless explicitly turned on in the print screen.
 - A refused formula's reason shows in red on a row under its field, across both columns.
 - Editing behaviour is unchanged: Enter or leaving a field commits one undo step, and Escape puts the text back.
 
+## Measurement editor
+
+Measurements are entered against a built-in catalogue of standard body measurements, with a simple body figure that shows where each one is taken. This is the editing side of the measurements app (see Measurements app).
+
+### Measurement catalogue
+
+- A JSON catalogue ships with the app, listing the standard measurements.
+- Keys match the Seamly2D/Valentina known-measurement names wherever one exists (check the names against their source, which is GPLv3), so imported `.vit`/`.vst` files map directly and patterns can be shared between the programs more easily.
+- Definitions follow ISO 8559-1:2017 (anthropometric definitions for body measurement) in meaning; descriptions are our own wording, since the standard's text cannot be copied.
+- Custom measurements remain allowed for anything not in the catalogue, following the name rules. Keys already in use, such as `waist` and `back_length`, keep working as custom keys; nothing renames them.
+
+| Field | Purpose |
+| --- | --- |
+| `key` | Stable key used in formulas (`@waist_circ`) |
+| `name` | Display name ("Waist circumference") |
+| `group` | Heights, circumferences, widths, arm, leg, crotch, head, hand, foot |
+| `description` | One line on what it is |
+| `howTo` | How to take it (tape position, posture) |
+| `view` | Figure view it appears on: front, back or side |
+| `overlay` | Line or path on the figure, in figure coordinates |
+| `range` | Typical minimum and maximum in mm, for typo warnings |
+
+Values outside the typical range produce a warning, never a refusal, so unusual bodies are not blocked.
+
+### Body figure
+
+- A panel beside the measurement list shows simple front, back and side outlines, drawn by us (no third-party images, so no licence questions).
+- Selecting or hovering over a field highlights its measurement line on the figure; clicking a line on the figure selects its field.
+- One base figure per view, with each measurement's line drawn from the catalogue `overlay`, so adding a measurement means adding a catalogue entry, not drawing a new picture.
+- Drawn with BGRABitmap like the canvas; the catalogue and figure live in the core/data layer and the panel in the measurements app.
+- Later: scale the figure to the entered values, so unusual proportions or likely typos stand out visually.
+
+### Editing
+
+- Add from the catalogue by group, with search; only the measurements a person needs are kept in their file.
+- Values are entered in the display unit (mm, cm or inches) and stored in mm.
+- When a pattern is opened with a measurement set that lacks a key the pattern uses, the editor lists the missing keys so they can be added (the evaluator already reports them as errors).
+
 ## File format and storage
 
 Pattern files are JSON; SQLite is reserved for an app-level library.
@@ -556,6 +594,8 @@ Measurement file (`.slm`); values are in mm, keys follow the name rules and are 
   ]
 }
 ```
+
+Keys from the measurement catalogue are preferred; custom keys follow the name rules.
 
 Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
 
@@ -623,7 +663,8 @@ Measurement files are edited in a third application, `opensloper-measurements`, 
 - Import `.vit` (individual) and `.vst` (multi-size) files
 - Show values in mm, cm or inches; files always store mm
 - Its own undo history
-- Later: the client library, and diagrams showing where to take each measurement
+- Add measurements from the catalogue, with a body figure showing where each is taken (see Measurement editor)
+- Later: the client library
 
 **One file format, one or several sizes.** A measurement file is either one person's set, with a `value` per measurement, or a size table, with a `sizes` list and a `values` list per measurement, one per size. Patterns do not change: they refer to `@waist` either way. Wherever a measurement file is chosen, a size is chosen with it (the drafting app's current set, each source in a layout); a personal set has no size. A size with no value for a key the pattern uses is one error ("@waist has no value for size 42"), and everything reading it is blocked. Pattern-specific ease stays in the pattern's `#` variables, never in the measurement file.
 
@@ -661,7 +702,7 @@ Everything else (reordering, sizes, imports, the client library) is done in the 
 
 **From the CLI and the Automation API:** `opensloper-cli measurements set FILE KEY VALUE [--size SIZE] [--description TEXT]` and `opensloper-cli measurements list FILE` for scripts, and matching `get_measurements` and `set_measurement` methods in the Automation API, so Claude can add a missing measurement. Both use `Sloper.Core.Measurements`.
 
-**Code.** A third Lazarus project, `measurements/opensloper-measurements.lpi`, using `src/core` only.
+**Code.** A third Lazarus project, `measurements/opensloper-measurements.lpi`, using `src/core` and BGRABitmap for the body figure.
 
 ## Publish app
 
@@ -733,7 +774,9 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Undo** (`TLayoutDocument`) records the layout's text before each change, as `TPatternDocument` does, and reads the patterns again on undo. A run of paper setting changes merges into one step.
 - **Keeping in step.** Once a second the window compares a checksum of each source's pattern and measurement files, since file times only go to the second. A changed file has to read the same on two checks before it is loaded, so a save still in progress is not read. The status bar then says what was read, and new pieces show as unplaced. Reload Patterns reads everything again by hand.
 - **Publish…** (File menu, Ctrl/Cmd+P) in the drafting app starts `opensloper-publish`, beside it or in `publish/` below it, with the pattern's layout (same name, `.slayout`) if there is one and otherwise the pattern. It reads saved files, so an unnamed pattern is saved first and a modified one is offered the choice. Each use starts another window; it does not look for one already open.
-- Not done yet: clicking a page to leave it out, large-format and projector output, title blocks and sheet notes (a layout file's `sheetNotes` and `titleBlock` are not read yet, and saving drops them).
+- **Leaving pages out.** Right-clicking a page in the preview leaves it out of the print, or puts it back, as one undo step: a plain click selects a piece, and a page is often all piece. It shows grey and crossed, with the piece still over it, and the cover's page map strikes it through. The layout file lists the captions under `excludedPages` in `output`. A change of paper, margin, overlap or output kind clears the list, since the captions then mean other sheets.
+- **Large format.** `kind` `large` prints one sheet, `rollWidth` wide (914 mm, 36 in, by default) and as long as the layout needs, with the title, reminder and test square across the top instead of a cover page. Pages and marks do not apply. A piece past the roll's printable width is a warning, and is cut off at the margin.
+- Not done yet: projector output, title blocks and sheet notes (a layout file's `sheetNotes` and `titleBlock` are not read yet, and saving drops them).
 
 ## Printing
 
@@ -824,9 +867,11 @@ OpenSloper follows each platform's conventions and never writes app files into t
 | Kind | Examples | Linux (XDG) | Windows | macOS |
 | --- | --- | --- | --- | --- |
 | Config | Preferences, printer calibration, UI layout (`settings.json`) | `~/.config/opensloper/` | `%APPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
-| Data | SQLite library, templates, user-added blocks | `~/.local/share/opensloper/` | `%APPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
+| Data | SQLite library, templates, user-added blocks, measurement catalogue, body figure | `~/.local/share/opensloper/` | `%APPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
 | State | Recent files, window positions, logs | `~/.local/state/opensloper/` | `%LOCALAPPDATA%\OpenSloper\` | `~/Library/Application Support/OpenSloper/` |
 | Cache | Thumbnails, preview renders | `~/.cache/opensloper/` | `%LOCALAPPDATA%\OpenSloper\Cache\` | `~/Library/Caches/OpenSloper/` |
+
+The measurement catalogue and body figure ship with the app; a user copy in the data folder would override them only if that is added later.
 
 On Linux, `XDG_*_HOME` environment variables are respected when set.
 
@@ -1038,7 +1083,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (done for now; Shift-click merging, the start-edge fallback and custom piece labels remain)
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-9. Measurements app: measurement and size table editing, Valentina/Seamly2D import; SVG export
+9. Measurements app: measurement and size table editing; measurement editor with catalogue and body figure; import Valentina/Seamly2D measurement files; SVG export
 10. Seams and seam-length checks
 11. DXF-AAMA export, automatic packing in the publish app
 12. Blender export for 3D preview

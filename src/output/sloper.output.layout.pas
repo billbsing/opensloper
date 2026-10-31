@@ -39,8 +39,15 @@ const
 
 type
   TLayoutMarks = (lkDiamond, lkNone);
+  // okTiled prints on pages of paper; okLarge on one sheet off a roll
+  TOutputKind = (okTiled, okLarge);
 
   TLayoutOutput = record
+    Kind: TOutputKind;
+    // The width of the sheet for okLarge; its length follows the layout
+    RollWidth: double;
+    // Captions of the pages not to print
+    ExcludedPages: TStringArray;
     Paper: string;
     Tiles: TTileSettings;
     Marks: TLayoutMarks;
@@ -107,6 +114,7 @@ type
     function FindPlacedPiece(const Placement: TPlacement; out Source: TLayoutSource; out Piece: TPieceObject): boolean;
     function IsPlaced(SourceId: integer; const PieceKey: string; Copy: integer): boolean;
     procedure AddOverlapProblems(var Problems: TLayoutProblemArray);
+    function PageIsExcluded(const Caption: string): boolean;
   public
     Name: string;
     // Where the layout is saved; relative paths start from its folder
@@ -131,6 +139,8 @@ type
     function PlacedPieces: TPlacedPieceArray;
     // The pages Shapes need, with the empty ones marked Blank
     function Pages(const Shapes: TPlacedPieceArray; out RowCount, ColumnCount: integer): TTilePageArray;
+    // Leaves the page out of the print, or puts it back
+    procedure TogglePage(const Caption: string);
     function Problems: TLayoutProblemArray;
     property Sources: TLayoutSourceList read FSources;
   end;
@@ -162,6 +172,8 @@ resourcestring
   rsLayoutUnplaced = '%s: %s (copy %d of %d) is not placed';
   rsLayoutOverlap = '%s overlaps %s';
   rsLayoutOffSheet = '%s runs off the sheet';
+  rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
+  rsLayoutBadRoll = 'The roll is too narrow for its margins';
 
 implementation
 
@@ -174,6 +186,9 @@ const
   DefaultMargin = 6;
   DefaultOverlap = 10;
   MarksNames: array[TLayoutMarks] of string = ('diamond', 'none');
+  KindNames: array[TOutputKind] of string = ('tiled', 'large');
+  // 36 inches, a common copy-shop width
+  DefaultRollWidth = 914;
   // New rows are this wide before wrapping, and this far apart
   ShelfWidth = 1000;
   ShelfGap = 10;
@@ -220,6 +235,7 @@ function DefaultOutput: TLayoutOutput;
 begin
   Result := Default(TLayoutOutput);
   Result.Paper := DefaultPaper;
+  Result.RollWidth := DefaultRollWidth;
   PaperSize(DefaultPaper, Result.Tiles.PaperWidth, Result.Tiles.PaperHeight);
   Result.Tiles.Margin := DefaultMargin;
   Result.Tiles.Overlap := DefaultOverlap;
@@ -360,10 +376,14 @@ begin
 end;
 
 function SaveOutput(const Output: TLayoutOutput): TJSONObject;
+var
+  Excluded: TJSONArray;
+  Caption: string;
 begin
   Result := TJSONObject.Create;
   try
-    Result.Add('kind', 'tiled');
+    Result.Add('kind', KindNames[Output.Kind]);
+    Result.Add('rollWidth', JSONFloat(Output.RollWidth));
     Result.Add('paper', Output.Paper);
     if Output.Paper = CustomPaper then
     begin
@@ -375,6 +395,13 @@ begin
     Result.Add('marks', MarksNames[Output.Marks]);
     Result.Add('calibrationX', JSONFloat(Output.CalibrationX));
     Result.Add('calibrationY', JSONFloat(Output.CalibrationY));
+    if Output.ExcludedPages <> nil then
+    begin
+      Excluded := TJSONArray.Create;
+      Result.Add('excludedPages', Excluded);
+      for Caption in Output.ExcludedPages do
+        Excluded.Add(Caption);
+    end;
   except
     FreeAndNil(Result);
     raise;
@@ -448,11 +475,21 @@ end;
 
 function ReadOutput(Item: TJSONObject; var Output: TLayoutOutput; out ErrorMessage: string): boolean;
 var
-  MarksText: string;
+  MarksText, KindText: string;
   Mark: TLayoutMarks;
   Found: boolean;
+  Excluded: TJSONData;
+  Index: integer;
 begin
   ErrorMessage := '';
+  if GetJSONString(Item, 'kind', KindText) and (KindText = KindNames[okLarge]) then
+    Output.Kind := okLarge;
+  ReadOptionalNumber(Item, 'rollWidth', Output.RollWidth);
+  Excluded := Item.Find('excludedPages');
+  if (Excluded <> nil) and (Excluded.JSONType = jtArray) then
+    for Index := 0 to Excluded.Count - 1 do
+      if Excluded.Items[Index].JSONType = jtString then
+        Insert(Excluded.Items[Index].AsString, Output.ExcludedPages, Length(Output.ExcludedPages));
   if (Item.Find('paper') <> nil) and GetJSONString(Item, 'paper', Output.Paper) and not PaperSize(Output.Paper,
     Output.Tiles.PaperWidth, Output.Tiles.PaperHeight) then
     if not (GetJSONNumber(Item, 'paperWidth', Output.Tiles.PaperWidth) and GetJSONNumber(Item, 'paperHeight', Output.Tiles.PaperHeight)) then
@@ -467,6 +504,11 @@ begin
   if not TilesAreUsable(Output.Tiles) then
   begin
     ErrorMessage := rsLayoutNoPrintArea;
+    Exit(False);
+  end;
+  if Output.RollWidth <= 2 * Output.Tiles.Margin then
+  begin
+    ErrorMessage := rsLayoutBadRoll;
     Exit(False);
   end;
   if (Output.CalibrationX <= 0) or (Output.CalibrationY <= 0) then
@@ -790,6 +832,33 @@ begin
   SetLength(Result, Count);
 end;
 
+function TLayout.PageIsExcluded(const Caption: string): boolean;
+var
+  Excluded: string;
+begin
+  for Excluded in Output.ExcludedPages do
+    if Excluded = Caption then
+      Exit(True);
+  Result := False;
+end;
+
+procedure TLayout.TogglePage(const Caption: string);
+var
+  Kept: TStringArray;
+  Excluded: string;
+begin
+  if not PageIsExcluded(Caption) then
+  begin
+    Insert(Caption, Output.ExcludedPages, Length(Output.ExcludedPages));
+    Exit;
+  end;
+  Kept := nil;
+  for Excluded in Output.ExcludedPages do
+    if Excluded <> Caption then
+      Insert(Excluded, Kept, Length(Kept));
+  Output.ExcludedPages := Kept;
+end;
+
 function TLayout.Pages(const Shapes: TPlacedPieceArray; out RowCount, ColumnCount: integer): TTilePageArray;
 var
   Extent: TVec2;
@@ -802,9 +871,21 @@ begin
     Extent.X := Max(Extent.X, Shape.Bounds.MaxX);
     Extent.Y := Max(Extent.Y, Shape.Bounds.MaxY);
   end;
+  if Output.Kind = okLarge then
+  begin
+    RowCount := 1;
+    ColumnCount := 1;
+    SetLength(Result, 1);
+    Result[0] := Default(TTilePage);
+    Result[0].Area.MaxX := Output.RollWidth - 2 * Output.Tiles.Margin;
+    Result[0].Area.MaxY := Extent.Y;
+    Result[0].Blank := Shapes = nil;
+    Exit;
+  end;
   Result := TilePages(Extent, Output.Tiles, RowCount, ColumnCount);
   for Index := 0 to High(Result) do
   begin
+    Result[Index].Excluded := PageIsExcluded(Result[Index].Caption);
     Result[Index].Blank := True;
     for Shape in Shapes do
       if PolygonTouches(Shape.CutLine, Result[Index].Area) then
@@ -847,6 +928,8 @@ begin
   begin
     if (Shapes[First].Bounds.MinX < -DefaultTolerance) or (Shapes[First].Bounds.MinY < -DefaultTolerance) then
       Add(Format(rsLayoutOffSheet, [Shapes[First].Caption]));
+    if (Output.Kind = okLarge) and (Shapes[First].Bounds.MaxX > Output.RollWidth - 2 * Output.Tiles.Margin + DefaultTolerance) then
+      Add(Format(rsLayoutWiderThanRoll, [Shapes[First].Caption, FormatFloat('0.#', Output.RollWidth)]));
     for Second := First + 1 to High(Shapes) do
       if (Shapes[First].Bounds.MaxX > Shapes[Second].Bounds.MinX) and (Shapes[Second].Bounds.MaxX > Shapes[First].Bounds.MinX) and
         (Shapes[First].Bounds.MaxY > Shapes[Second].Bounds.MinY) and (Shapes[Second].Bounds.MaxY > Shapes[First].Bounds.MinY) and
