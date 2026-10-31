@@ -97,6 +97,10 @@ type
     procedure OpenClick(Sender: TObject);
     procedure SaveClick(Sender: TObject);
     procedure SaveAsClick(Sender: TObject);
+    procedure ImportClick(Sender: TObject);
+    procedure ExportClick(Sender: TObject);
+    procedure ImportPath(const Path: string);
+    procedure ShowReport(const ATitle: string; const Lines: TStrings);
     procedure QuitClick(Sender: TObject);
     procedure UndoClick(Sender: TObject);
     procedure RedoClick(Sender: TObject);
@@ -131,6 +135,8 @@ resourcestring
   rsMenuOpen = '&Open...';
   rsMenuSave = '&Save';
   rsMenuSaveAs = 'Save &As...';
+  rsMenuImport = '&Import...';
+  rsMenuExport = '&Export...';
   rsMenuQuit = '&Quit';
   rsMenuEdit = '&Edit';
   rsMenuUndo = '&Undo';
@@ -186,17 +192,32 @@ resourcestring
   rsOpenFailed = 'Could not open %s: %s';
   rsSaveFailed = 'Could not save %s: %s';
   rsFilter = 'Measurements (*.slm)|*.slm';
+  rsFilterImport = 'Seamly2D and Valentina (*.smis;*.smms;*.vit;*.vst)|*.smis;*.smms;*.vit;*.vst';
+  rsFilterExportTable = 'Seamly2D multi-size (*.smms)|*.smms|Valentina multi-size (*.vst)|*.vst|Seamly2D individual, this size (*.smis)|*.smis|Valentina individual, this size (*.vit)|*.vit';
+  rsFilterExportSet = 'Seamly2D individual (*.smis)|*.smis|Valentina individual (*.vit)|*.vit';
+  rsImportTitle = 'Imported %s';
+  rsImportCounts = '%d measurements read: %d translated, %d kept, %d corrected.';
+  rsImportTranslated = 'Renamed to our keys:';
+  rsImportKept = 'Kept as custom keys:';
+  rsImportCorrected = 'Had to change:';
+  rsImportNotes = 'Notes:';
+  rsImportFailed = 'Could not import %s: %s';
+  rsExportTitle = 'Exported %s';
+  rsExportFailed = 'Could not export %s: %s';
+  rsClose = 'Close';
 
 implementation
 
 uses
-  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.Settings;
+  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.SeamlyFormat, Sloper.Core.Settings;
 
 const
   HeaderHeight = 30;
   SideWidth = 430;
   CatalogueHeight = 410;
   EntryInfoHeight = 120;
+  ReportWidth = 640;
+  ReportHeight = 480;
   GroupNames: array[0..High(CatalogueGroups)] of string = (rsGroupHeights, rsGroupCircumferences, rsGroupWidths, rsGroupArm, rsGroupLeg,
     rsGroupCrotch, rsGroupHead, rsGroupHand, rsGroupFoot);
   SideGap = 6;
@@ -212,6 +233,8 @@ const
   FirstValueColumn = 1;
 
 constructor TMeasurementsForm.Create(AOwner: TComponent);
+var
+  IsMultiSize: boolean;
 begin
   inherited CreateNew(AOwner);
   Caption := rsMeasurementsTitle;
@@ -237,7 +260,10 @@ begin
   FWatch.Interval := WatchMilliseconds;
   FWatch.OnTimer := @WatchTick;
   if (ParamCount >= 1) and FileExists(ParamStr(1)) then
-    OpenPath(ParamStr(1));
+    if SeamlyFileKind(ParamStr(1), IsMultiSize) then
+      ImportPath(ParamStr(1))
+    else
+      OpenPath(ParamStr(1));
 end;
 
 destructor TMeasurementsForm.Destroy;
@@ -278,6 +304,8 @@ begin
   AddItem(Group, rsMenuOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
   AddItem(Group, rsMenuSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
   AddItem(Group, rsMenuSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
+  AddItem(Group, rsMenuImport, @ImportClick, ShortCut(VK_I, [ssModifier]));
+  AddItem(Group, rsMenuExport, @ExportClick, ShortCut(VK_E, [ssModifier]));
   AddItem(Group, rsMenuQuit, @QuitClick, ShortCut(VK_Q, [ssModifier]));
   Group := AddMenu(rsMenuEdit);
   FUndoItem := AddItem(Group, rsMenuUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
@@ -1017,6 +1045,139 @@ begin
     if Dialog.Execute then
       SaveTo(Dialog.FileName);
   finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+// So nothing is altered silently, whatever changed on the way is shown
+procedure TMeasurementsForm.ShowReport(const ATitle: string; const Lines: TStrings);
+var
+  Window: TForm;
+  Body: TMemo;
+  Button: TButton;
+begin
+  Window := TForm.CreateNew(Self);
+  try
+    Window.Caption := ATitle;
+    Window.Width := ReportWidth;
+    Window.Height := ReportHeight;
+    Window.Position := poOwnerFormCenter;
+    Button := TButton.Create(Window);
+    Button.Parent := Window;
+    Button.Align := alBottom;
+    Button.BorderSpacing.Around := SideGap;
+    Button.Caption := rsClose;
+    Button.ModalResult := mrClose;
+    Body := TMemo.Create(Window);
+    Body.Parent := Window;
+    Body.Align := alClient;
+    Body.ReadOnly := True;
+    Body.ScrollBars := ssAutoBoth;
+    Body.BorderSpacing.Around := SideGap;
+    Body.Lines.Assign(Lines);
+    Window.ShowModal;
+  finally
+    FreeAndNil(Window);
+  end;
+end;
+
+procedure TMeasurementsForm.ImportPath(const Path: string);
+var
+  Imported: TMeasurementSet;
+  Report: TImportReport;
+  Reason: string;
+  Lines: TStringList;
+
+  procedure AddSection(const Heading: string; const Section: TStringArray);
+  var
+    Line: string;
+  begin
+    if Section = nil then
+      Exit;
+    Lines.Add('');
+    Lines.Add(Heading);
+    for Line in Section do
+      Lines.Add('  ' + Line);
+  end;
+
+begin
+  Lines := nil;
+  Imported := TMeasurementSet.Create;
+  try
+    if not ImportSeamlyFile(Path, FCatalogue, Imported, Report, Reason) then
+    begin
+      MessageDlg(Format(rsImportFailed, [Path, Reason]), mtError, [mbOK], 0);
+      Exit;
+    end;
+    FDocument.TakeImported(Imported);
+    Lines := TStringList.Create;
+    Lines.Add(Format(rsImportCounts, [Imported.Count, Length(Report.Translated), Length(Report.Kept), Length(Report.Corrected)]));
+    AddSection(rsImportNotes, Report.Notes);
+    AddSection(rsImportCorrected, Report.Corrected);
+    AddSection(rsImportKept, Report.Kept);
+    AddSection(rsImportTranslated, Report.Translated);
+    ShowReport(Format(rsImportTitle, [ExtractFileName(Path)]), Lines);
+  finally
+    FreeAndNil(Lines);
+    FreeAndNil(Imported);
+  end;
+end;
+
+procedure TMeasurementsForm.ImportClick(Sender: TObject);
+var
+  Dialog: TOpenDialog;
+begin
+  if not ConfirmDiscard then
+    Exit;
+  Dialog := TOpenDialog.Create(Self);
+  try
+    Dialog.Filter := rsFilterImport;
+    if Dialog.Execute then
+      ImportPath(Dialog.FileName);
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+// An individual file holds one size: the column the cursor is in
+procedure TMeasurementsForm.ExportClick(Sender: TObject);
+var
+  Dialog: TSaveDialog;
+  Notes: TStringArray;
+  Reason: string;
+  Lines: TStringList;
+begin
+  FGrid.EditingDone;
+  HeaderDone(Sender);
+  if CurrentSize >= 0 then
+    FDocument.Measurements.SelectSize(FDocument.Measurements.Sizes[CurrentSize]);
+  Lines := nil;
+  Dialog := TSaveDialog.Create(Self);
+  try
+    if FDocument.Measurements.SizeCount > 0 then
+      Dialog.Filter := rsFilterExportTable
+    else
+      Dialog.Filter := rsFilterExportSet;
+    Dialog.Options := Dialog.Options + [ofOverwritePrompt];
+    Dialog.DefaultExt := 'smis';
+    if FDocument.Measurements.SizeCount > 0 then
+      Dialog.DefaultExt := 'smms';
+    if not Dialog.Execute then
+      Exit;
+    if not ExportSeamlyFile(Dialog.FileName, FCatalogue, FDocument.Measurements, Notes, Reason) then
+    begin
+      MessageDlg(Format(rsExportFailed, [Dialog.FileName, Reason]), mtError, [mbOK], 0);
+      Exit;
+    end;
+    ShowStatus(Format(rsSaved, [Dialog.FileName]));
+    if Notes <> nil then
+    begin
+      Lines := TStringList.Create;
+      Lines.AddStrings(Notes);
+      ShowReport(Format(rsExportTitle, [ExtractFileName(Dialog.FileName)]), Lines);
+    end;
+  finally
+    FreeAndNil(Lines);
     FreeAndNil(Dialog);
   end;
 end;

@@ -44,6 +44,7 @@ type
     procedure TearDown; override;
   published
     procedure TestStartsEmpty;
+    procedure TestTakeImported;
     procedure TestEditsAreUndone;
     procedure TestRedo;
     procedure TestModified;
@@ -138,6 +139,28 @@ begin
   AssertFalse(FDocument.Modified);
   AssertFalse(FDocument.CanUndo);
   AssertEquals('', FDocument.FileName);
+end;
+
+procedure TTestMeasurementDocument.TestTakeImported;
+var
+  Imported: TMeasurementSet;
+begin
+  OpenSample;
+  FDocument.SetValue(0, 0, 830);
+  Imported := TMeasurementSet.Create;
+  try
+    Imported.AddSize('M');
+    Imported.Add('chest', 900);
+    FDocument.TakeImported(Imported);
+  finally
+    FreeAndNil(Imported);
+  end;
+  AssertEquals('chest', FDocument.Measurements[0].Key);
+  AssertEquals('M', FDocument.Measurements.SizeName);
+  AssertEquals('unnamed', '', FDocument.FileName);
+  AssertTrue('not saved', FDocument.Modified);
+  AssertFalse('a fresh start', FDocument.CanUndo);
+  AssertTrue('nothing to watch', FDocument.CheckFile = fcSame);
 end;
 
 procedure TTestMeasurementDocument.TestEditsAreUndone;

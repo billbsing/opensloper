@@ -77,6 +77,11 @@
         <UnitName Value="Sloper.Tests.Catalogue"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.seamlyformat.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.SeamlyFormat"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.numeric.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Numeric"/>

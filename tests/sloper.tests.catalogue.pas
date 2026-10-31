@@ -58,6 +58,7 @@ type
     procedure TestShippedOnTheFigure;
     procedure TestShippedTranslatesOneToOne;
     procedure TestShippedReadsWell;
+    procedure TestShippedKnowsSeamlyNames;
   end;
 
 implementation
@@ -347,6 +348,19 @@ begin
     AssertTrue(FCatalogue[Index].Key + ' has a name', Name <> '');
     AssertEquals(FCatalogue[Index].Key, FCatalogue.FindTranslated(FormatSeamly2D, Name).Key);
   end;
+end;
+
+procedure TTestCatalogue.TestShippedKnowsSeamlyNames;
+var
+  Index: integer;
+begin
+  LoadShipped;
+  AssertTrue('one of ours', FCatalogue.IsKnownName(FormatSeamly2D, 'waist_circ'));
+  AssertTrue('one not in the catalogue', FCatalogue.IsKnownName(FormatSeamly2D, 'neck_arc_f'));
+  AssertFalse(FCatalogue.IsKnownName(FormatSeamly2D, 'waist_circumference'));
+  AssertFalse(FCatalogue.IsKnownName('other', 'waist_circ'));
+  for Index := 0 to FCatalogue.Count - 1 do
+    AssertTrue(FCatalogue[Index].Key, FCatalogue.IsKnownName(FormatSeamly2D, FCatalogue[Index].NameIn(FormatSeamly2D)));
 end;
 
 procedure TTestCatalogue.TestShippedReadsWell;

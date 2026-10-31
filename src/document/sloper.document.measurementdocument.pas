@@ -64,6 +64,8 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure New;
+    // Starts a new, unnamed file with what an import made, not yet saved
+    procedure TakeImported(Imported: TMeasurementSet);
     function Open(const AFileName: string; out ErrorMessage: string): boolean;
     // Written atomically. Refused when the open file has changed on disk
     // since it was read, until CheckFile has taken that change in.
@@ -182,6 +184,20 @@ begin
   FPendingText := '';
   FHistory.Clear;
   FSavedText := FSet.SaveToText;
+  Changed;
+end;
+
+procedure TMeasurementDocument.TakeImported(Imported: TMeasurementSet);
+var
+  Err: string;
+begin
+  FSet.LoadFromText(Imported.SaveToText, Err);
+  FFileName := '';
+  FBaseText := '';
+  FPendingText := '';
+  FHistory.Clear;
+  // Not saved yet, so closing it asks
+  FSavedText := '';
   Changed;
 end;
 

@@ -568,7 +568,12 @@ Values outside the typical range produce a warning, never a refusal, so unusual 
 
 ### Importing and exporting other formats
 
-Seamly2D and Valentina `.vit` and `.vst` files come first; other programs' files use the same translation, each as one more format name in `translations`.
+Seamly2D and Valentina files come first; other programs' files use the same translation, each as one more format name in `translations`. `Sloper.Core.SeamlyFormat` reads and writes them. Seamly2D's individual `.smis` and multi-size `.smms` are Valentina's `.vit` and `.vst` with the root element renamed; the root says what a file is, from individual version 0.3.0 and multi-size version 0.4.0, and older ones are refused with the reason. Valentina's names match Seamly2D's for everything in the catalogue, so `seamly2d` covers both. Exports are checked against their schemas: version 0.3.4 and 0.4.5, and 0.3.3 and 0.4.4 for `.vit` and `.vst`.
+
+- `knownNames` in the catalogue lists all of a format's names, including those with no entry yet. Such a name is imported as it is, and goes back out unchanged rather than as a custom measurement.
+- Values in an individual file can be formulas. Arithmetic on numbers and the file's other values is worked out and the result stored, with a note, since our measurement files hold values. Anything else, such as a function, is left at 0 and listed.
+- A multi-size file gives a base value with an increase for each 2 cm of size and 6 cm of height, whereas a size table has one dimension. Importing makes a column for each size within three steps of the base, at the base height, and reports that the other heights were left out. Exporting needs sizes that are even numbers from 22 to 72; it takes the middle one as the base, draws a straight line through the first and last values, and reports any value more than 0.5 mm off it. Height increases are 0, from height 176 cm.
+- An individual file exported from a size table holds the size the cursor is in.
 
 - On import, a measurement's name is looked up in `translations` for that format and renamed to our key.
 - A name with no translation is kept as it is, as a custom key. A leading `@`, which marks their custom measurements, is dropped, since `@` is our own prefix in formulas.
@@ -701,7 +706,7 @@ Measurement files are edited in a third application, `opensloper-measurements`, 
 
 - Edit keys, values and descriptions in a table, with sizes as columns; keys follow the name rules and are checked as typed
 - Add, rename, reorder and delete measurements and sizes; renaming a key warns that patterns using the old key will show it as missing
-- Import `.vit` (individual) and `.vst` (multi-size) files
+- Import and export `.smis` and `.vit` (individual), and `.smms` and `.vst` (multi-size) files
 - Show values in mm, cm or inches; files always store mm
 - Its own undo history
 - Add measurements from the catalogue, with a body figure showing where each is taken (see Measurement editor)
@@ -1170,7 +1175,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-10. Measurements app (under way: size tables, the `opensloper-measurements` table editor with undo, units and merging, and the size chooser and file watching in the drafting app are done; the catalogue and body figure are done too; the list of keys a pattern is missing, import and export, and `opensloper-cli measurements` remain): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
+10. Measurements app (under way: size tables, the `opensloper-measurements` table editor with undo, units and merging, and the size chooser and file watching in the drafting app are done; the catalogue and body figure are done too; import and export are done too; the list of keys a pattern is missing and `opensloper-cli measurements` remain): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
 11. Seams and seam-length checks
 12. DXF-AAMA export, automatic packing in the publish app
 13. Blender export for 3D preview

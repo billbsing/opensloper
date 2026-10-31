@@ -67,6 +67,9 @@ type
   private
     FEntries: TCatalogueEntryList;
     FFigures: array[TCatalogueView] of TFigurePaths;
+    // Every name of each format, whether it has an entry or not
+    FKnownNames: array of TCatalogueTranslation;
+    procedure LoadKnownNames(Obj: TJSONObject);
     function GetCount: integer;
     function GetEntry(Index: integer): TCatalogueEntry;
     function GetFigure(View: TCatalogueView): TFigurePaths;
@@ -79,6 +82,9 @@ type
     function Find(const Key: string): TCatalogueEntry;
     // The entry a name in another format stands for, nil when there is none
     function FindTranslated(const FormatName, Name: string): TCatalogueEntry;
+    // Whether the format has this name of its own, so that a key imported
+    // under it can go back unchanged
+    function IsKnownName(const FormatName, Name: string): boolean;
     // Entries in Group, or every group when it is empty, whose key, name or
     // description holds Search, without regard to case
     function Search(const Group, SearchText: string): TCatalogueEntryArray;
@@ -163,6 +169,7 @@ var
   View: TCatalogueView;
 begin
   FEntries.Clear;
+  FKnownNames := nil;
   for View := Low(TCatalogueView) to High(TCatalogueView) do
     FFigures[View] := nil;
 end;
@@ -202,6 +209,19 @@ begin
           if Known = Name then
             Exit;
   Result := nil;
+end;
+
+function TCatalogue.IsKnownName(const FormatName, Name: string): boolean;
+var
+  Known: TCatalogueTranslation;
+  Candidate: string;
+begin
+  for Known in FKnownNames do
+    if Known.FormatName = FormatName then
+      for Candidate in Known.Names do
+        if Candidate = Name then
+          Exit(True);
+  Result := False;
 end;
 
 function TCatalogue.Search(const Group, SearchText: string): TCatalogueEntryArray;
@@ -389,6 +409,24 @@ begin
   Result := True;
 end;
 
+procedure TCatalogue.LoadKnownNames(Obj: TJSONObject);
+var
+  List: TJSONData;
+  Index, NameIndex: integer;
+begin
+  List := Obj.Find('knownNames');
+  if (List = nil) or (List.JSONType <> jtObject) then
+    Exit;
+  SetLength(FKnownNames, List.Count);
+  for Index := 0 to List.Count - 1 do
+  begin
+    FKnownNames[Index].FormatName := TJSONObject(List).Names[Index];
+    SetLength(FKnownNames[Index].Names, List.Items[Index].Count);
+    for NameIndex := 0 to List.Items[Index].Count - 1 do
+      FKnownNames[Index].Names[NameIndex] := List.Items[Index].Items[NameIndex].AsString;
+  end;
+end;
+
 function TCatalogue.LoadFromText(const Text: string; out ErrorMessage: string): boolean;
 var
   Obj: TJSONObject;
@@ -414,6 +452,7 @@ begin
       Exit(Fail(Format(rsCatalogueNewerVersion, [Version])));
     if not LoadFigures(Obj, TextValue) then
       Exit(Fail(TextValue));
+    LoadKnownNames(Obj);
     List := Obj.Find('measurements');
     if (List = nil) or (List.JSONType <> jtArray) then
       Exit(Fail(rsCatalogueNoList));
