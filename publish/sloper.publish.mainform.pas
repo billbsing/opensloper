@@ -38,8 +38,10 @@ type
     FStatus: TStatusBar;
     FKindBox, FPaperBox: TComboBox;
     FRollEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit, FCalibrationYEdit: TFloatSpinEdit;
-    FProblems: TListBox;
-    FTurnButton, FFlipButton: TButton;
+    FTray, FProblems: TListBox;
+    // What each tray line stands for
+    FTrayCopies: TUnplacedCopyArray;
+    FTurnButton, FFlipButton, FRemoveButton: TButton;
     FUndoItem, FRedoItem: TMenuItem;
     FWatch: TTimer;
     FRefreshing: boolean;
@@ -56,6 +58,12 @@ type
     procedure RefreshControls;
     procedure WatchTick(Sender: TObject);
     procedure RefreshProblems;
+    procedure RefreshTray;
+    procedure TrayMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+    procedure TrayDoubleClick(Sender: TObject);
+    procedure PreviewDragOver(Sender, Source: TObject; X, Y: integer; State: TDragState; var Accept: boolean);
+    procedure PreviewDragDrop(Sender, Source: TObject; X, Y: integer);
+    procedure RemoveClick(Sender: TObject);
     procedure SettingChange(Sender: TObject);
     procedure OpenClick(Sender: TObject);
     procedure SaveClick(Sender: TObject);
@@ -104,6 +112,10 @@ resourcestring
   rsCalibrationX = 'Calibration across';
   rsCalibrationY = 'Calibration down';
   rsProblems = 'Problems';
+  rsTray = 'Unplaced: drag onto the pages';
+  rsTrayEmpty = 'Every piece is placed';
+  rsRemove = 'Back to tray';
+  rsCannotPlace = 'This piece has a problem in the pattern, so it cannot be placed yet';
   rsNoProblems = 'No problems';
   rsPlaceNew = 'Place new pieces';
   rsTurn = 'Turn 180°';
@@ -111,6 +123,7 @@ resourcestring
   rsExportPDF = 'Export PDF...';
   rsChangeSettings = 'Change paper';
   rsPlaceChange = 'Place new pieces';
+  rsPlaceOne = 'Place piece';
   rsTurnChange = 'Turn piece';
   rsFlipChange = 'Flip piece';
   rsDiscardQuestion = 'Discard the changes to this layout?';
@@ -125,12 +138,13 @@ resourcestring
 implementation
 
 uses
-  LCLType, Sloper.Output.LayoutPDF, Sloper.Output.Tiling;
+  LCLType, Sloper.Core.Geometry, Sloper.Output.LayoutPDF, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
   SideWidth = 260;
   SideGap = 6;
   SideRowStep = 100;
+  TrayHeight = 90;
   WatchMilliseconds = 1000;
   SpinDecimals = 1;
   CalibrationDecimals = 3;
@@ -164,6 +178,8 @@ begin
   FPreview.Align := alClient;
   FPreview.Document := FDocument;
   FPreview.OnSelectionChange := @SelectionChanged;
+  FPreview.OnDragOver := @PreviewDragOver;
+  FPreview.OnDragDrop := @PreviewDragDrop;
   BuildSide;
   RefreshControls;
   FWatch := TTimer.Create(Self);
@@ -283,8 +299,15 @@ begin
   FCalibrationYEdit := AddSpin(rsCalibrationY, MaxCalibration, 0.001, CalibrationDecimals);
   FTurnButton := AddButton(rsTurn, @TurnClick);
   FFlipButton := AddButton(rsFlip, @FlipClick);
+  FRemoveButton := AddButton(rsRemove, @RemoveClick);
   AddButton(rsPlaceNew, @PlaceClick);
   AddButton(rsExportPDF, @ExportClick);
+  AddLabel(rsTray);
+  FTray := TListBox.Create(Self);
+  FTray.Height := TrayHeight;
+  FTray.OnMouseDown := @TrayMouseDown;
+  FTray.OnDblClick := @TrayDoubleClick;
+  PlaceRow(FTray);
   AddLabel(rsProblems);
   FProblems := TListBox.Create(Self);
   FProblems.Parent := FSide;
@@ -317,6 +340,81 @@ begin
     ShowStatus(Format(rsReloaded, [Names]));
 end;
 
+// Rebuilt only when it differs, so a drag from it survives other changes
+procedure TPublishForm.RefreshTray;
+var
+  Lines: TStringList;
+  Item: TUnplacedCopy;
+begin
+  FTrayCopies := FDocument.Layout.Unplaced;
+  Lines := TStringList.Create;
+  try
+    for Item in FTrayCopies do
+      Lines.Add(Item.Caption);
+    if Lines.Count = 0 then
+      Lines.Add(rsTrayEmpty);
+    if not FTray.Items.Equals(Lines) then
+      FTray.Items.Assign(Lines);
+  finally
+    FreeAndNil(Lines);
+  end;
+end;
+
+procedure TPublishForm.TrayMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+var
+  Index: integer;
+begin
+  Index := FTray.ItemAtPos(Point(X, Y), True);
+  if (Button = mbLeft) and (Index >= 0) and (Index <= High(FTrayCopies)) then
+    FTray.BeginDrag(False);
+end;
+
+procedure TPublishForm.TrayDoubleClick(Sender: TObject);
+var
+  Index: integer;
+  Copies: TUnplacedCopyArray;
+begin
+  Index := FTray.ItemIndex;
+  if (Index < 0) or (Index > High(FTrayCopies)) then
+    Exit;
+  if not FTrayCopies[Index].CanPlace then
+  begin
+    ShowStatus(rsCannotPlace);
+    Exit;
+  end;
+  Copies := Copy(FTrayCopies, Index, 1);
+  FDocument.BeginChange(rsPlaceOne);
+  FDocument.Layout.PlaceCopies(Copies);
+  FDocument.EndChange;
+end;
+
+procedure TPublishForm.PreviewDragOver(Sender, Source: TObject; X, Y: integer; State: TDragState; var Accept: boolean);
+begin
+  Accept := (Source = FTray) and (FTray.ItemIndex >= 0) and (FTray.ItemIndex <= High(FTrayCopies));
+end;
+
+procedure TPublishForm.PreviewDragDrop(Sender, Source: TObject; X, Y: integer);
+var
+  Item: TUnplacedCopy;
+  Placed: integer;
+begin
+  Item := FTrayCopies[FTray.ItemIndex];
+  if not Item.CanPlace then
+  begin
+    ShowStatus(rsCannotPlace);
+    Exit;
+  end;
+  FDocument.BeginChange(rsPlaceOne);
+  Placed := FDocument.Layout.PlaceCopyAt(Item, FPreview.LayoutAt(X, Y), PlacementStep);
+  FDocument.EndChange;
+  FPreview.Selected := Placed;
+end;
+
+procedure TPublishForm.RemoveClick(Sender: TObject);
+begin
+  FPreview.RemoveSelected;
+end;
+
 procedure TPublishForm.RefreshProblems;
 var
   Problem: TLayoutProblem;
@@ -325,7 +423,8 @@ begin
   try
     FProblems.Items.Clear;
     for Problem in FDocument.Layout.Problems do
-      FProblems.Items.Add(Problem.Text);
+      if not Problem.Unplaced then
+        FProblems.Items.Add(Problem.Text);
     if FProblems.Items.Count = 0 then
       FProblems.Items.Add(rsNoProblems);
   finally
@@ -360,6 +459,7 @@ begin
   end;
   FTurnButton.Enabled := FPreview.Selected >= 0;
   FFlipButton.Enabled := FPreview.Selected >= 0;
+  FRemoveButton.Enabled := FPreview.Selected >= 0;
   FUndoItem.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
     FUndoItem.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
@@ -371,6 +471,7 @@ begin
   else
     Caption := rsPublishTitle;
   RefreshProblems;
+  RefreshTray;
   Pages := Layout.Pages(Layout.PlacedPieces, Rows, Columns);
   if Layout.Output.Kind = okLarge then
   begin

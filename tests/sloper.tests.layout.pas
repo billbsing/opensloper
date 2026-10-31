@@ -85,6 +85,14 @@ type
     procedure TestDocumentNewForPattern;
     procedure TestDocumentNoChangeNoStep;
     procedure TestPublishTarget;
+    procedure TestUnplacedCopies;
+    procedure TestPlaceOneCopy;
+    procedure TestPlaceCopyAtCentres;
+    procedure TestPlaceCopyAtStaysOnSheet;
+    procedure TestPlaceCopyAtFlipsEvenCopies;
+    procedure TestRemovePlacementReturnsToUnplaced;
+    procedure TestFailingPieceWaitsUnplaced;
+    procedure TestExtraCopyWarns;
     procedure TestTogglePage;
     procedure TestExcludedPagesSaved;
     procedure TestExcludedPageIsNotPrinted;
@@ -1128,6 +1136,95 @@ var
 begin
   AssertFalse(FLayout.LoadFromText('{"format": "layout", "version": 1, "sources": [], "output": {"kind": "large", "rollWidth": 5}}', ErrorMessage));
   AssertEquals(rsLayoutBadRoll, ErrorMessage);
+end;
+
+procedure TTestLayout.TestUnplacedCopies;
+var
+  Copies: TUnplacedCopyArray;
+begin
+  WritePattern(2, True);
+  Prepare;
+  Copies := FLayout.Unplaced;
+  AssertEquals(2, Length(Copies));
+  AssertEquals(Format(rsLayoutTrayItem, ['Front', 2, 2]), Copies[1].Caption);
+  AssertTrue(Copies[0].CanPlace);
+  AssertTrue('a problem says so', FLayout.Problems[0].Unplaced);
+  FLayout.PlaceNewPieces;
+  AssertEquals('none left', 0, Length(FLayout.Unplaced));
+end;
+
+procedure TTestLayout.TestPlaceOneCopy;
+begin
+  WritePattern(2);
+  Prepare;
+  AssertEquals(1, FLayout.PlaceCopies(Copy(FLayout.Unplaced, 1, 1)));
+  AssertEquals('the second copy', 2, FLayout.Placements[0].Copy);
+  AssertEquals('the first still waits', 1, FLayout.Unplaced[0].Copy);
+end;
+
+procedure TTestLayout.TestPlaceCopyAtCentres;
+var
+  Index: integer;
+  Shapes: TPlacedPieceArray;
+begin
+  WritePattern;
+  Prepare;
+  Index := FLayout.PlaceCopyAt(FLayout.Unplaced[0], Vec2(300.2, 400.2), 0.5);
+  AssertEquals(0, Index);
+  Shapes := FLayout.PlacedPieces;
+  // 120 mm wide, centred, then on the 0.5 mm grid
+  AssertNear('left', 240, Shapes[0].Bounds.MinX);
+  AssertNear('top', 340, Shapes[0].Bounds.MinY);
+end;
+
+procedure TTestLayout.TestPlaceCopyAtStaysOnSheet;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceCopyAt(FLayout.Unplaced[0], Vec2(10, 10), 0.5);
+  AssertNear('left', 0, FLayout.Placements[0].X);
+  AssertNear('top', 0, FLayout.Placements[0].Y);
+end;
+
+procedure TTestLayout.TestPlaceCopyAtFlipsEvenCopies;
+begin
+  WritePattern(2, True);
+  Prepare;
+  FLayout.PlaceCopyAt(FLayout.Unplaced[1], Vec2(100, 100), 0.5);
+  AssertTrue(FLayout.Placements[0].Flipped);
+end;
+
+procedure TTestLayout.TestRemovePlacementReturnsToUnplaced;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.RemovePlacement(0);
+  AssertEquals('none placed', 0, Length(FLayout.Placements));
+  AssertEquals('waiting again', 1, Length(FLayout.Unplaced));
+end;
+
+procedure TTestLayout.TestFailingPieceWaitsUnplaced;
+var
+  Copies: TUnplacedCopyArray;
+begin
+  WritePattern(1, False, '-1');
+  Prepare;
+  Copies := FLayout.Unplaced;
+  AssertEquals('still listed', 1, Length(Copies));
+  AssertFalse(Copies[0].CanPlace);
+  AssertEquals('refused', -1, FLayout.PlaceCopyAt(Copies[0], Vec2(0, 0), 0.5));
+  AssertEquals('skipped', 0, FLayout.PlaceCopies(Copies));
+end;
+
+procedure TTestLayout.TestExtraCopyWarns;
+begin
+  WritePattern(2);
+  Prepare;
+  FLayout.PlaceNewPieces;
+  WritePattern(1);
+  FLayout.LoadSources;
+  AssertTrue(ProblemText, Pos(Format(rsLayoutExtraCopy, ['front.sloper', 'Front', 1, 2]), ProblemText) > 0);
 end;
 
 initialization

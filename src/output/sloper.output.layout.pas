@@ -101,7 +101,20 @@ type
   TLayoutProblem = record
     Text: string;
     Blocking: boolean;
+    // It says a copy is waiting to be placed, which the window's tray shows
+    Unplaced: boolean;
   end;
+
+  // A copy of a piece with no placement yet
+  TUnplacedCopy = record
+    SourceId, Copy: integer;
+    PieceKey: string;
+    Caption: string;
+    // Failing pieces wait here too, but cannot be placed until they work
+    CanPlace: boolean;
+  end;
+
+  TUnplacedCopyArray = array of TUnplacedCopy;
 
   TLayoutProblemArray = array of TLayoutProblem;
 
@@ -111,6 +124,7 @@ type
     FNextId: integer;
     function ResolvePath(const Stored: string): string;
     procedure LoadSource(Source: TLayoutSource);
+    function NewPlacement(const Item: TUnplacedCopy; out Piece: TPieceObject): TPlacement;
     function FindPlacedPiece(const Placement: TPlacement; out Source: TLayoutSource; out Piece: TPieceObject): boolean;
     function IsPlaced(SourceId: integer; const PieceKey: string; Copy: integer): boolean;
     procedure AddOverlapProblems(var Problems: TLayoutProblemArray);
@@ -131,11 +145,18 @@ type
     function LoadFromText(const Text: string; out ErrorMessage: string): boolean;
     function SaveToFile(const AFileName: string; out ErrorMessage: string): boolean;
     function LoadFromFile(const AFileName: string; out ErrorMessage: string): boolean;
-    // Every copy of a piece with no placement yet, one per line, by source and piece
-    function Unplaced: TStringArray;
-    // Adds a placement for every copy without one, in rows below what is
-    // already placed. Plain rows, not packing. Returns how many were added.
+    // Every copy of a piece with no placement yet, by source and piece
+    function Unplaced: TUnplacedCopyArray;
+    // Adds a placement for each of these that can be placed, in rows below
+    // what is already placed. Plain rows, not packing. Returns how many.
+    function PlaceCopies(const Copies: TUnplacedCopyArray): integer;
+    // PlaceCopies for every copy without a placement
     function PlaceNewPieces: integer;
+    // Adds a placement with the copy centred on At, kept on the sheet and
+    // rounded to Step. Returns its index, or -1 when it cannot be placed.
+    function PlaceCopyAt(const Item: TUnplacedCopy; const At: TVec2; Step: double): integer;
+    // Puts a placed copy back among the unplaced
+    procedure RemovePlacement(Index: integer);
     function PlacedPieces: TPlacedPieceArray;
     // The pages Shapes need, with the empty ones marked Blank
     function Pages(const Shapes: TPlacedPieceArray; out RowCount, ColumnCount: integer): TTilePageArray;
@@ -170,6 +191,8 @@ resourcestring
   rsLayoutPieceFailing = '%s: %s cannot be printed: %s';
   rsLayoutOffGrain = '%s: %s is turned %d°, off its grainline';
   rsLayoutUnplaced = '%s: %s (copy %d of %d) is not placed';
+  rsLayoutTrayItem = '%s (copy %d of %d)';
+  rsLayoutExtraCopy = '%s: %s is cut %d times now, but copy %d is still placed';
   rsLayoutOverlap = '%s overlaps %s';
   rsLayoutOffSheet = '%s runs off the sheet';
   rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
@@ -653,11 +676,12 @@ begin
   Result := False;
 end;
 
-function TLayout.Unplaced: TStringArray;
+function TLayout.Unplaced: TUnplacedCopyArray;
 var
   Source: TLayoutSource;
   Index, Copy: integer;
   Piece: TPieceObject;
+  Item: TUnplacedCopy;
 begin
   Result := nil;
   for Source in FSources do
@@ -669,8 +693,14 @@ begin
           for Copy := 1 to Piece.CutCount do
             if not IsPlaced(Source.Id, Piece.Key, Copy) then
             begin
+              Item := Default(TUnplacedCopy);
+              Item.SourceId := Source.Id;
+              Item.PieceKey := Piece.Key;
+              Item.Copy := Copy;
+              Item.Caption := Format(rsLayoutTrayItem, [Piece.DisplayName, Copy, Piece.CutCount]);
+              Item.CanPlace := (Piece.State = esValid) and (Piece.CutLine <> nil);
               SetLength(Result, Length(Result) + 1);
-              Result[High(Result)] := Format(rsLayoutUnplaced, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Copy, Piece.CutCount]);
+              Result[High(Result)] := Item;
             end;
         end;
 end;
@@ -763,10 +793,22 @@ begin
   Result.Caption := Piece.CutCaption;
 end;
 
-function TLayout.PlaceNewPieces: integer;
+// Even copies are the other side of a mirrored pair
+function TLayout.NewPlacement(const Item: TUnplacedCopy; out Piece: TPieceObject): TPlacement;
 var
   Source: TLayoutSource;
-  Index, Copy: integer;
+begin
+  Result := Default(TPlacement);
+  Result.SourceId := Item.SourceId;
+  Result.PieceKey := Item.PieceKey;
+  Result.Copy := Item.Copy;
+  FindPlacedPiece(Result, Source, Piece);
+  Result.Flipped := Piece.Mirrored and not Piece.OnFold and not Odd(Item.Copy);
+end;
+
+function TLayout.PlaceCopies(const Copies: TUnplacedCopyArray): integer;
+var
+  Item: TUnplacedCopy;
   Piece: TPieceObject;
   Placement: TPlacement;
   Shape: TPlacedPiece;
@@ -778,39 +820,53 @@ begin
   RowHeight := 0;
   for Shape in PlacedPieces do
     RowY := Max(RowY, Shape.Bounds.MaxY + ShelfGap);
-  for Source in FSources do
-    if Source.Pattern <> nil then
-      for Index := 0 to Source.Pattern.ObjectCount - 1 do
-      begin
-        if not (Source.Pattern.Objects[Index] is TPieceObject) or (Source.Pattern.Objects[Index].State <> esValid) then
-          Continue;
-        Piece := TPieceObject(Source.Pattern.Objects[Index]);
-        for Copy := 1 to Piece.CutCount do
-        begin
-          if IsPlaced(Source.Id, Piece.Key, Copy) then
-            Continue;
-          Placement := Default(TPlacement);
-          Placement.SourceId := Source.Id;
-          Placement.PieceKey := Piece.Key;
-          Placement.Copy := Copy;
-          // Even copies are the other side of a mirrored pair
-          Placement.Flipped := Piece.Mirrored and not Piece.OnFold and not Odd(Copy);
-          Shape := PlaceShape(Piece, Placement);
-          if (RowX > 0) and (RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX > ShelfWidth) then
-          begin
-            RowX := 0;
-            RowY := RowY + RowHeight + ShelfGap;
-            RowHeight := 0;
-          end;
-          Placement.X := RowX;
-          Placement.Y := RowY;
-          RowX := RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX + ShelfGap;
-          RowHeight := Max(RowHeight, Shape.Bounds.MaxY - Shape.Bounds.MinY);
-          SetLength(Placements, Length(Placements) + 1);
-          Placements[High(Placements)] := Placement;
-          Inc(Result);
-        end;
-      end;
+  for Item in Copies do
+  begin
+    if not Item.CanPlace then
+      Continue;
+    Placement := NewPlacement(Item, Piece);
+    Shape := PlaceShape(Piece, Placement);
+    if (RowX > 0) and (RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX > ShelfWidth) then
+    begin
+      RowX := 0;
+      RowY := RowY + RowHeight + ShelfGap;
+      RowHeight := 0;
+    end;
+    Placement.X := RowX;
+    Placement.Y := RowY;
+    RowX := RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX + ShelfGap;
+    RowHeight := Max(RowHeight, Shape.Bounds.MaxY - Shape.Bounds.MinY);
+    SetLength(Placements, Length(Placements) + 1);
+    Placements[High(Placements)] := Placement;
+    Inc(Result);
+  end;
+end;
+
+function TLayout.PlaceNewPieces: integer;
+begin
+  Result := PlaceCopies(Unplaced);
+end;
+
+function TLayout.PlaceCopyAt(const Item: TUnplacedCopy; const At: TVec2; Step: double): integer;
+var
+  Piece: TPieceObject;
+  Placement: TPlacement;
+  Shape: TPlacedPiece;
+begin
+  if not Item.CanPlace then
+    Exit(-1);
+  Placement := NewPlacement(Item, Piece);
+  Shape := PlaceShape(Piece, Placement);
+  Placement.X := Max(0, Round((At.X - (Shape.Bounds.MaxX - Shape.Bounds.MinX) / 2) / Step) * Step);
+  Placement.Y := Max(0, Round((At.Y - (Shape.Bounds.MaxY - Shape.Bounds.MinY) / 2) / Step) * Step);
+  SetLength(Placements, Length(Placements) + 1);
+  Result := High(Placements);
+  Placements[Result] := Placement;
+end;
+
+procedure TLayout.RemovePlacement(Index: integer);
+begin
+  System.Delete(Placements, Index, 1);
 end;
 
 function TLayout.PlacedPieces: TPlacedPieceArray;
@@ -943,13 +999,17 @@ var
   Source: TLayoutSource;
   Placement: TPlacement;
   Piece: TPieceObject;
-  Line: string;
+  Item: TUnplacedCopy;
+  Node: TPieceObject;
+  Found: TLayoutSource;
+  Probe: TPlacement;
 
   procedure Add(const Text: string; Blocking: boolean);
   begin
     SetLength(Result, Length(Result) + 1);
     Result[High(Result)].Text := Text;
     Result[High(Result)].Blocking := Blocking;
+    Result[High(Result)].Unplaced := False;
   end;
 
 begin
@@ -971,9 +1031,18 @@ begin
       Add(Format(rsLayoutPieceFailing, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.Message]), True);
     if (Placement.Rotation mod 180) <> 0 then
       Add(Format(rsLayoutOffGrain, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Placement.Rotation]), False);
+    if Placement.Copy > Piece.CutCount then
+      Add(Format(rsLayoutExtraCopy, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.CutCount, Placement.Copy]), False);
   end;
-  for Line in Unplaced do
-    Add(Line, False);
+  for Item in Unplaced do
+  begin
+    Probe := Default(TPlacement);
+    Probe.SourceId := Item.SourceId;
+    Probe.PieceKey := Item.PieceKey;
+    FindPlacedPiece(Probe, Found, Node);
+    Add(Format(rsLayoutUnplaced, [ExtractFileName(Found.PatternFile), Node.DisplayName, Item.Copy, Node.CutCount]), False);
+    Result[High(Result)].Unplaced := True;
+  end;
   AddOverlapProblems(Result);
 end;
 

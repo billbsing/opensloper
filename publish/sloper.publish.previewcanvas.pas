@@ -68,14 +68,21 @@ type
     // Picks up the layout after any change
     procedure Refresh; reintroduce;
     procedure ZoomToFit;
+    // Layout position under a point of this control
+    function LayoutAt(X, Y: integer): TVec2;
+    // Sends the selected copy back to the tray
+    procedure RemoveSelected;
     property Document: TLayoutDocument read FDocument write FDocument;
     property Selected: integer read FSelected write SetSelected;
     property OnSelectionChange: TNotifyEvent read FOnSelectionChange write FOnSelectionChange;
+    property OnDragOver;
+    property OnDragDrop;
   end;
 
 resourcestring
   rsPreviewMove = 'Move piece';
   rsPreviewTogglePage = 'Leave page out';
+  rsPreviewRemove = 'Unplace piece';
 
 implementation
 
@@ -160,6 +167,24 @@ procedure TPreviewCanvas.ZoomToFit;
 begin
   FNeedsFit := True;
   Invalidate;
+end;
+
+function TPreviewCanvas.LayoutAt(X, Y: integer): TVec2;
+begin
+  Result := FView.ToLayout(Vec2(X, Y));
+end;
+
+procedure TPreviewCanvas.RemoveSelected;
+var
+  Index: integer;
+begin
+  Index := FSelected;
+  if Index < 0 then
+    Exit;
+  SetSelected(-1);
+  FDocument.BeginChange(rsPreviewRemove);
+  FDocument.Layout.RemovePlacement(Index);
+  FDocument.EndChange;
 end;
 
 procedure TPreviewCanvas.SetSelected(Value: integer);
@@ -273,6 +298,8 @@ begin
   case Key of
     VK_SPACE:
       FSpaceDown := True;
+    VK_DELETE, VK_BACK:
+      RemoveSelected;
     VK_ESCAPE:
       if FMode = pmDragging then
       begin
