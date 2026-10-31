@@ -36,6 +36,8 @@ uses
   Sloper.Core.Pattern,
   Sloper.Core.PatternFile,
   Sloper.Core.PatternCheck,
+  Sloper.Output.Layout,
+  Sloper.Output.LayoutPDF,
   Sloper.API.Server;
 
 const
@@ -48,12 +50,13 @@ resourcestring
   rsOptVersion = 'Show the version';
   rsOptMeasurements = 'Measurement file (.slm); default: the one the pattern names';
   rsOptJSON = 'check: print every computed value as JSON';
+  rsOptOutput = 'layout, export: the file to write';
   rsArgCommand = 'Command to run';
-  rsArgPattern = 'Pattern file (.sloper)';
+  rsArgPattern = 'Pattern file (.sloper), or layout file (.slayout) to export';
   rsCmdCheck = 'Evaluate a pattern and report problems';
-  rsCmdExport = 'Export a pattern for one or more measurement files';
+  rsCmdExport = 'Export a layout file as a tiled PDF';
+  rsCmdLayout = 'Start a layout file for a pattern, with every piece placed';
   rsCmdServe = 'Answer JSON-RPC 2.0 on stdin and stdout, one message per line';
-  rsNotImplemented = 'The %s command is not implemented yet.';
   rsNeedPattern = 'The %s command needs a pattern file.';
   rsLoadFailed = '%s: %s';
   rsFileNotFound = 'File not found: %s';
@@ -62,6 +65,9 @@ resourcestring
   rsCheckClean = '%s: no problems (%d objects)';
   rsCheckProblems = '%s: problems found: %d';
   rsCheckBlocked = 'Blocked by these problems: %d more';
+  rsExportNeedsLayout = 'The export command needs a layout file (%s). Make one with the layout command.';
+  rsWroteFile = 'Wrote %s';
+  rsWarning = 'Warning: %s';
 
   // False, with a message, when FileName does not exist; the load messages
   // would otherwise name it several times
@@ -145,6 +151,75 @@ resourcestring
     end;
   end;
 
+  // Starts a layout beside the pattern, with every piece placed in rows
+  function RunLayout(const PatternFile, MeasurementOption, OutputOption: string): integer;
+  var
+    Layout: TLayout;
+    Target, Err: string;
+    Problem: TLayoutProblem;
+  begin
+    Target := OutputOption;
+    if Target = '' then
+      Target := ChangeFileExt(PatternFile, LayoutExtension);
+    Layout := TLayout.Create;
+    try
+      Layout.FileName := Target;
+      Layout.Name := ChangeFileExt(ExtractFileName(PatternFile), '');
+      Layout.AddSource(ExtractRelativePath(ExpandFileName(ExtractFilePath(Target)), ExpandFileName(PatternFile)), MeasurementOption, '');
+      Layout.LoadSources;
+      Layout.PlaceNewPieces;
+      if not Layout.SaveToFile(Target, Err) then
+      begin
+        WriteLn(StdErr, Err);
+        Exit(ExitFailure);
+      end;
+      WriteLn(Format(rsWroteFile, [Target]));
+      for Problem in Layout.Problems do
+        WriteLn(StdErr, Format(rsWarning, [Problem.Text]));
+      Result := 0;
+    finally
+      FreeAndNil(Layout);
+    end;
+  end;
+
+  function RunExport(const LayoutFile, OutputOption: string): integer;
+  var
+    Layout: TLayout;
+    Target, Err: string;
+    Problem: TLayoutProblem;
+  begin
+    if ExtractFileExt(LayoutFile) <> LayoutExtension then
+    begin
+      WriteLn(StdErr, Format(rsExportNeedsLayout, [LayoutExtension]));
+      Exit(ExitFailure);
+    end;
+    if not CheckFileExists(LayoutFile) then
+      Exit(ExitFailure);
+    Target := OutputOption;
+    if Target = '' then
+      Target := ChangeFileExt(LayoutFile, '.pdf');
+    Layout := TLayout.Create;
+    try
+      if not Layout.LoadFromFile(LayoutFile, Err) then
+      begin
+        WriteLn(StdErr, Format(rsLoadFailed, [LayoutFile, Err]));
+        Exit(ExitFailure);
+      end;
+      Layout.LoadSources;
+      if not ExportLayoutPDF(Layout, Target, Err) then
+      begin
+        WriteLn(StdErr, Err);
+        Exit(ExitProblems);
+      end;
+      for Problem in Layout.Problems do
+        WriteLn(StdErr, Format(rsWarning, [Problem.Text]));
+      WriteLn(Format(rsWroteFile, [Target]));
+      Result := 0;
+    finally
+      FreeAndNil(Layout);
+    end;
+  end;
+
   // The Automation API: one request a line, until stdin closes
   procedure RunServe;
   var
@@ -183,9 +258,11 @@ begin
     Parser.AddOption('version', '-V', '--version', rsOptVersion, '', avSwitch);
     Parser.AddOption('measurements', '-m', '--measurements', rsOptMeasurements, 'file');
     Parser.AddOption('json', '', '--json', rsOptJSON, '', avSwitch);
+    Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
     Command.AddChoice('check', rsCmdCheck);
     Command.AddChoice('export', rsCmdExport);
+    Command.AddChoice('layout', rsCmdLayout);
     Command.AddChoice('serve', rsCmdServe);
     Parser.AddArgument('pattern', rsArgPattern, 'pattern', asOptional);
 
@@ -213,23 +290,23 @@ begin
 
     CommandName := Parser.GetArgumentValueAsString('command');
     PatternFile := Parser.GetArgumentValueAsString('pattern');
-    if CommandName = 'check' then
+    if CommandName = 'serve' then
     begin
-      if PatternFile = '' then
-      begin
-        WriteLn(StdErr, Format(rsNeedPattern, [CommandName]));
-        ExitCode := ExitFailure;
-        Exit;
-      end;
-      ExitCode := RunCheck(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.IsOption('json'));
-    end
-    else if CommandName = 'serve' then
-      RunServe
-    else
-    begin
-      WriteLn(StdErr, Format(rsNotImplemented, [CommandName]));
-      ExitCode := ExitFailure;
+      RunServe;
+      Exit;
     end;
+    if PatternFile = '' then
+    begin
+      WriteLn(StdErr, Format(rsNeedPattern, [CommandName]));
+      ExitCode := ExitFailure;
+      Exit;
+    end;
+    if CommandName = 'check' then
+      ExitCode := RunCheck(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.IsOption('json'))
+    else if CommandName = 'layout' then
+      ExitCode := RunLayout(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('output'))
+    else
+      ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'));
   finally
     FreeAndNil(Parser);
   end;

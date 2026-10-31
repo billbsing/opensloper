@@ -720,6 +720,17 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 
 **Code.** The publish app is a second Lazarus project, `publish/opensloper-publish.lpi`, using `src/core` and `src/output`. Layout loading, page tiling and preview drawing live in the output layer, so `opensloper-cli export LAYOUT` produces the same PDFs without a window.
 
+**Implemented so far** (`Sloper.Output.Layout`, `.Tiling`, `.PDFWriter`, `.LayoutPDF`):
+
+- **Commands.** `opensloper-cli layout PATTERN` starts a layout beside the pattern with every copy placed; `opensloper-cli export LAYOUT` writes the PDF, refusing with the list of blocking problems. `-o` names the file written.
+- **Layout space** is millimetres from the top left, y down. A placement gives the top left of the piece's cutting line after any rotation and flip (flip first), so it stays put when the piece grows.
+- **New pieces** are placed in plain rows up to 1 m wide, 10 mm apart. This is a starting point, not packing. Even-numbered copies of a mirrored piece start flipped.
+- **Problems.** A missing or unreadable file, a deleted piece and a failing piece block export. Unplaced copies, overlaps, pieces off the sheet and a rotation other than 0° or 180° are warnings. Per-piece allowed rotations are not in the model yet, and neither are size tables, so a source with a `size` blocks for now.
+- **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration scales everything drawn at true size, including the test square.
+- **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Opening it out to a whole piece can be an output option later.
+- **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font.
+- Not done yet: the window, watching pattern files, the Publish… command, large-format and projector output, title blocks and sheet notes (a layout file's `sheetNotes` and `titleBlock` are not read yet, and saving drops them).
+
 ## Printing
 
 The publish app (see Publish app) prints patterns directly at true scale, with notes and text printed alongside them (see Annotations), so no third-party tiling or editing software is needed, a gap found in practice with Seamly2D.
@@ -1022,7 +1033,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (done for now; Shift-click merging, the start-edge fallback and custom piece labels remain)
-8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
+8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF and `opensloper-cli layout` and `export` are done; the `opensloper-publish` window is next)
 9. Measurements app: measurement and size table editing, Valentina/Seamly2D import; SVG export
 10. Seams and seam-length checks
 11. DXF-AAMA export, automatic packing in the publish app

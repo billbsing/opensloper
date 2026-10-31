@@ -52,7 +52,8 @@ uses
   Sloper.Tests.Settings,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper,
-  Sloper.Tests.Piece;
+  Sloper.Tests.Piece,
+  Sloper.Tests.Layout;
 
 var
   App: TTestRunner;
