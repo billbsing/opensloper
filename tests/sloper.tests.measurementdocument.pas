@@ -39,6 +39,8 @@ type
     procedure ChangeOnDisk(const Key: string; Value: double);
     // Runs the two checks a changed file takes
     function CheckTwice: TMeasurementFileCheck;
+    // A pattern with one point at this formula, saved beside the file
+    function WritePattern(const Formula: string): string;
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -77,12 +79,20 @@ type
     procedure TestSaveAfterMerge;
     procedure TestBrokenFileIgnored;
     procedure TestNewFileHasNothingToWatch;
+    procedure TestPatternKeys;
+    procedure TestPatternMissing;
+    procedure TestMissingFollowsEdits;
+    procedure TestPatternNotFound;
+    procedure TestPatternSeenAgain;
+    procedure TestBrokenPatternIgnored;
+    procedure TestStopUsingPattern;
+    procedure TestPatternNeedsNoSet;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.JSON, Sloper.Core.Names;
+  SysUtils, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.Pattern, Sloper.Core.PatternCheck, Sloper.Core.PatternFile;
 
 procedure TTestMeasurementDocument.SetUp;
 begin
@@ -573,6 +583,146 @@ end;
 procedure TTestMeasurementDocument.TestNewFileHasNothingToWatch;
 begin
   AssertTrue(FDocument.CheckFile = fcSame);
+end;
+
+function TTestMeasurementDocument.WritePattern(const Formula: string): string;
+var
+  Pattern: TPattern;
+  Keys: TMeasurementSet;
+  Err: string;
+begin
+  Result := FFileName + '.sloper';
+  Keys := TMeasurementSet.Create;
+  Pattern := TPattern.Create;
+  try
+    Keys.Add('waist', 1);
+    Keys.Add('hip', 1);
+    Keys.Add('chest', 1);
+    Pattern.Measurements := Keys;
+    Pattern.AddFreePoint('A', Formula, '0');
+    AssertTrue(Err, SavePatternToFile(Pattern, Result, Err));
+  finally
+    FreeAndNil(Pattern);
+    FreeAndNil(Keys);
+  end;
+end;
+
+procedure TTestMeasurementDocument.TestPatternKeys;
+var
+  Keys: TStringArray;
+  Err: string;
+begin
+  AssertTrue(Err, ReadPatternMeasurementKeys(WritePattern('@waist + @chest'), Keys, Err));
+  try
+    AssertEquals(2, Length(Keys));
+    AssertEquals('in order', 'chest', Keys[0]);
+    AssertEquals('waist', Keys[1]);
+  finally
+    DeleteFile(FFileName + '.sloper');
+  end;
+end;
+
+procedure TTestMeasurementDocument.TestPatternMissing;
+var
+  Err: string;
+begin
+  OpenSample;
+  try
+    AssertTrue(Err, FDocument.UsePattern(WritePattern('@waist + @chest'), Err));
+    AssertEquals(1, Length(FDocument.Missing));
+    AssertEquals('chest', FDocument.Missing[0].Key);
+  finally
+    DeleteFile(FFileName + '.sloper');
+  end;
+end;
+
+procedure TTestMeasurementDocument.TestMissingFollowsEdits;
+var
+  Err: string;
+begin
+  OpenSample;
+  try
+    AssertTrue(Err, FDocument.UsePattern(WritePattern('@chest'), Err));
+    AssertTrue(Err, FDocument.AddKnown('chest', '', Err));
+    AssertEquals('added', 0, Length(FDocument.Missing));
+    FDocument.Undo;
+    AssertEquals('undone', 1, Length(FDocument.Missing));
+  finally
+    DeleteFile(FFileName + '.sloper');
+  end;
+end;
+
+procedure TTestMeasurementDocument.TestPatternNotFound;
+var
+  Err: string;
+begin
+  AssertFalse(FDocument.UsePattern(FFileName + '.none', Err));
+  AssertTrue(Err <> '');
+  AssertEquals('', FDocument.PatternFile);
+end;
+
+procedure TTestMeasurementDocument.TestPatternSeenAgain;
+var
+  Err: string;
+begin
+  OpenSample;
+  try
+    AssertTrue(Err, FDocument.UsePattern(WritePattern('@waist'), Err));
+    AssertFalse('nothing changed', FDocument.CheckPattern);
+    AssertEquals(0, Length(FDocument.Missing));
+    WritePattern('@chest');
+    FChanges := 0;
+    AssertTrue(FDocument.CheckPattern);
+    AssertEquals('told', 1, FChanges);
+    AssertEquals(1, Length(FDocument.Missing));
+    AssertFalse('once only', FDocument.CheckPattern);
+  finally
+    DeleteFile(FFileName + '.sloper');
+  end;
+end;
+
+procedure TTestMeasurementDocument.TestBrokenPatternIgnored;
+var
+  Err, Path: string;
+begin
+  OpenSample;
+  Path := WritePattern('@chest');
+  try
+    AssertTrue(Err, FDocument.UsePattern(Path, Err));
+    AssertTrue(Err, WriteTextFile(Path, 'half a fi', Err));
+    AssertFalse(FDocument.CheckPattern);
+    AssertEquals('the last good list stays', 1, Length(FDocument.Missing));
+  finally
+    DeleteFile(Path);
+  end;
+end;
+
+procedure TTestMeasurementDocument.TestStopUsingPattern;
+var
+  Err: string;
+begin
+  try
+    AssertTrue(Err, FDocument.UsePattern(WritePattern('@chest'), Err));
+    AssertEquals(1, Length(FDocument.Missing));
+    AssertTrue(Err, FDocument.UsePattern('', Err));
+    AssertEquals(0, Length(FDocument.Missing));
+    AssertEquals('', FDocument.PatternFile);
+  finally
+    DeleteFile(FFileName + '.sloper');
+  end;
+end;
+
+// Reading a pattern with no measurements must still find what it uses
+procedure TTestMeasurementDocument.TestPatternNeedsNoSet;
+var
+  Err: string;
+begin
+  try
+    AssertTrue(Err, FDocument.UsePattern(WritePattern('@waist * 2'), Err));
+    AssertEquals(1, Length(FDocument.Missing));
+  finally
+    DeleteFile(FFileName + '.sloper');
+  end;
 end;
 
 initialization

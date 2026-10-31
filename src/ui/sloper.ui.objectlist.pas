@@ -27,7 +27,7 @@ unit Sloper.UI.ObjectList;
 interface
 
 uses
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft,
+  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.Variables, Sloper.Core.Draft,
   Sloper.Core.Pattern;
 
 type
@@ -348,7 +348,6 @@ function MeasurementRows(Pattern: TPattern; MeasurementSet: TMeasurementSet; con
 var
   LowerSearch: string;
   Index, Count: integer;
-  Node: TEvalNode;
   Key: string;
 
   procedure Add(const AKey, Value, Description: string; Missing: boolean);
@@ -373,18 +372,14 @@ begin
         Add(MeasurementSet[Index].Key, FormatJSONFloat(MeasurementSet[Index].Value), MeasurementSet[Index].Description, False)
       else
         Add(MeasurementSet[Index].Key, '', MeasurementSet[Index].Description, False);
-  for Node in Pattern.AllNodes do
-    if Node is TMeasurementNode then
-    begin
-      Key := Copy(Node.Key, 2, MaxInt);
-      if (MeasurementSet = nil) or (MeasurementSet.Find(Key) = nil) then
-        Add(Key, '', '', True);
-    end;
+  for Key in PatternMeasurementKeys(Pattern) do
+    if (MeasurementSet = nil) or (MeasurementSet.Find(Key) = nil) then
+      Add(Key, '', '', True);
 end;
 
 function MeasurementChangeText(const Change: TMeasurementChange; const FileName: string): string;
 begin
-  if Change.Added then
+  if Change.Added or not Change.HadValue then
     Result := Format(rsMeasurementAdded, [Change.Key, FormatJSONFloat(Change.Value), ExtractFileName(FileName)])
   else
     Result := Format(rsMeasurementChanged, [Change.Key, FormatJSONFloat(Change.OldValue), FormatJSONFloat(Change.Value),

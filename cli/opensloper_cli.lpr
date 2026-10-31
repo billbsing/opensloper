@@ -49,13 +49,27 @@ resourcestring
   rsOptHelp = 'Show this help';
   rsOptVersion = 'Show the version';
   rsOptMeasurements = 'Measurement file (.slm); default: the one the pattern names';
-  rsOptSize = 'check, layout: the size to use from a size table; default: the first';
-  rsOptJSON = 'check: print every computed value as JSON';
+  rsOptSize = 'check, layout: the size to use from a size table, default the first; measurements: the size to list or set';
+  rsOptDescription = 'measurements set: the description; default: keep the one it has';
+  rsOptJSON = 'check: print every computed value as JSON; measurements list: print the file';
   rsOptOutput = 'layout, export: the file to write';
   rsArgCommand = 'Command to run';
-  rsArgPattern = 'Pattern file (.sloper), or layout file (.slayout) to export';
+  rsArgPattern = 'Pattern file (.sloper), layout file (.slayout) to export, or for measurements: list, set or missing';
+  rsArgFile = 'measurements: the measurement file (.slm)';
+  rsArgKey = 'measurements set: the key; measurements missing: the pattern file';
+  rsArgValue = 'measurements set: the value in mm';
   rsCmdCheck = 'Evaluate a pattern and report problems';
   rsCmdExport = 'Export a layout file as a tiled PDF';
+  rsCmdMeasurements = 'List a measurement file, set a value, or see what a pattern needs that it lacks';
+  rsMeasurementsUsage = 'Use: measurements list FILE, measurements set FILE KEY VALUE or measurements missing FILE PATTERN';
+  rsMeasurementBadNumber = 'The value must be a number of millimetres, such as 820 or 41.5';
+  rsMeasurementAdded = '@%s added at %s mm in %s';
+  rsMeasurementChanged = '@%s %s -> %s mm in %s';
+  rsMeasurementFilled = '@%s set to %s mm in %s';
+  rsNothingMissing = '%s has everything %s needs';
+  rsMissingCount = '%s lacks %d of what %s needs:';
+  rsMissingKey = '  @%s is not in the file';
+  rsMissingSizes = '  @%s has no value for size %s';
   rsCmdLayout = 'Start a layout file for a pattern, with every piece placed';
   rsCmdServe = 'Answer JSON-RPC 2.0 on stdin and stdout, one message per line';
   rsNeedPattern = 'The %s command needs a pattern file.';
@@ -227,6 +241,100 @@ resourcestring
     end;
   end;
 
+  function LoadMeasurements(const FileName: string; Measurements: TMeasurementSet): boolean;
+  var
+    Err: string;
+  begin
+    Result := CheckFileExists(FileName) and Measurements.LoadFromFile(FileName, Err);
+    if not Result and FileExists(FileName) then
+      WriteLn(StdErr, Format(rsLoadFailed, [FileName, Err]));
+  end;
+
+  function RunMeasurementList(const FileName, SizeOption: string; AsJSON: boolean): integer;
+  var
+    Measurements: TMeasurementSet;
+  begin
+    Measurements := TMeasurementSet.Create;
+    try
+      if not LoadMeasurements(FileName, Measurements) then
+        Exit(ExitFailure);
+      if (SizeOption <> '') and not Measurements.SelectSize(SizeOption) then
+      begin
+        WriteLn(StdErr, Format(rsMeasurementUnknownSize, [SizeOption]));
+        Exit(ExitFailure);
+      end;
+      if AsJSON then
+        Write(Measurements.SaveToText)
+      else
+        Write(MeasurementListText(Measurements, SizeOption));
+      Result := 0;
+    finally
+      FreeAndNil(Measurements);
+    end;
+  end;
+
+  function RunMeasurementSet(const FileName, Key, ValueText, SizeOption, Description: string; KeepDescription: boolean): integer;
+  var
+    Value: double;
+    Err: string;
+    Change: TMeasurementChange;
+  begin
+    if not ParseMeasure(ValueText, muMillimetre, Value) then
+    begin
+      WriteLn(StdErr, rsMeasurementBadNumber);
+      Exit(ExitFailure);
+    end;
+    if not CheckFileExists(FileName) then
+      Exit(ExitFailure);
+    if not ChangeMeasurementInFile(FileName, Key, Value, Description, Change, Err, SizeOption, KeepDescription) then
+    begin
+      WriteLn(StdErr, Err);
+      Exit(ExitFailure);
+    end;
+    if Change.Added then
+      WriteLn(Format(rsMeasurementAdded, [Change.Key, FormatJSONFloat(Change.Value), ExtractFileName(FileName)]))
+    else if not Change.HadValue then
+      WriteLn(Format(rsMeasurementFilled, [Change.Key, FormatJSONFloat(Change.Value), ExtractFileName(FileName)]))
+    else
+      WriteLn(Format(rsMeasurementChanged, [Change.Key, FormatJSONFloat(Change.OldValue), FormatJSONFloat(Change.Value), ExtractFileName(FileName)]));
+    Result := 0;
+  end;
+
+  function RunMeasurementMissing(const FileName, PatternFile: string): integer;
+  var
+    Measurements: TMeasurementSet;
+    Keys: TStringArray;
+    Err: string;
+    Lacking: TMissingMeasurementArray;
+    Item: TMissingMeasurement;
+  begin
+    Measurements := TMeasurementSet.Create;
+    try
+      if not LoadMeasurements(FileName, Measurements) or not CheckFileExists(PatternFile) then
+        Exit(ExitFailure);
+      if not ReadPatternMeasurementKeys(PatternFile, Keys, Err) then
+      begin
+        WriteLn(StdErr, Format(rsLoadFailed, [PatternFile, Err]));
+        Exit(ExitFailure);
+      end;
+      Lacking := MissingMeasurements(Keys, Measurements);
+      if Lacking = nil then
+      begin
+        WriteLn(Format(rsNothingMissing, [ExtractFileName(FileName), ExtractFileName(PatternFile)]));
+        Exit(0);
+      end;
+      WriteLn(Format(rsMissingCount, [ExtractFileName(FileName), Length(Lacking), ExtractFileName(PatternFile)]));
+      for Item in Lacking do
+        if Item.Sizes = nil then
+          WriteLn(Format(rsMissingKey, [Item.Key]))
+        else
+          WriteLn(Format(rsMissingSizes, [Item.Key, string.Join(', ', Item.Sizes)]));
+      Result := ExitProblems;
+    finally
+      FreeAndNil(Measurements);
+    end;
+  end;
+
   // The Automation API: one request a line, until stdin closes
   procedure RunServe;
   var
@@ -255,7 +363,7 @@ resourcestring
 var
   Parser: TArgumentParser;
   Command: TArgument;
-  CommandName, PatternFile: string;
+  CommandName, PatternFile, FileArgument, KeyArgument, ValueArgument: string;
 begin
   Parser := TArgumentParser.Create;
   try
@@ -265,14 +373,19 @@ begin
     Parser.AddOption('version', '-V', '--version', rsOptVersion, '', avSwitch);
     Parser.AddOption('measurements', '-m', '--measurements', rsOptMeasurements, 'file');
     Parser.AddOption('size', '-s', '--size', rsOptSize, 'size');
+    Parser.AddOption('description', '-d', '--description', rsOptDescription, 'text');
     Parser.AddOption('json', '', '--json', rsOptJSON, '', avSwitch);
     Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
     Command.AddChoice('check', rsCmdCheck);
     Command.AddChoice('export', rsCmdExport);
     Command.AddChoice('layout', rsCmdLayout);
+    Command.AddChoice('measurements', rsCmdMeasurements);
     Command.AddChoice('serve', rsCmdServe);
     Parser.AddArgument('pattern', rsArgPattern, 'pattern', asOptional);
+    Parser.AddArgument('file', rsArgFile, 'file', asOptional);
+    Parser.AddArgument('key', rsArgKey, 'key', asOptional);
+    Parser.AddArgument('value', rsArgValue, 'value', asOptional);
 
     try
       Parser.Parse;
@@ -301,6 +414,26 @@ begin
     if CommandName = 'serve' then
     begin
       RunServe;
+      Exit;
+    end;
+    if CommandName = 'measurements' then
+    begin
+      // The word after "measurements" says which, so it comes in as the pattern
+      FileArgument := Parser.GetArgumentValueAsString('file');
+      KeyArgument := Parser.GetArgumentValueAsString('key');
+      ValueArgument := Parser.GetArgumentValueAsString('value');
+      if (PatternFile = 'list') and (FileArgument <> '') then
+        ExitCode := RunMeasurementList(FileArgument, Parser.GetOptionValueAsString('size'), Parser.IsOption('json'))
+      else if (PatternFile = 'set') and (FileArgument <> '') and (KeyArgument <> '') and (ValueArgument <> '') then
+        ExitCode := RunMeasurementSet(FileArgument, KeyArgument, ValueArgument, Parser.GetOptionValueAsString('size'),
+          Parser.GetOptionValueAsString('description'), not Parser.IsOption('description'))
+      else if (PatternFile = 'missing') and (FileArgument <> '') and (KeyArgument <> '') then
+        ExitCode := RunMeasurementMissing(FileArgument, KeyArgument)
+      else
+      begin
+        WriteLn(StdErr, rsMeasurementsUsage);
+        ExitCode := ExitFailure;
+      end;
       Exit;
     end;
     if PatternFile = '' then

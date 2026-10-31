@@ -129,21 +129,37 @@ type
   // How values are shown and typed; files always store mm
   TMeasureUnit = (muMillimetre, muCentimetre, muInch);
 
+  // A key a pattern uses that a set cannot give it
+  TMissingMeasurement = record
+    Key: string;
+    // The sizes with no value; empty when the set does not have the key at all
+    Sizes: TStringArray;
+  end;
+  TMissingMeasurementArray = array of TMissingMeasurement;
+
   // One small edit to a measurement file
   TMeasurementChange = record
     Key: string;
     Value: double;
-    // The value before, unless the key is new
+    // The value before, when there was one
     OldValue: double;
+    HadValue: boolean;
     Added: boolean;
   end;
 
 // Re-reads the file, gives Key this value and description, adding it when it
 // is new, and writes the file atomically, so a change made elsewhere to any
 // other key is kept. A size table needs Size, and a personal set refuses one.
-// On failure the file is left as it was.
+// KeepDescription leaves an existing key's description alone. On failure the
+// file is left as it was.
 function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
-  out Change: TMeasurementChange; out ErrorMessage: string; const Size: string = ''): boolean;
+  out Change: TMeasurementChange; out ErrorMessage: string; const Size: string = ''; KeepDescription: boolean = False): boolean;
+// Which of Keys the set cannot give, in the order of Keys
+function MissingMeasurements(const Keys: TStringArray; MeasurementSet: TMeasurementSet): TMissingMeasurementArray;
+// The set as a table, tab separated with a heading, for scripts: one value
+// column, or one for each size in a size table unless Size picks one. Size
+// must be in the set.
+function MeasurementListText(MeasurementSet: TMeasurementSet; const Size: string): string;
 // A value in mm, as shown in this unit
 function FormatMeasure(Millimetres: double; AUnit: TMeasureUnit): string;
 // Text in this unit, in mm. A comma is taken as the decimal point.
@@ -176,6 +192,9 @@ resourcestring
   rsMeasurementLastSize = 'A size table needs at least one size';
   rsMeasurementNeedsSize = 'This is a size table, so a size is needed';
   rsMeasurementUnknownSize = 'Size "%s" is not in the measurement set';
+  rsMeasurementColumnKey = 'key';
+  rsMeasurementColumnValue = 'value';
+  rsMeasurementColumnDescription = 'description';
 
 implementation
 
@@ -668,7 +687,7 @@ begin
 end;
 
 function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
-  out Change: TMeasurementChange; out ErrorMessage: string; const Size: string): boolean;
+  out Change: TMeasurementChange; out ErrorMessage: string; const Size: string; KeepDescription: boolean): boolean;
 var
   MeasurementSet: TMeasurementSet;
   Existing: TMeasurement;
@@ -702,13 +721,78 @@ begin
     begin
       Change.Key := Existing.Key;
       Change.OldValue := Existing.Value;
+      Change.HadValue := Existing.HasValue;
       Existing.Value := Value;
-      Existing.Description := Description;
+      if not KeepDescription then
+        Existing.Description := Description;
     end;
     Change.Value := Value;
     Result := WriteTextFileAtomic(FileName, MeasurementSet.SaveToText, ErrorMessage);
   finally
     FreeAndNil(MeasurementSet);
+  end;
+end;
+
+function MissingMeasurements(const Keys: TStringArray; MeasurementSet: TMeasurementSet): TMissingMeasurementArray;
+var
+  Key: string;
+  Measurement: TMeasurement;
+  Item: TMissingMeasurement;
+  Index: integer;
+begin
+  Result := nil;
+  for Key in Keys do
+  begin
+    Item := Default(TMissingMeasurement);
+    Item.Key := Key;
+    Measurement := MeasurementSet.Find(Key);
+    if Measurement <> nil then
+    begin
+      Item.Key := Measurement.Key;
+      for Index := 0 to MeasurementSet.SizeCount - 1 do
+        if not Measurement.HasValueFor(Index) then
+          Insert(MeasurementSet.Sizes[Index], Item.Sizes, Length(Item.Sizes));
+      if Item.Sizes = nil then
+        Continue;
+    end;
+    Insert(Item, Result, Length(Result));
+  end;
+end;
+
+function MeasurementListText(MeasurementSet: TMeasurementSet; const Size: string): string;
+var
+  Lines: TStringList;
+  Row: string;
+  Index, SizeNumber, Picked: integer;
+begin
+  Picked := -1;
+  if Size <> '' then
+    Picked := MeasurementSet.IndexOfSize(Size);
+  Lines := TStringList.Create;
+  try
+    Row := rsMeasurementColumnKey;
+    if (MeasurementSet.SizeCount = 0) or (Picked >= 0) then
+      Row := Row + #9 + rsMeasurementColumnValue
+    else
+      for SizeNumber := 0 to MeasurementSet.SizeCount - 1 do
+        Row := Row + #9 + MeasurementSet.Sizes[SizeNumber];
+    Lines.Add(Row + #9 + rsMeasurementColumnDescription);
+    for Index := 0 to MeasurementSet.Count - 1 do
+    begin
+      Row := MeasurementSet[Index].Key;
+      for SizeNumber := 0 to Max(MeasurementSet.SizeCount, 1) - 1 do
+        if (Picked < 0) or (SizeNumber = Picked) then
+        begin
+          Row := Row + #9;
+          if MeasurementSet[Index].HasValueFor(SizeNumber) then
+            Row := Row + FormatJSONFloat(MeasurementSet[Index].ValueFor(SizeNumber));
+        end;
+      Lines.Add(Row + #9 + MeasurementSet[Index].Description);
+    end;
+    Lines.LineBreak := #10;
+    Result := Lines.Text;
+  finally
+    FreeAndNil(Lines);
   end;
 end;
 

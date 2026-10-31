@@ -33,6 +33,8 @@ type
     FReply: TJSONObject;
     procedure WriteFiles;
     procedure OpenTestPattern;
+    // Replaces the set with a size table where waist has no value for M
+    procedure WriteTable;
     procedure AddSquare;
     procedure Keep(const Reply: string);
     // Sends a request with id 1 and keeps the parsed reply for the test
@@ -65,6 +67,11 @@ type
     procedure TestGetMeasurements;
     procedure TestSetMeasurement;
     procedure TestSetMeasurementKeepsDescription;
+    procedure TestSizesInGetMeasurements;
+    procedure TestOpenWithASize;
+    procedure TestSetMeasurementInASize;
+    procedure TestUnknownSizeRefused;
+    procedure TestMissingMeasurements;
     procedure TestSave;
     procedure TestSaveNeedsAPath;
     procedure TestBadJSON;
@@ -392,6 +399,74 @@ begin
   AssertTrue('added', Answer.Get('added', False));
   Call('set_measurement', '{"key": "2 bad", "value": 1}');
   AssertEquals(RpcRefused, ErrorCode);
+end;
+
+procedure TTestAPI.WriteTable;
+var
+  Table: TMeasurementSet;
+  Err: string;
+begin
+  Table := TMeasurementSet.Create;
+  try
+    AssertTrue(Err, Table.LoadFromText('{"format": "measurements", "version": 1, "sizes": ["S", "M"], ' +
+      '"measurements": [{"key": "waist", "values": [700, null]}]}', Err));
+    AssertTrue(Err, Table.SaveToFile(FSetPath, Err));
+  finally
+    FreeAndNil(Table);
+  end;
+end;
+
+procedure TTestAPI.TestSizesInGetMeasurements;
+begin
+  WriteTable;
+  OpenTestPattern;
+  Call('get_measurements');
+  AssertEquals('the first until another is chosen', 'S', Answer.Get('size', ''));
+  AssertEquals(2, TJSONArray(Answer.Find('sizes')).Count);
+end;
+
+procedure TTestAPI.TestOpenWithASize;
+begin
+  WriteTable;
+  Call('open', Format('{"path": "%s", "size": "M"}', [FPatternPath]));
+  Call('get_measurements');
+  AssertEquals('M', Answer.Get('size', ''));
+  AssertTrue('no value there', TJSONObject(TJSONArray(Answer.Find('measurements'))[0]).Find('value').IsNull);
+end;
+
+procedure TTestAPI.TestSetMeasurementInASize;
+begin
+  WriteTable;
+  OpenTestPattern;
+  Call('set_measurement', '{"key": "waist", "value": 800, "size": "M"}');
+  Call('get_measurements');
+  AssertEquals('M', Answer.Get('size', ''));
+  AssertNear('that size', 800, TJSONObject(TJSONArray(Answer.Find('measurements'))[0]).Get('value', 0.0));
+end;
+
+procedure TTestAPI.TestUnknownSizeRefused;
+begin
+  WriteTable;
+  OpenTestPattern;
+  Call('set_measurement', '{"key": "waist", "value": 800, "size": "XL"}');
+  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(Format(rsMeasurementUnknownSize, ['XL']), ErrorText);
+end;
+
+procedure TTestAPI.TestMissingMeasurements;
+var
+  Item: TJSONObject;
+begin
+  OpenTestPattern;
+  Call('missing_measurements');
+  AssertEquals('all there', 0, TJSONArray(Answer.Find('missing')).Count);
+  WriteTable;
+  Call('open', Format('{"path": "%s", "size": "M"}', [FPatternPath]));
+  Call('missing_measurements');
+  AssertEquals(1, TJSONArray(Answer.Find('missing')).Count);
+  Item := TJSONObject(TJSONArray(Answer.Find('missing'))[0]);
+  AssertEquals('waist', Item.Get('key', ''));
+  AssertEquals('M', TJSONArray(Item.Find('sizes')).Strings[0]);
 end;
 
 procedure TTestAPI.TestSetMeasurementKeepsDescription;

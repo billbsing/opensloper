@@ -331,6 +331,7 @@ begin
   Change := Default(TMeasurementChange);
   Change.Key := 'waist';
   Change.OldValue := 820;
+  Change.HadValue := True;
   Change.Value := 830.5;
   AssertEquals('@waist 820 → 830.5 mm saved to bill.slm', MeasurementChangeText(Change, ConcatPaths(['sets', 'bill.slm'])));
   Change.Added := True;

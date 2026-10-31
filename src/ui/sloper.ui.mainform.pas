@@ -433,6 +433,9 @@ begin
     Process.Executable := ProgramFile;
     if FDocument.MeasurementPath <> '' then
       Process.Parameters.Add(FDocument.MeasurementPath);
+    // So it can list what this pattern needs; it reads the saved file
+    if FDocument.FileName <> '' then
+      Process.Parameters.Add(FDocument.FileName);
     try
       Process.Execute;
     except

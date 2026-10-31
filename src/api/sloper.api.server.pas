@@ -65,6 +65,9 @@ type
     function DoOpen(Params: TJSONObject): TJSONData;
     function DoSave(Params: TJSONObject): TJSONData;
     function DoGetMeasurements: TJSONData;
+    function DoMissingMeasurements: TJSONData;
+    // Selects it, refusing one the set does not have; empty leaves it alone
+    procedure UseSize(const Size: string);
     function DoSetMeasurement(Params: TJSONObject): TJSONData;
     function DoListObjects: TJSONData;
     function DoGetObject(Params: TJSONObject): TJSONData;
@@ -391,7 +394,55 @@ begin
     raise EApiError.Create(RpcRefused, Err);
   if (Measurements <> '') and not FDocument.UseMeasurements(Measurements, Err) then
     raise EApiError.Create(RpcRefused, Err);
+  UseSize(OptionalString(Params, 'size'));
   Result := DocumentInfo;
+end;
+
+procedure TApiServer.UseSize(const Size: string);
+begin
+  if (Size <> '') and not FDocument.SelectMeasurementSize(Size) then
+    raise EApiError.Create(RpcRefused, Format(rsMeasurementUnknownSize, [Size]));
+end;
+
+function TApiServer.DoMissingMeasurements: TJSONData;
+var
+  Info: TJSONObject;
+  List, Sizes: TJSONArray;
+  Item: TJSONObject;
+  Empty: TMeasurementSet;
+  Found: TMissingMeasurement;
+  Size: string;
+  Lacking: TMissingMeasurementArray;
+begin
+  Empty := nil;
+  Info := TJSONObject.Create;
+  try
+    List := TJSONArray.Create;
+    Info.Add('missing', List);
+    if FDocument.Measurements <> nil then
+      Lacking := MissingMeasurements(PatternMeasurementKeys(FDocument.Pattern), FDocument.Measurements)
+    else
+    begin
+      Empty := TMeasurementSet.Create;
+      Lacking := MissingMeasurements(PatternMeasurementKeys(FDocument.Pattern), Empty);
+    end;
+    for Found in Lacking do
+    begin
+      Item := TJSONObject.Create;
+      List.Add(Item);
+      Item.Add('key', Found.Key);
+      Sizes := TJSONArray.Create;
+      Item.Add('sizes', Sizes);
+      for Size in Found.Sizes do
+        Sizes.Add(Size);
+    end;
+    Result := Info;
+  except
+    FreeAndNil(Info);
+    FreeAndNil(Empty);
+    raise;
+  end;
+  FreeAndNil(Empty);
 end;
 
 function TApiServer.DoSave(Params: TJSONObject): TJSONData;
@@ -418,6 +469,14 @@ begin
   Info := TJSONObject.Create;
   try
     Info.Add('path', FDocument.MeasurementPath);
+    if (FDocument.Measurements <> nil) and (FDocument.Measurements.SizeCount > 0) then
+    begin
+      Info.Add('size', FDocument.Measurements.SizeName);
+      List := TJSONArray.Create;
+      Info.Add('sizes', List);
+      for Index := 0 to FDocument.Measurements.SizeCount - 1 do
+        List.Add(FDocument.Measurements.Sizes[Index]);
+    end;
     List := TJSONArray.Create;
     Info.Add('measurements', List);
     if FDocument.Measurements <> nil then
@@ -451,6 +510,7 @@ begin
   Key := RequireString(Params, 'key');
   if not GetJSONNumber(Params, 'value', Value) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['value']));
+  UseSize(OptionalString(Params, 'size'));
   Description := '';
   Existing := nil;
   if FDocument.Measurements <> nil then
@@ -466,7 +526,7 @@ begin
     Info.Add('key', Change.Key);
     Info.Add('value', JSONFloat(Change.Value));
     Info.Add('added', Change.Added);
-    if not Change.Added then
+    if Change.HadValue then
       Info.Add('oldValue', JSONFloat(Change.OldValue));
     Result := Info;
   except
@@ -993,6 +1053,7 @@ begin
     'save': Result := DoSave(Params);
     'get_measurements': Result := DoGetMeasurements;
     'set_measurement': Result := DoSetMeasurement(Params);
+    'missing_measurements': Result := DoMissingMeasurements;
     'list_objects': Result := DoListObjects;
     'get_object': Result := DoGetObject(Params);
     'set_formula': Result := DoSetFormula(Params);

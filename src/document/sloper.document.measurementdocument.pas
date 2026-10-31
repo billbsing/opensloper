@@ -46,6 +46,9 @@ type
     // The file's text seen changing, and the text a conflict is waiting on
     FPendingText, FConflictText: string;
     FConflicts: TStringArray;
+    // The pattern being checked against, its keys and its text when read
+    FPatternFile, FPatternText: string;
+    FPatternKeys: TStringArray;
     FChangeOpen: boolean;
     FBefore, FDescription: string;
     FOnChange: TNotifyEvent;
@@ -59,6 +62,7 @@ type
     procedure AdoptFile(const Text: string);
     function Merge(const FileText: string; const TakeTheirs: TStringArray; out MergedText: string; out Conflicts: TStringArray): boolean;
     function FreeKey: string;
+    function GetMissing: TMissingMeasurementArray;
     function AddKey(const Key, Description: string): TMeasurement;
   public
     constructor Create;
@@ -76,6 +80,12 @@ type
     // After fcConflict: the keys in TakeTheirs get the file's version, the
     // others keep the edits here
     procedure ResolveConflicts(const TakeTheirs: TStringArray);
+    // Checks the file against this pattern from now on, so Missing lists what
+    // it uses that the file cannot give it. An empty name stops that.
+    function UsePattern(const AFileName: string; out ErrorMessage: string): boolean;
+    // Call regularly: reads the pattern again when it has been saved. A file
+    // that does not read is left for whoever is writing it. True when it was.
+    function CheckPattern: boolean;
 
     procedure BeginChange(const Description: string);
     // A step that matches the last one's non-empty key, within a second, joins it
@@ -105,6 +115,8 @@ type
     property Measurements: TMeasurementSet read FSet;
     property FileName: string read FFileName;
     property Conflicts: TStringArray read FConflicts;
+    property PatternFile: string read FPatternFile;
+    property Missing: TMissingMeasurementArray read GetMissing;
     property Modified: boolean read GetModified;
     property CanUndo: boolean read GetCanUndo;
     property CanRedo: boolean read GetCanRedo;
@@ -131,7 +143,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.JSON;
+  Sloper.Core.JSON, Sloper.Core.PatternCheck;
 
 const
   NewKeyStem = 'measurement';
@@ -355,6 +367,46 @@ begin
   // Conflicts not in TakeTheirs keep the edits here, as Merge leaves them
   FSet.LoadFromText(MergedText, Err);
   Changed;
+end;
+
+function TMeasurementDocument.GetMissing: TMissingMeasurementArray;
+begin
+  Result := MissingMeasurements(FPatternKeys, FSet);
+end;
+
+function TMeasurementDocument.UsePattern(const AFileName: string; out ErrorMessage: string): boolean;
+var
+  Keys: TStringArray;
+  Text: string;
+begin
+  ErrorMessage := '';
+  Result := True;
+  Keys := nil;
+  Text := '';
+  if AFileName <> '' then
+  begin
+    Result := ReadTextFile(AFileName, Text, ErrorMessage) and ReadPatternMeasurementKeys(AFileName, Keys, ErrorMessage);
+    if not Result then
+      Exit;
+  end;
+  FPatternFile := AFileName;
+  FPatternText := Text;
+  FPatternKeys := Keys;
+  Changed;
+end;
+
+function TMeasurementDocument.CheckPattern: boolean;
+var
+  Text, Err: string;
+  Keys: TStringArray;
+begin
+  Result := False;
+  if (FPatternFile = '') or not ReadTextFile(FPatternFile, Text, Err) or (Text = FPatternText) or not ReadPatternMeasurementKeys(FPatternFile, Keys, Err) then
+    Exit;
+  FPatternText := Text;
+  FPatternKeys := Keys;
+  Changed;
+  Result := True;
 end;
 
 procedure TMeasurementDocument.BeginChange(const Description: string);

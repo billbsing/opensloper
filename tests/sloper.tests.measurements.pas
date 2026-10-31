@@ -72,6 +72,14 @@ type
     procedure TestChangeOneSize;
     procedure TestChangeNeedsASize;
     procedure TestChangeAddsToOneSize;
+    procedure TestChangeKeepsDescription;
+    procedure TestChangeFillsAnEmptySize;
+    procedure TestMissingKeys;
+    procedure TestMissingValuesBySize;
+    procedure TestNothingMissing;
+    procedure TestListPersonal;
+    procedure TestListTable;
+    procedure TestListOneSize;
     procedure TestFormatMeasure;
     procedure TestParseMeasure;
     procedure TestMergeSizes;
@@ -412,6 +420,100 @@ begin
   finally
     DeleteFile(FileName);
   end;
+end;
+
+procedure TTestMeasurements.TestChangeKeepsDescription;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    FSet.Add('waist', 820, 'Old');
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'waist', 830, 'Ignored', Change, Err, '', True));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'chest', 900, 'New key', Change, Err, '', True));
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    AssertEquals('kept', 'Old', FSet.Find('waist').Description);
+    AssertNear('changed', 830, FSet.Find('waist').Value);
+    AssertEquals('a new key has only this one', 'New key', FSet.Find('chest').Description);
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestChangeFillsAnEmptySize;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    LoadTable;
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'hip', 940, '', Change, Err, '38'));
+    AssertFalse('the key was there', Change.Added);
+    AssertFalse('but that size had nothing to replace', Change.HadValue);
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'hip', 950, '', Change, Err, '38'));
+    AssertTrue(Change.HadValue);
+    AssertNear('old', 940, Change.OldValue);
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestMissingKeys;
+var
+  Keys: TStringArray;
+  Found: TMissingMeasurementArray;
+begin
+  FSet.Add('waist', 820);
+  Keys := nil;
+  Insert('WAIST', Keys, 0);
+  Insert('chest', Keys, 1);
+  Found := MissingMeasurements(Keys, FSet);
+  AssertEquals(1, Length(Found));
+  AssertEquals('chest', Found[0].Key);
+  AssertEquals('not in the set at all', 0, Length(Found[0].Sizes));
+end;
+
+procedure TTestMeasurements.TestMissingValuesBySize;
+var
+  Keys: TStringArray;
+  Found: TMissingMeasurementArray;
+begin
+  LoadTable;
+  Keys := nil;
+  Insert('HIP', Keys, 0);
+  Insert('waist', Keys, 1);
+  Found := MissingMeasurements(Keys, FSet);
+  AssertEquals('waist has all its values', 1, Length(Found));
+  AssertEquals('the stored spelling', 'hip', Found[0].Key);
+  AssertEquals(1, Length(Found[0].Sizes));
+  AssertEquals('38', Found[0].Sizes[0]);
+end;
+
+procedure TTestMeasurements.TestNothingMissing;
+begin
+  AssertEquals(0, Length(MissingMeasurements(nil, FSet)));
+end;
+
+procedure TTestMeasurements.TestListPersonal;
+begin
+  FSet.Add('waist', 820.5, 'Round it');
+  AssertEquals('key'#9'value'#9'description'#10'waist'#9'820.5'#9'Round it'#10, MeasurementListText(FSet, ''));
+end;
+
+procedure TTestMeasurements.TestListTable;
+begin
+  LoadTable;
+  AssertEquals('key'#9'36'#9'38'#9'40'#9'description'#10'waist'#9'700'#9'740.5'#9'780'#9'Waist'#10'hip'#9'900'#9#9'980'#9#10, MeasurementListText(FSet, ''));
+end;
+
+procedure TTestMeasurements.TestListOneSize;
+begin
+  LoadTable;
+  AssertEquals('key'#9'value'#9'description'#10'waist'#9'740.5'#9'Waist'#10'hip'#9#9#10, MeasurementListText(FSet, '38'));
 end;
 
 procedure TTestMeasurements.TestFormatMeasure;

@@ -33,6 +33,11 @@ const
   // finer than drafting needs, and it keeps reports readable and stable
   ReportDecimals = 6;
 
+// The measurement keys the pattern's formulas use, in order
+function PatternMeasurementKeys(Pattern: TPattern): TStringArray;
+// The same, from a pattern file; needs no measurement set
+function ReadPatternMeasurementKeys(const FileName: string; out Keys: TStringArray; out ErrorMessage: string): boolean;
+
 // Value rounded to ReportDecimals
 function ReportFloat(Value: double): TJSONData;
 // The state as written in reports; not translated
@@ -54,7 +59,8 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.Piece;
+  Classes, Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry,
+  Sloper.Core.Piece;
 
 function StateName(State: TEvalState): string;
 begin
@@ -64,6 +70,41 @@ begin
     esError: Result := 'error';
     esInvalid: Result := 'invalid';
     esBlocked: Result := 'blocked';
+  end;
+end;
+
+function PatternMeasurementKeys(Pattern: TPattern): TStringArray;
+var
+  Node: TEvalNode;
+  Keys: TStringList;
+begin
+  Keys := TStringList.Create;
+  try
+    for Node in Pattern.AllNodes do
+      if Node is TMeasurementNode then
+        Keys.Add(Copy(Node.Key, 2, MaxInt));
+    Keys.Sort;
+    Result := Keys.ToStringArray;
+  finally
+    FreeAndNil(Keys);
+  end;
+end;
+
+function ReadPatternMeasurementKeys(const FileName: string; out Keys: TStringArray; out ErrorMessage: string): boolean;
+var
+  Pattern: TPattern;
+begin
+  Keys := nil;
+  Pattern := TPattern.Create;
+  try
+    Result := LoadPatternFromFile(Pattern, FileName, ErrorMessage);
+    if not Result then
+      Exit;
+    // Evaluating is what makes a node for each key
+    Pattern.Evaluate;
+    Keys := PatternMeasurementKeys(Pattern);
+  finally
+    FreeAndNil(Pattern);
   end;
 end;
 

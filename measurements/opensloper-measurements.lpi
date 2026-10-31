@@ -24,6 +24,10 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="OSClipper2"/>
+        <DefaultFilename Value="../src/core/clipper2/osclipper2.lpk" Prefer="True"/>
+      </Item>
+      <Item>
         <PackageName Value="BGRABitmapPack"/>
         <DefaultFilename Value="../packages/bgrabitmap/bgrabitmap/bgrabitmappack.lpk" Prefer="True"/>
       </Item>

@@ -45,6 +45,12 @@ type
     // The key the mouse is over in the table, ''  when none
     FGridHover: string;
     FGrid: TStringGrid;
+    FTableColumn, FMissingPanel: TPanel;
+    FMissingLabel: TLabel;
+    FMissingList: TListBox;
+    FMissingButton: TButton;
+    // What each line of the list stands for
+    FMissing: TMissingMeasurementArray;
     FNameEdit, FNotesEdit: TEdit;
     FUnitBox: TComboBox;
     FStatus: TStatusBar;
@@ -58,6 +64,14 @@ type
     procedure BuildBar;
     procedure BuildGrid;
     procedure BuildSide;
+    procedure BuildMissing;
+    procedure RefreshMissing;
+    procedure MissingFix(Sender: TObject);
+    procedure MissingSelect(Sender: TObject);
+    procedure OpenArguments;
+    procedure UsePatternPath(const Path: string);
+    procedure CheckPatternClick(Sender: TObject);
+    procedure StopPatternClick(Sender: TObject);
     procedure LoadCatalogue;
     procedure RefreshEntries;
     procedure RefreshFigure;
@@ -137,6 +151,8 @@ resourcestring
   rsMenuSaveAs = 'Save &As...';
   rsMenuImport = '&Import...';
   rsMenuExport = '&Export...';
+  rsMenuCheck = '&Check Against Pattern...';
+  rsMenuStopCheck = 'Stop Chec&king';
   rsMenuQuit = '&Quit';
   rsMenuEdit = '&Edit';
   rsMenuUndo = '&Undo';
@@ -205,6 +221,14 @@ resourcestring
   rsExportTitle = 'Exported %s';
   rsExportFailed = 'Could not export %s: %s';
   rsClose = 'Close';
+  rsMissingNone = '%s has everything it needs here';
+  rsMissingSome = '%s needs these, which this file cannot give it:';
+  rsMissingKey = '@%s';
+  rsMissingSizes = '@%s: no value for size %s';
+  rsMissingFix = 'Add or go to it';
+  rsPatternFailed = 'Could not read %s: %s';
+  rsPatternReread = '%s was saved, so it was checked again';
+  rsFilterPattern = 'Patterns (*.sloper)|*.sloper';
 
 implementation
 
@@ -216,6 +240,8 @@ const
   SideWidth = 430;
   CatalogueHeight = 410;
   EntryInfoHeight = 120;
+  MissingHeight = 150;
+  PatternExtension = '.sloper';
   ReportWidth = 640;
   ReportHeight = 480;
   GroupNames: array[0..High(CatalogueGroups)] of string = (rsGroupHeights, rsGroupCircumferences, rsGroupWidths, rsGroupArm, rsGroupLeg,
@@ -233,8 +259,6 @@ const
   FirstValueColumn = 1;
 
 constructor TMeasurementsForm.Create(AOwner: TComponent);
-var
-  IsMultiSize: boolean;
 begin
   inherited CreateNew(AOwner);
   Caption := rsMeasurementsTitle;
@@ -253,17 +277,19 @@ begin
   BuildSide;
   BuildHeader;
   BuildBar;
+  // Under the table only, so that the list leaves the figure its height
+  FTableColumn := TPanel.Create(Self);
+  FTableColumn.Parent := Self;
+  FTableColumn.Align := alClient;
+  FTableColumn.BevelOuter := bvNone;
+  BuildMissing;
   BuildGrid;
   LoadCatalogue;
   RefreshAll;
   FWatch := TTimer.Create(Self);
   FWatch.Interval := WatchMilliseconds;
   FWatch.OnTimer := @WatchTick;
-  if (ParamCount >= 1) and FileExists(ParamStr(1)) then
-    if SeamlyFileKind(ParamStr(1), IsMultiSize) then
-      ImportPath(ParamStr(1))
-    else
-      OpenPath(ParamStr(1));
+  OpenArguments;
 end;
 
 destructor TMeasurementsForm.Destroy;
@@ -306,6 +332,8 @@ begin
   AddItem(Group, rsMenuSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
   AddItem(Group, rsMenuImport, @ImportClick, ShortCut(VK_I, [ssModifier]));
   AddItem(Group, rsMenuExport, @ExportClick, ShortCut(VK_E, [ssModifier]));
+  AddItem(Group, rsMenuCheck, @CheckPatternClick);
+  AddItem(Group, rsMenuStopCheck, @StopPatternClick);
   AddItem(Group, rsMenuQuit, @QuitClick, ShortCut(VK_Q, [ssModifier]));
   Group := AddMenu(rsMenuEdit);
   FUndoItem := AddItem(Group, rsMenuUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
@@ -401,7 +429,7 @@ end;
 procedure TMeasurementsForm.BuildGrid;
 begin
   FGrid := TStringGrid.Create(Self);
-  FGrid.Parent := Self;
+  FGrid.Parent := FTableColumn;
   FGrid.Align := alClient;
   FGrid.FixedCols := 0;
   FGrid.FixedRows := 1;
@@ -490,6 +518,154 @@ begin
   FFigure.BorderSpacing.Around := SideGap;
   FFigure.OnPick := @FigurePick;
   FFigure.OnHover := @FigureHover;
+end;
+
+procedure TMeasurementsForm.BuildMissing;
+var
+  Buttons: TPanel;
+begin
+  FMissingPanel := TPanel.Create(Self);
+  FMissingPanel.Parent := FTableColumn;
+  FMissingPanel.Align := alBottom;
+  FMissingPanel.Height := MissingHeight;
+  FMissingPanel.BevelOuter := bvNone;
+  FMissingPanel.Visible := False;
+  Buttons := TPanel.Create(Self);
+  Buttons.Parent := FMissingPanel;
+  Buttons.Align := alRight;
+  Buttons.AutoSize := True;
+  Buttons.BevelOuter := bvNone;
+  FMissingButton := TButton.Create(Self);
+  FMissingButton.Parent := Buttons;
+  FMissingButton.Align := alTop;
+  FMissingButton.AutoSize := True;
+  FMissingButton.BorderSpacing.Around := SideGap;
+  FMissingButton.Caption := rsMissingFix;
+  FMissingButton.OnClick := @MissingFix;
+  FMissingLabel := TLabel.Create(Self);
+  FMissingLabel.Parent := FMissingPanel;
+  FMissingLabel.Align := alTop;
+  FMissingLabel.BorderSpacing.Around := SideGap;
+  FMissingList := TListBox.Create(Self);
+  FMissingList.Parent := FMissingPanel;
+  FMissingList.Align := alClient;
+  FMissingList.BorderSpacing.Left := SideGap;
+  FMissingList.BorderSpacing.Bottom := SideGap;
+  FMissingList.OnClick := @MissingSelect;
+  FMissingList.OnDblClick := @MissingFix;
+end;
+
+// The list shows only while checking against a pattern
+procedure TMeasurementsForm.RefreshMissing;
+var
+  Item: TMissingMeasurement;
+  Lines: TStringList;
+begin
+  FMissingPanel.Visible := FDocument.PatternFile <> '';
+  if not FMissingPanel.Visible then
+    Exit;
+  FMissing := FDocument.Missing;
+  if FMissing = nil then
+    FMissingLabel.Caption := Format(rsMissingNone, [ExtractFileName(FDocument.PatternFile)])
+  else
+    FMissingLabel.Caption := Format(rsMissingSome, [ExtractFileName(FDocument.PatternFile)]);
+  Lines := TStringList.Create;
+  try
+    for Item in FMissing do
+      if Item.Sizes = nil then
+        Lines.Add(Format(rsMissingKey, [Item.Key]))
+      else
+        Lines.Add(Format(rsMissingSizes, [Item.Key, string.Join(', ', Item.Sizes)]));
+    if not FMissingList.Items.Equals(Lines) then
+      FMissingList.Items.Assign(Lines);
+  finally
+    FreeAndNil(Lines);
+  end;
+  FMissingButton.Enabled := FMissingList.ItemIndex >= 0;
+end;
+
+procedure TMeasurementsForm.MissingSelect(Sender: TObject);
+begin
+  FMissingButton.Enabled := FMissingList.ItemIndex >= 0;
+  if FMissingList.ItemIndex >= 0 then
+    ShowEntry(FMissing[FMissingList.ItemIndex].Key);
+end;
+
+// A key the file lacks is added; one short of a value is gone to, at that size
+procedure TMeasurementsForm.MissingFix(Sender: TObject);
+var
+  Item: TMissingMeasurement;
+  Entry: TCatalogueEntry;
+  Description, Reason: string;
+begin
+  if FMissingList.ItemIndex < 0 then
+    Exit;
+  Item := FMissing[FMissingList.ItemIndex];
+  if Item.Sizes <> nil then
+    SelectCell(FDocument.Measurements.IndexOf(Item.Key), FirstValueColumn + FDocument.Measurements.IndexOfSize(Item.Sizes[0]))
+  else
+  begin
+    Description := '';
+    Entry := FCatalogue.Find(Item.Key);
+    if Entry <> nil then
+      Description := Entry.Description;
+    if not FDocument.AddKnown(Item.Key, Description, Reason) then
+    begin
+      ShowRefusal(Reason);
+      Exit;
+    end;
+    SelectCell(FDocument.Measurements.IndexOf(Item.Key), FirstValueColumn);
+  end;
+  ShowEntry(Item.Key);
+  FGrid.SetFocus;
+end;
+
+// What each file is decides what is done with it, so the order does not matter
+procedure TMeasurementsForm.OpenArguments;
+var
+  Index: integer;
+  Path: string;
+  IsMultiSize: boolean;
+begin
+  for Index := 1 to ParamCount do
+  begin
+    Path := ParamStr(Index);
+    if not FileExists(Path) then
+      Continue;
+    if LowerCase(ExtractFileExt(Path)) = PatternExtension then
+      UsePatternPath(Path)
+    else if SeamlyFileKind(Path, IsMultiSize) then
+      ImportPath(Path)
+    else
+      OpenPath(Path);
+  end;
+end;
+
+procedure TMeasurementsForm.UsePatternPath(const Path: string);
+var
+  Reason: string;
+begin
+  if not FDocument.UsePattern(Path, Reason) then
+    MessageDlg(Format(rsPatternFailed, [Path, Reason]), mtError, [mbOK], 0);
+end;
+
+procedure TMeasurementsForm.CheckPatternClick(Sender: TObject);
+var
+  Dialog: TOpenDialog;
+begin
+  Dialog := TOpenDialog.Create(Self);
+  try
+    Dialog.Filter := rsFilterPattern;
+    if Dialog.Execute then
+      UsePatternPath(Dialog.FileName);
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+procedure TMeasurementsForm.StopPatternClick(Sender: TObject);
+begin
+  UsePatternPath('');
 end;
 
 // Nothing depends on the catalogue, so without it the table still works
@@ -769,6 +945,7 @@ begin
   RefreshGrid;
   RefreshEntries;
   RefreshFigure;
+  RefreshMissing;
   ShowEntry(SelectedKey);
   FRefreshing := True;
   try
@@ -931,6 +1108,8 @@ begin
   // Taking in a change now would lose what is being typed
   if FAnswering or (FGrid.Editor <> nil) and (FGrid.Cells[FGrid.Col, FGrid.Row] <> FGrid.Editor.Caption) then
     Exit;
+  if FDocument.CheckPattern then
+    ShowStatus(Format(rsPatternReread, [ExtractFileName(FDocument.PatternFile)]));
   case FDocument.CheckFile of
     fcReloaded: ShowStatus(rsFileReloaded);
     fcMerged: ShowStatus(rsFileMerged);
