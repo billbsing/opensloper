@@ -728,7 +728,7 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
 | Drafting app (pattern file) | Publish app (layout file) |
 | --- | --- |
 | Draft geometry, formulas, variables | Which patterns and measurement sets to use |
-| Pieces: outline, seam allowance, grainline, notches, piece labels, cut count, allowed rotations | Placement of each piece copy: position, rotation, flip |
+| Pieces: outline, seam allowance, grainline, notches, piece labels, cut count | Placement of each piece copy: position, rotation, flip |
 | Pattern-space annotations (notes, callouts) | Sheet-space annotations (title block, sheet notes) |
 |  | Paper, margins, overlap, marks, calibration, output kind |
 
@@ -743,7 +743,7 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
 
 **Moving between the apps.** The drafting app has a Publish… command that opens the publish app with the current pattern, creating a layout for it if there is none, as KiCad's project manager connects its tools.
 
-**Rotation follows the grain.** Each piece says in the drafting app which rotations keep its grainline (0°/180° by default, 90° steps where the fabric allows). The publish app offers only those, plus a flip for mirrored copies. A piece cut twice gets two placements, the second mirrored when `cut.mirrored` is set.
+**Rotation in 90° steps.** Pieces turn by quarter turns only, so the grainline stays square to the sheet; there is no per-piece list of allowed rotations. The grainline is printed on each piece, so a turn on paper does not change how it is cut. A flip is there for mirrored copies. A piece cut twice gets two placements, the second mirrored when `cut.mirrored` is set.
 
 **Layout file** (`.slayout`, JSON under the same rules as pattern files; paths relative to the layout file):
 
@@ -779,11 +779,11 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Commands.** `opensloper-cli layout PATTERN` starts a layout beside the pattern with every copy placed; `opensloper-cli export LAYOUT` writes the PDF, refusing with the list of blocking problems. `-o` names the file written.
 - **Layout space** is millimetres from the top left, y down. A placement gives the top left of the piece's cutting line after any rotation and flip (flip first), so it stays put when the piece grows.
 - **New pieces** are placed in plain rows up to 1 m wide, 10 mm apart. This is a starting point, not packing. Even-numbered copies of a mirrored piece start flipped.
-- **Problems.** A missing or unreadable file, a deleted piece and a failing piece block export. Unplaced copies, overlaps, pieces off the sheet and a rotation other than 0° or 180° are warnings. Per-piece allowed rotations are not in the model yet, and neither are size tables, so a source with a `size` blocks for now.
+- **Problems.** A missing or unreadable file, a deleted piece and a failing piece block export. Unplaced copies, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. Size tables are not in the model yet, so a source with a `size` blocks for now.
 - **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration scales everything drawn at true size, including the test square.
 - **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Opening it out to a whole piece can be an output option later.
 - **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font.
-- **The window** (`Sloper.Publish.MainForm`, `Sloper.Publish.PreviewCanvas`, with the LCL-free `Sloper.Output.Preview`) is one screen: the pages with the pieces on them, and beside them the paper settings, Turn 180°, Flip, Place new pieces, Export PDF and the problems list. It takes a `.slayout`, or a `.sloper` to start a layout for. A page's printable area is drawn white, and grey when blank. Click selects a piece and dragging moves it, on a 0.5 mm grid, as one undo step; Escape cancels. The wheel zooms about the cursor; middle-drag or Space+drag pans.
+- **The window** (`Sloper.Publish.MainForm`, `Sloper.Publish.PreviewCanvas`, with the LCL-free `Sloper.Output.Preview`) is one screen: the pages with the pieces on them, and beside them the paper settings, Turn 90°, Flip, Place new pieces, Export PDF and the problems list. It takes a `.slayout`, or a `.sloper` to start a layout for. A page's printable area is drawn white, and grey when blank. Click selects a piece and dragging moves it, on a 0.5 mm grid, as one undo step; Escape cancels. The wheel zooms about the cursor; middle-drag or Space+drag pans.
 - **Undo** (`TLayoutDocument`) records the layout's text before each change, as `TPatternDocument` does, and reads the patterns again on undo. A run of paper setting changes merges into one step.
 - **Keeping in step.** Once a second the window compares a checksum of each source's pattern and measurement files, since file times only go to the second. A changed file has to read the same on two checks before it is loaded, so a save still in progress is not read. The status bar then says what was read, and new pieces show as unplaced. Reload Patterns reads everything again by hand.
 - **Publish…** (File menu, Ctrl/Cmd+P) in the drafting app starts `opensloper-publish`, beside it or in `publish/` below it, with the pattern's layout (same name, `.slayout`) if there is one and otherwise the pattern. It reads saved files, so an unnamed pattern is saved first and a modified one is offered the choice. Each use starts another window; it does not look for one already open.

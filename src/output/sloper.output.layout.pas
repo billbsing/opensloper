@@ -189,7 +189,7 @@ resourcestring
   rsLayoutSourceProblem = '%s: %s';
   rsLayoutPieceGone = '%s: piece %s no longer exists';
   rsLayoutPieceFailing = '%s: %s cannot be printed: %s';
-  rsLayoutOffGrain = '%s: %s is turned %d°, off its grainline';
+  rsLayoutOffGrain = '%s: %s is turned %d°; pieces turn in 90° steps, to keep the grainline square to the sheet';
   rsLayoutUnplaced = '%s: %s (copy %d of %d) is not placed';
   rsLayoutTrayItem = '%s (copy %d of %d)';
   rsLayoutExtraCopy = '%s: %s is cut %d times now, but copy %d is still placed';
@@ -1029,7 +1029,7 @@ begin
     end;
     if Piece.State <> esValid then
       Add(Format(rsLayoutPieceFailing, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.Message]), True);
-    if (Placement.Rotation mod 180) <> 0 then
+    if (Placement.Rotation mod 90) <> 0 then
       Add(Format(rsLayoutOffGrain, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Placement.Rotation]), False);
     if Placement.Copy > Piece.CutCount then
       Add(Format(rsLayoutExtraCopy, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.CutCount, Placement.Copy]), False);

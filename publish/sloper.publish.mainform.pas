@@ -118,7 +118,7 @@ resourcestring
   rsCannotPlace = 'This piece has a problem in the pattern, so it cannot be placed yet';
   rsNoProblems = 'No problems';
   rsPlaceNew = 'Place new pieces';
-  rsTurn = 'Turn 180°';
+  rsTurn = 'Turn 90°';
   rsFlip = 'Flip';
   rsExportPDF = 'Export PDF...';
   rsChangeSettings = 'Change paper';
@@ -652,7 +652,7 @@ begin
   if Index < 0 then
     Exit;
   FDocument.BeginChange(rsTurnChange);
-  FDocument.Layout.Placements[Index].Rotation := (FDocument.Layout.Placements[Index].Rotation + 180) mod 360;
+  FDocument.Layout.Placements[Index].Rotation := (FDocument.Layout.Placements[Index].Rotation + 90) mod 360;
   FDocument.EndChange;
 end;
 

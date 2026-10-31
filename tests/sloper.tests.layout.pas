@@ -56,6 +56,7 @@ type
     procedure TestCopiesAndMirror;
     procedure TestPlacementStaysAtTopLeft;
     procedure TestRotationHalfTurn;
+    procedure TestRotationQuarterTurn;
     procedure TestModelYPointsUp;
     procedure TestUnplacedIsAWarning;
     procedure TestMissingPatternBlocks;
@@ -444,6 +445,23 @@ begin
   AssertNear('same size', Plain[0].Bounds.MaxY, Turned[0].Bounds.MaxY);
 end;
 
+procedure TTestLayout.TestRotationQuarterTurn;
+var
+  Shapes: TPlacedPieceArray;
+  Grain: TLine2;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Placements[0].Rotation := 90;
+  Shapes := FLayout.PlacedPieces;
+  AssertNear('corner stays', 0, Shapes[0].Bounds.MinX);
+  AssertNear('square piece, same width', 120, Shapes[0].Bounds.MaxX);
+  // The grainline ran up the page, and now runs across it
+  Grain := Shapes[0].Marks[0];
+  AssertNear('square to the sheet', Grain.P1.Y, Grain.P2.Y);
+end;
+
 // Model y points up and layout y down, so the piece's top comes first
 procedure TTestLayout.TestModelYPointsUp;
 var
@@ -535,6 +553,8 @@ begin
   Prepare;
   FLayout.PlaceNewPieces;
   FLayout.Placements[0].Rotation := 90;
+  AssertEquals('quarter turns are fine', 0, Length(FLayout.Problems));
+  FLayout.Placements[0].Rotation := 45;
   Problems := FLayout.Problems;
   AssertEquals(1, Length(Problems));
   AssertFalse(Problems[0].Blocking);
