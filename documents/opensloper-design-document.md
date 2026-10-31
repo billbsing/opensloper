@@ -523,13 +523,15 @@ Measurements are entered against a built-in catalogue of standard body measureme
 ### Measurement catalogue
 
 - A JSON catalogue ships with the app, listing the standard measurements.
-- Keys match the Seamly2D/Valentina known-measurement names wherever one exists (check the names against their source, which is GPLv3), so imported `.vit`/`.vst` files map directly and patterns can be shared between the programs more easily.
+- Keys are as short as they can be in whole words, with no abbreviations: `waist_circumference`, not `waist_circ`.
+- Each entry lists the names it goes by in other programs' measurement files (check Seamly2D's and Valentina's against their source, which is GPLv3), so the catalogue is also the translation table for import and export. Our keys need not match theirs.
 - Definitions follow ISO 8559-1:2017 (anthropometric definitions for body measurement) in meaning; descriptions are our own wording, since the standard's text cannot be copied.
-- Custom measurements remain allowed for anything not in the catalogue, following the name rules. Keys already in use, such as `waist` and `back_length`, keep working as custom keys; nothing renames them.
+- Custom measurements remain allowed for anything not in the catalogue, following the name rules. Nothing renames keys already in use.
 
 | Field | Purpose |
 | --- | --- |
-| `key` | Stable key used in formulas (`@waist_circ`) |
+| `key` | Stable key used in formulas (`@waist_circumference`) |
+| `translations` | Its names in other formats, by format: `{ "seamly2d": ["waist_circ"] }`. A new format adds a member here, with no change to the entries' keys. The first name in a list is the one exported |
 | `name` | Display name ("Waist circumference") |
 | `group` | Heights, circumferences, widths, arm, leg, crotch, head, hand, foot |
 | `description` | One line on what it is |
@@ -539,6 +541,17 @@ Measurements are entered against a built-in catalogue of standard body measureme
 | `range` | Typical minimum and maximum in mm, for typo warnings |
 
 Values outside the typical range produce a warning, never a refusal, so unusual bodies are not blocked.
+
+### Importing and exporting other formats
+
+Seamly2D and Valentina `.vit` and `.vst` files come first; other programs' files use the same translation, each as one more format name in `translations`.
+
+- On import, a measurement's name is looked up in `translations` for that format and renamed to our key.
+- A name with no translation is kept as it is, as a custom key. A leading `@`, which marks their custom measurements, is dropped, since `@` is our own prefix in formulas.
+- A name that breaks our name rules, or a key already taken in the file, is never dropped: it gets the next free number or is corrected, and is listed.
+- After an import the app lists what was renamed, what was kept and what needed changing, so nothing is altered silently.
+- On export, each key is translated back to the first name listed for that format. A key with no translation is written as it is, marked as a custom measurement where the format needs that (the leading `@` for Seamly2D).
+- Keys already in use that are not in the catalogue, such as `waist` and `back_length`, stay custom keys.
 
 ### Body figure
 
@@ -1083,7 +1096,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (done for now; Shift-click merging, the start-edge fallback and custom piece labels remain)
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-9. Measurements app: measurement and size table editing; measurement editor with catalogue and body figure; import Valentina/Seamly2D measurement files; SVG export
+9. Measurements app: measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
 10. Seams and seam-length checks
 11. DXF-AAMA export, automatic packing in the publish app
 12. Blender export for 3D preview
