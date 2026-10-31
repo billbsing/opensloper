@@ -52,6 +52,8 @@ type
 function DefaultPreviewView: TPreviewView;
 // The index in Shapes of the smallest piece containing At, or -1
 function ShapeAt(const Shapes: TPlacedPieceArray; const At: TVec2): integer;
+// The index of the note covering At, the last drawn first, or -1
+function NoteAt(const Notes: TSheetNoteArray; const Values: TFieldValues; const At: TVec2): integer;
 // The caption of the page At falls on, nearest its middle where two overlap;
 // '' when there is none
 function PageCaptionAt(const Pages: TTilePageArray; const At: TVec2): string;
@@ -126,6 +128,19 @@ begin
       Result := Index;
     end;
   end;
+end;
+
+function NoteAt(const Notes: TSheetNoteArray; const Values: TFieldValues; const At: TVec2): integer;
+var
+  Spread: TRect2;
+begin
+  for Result := High(Notes) downto 0 do
+  begin
+    Spread := NoteBounds(Notes[Result], Values);
+    if (At.X >= Spread.MinX) and (At.X <= Spread.MaxX) and (At.Y >= Spread.MinY) and (At.Y <= Spread.MaxY) then
+      Exit;
+  end;
+  Result := -1;
 end;
 
 function PageCaptionAt(const Pages: TTilePageArray; const At: TVec2): string;

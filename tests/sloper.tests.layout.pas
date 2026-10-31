@@ -86,6 +86,25 @@ type
     procedure TestDocumentNewForPattern;
     procedure TestDocumentNoChangeNoStep;
     procedure TestPublishTarget;
+    procedure TestExpandFields;
+    procedure TestTextLines;
+    procedure TestNoteBounds;
+    procedure TestNotesRoundTrip;
+    procedure TestBadNotesRefused;
+    procedure TestNoteMakesAPageNeeded;
+    procedure TestNotePrintedOnItsPage;
+    procedure TestNoteOverPieceWarns;
+    procedure TestNoteAt;
+    procedure TestRemoveNote;
+    procedure TestPageFieldsInNotes;
+    procedure TestTitleRoundTrip;
+    procedure TestTitleOffByDefault;
+    procedure TestTitleOnCover;
+    procedure TestTitleLines;
+    procedure TestTitleEveryPage;
+    procedure TestTitleOnOneSheet;
+    procedure TestNewLayoutGetsATitle;
+    procedure TestFieldValues;
     procedure TestProjectorIsOneDarkSheet;
     procedure TestProjectorSheetFitsThePieces;
     procedure TestProjectorThickerThanPaper;
@@ -1363,6 +1382,266 @@ begin
   end;
   AssertTrue(Bytes, Pos('0.5 G 0.5 g', Bytes) > 0);
   AssertTrue(Bytes, Pos(' re f', Bytes) > 0);
+end;
+
+procedure TTestLayout.TestExpandFields;
+var
+  Values: TFieldValues;
+begin
+  Values := Default(TFieldValues);
+  Values.PatternName := 'Skirt';
+  Values.Date := '2026-10-31';
+  AssertEquals('Skirt, 2026-10-31', ExpandFields('{pattern.name}, {date}', Values));
+  AssertEquals('empty stays as typed', '{page}', ExpandFields('{page}', Values));
+  AssertEquals('unknown stays', '{other}', ExpandFields('{other}', Values));
+end;
+
+procedure TTestLayout.TestTextLines;
+var
+  Lines: TStringArray;
+begin
+  Lines := TextLines('one' + #13#10 + 'two' + #10 + 'three');
+  AssertEquals(3, Length(Lines));
+  AssertEquals('two', Lines[1]);
+  AssertEquals('one line', 1, Length(TextLines('one')));
+end;
+
+procedure TTestLayout.TestNoteBounds;
+var
+  Note: TSheetNote;
+  Spread: TRect2;
+begin
+  Note := Default(TSheetNote);
+  Note.Text := 'ab' + #10 + 'abcd';
+  Note.X := 10;
+  Note.Y := 20;
+  Note.Size := 72;
+  Spread := NoteBounds(Note, Default(TFieldValues));
+  AssertNear('left', 10, Spread.MinX);
+  AssertNear('widest line', 10 + TextWidth('abcd', 72), Spread.MaxX);
+  AssertNear('two lines', 20 + 2 * LineHeight(72), Spread.MaxY);
+end;
+
+procedure TTestLayout.TestNotesRoundTrip;
+var
+  Text, ErrorMessage: string;
+  Other: TLayout;
+begin
+  FLayout.AddNote('Cut 2' + #10 + 'Press seams', 10, 20, 14);
+  Text := FLayout.SaveToText;
+  Other := TLayout.Create;
+  try
+    AssertTrue(ErrorMessage, Other.LoadFromText(Text, ErrorMessage));
+    AssertEquals('Cut 2' + #10 + 'Press seams', Other.Notes[0].Text);
+    AssertNear('size', 14, Other.Notes[0].Size);
+    AssertEquals('same text', Text, Other.SaveToText);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestLayout.TestBadNotesRefused;
+var
+  ErrorMessage: string;
+begin
+  AssertFalse(FLayout.LoadFromText('{"format": "layout", "version": 1, "sources": [], "sheetNotes": [{"x": 1}]}', ErrorMessage));
+  AssertEquals(Format(rsLayoutList, ['sheetNotes']), ErrorMessage);
+  AssertTrue(ErrorMessage, FLayout.LoadFromText('{"format": "layout", "version": 1, "sources": [], "sheetNotes": [{"text": "a", "x": 1, "y": 2}]}', ErrorMessage));
+  AssertNear('default size', 12, FLayout.Notes[0].Size);
+end;
+
+procedure TTestLayout.TestNoteMakesAPageNeeded;
+var
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.AddNote('Far away', 450, 20, 12);
+  Pages := FLayout.Pages(FLayout.PlacedPieces, Rows, Columns);
+  AssertTrue('the grid reaches it', Columns >= 3);
+  AssertFalse('its page is printed', Pages[2].Blank);
+  AssertTrue('the one between stays blank', Pages[1].Blank);
+end;
+
+procedure TTestLayout.TestNotePrintedOnItsPage;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.AddNote('Press seams', 130, 20, 12);
+  Bytes := LayoutToPDF(FLayout);
+  AssertEquals('once, on one page', 1, CountOf('(Press seams)', Bytes));
+end;
+
+procedure TTestLayout.TestNoteOverPieceWarns;
+var
+  Problems: TLayoutProblemArray;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.AddNote('Over it', 50, 50, 12);
+  Problems := FLayout.Problems;
+  AssertEquals(ProblemText, 1, Length(Problems));
+  AssertFalse(Problems[0].Blocking);
+  AssertEquals(Format(rsLayoutNoteOverlap, ['Over it', 'Front, cut 1']), Problems[0].Text);
+end;
+
+procedure TTestLayout.TestNoteAt;
+var
+  Values: TFieldValues;
+begin
+  Values := Default(TFieldValues);
+  FLayout.AddNote('Long enough to hit', 10, 20, 12);
+  FLayout.AddNote('Long enough to hit', 10, 20, 12);
+  AssertEquals('the upper one', 1, NoteAt(FLayout.Notes, Values, Vec2(12, 22)));
+  AssertEquals('clear of them', -1, NoteAt(FLayout.Notes, Values, Vec2(300, 22)));
+end;
+
+procedure TTestLayout.TestRemoveNote;
+begin
+  FLayout.AddNote('a', 0, 0, 12);
+  FLayout.AddNote('b', 0, 0, 12);
+  FLayout.RemoveNote(0);
+  AssertEquals(1, Length(FLayout.Notes));
+  AssertEquals('b', FLayout.Notes[0].Text);
+end;
+
+procedure TTestLayout.TestPageFieldsInNotes;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.AddNote('Page {page} of {pages}', 130, 20, 12);
+  Bytes := LayoutToPDF(FLayout);
+  AssertTrue('the cover counts', Pos('(Page 2 of 2)', Bytes) > 0);
+end;
+
+procedure TTestLayout.TestTitleRoundTrip;
+var
+  Text, ErrorMessage: string;
+  Other: TLayout;
+begin
+  FLayout.UseDefaultTitle;
+  FLayout.Title.Corner := tcTopRight;
+  FLayout.Title.EveryPage := True;
+  Text := FLayout.SaveToText;
+  Other := TLayout.Create;
+  try
+    AssertTrue(ErrorMessage, Other.LoadFromText(Text, ErrorMessage));
+    AssertTrue(Other.Title.Enabled);
+    AssertTrue(Other.Title.Corner = tcTopRight);
+    AssertTrue(Other.Title.EveryPage);
+    AssertEquals(3, Length(Other.Title.Fields));
+    AssertEquals('same text', Text, Other.SaveToText);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestLayout.TestTitleOffByDefault;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  AssertEquals('nothing printed', 0, Pos('Date:', LayoutToPDF(FLayout)));
+  AssertEquals('nothing saved', 0, Pos('titleBlock', FLayout.SaveToText));
+end;
+
+procedure TTestLayout.TestTitleOnCover;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
+  FLayout.PrintDate := '2026-10-31';
+  Bytes := LayoutToPDF(FLayout);
+  AssertEquals('once', 1, CountOf('(Date: 2026-10-31)', Bytes));
+  AssertTrue('the pattern', Pos('(Pattern: front)', Bytes) > 0);
+end;
+
+procedure TTestLayout.TestTitleLines;
+var
+  Values: TFieldValues;
+  Lines: TStringArray;
+begin
+  FLayout.UseDefaultTitle;
+  Insert('no.such.field', FLayout.Title.Fields, 0);
+  Values := Default(TFieldValues);
+  Values.PatternName := 'Skirt';
+  Lines := FLayout.TitleLines(Values);
+  AssertEquals('unknown left out', 3, Length(Lines));
+  AssertEquals(Format(rsTitlePattern, ['Skirt']), Lines[0]);
+end;
+
+procedure TTestLayout.TestTitleEveryPage;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
+  FLayout.PrintDate := '2026-10-31';
+  FLayout.Title.EveryPage := True;
+  AssertEquals('cover and tile', 2, CountOf('(Date: 2026-10-31)', LayoutToPDF(FLayout)));
+end;
+
+procedure TTestLayout.TestTitleOnOneSheet;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
+  FLayout.PrintDate := '2026-10-31';
+  FLayout.Output.Kind := okLarge;
+  AssertEquals('once', 1, CountOf('(Date: 2026-10-31)', LayoutToPDF(FLayout)));
+end;
+
+procedure TTestLayout.TestNewLayoutGetsATitle;
+var
+  Document: TLayoutDocument;
+begin
+  WritePattern;
+  Document := TLayoutDocument.Create;
+  try
+    Document.NewForPattern(FPatternPath);
+    AssertTrue(Document.Layout.Title.Enabled);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestFieldValues;
+var
+  Values: TFieldValues;
+  Measurements: TMeasurementSet;
+  Reason: string;
+begin
+  WritePattern;
+  Measurements := TMeasurementSet.Create;
+  try
+    Measurements.Name := 'Bill';
+    AssertTrue(Reason, Measurements.SaveToFile(ConcatPaths([FFolder, 'me.slm']), Reason));
+  finally
+    FreeAndNil(Measurements);
+  end;
+  FLayout.AddSource('front.sloper', 'me.slm', '');
+  FLayout.LoadSources;
+  FLayout.Name := 'Dress';
+  FLayout.PrintDate := '2026-10-31';
+  Values := FLayout.FieldValues('2', '5');
+  AssertEquals('front', Values.PatternName);
+  AssertEquals('the set''s name', 'Bill', Values.MeasurementsName);
+  AssertEquals('Dress', Values.LayoutName);
+  AssertEquals('2026-10-31', Values.Date);
+  AssertEquals('2', Values.Page);
 end;
 
 initialization

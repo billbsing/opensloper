@@ -66,6 +66,10 @@ const
   SeamDash = 2;
   OverlapDash = 1.5;
   DiamondSize = 3;
+  CheckSquareTop = 27;
+  TitleGap = 10;
+  TitleTextSize = 9;
+  TitlePadding = 2;
   ProjectorCutWidth = 1.5;
   ProjectorSeamWidth = 0.7;
   ProjectorMarkWidth = 1;
@@ -86,6 +90,8 @@ type
     // Where the top left of the page's area lands on the paper
     FOrigin: TVec2;
     FCutWidth, FSeamWidth, FMarkWidth, FLabelSize: double;
+    // Pages in the file, and the page being drawn, for {page} and {pages}
+    FPageCount, FPageNumber: integer;
     function PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
     function PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
     procedure DrawCover;
@@ -95,6 +101,11 @@ type
     procedure DrawTile(const Page: TTilePage);
     procedure DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
     procedure DrawDiamond(const Page: TTilePage; const Centre: TVec2);
+    function PageValues: TFieldValues;
+    procedure DrawTitle(Left, Top: double; Boxed: boolean);
+    procedure MeasureTitle(out AWidth, AHeight: double);
+    procedure DrawTitleInCorner(PageWidth, PageHeight, Inset: double);
+    procedure DrawNotes(const Page: TTilePage);
     procedure DrawMarks(const Page: TTilePage);
   public
     constructor Create(ALayout: TLayout; AWriter: TPDFWriter);
@@ -172,7 +183,7 @@ begin
   else
     FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFCheckSquare, [Width]));
   Square.MinX := Left;
-  Square.MinY := Top + 27;
+  Square.MinY := Top + CheckSquareTop;
   Square.MaxX := Square.MinX + Side * FLayout.Output.CalibrationX;
   Square.MaxY := Square.MinY + Side * FLayout.Output.CalibrationY;
   FWriter.Rectangle(Square);
@@ -200,6 +211,7 @@ begin
       Inc(Printed);
   FWriter.Text(CoverMargin, Bottom + 10, BodySize, Format(rsPDFPages, [Printed, Blank, Excluded]));
   DrawMap(Bottom + 15);
+  DrawTitleInCorner(FLayout.Output.Tiles.PaperWidth, FLayout.Output.Tiles.PaperHeight, CoverMargin);
 end;
 
 // One sheet: the check block across the top, then the layout, as long as it
@@ -229,6 +241,8 @@ begin
   end;
   FWriter.SetLineWidth(FMarkWidth);
   DrawCheckBlock(Margin, Margin);
+  // Beside the test square, clear of the pieces
+  DrawTitle(Margin + LetterTestSquareSide * FLayout.Output.CalibrationX + TitleGap, Margin + CheckSquareTop, False);
   FOrigin := Vec2(Margin, Bottom);
   Printable.MinX := Margin;
   Printable.MinY := Bottom;
@@ -237,7 +251,110 @@ begin
   FWriter.PushClip(Printable);
   for Shape in FShapes do
     DrawShape(Page, Shape);
+  DrawNotes(Page);
   FWriter.PopClip;
+end;
+
+function TLayoutPrinter.PageValues: TFieldValues;
+begin
+  Result := FLayout.FieldValues(IntToStr(FPageNumber), IntToStr(FPageCount));
+end;
+
+procedure TLayoutPrinter.MeasureTitle(out AWidth, AHeight: double);
+var
+  Lines: TStringArray;
+  Line: string;
+begin
+  Lines := FLayout.TitleLines(PageValues);
+  AWidth := 0;
+  for Line in Lines do
+    AWidth := Max(AWidth, TextWidth(Line, TitleTextSize));
+  AWidth := AWidth + 2 * TitlePadding;
+  AHeight := Length(Lines) * LineHeight(TitleTextSize) + 2 * TitlePadding;
+end;
+
+// Boxed clears what is under it, for a corner of a tile
+procedure TLayoutPrinter.DrawTitle(Left, Top: double; Boxed: boolean);
+var
+  Lines: TStringArray;
+  BoxWidth, BoxHeight, Baseline: double;
+  Index: integer;
+  Box: TRect2;
+begin
+  if not FLayout.Title.Enabled then
+    Exit;
+  Lines := FLayout.TitleLines(PageValues);
+  if Lines = nil then
+    Exit;
+  MeasureTitle(BoxWidth, BoxHeight);
+  Box.MinX := Left;
+  Box.MinY := Top;
+  Box.MaxX := Left + BoxWidth;
+  Box.MaxY := Top + BoxHeight;
+  if Boxed then
+  begin
+    FWriter.SetGray(1);
+    FWriter.FillRectangle(Box);
+    FWriter.SetGray(0);
+  end;
+  FWriter.SetDash(0);
+  FWriter.SetLineWidth(MarkLineWidth);
+  FWriter.Rectangle(Box);
+  Baseline := Top + TitlePadding;
+  for Index := 0 to High(Lines) do
+  begin
+    Baseline := Baseline + LineHeight(TitleTextSize);
+    FWriter.Text(Left + TitlePadding, Baseline, TitleTextSize, Lines[Index]);
+  end;
+end;
+
+procedure TLayoutPrinter.DrawTitleInCorner(PageWidth, PageHeight, Inset: double);
+var
+  BoxWidth, BoxHeight, Left, Top: double;
+begin
+  if not FLayout.Title.Enabled then
+    Exit;
+  MeasureTitle(BoxWidth, BoxHeight);
+  case FLayout.Title.Corner of
+    tcBottomLeft:
+    begin
+      Left := Inset;
+      Top := PageHeight - Inset - BoxHeight;
+    end;
+    tcTopRight:
+    begin
+      Left := PageWidth - Inset - BoxWidth;
+      Top := Inset;
+    end;
+    else
+    begin
+      Left := PageWidth - Inset - BoxWidth;
+      Top := PageHeight - Inset - BoxHeight;
+    end;
+  end;
+  DrawTitle(Left, Top, True);
+end;
+
+procedure TLayoutPrinter.DrawNotes(const Page: TTilePage);
+var
+  Note: TSheetNote;
+  Spot: TVec2;
+  Lines: TStringArray;
+  Index: integer;
+  Spread: TRect2;
+begin
+  for Note in FLayout.Notes do
+  begin
+    Spread := NoteBounds(Note, PageValues);
+    if (Spread.MaxX < Page.Area.MinX) or (Spread.MinX > Page.Area.MaxX) or (Spread.MaxY < Page.Area.MinY) or (Spread.MinY > Page.Area.MaxY) then
+      Continue;
+    Lines := TextLines(ExpandFields(Note.Text, PageValues));
+    for Index := 0 to High(Lines) do
+    begin
+      Spot := PagePoint(Page, Vec2(Note.X, Note.Y + (Index + 1) * LineHeight(Note.Size)));
+      FWriter.Text(Spot.X, Spot.Y, Note.Size, Lines[Index]);
+    end;
+  end;
 end;
 
 procedure TLayoutPrinter.DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
@@ -319,7 +436,10 @@ begin
     if PolygonTouches(Shape.CutLine, Page.Area) then
       DrawShape(Page, Shape);
   DrawMarks(Page);
+  DrawNotes(Page);
   FWriter.PopClip;
+  if FLayout.Title.EveryPage then
+    DrawTitleInCorner(Tiles.PaperWidth, Tiles.PaperHeight, Tiles.Margin + TitlePadding);
 end;
 
 procedure TLayoutPrinter.Print;
@@ -328,6 +448,8 @@ var
 begin
   FShapes := FLayout.PlacedPieces;
   FPages := FLayout.Pages(FShapes, FRowCount, FColumnCount);
+  FPageCount := 1;
+  FPageNumber := 1;
   FCutWidth := CutLineWidth;
   FSeamWidth := SeamLineWidth;
   FMarkWidth := MarkLineWidth;
@@ -345,10 +467,16 @@ begin
     Exit;
   end;
   FOrigin := Vec2(FLayout.Output.Tiles.Margin, FLayout.Output.Tiles.Margin);
+  for Index := 0 to High(FPages) do
+    if not FPages[Index].Blank and not FPages[Index].Excluded then
+      Inc(FPageCount);
   DrawCover;
   for Index := 0 to High(FPages) do
     if not FPages[Index].Blank and not FPages[Index].Excluded then
+    begin
+      Inc(FPageNumber);
       DrawTile(FPages[Index]);
+    end;
 end;
 
 function OneSheetWidth(Layout: TLayout; const PageWidth: double): double;

@@ -168,6 +168,7 @@ resourcestring
       Layout.AddSource(ExtractRelativePath(ExpandFileName(ExtractFilePath(Target)), ExpandFileName(PatternFile)), MeasurementOption, '');
       Layout.LoadSources;
       Layout.PlaceNewPieces;
+      Layout.UseDefaultTitle;
       if not Layout.SaveToFile(Target, Err) then
       begin
         WriteLn(StdErr, Err);

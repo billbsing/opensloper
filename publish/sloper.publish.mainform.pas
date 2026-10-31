@@ -34,7 +34,16 @@ type
   private
     FDocument: TLayoutDocument;
     FPreview: TPreviewCanvas;
-    FSide: TPanel;
+    // The side tabs; the rows being built go into FRowParent
+    FTabs: TPageControl;
+    FPiecesSide, FSide, FNotesSide, FRowParent: TWinControl;
+    FColumn: TPanel;
+    FTitleBox, FEveryPageBox: TCheckBox;
+    FFieldBoxes: array[0..3] of TCheckBox;
+    FCornerBox: TComboBox;
+    FNoteMemo: TMemo;
+    FNoteSizeEdit: TFloatSpinEdit;
+    FDeleteNoteButton: TButton;
     FStatus: TStatusBar;
     FKindBox, FPaperBox: TComboBox;
     FRollEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit, FCalibrationYEdit: TFloatSpinEdit;
@@ -49,9 +58,10 @@ type
     FNextRowTop: integer;
     procedure PlaceRow(Row: TControl);
     procedure BuildMenu;
+    procedure BuildPiecesTab;
     procedure BuildSide;
     function AddSpin(const ACaption: string; AMax, AIncrement: double; Decimals: integer): TFloatSpinEdit;
-    procedure AddLabel(const ACaption: string);
+    function AddLabel(const ACaption: string): TLabel;
     function AddButton(const ACaption: string; AHandler: TNotifyEvent): TButton;
     procedure DocumentChanged(Sender: TObject);
     procedure SelectionChanged(Sender: TObject);
@@ -59,6 +69,13 @@ type
     procedure WatchTick(Sender: TObject);
     procedure RefreshProblems;
     procedure RefreshTray;
+    procedure RefreshNotesTab;
+    procedure BuildNotesTab;
+    function AddCheck(const ACaption: string): TCheckBox;
+    procedure TitleChange(Sender: TObject);
+    procedure NoteChange(Sender: TObject);
+    procedure AddNoteClick(Sender: TObject);
+    procedure DeleteNoteClick(Sender: TObject);
     procedure TrayMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
     procedure TrayDoubleClick(Sender: TObject);
     procedure PreviewDragOver(Sender, Source: TObject; X, Y: integer; State: TDragState; var Accept: boolean);
@@ -112,10 +129,31 @@ resourcestring
   rsOverlap = 'Overlap (mm)';
   rsCalibrationX = 'Calibration across';
   rsCalibrationY = 'Calibration down';
-  rsProblems = 'Problems';
   rsTray = 'Unplaced: drag onto the pages';
   rsTrayEmpty = 'Every piece is placed';
   rsRemove = 'Back to tray';
+  rsTabPieces = 'Pieces';
+  rsTabOutput = 'Output';
+  rsTabNotes = 'Notes';
+  rsTitleBlock = 'Title block';
+  rsEveryPage = 'On every page';
+  rsCorner = 'Corner';
+  rsCornerBottomRight = 'Bottom right';
+  rsCornerBottomLeft = 'Bottom left';
+  rsCornerTopRight = 'Top right';
+  rsFieldPattern = 'Pattern';
+  rsFieldMeasurements = 'Measurements';
+  rsFieldLayout = 'Layout name';
+  rsFieldDate = 'Date';
+  rsSheetNote = 'Sheet note';
+  rsNoteSize = 'Text size (pt)';
+  rsAddNote = 'Add note';
+  rsDeleteNote = 'Delete note';
+  rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages}';
+  rsNewNote = 'New note';
+  rsChangeTitle = 'Change title block';
+  rsChangeNote = 'Change note';
+  rsAddNoteChange = 'Add note';
   rsCannotPlace = 'This piece has a problem in the pattern, so it cannot be placed yet';
   rsNoProblems = 'No problems';
   rsPlaceNew = 'Place new pieces';
@@ -139,13 +177,19 @@ resourcestring
 implementation
 
 uses
-  LCLType, Sloper.Core.Geometry, Sloper.Output.LayoutPDF, Sloper.Output.Preview, Sloper.Output.Tiling;
+  LCLType, Math, Sloper.Core.Geometry, Sloper.Output.LayoutPDF, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
-  SideWidth = 260;
+  SideWidth = 280;
+  NewNoteSize = 12;
+  NewNoteGap = 10;
+  MaxNoteSize = 200;
+  NoteMemoHeight = 110;
+  // In the order of FFieldBoxes
+  TitleFields: array[0..3] of string = (FieldPatternName, FieldMeasurementsName, FieldLayoutName, FieldDate);
   SideGap = 6;
   SideRowStep = 100;
-  TrayHeight = 90;
+  ProblemsHeight = 110;
   WatchMilliseconds = 1000;
   SpinDecimals = 1;
   CalibrationDecimals = 3;
@@ -168,12 +212,25 @@ begin
   BuildMenu;
   FStatus := TStatusBar.Create(Self);
   FStatus.Parent := Self;
-  FSide := TPanel.Create(Self);
-  FSide.Parent := Self;
-  FSide.Align := alRight;
-  FSide.Width := SideWidth;
-  FSide.BevelOuter := bvNone;
-  FSide.BorderSpacing.Around := SideGap;
+  FColumn := TPanel.Create(Self);
+  FColumn.Parent := Self;
+  FColumn.Align := alRight;
+  FColumn.Width := SideWidth;
+  FColumn.BevelOuter := bvNone;
+  FProblems := TListBox.Create(Self);
+  FProblems.Parent := FColumn;
+  FProblems.Align := alBottom;
+  FProblems.Height := ProblemsHeight;
+  FProblems.BorderSpacing.Around := SideGap;
+  FTabs := TPageControl.Create(Self);
+  FTabs.Parent := FColumn;
+  FTabs.Align := alClient;
+  FPiecesSide := FTabs.AddTabSheet;
+  TTabSheet(FPiecesSide).Caption := rsTabPieces;
+  FSide := FTabs.AddTabSheet;
+  TTabSheet(FSide).Caption := rsTabOutput;
+  FNotesSide := FTabs.AddTabSheet;
+  TTabSheet(FNotesSide).Caption := rsTabNotes;
   FPreview := TPreviewCanvas.Create(Self);
   FPreview.Parent := Self;
   FPreview.Align := alClient;
@@ -181,7 +238,12 @@ begin
   FPreview.OnSelectionChange := @SelectionChanged;
   FPreview.OnDragOver := @PreviewDragOver;
   FPreview.OnDragDrop := @PreviewDragDrop;
+  FRowParent := FPiecesSide;
+  BuildPiecesTab;
+  FRowParent := FSide;
   BuildSide;
+  FRowParent := FNotesSide;
+  BuildNotesTab;
   RefreshControls;
   FWatch := TTimer.Create(Self);
   FWatch.Interval := WatchMilliseconds;
@@ -240,17 +302,147 @@ begin
   Inc(FNextRowTop, SideRowStep);
   Row.Top := FNextRowTop;
   Row.Align := alTop;
-  Row.Parent := FSide;
+  Row.BorderSpacing.Left := SideGap;
+  Row.BorderSpacing.Right := SideGap;
+  Row.Parent := FRowParent;
 end;
 
-procedure TPublishForm.AddLabel(const ACaption: string);
-var
-  Heading: TLabel;
+function TPublishForm.AddCheck(const ACaption: string): TCheckBox;
 begin
-  Heading := TLabel.Create(Self);
-  Heading.Caption := ACaption;
-  Heading.BorderSpacing.Top := SideGap;
-  PlaceRow(Heading);
+  Result := TCheckBox.Create(Self);
+  Result.Caption := ACaption;
+  Result.OnChange := @TitleChange;
+  PlaceRow(Result);
+end;
+
+procedure TPublishForm.BuildNotesTab;
+const
+  FieldCaptions: array[0..3] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate);
+var
+  Index: integer;
+begin
+  FTitleBox := AddCheck(rsTitleBlock);
+  for Index := 0 to High(FFieldBoxes) do
+    FFieldBoxes[Index] := AddCheck(FieldCaptions[Index]);
+  FEveryPageBox := AddCheck(rsEveryPage);
+  AddLabel(rsCorner);
+  FCornerBox := TComboBox.Create(Self);
+  PlaceRow(FCornerBox);
+  FCornerBox.Style := csDropDownList;
+  // In the order of TTitleCorner
+  FCornerBox.Items.Add(rsCornerBottomRight);
+  FCornerBox.Items.Add(rsCornerBottomLeft);
+  FCornerBox.Items.Add(rsCornerTopRight);
+  FCornerBox.OnChange := @TitleChange;
+  AddButton(rsAddNote, @AddNoteClick);
+  AddLabel(rsSheetNote);
+  FNoteMemo := TMemo.Create(Self);
+  FNoteMemo.Height := NoteMemoHeight;
+  FNoteMemo.OnChange := @NoteChange;
+  PlaceRow(FNoteMemo);
+  AddLabel(rsNoteHelp).WordWrap := True;
+  FNoteSizeEdit := AddSpin(rsNoteSize, MaxNoteSize, 1, 0);
+  FNoteSizeEdit.MinValue := 1;
+  FNoteSizeEdit.OnChange := @NoteChange;
+  FDeleteNoteButton := AddButton(rsDeleteNote, @DeleteNoteClick);
+end;
+
+procedure TPublishForm.RefreshNotesTab;
+var
+  Layout: TLayout;
+  Index: integer;
+  Field: string;
+  NoteChosen, Shown: boolean;
+begin
+  Layout := FDocument.Layout;
+  FTitleBox.Checked := Layout.Title.Enabled;
+  FEveryPageBox.Checked := Layout.Title.EveryPage;
+  FEveryPageBox.Enabled := Layout.Output.Kind = okTiled;
+  FCornerBox.ItemIndex := Ord(Layout.Title.Corner);
+  FCornerBox.Enabled := Layout.Output.Kind = okTiled;
+  for Index := 0 to High(FFieldBoxes) do
+  begin
+    Shown := False;
+    for Field in Layout.Title.Fields do
+      Shown := Shown or (Field = TitleFields[Index]);
+    FFieldBoxes[Index].Checked := Shown;
+    FFieldBoxes[Index].Enabled := Layout.Title.Enabled;
+  end;
+  NoteChosen := FPreview.SelectedNote >= 0;
+  FNoteMemo.Enabled := NoteChosen;
+  FNoteSizeEdit.Enabled := NoteChosen;
+  FDeleteNoteButton.Enabled := NoteChosen;
+  if NoteChosen then
+  begin
+    if FNoteMemo.Text <> Layout.Notes[FPreview.SelectedNote].Text then
+      FNoteMemo.Text := Layout.Notes[FPreview.SelectedNote].Text;
+    FNoteSizeEdit.Value := Layout.Notes[FPreview.SelectedNote].Size;
+  end
+  else
+    FNoteMemo.Clear;
+end;
+
+procedure TPublishForm.TitleChange(Sender: TObject);
+var
+  Title: TTitleBlock;
+  Index: integer;
+begin
+  if FRefreshing then
+    Exit;
+  Title := Default(TTitleBlock);
+  Title.Enabled := FTitleBox.Checked;
+  Title.EveryPage := FEveryPageBox.Checked;
+  Title.Corner := TTitleCorner(FCornerBox.ItemIndex);
+  for Index := 0 to High(FFieldBoxes) do
+    if FFieldBoxes[Index].Checked then
+      Insert(TitleFields[Index], Title.Fields, Length(Title.Fields));
+  FDocument.BeginChange(rsChangeTitle);
+  FDocument.Layout.Title := Title;
+  FDocument.EndChange;
+end;
+
+// Typing merges into one undo step, as long as it keeps going
+procedure TPublishForm.NoteChange(Sender: TObject);
+var
+  Index: integer;
+begin
+  Index := FPreview.SelectedNote;
+  if FRefreshing or (Index < 0) then
+    Exit;
+  FDocument.BeginChange(rsChangeNote);
+  FDocument.Layout.Notes[Index].Text := TrimRight(FNoteMemo.Text);
+  FDocument.Layout.Notes[Index].Size := FNoteSizeEdit.Value;
+  FDocument.EndChange('note:' + IntToStr(Index));
+end;
+
+procedure TPublishForm.AddNoteClick(Sender: TObject);
+var
+  Lowest: double;
+  Added: integer;
+  Shape: TPlacedPiece;
+begin
+  Lowest := 0;
+  for Shape in FDocument.Layout.PlacedPieces do
+    Lowest := Max(Lowest, Shape.Bounds.MaxY + NewNoteGap);
+  FDocument.BeginChange(rsAddNoteChange);
+  Added := FDocument.Layout.AddNote(rsNewNote, 0, Lowest, NewNoteSize);
+  FDocument.EndChange;
+  FPreview.SelectedNote := Added;
+  FNoteMemo.SetFocus;
+  FNoteMemo.SelectAll;
+end;
+
+procedure TPublishForm.DeleteNoteClick(Sender: TObject);
+begin
+  FPreview.RemoveSelected;
+end;
+
+function TPublishForm.AddLabel(const ACaption: string): TLabel;
+begin
+  Result := TLabel.Create(Self);
+  Result.Caption := ACaption;
+  Result.BorderSpacing.Top := SideGap;
+  PlaceRow(Result);
 end;
 
 function TPublishForm.AddSpin(const ACaption: string; AMax, AIncrement: double; Decimals: integer): TFloatSpinEdit;
@@ -299,21 +491,22 @@ begin
   FOverlapEdit := AddSpin(rsOverlap, MaxMillimetres, 1, SpinDecimals);
   FCalibrationXEdit := AddSpin(rsCalibrationX, MaxCalibration, 0.001, CalibrationDecimals);
   FCalibrationYEdit := AddSpin(rsCalibrationY, MaxCalibration, 0.001, CalibrationDecimals);
+  AddButton(rsExportPDF, @ExportClick);
+end;
+
+procedure TPublishForm.BuildPiecesTab;
+begin
   FTurnButton := AddButton(rsTurn, @TurnClick);
   FFlipButton := AddButton(rsFlip, @FlipClick);
   FRemoveButton := AddButton(rsRemove, @RemoveClick);
   AddButton(rsPlaceNew, @PlaceClick);
-  AddButton(rsExportPDF, @ExportClick);
   AddLabel(rsTray);
   FTray := TListBox.Create(Self);
-  FTray.Height := TrayHeight;
+  FTray.Parent := FPiecesSide;
+  FTray.Align := alClient;
+  FTray.BorderSpacing.Around := SideGap;
   FTray.OnMouseDown := @TrayMouseDown;
   FTray.OnDblClick := @TrayDoubleClick;
-  PlaceRow(FTray);
-  AddLabel(rsProblems);
-  FProblems := TListBox.Create(Self);
-  FProblems.Parent := FSide;
-  FProblems.Align := alClient;
 end;
 
 procedure TPublishForm.ShowStatus(const AText: string);
@@ -456,6 +649,7 @@ begin
     FOverlapEdit.Value := Layout.Output.Tiles.Overlap;
     FCalibrationXEdit.Value := Layout.Output.CalibrationX;
     FCalibrationYEdit.Value := Layout.Output.CalibrationY;
+    RefreshNotesTab;
   finally
     FRefreshing := False;
   end;

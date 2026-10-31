@@ -122,6 +122,7 @@ begin
   FLayout.AddSource(ExtractFileName(PatternFile), '', '');
   FLayout.LoadSources;
   FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
   ClearHistory;
   // Not saved yet, so closing it asks
   FSavedText := '';

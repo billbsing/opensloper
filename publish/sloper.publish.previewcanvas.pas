@@ -42,6 +42,8 @@ type
     FRowCount, FColumnCount: integer;
     // The selected placement's index, or -1
     FSelected: integer;
+    // The selected note's index, or -1
+    FSelectedNote: integer;
     FMode: TPreviewMode;
     FPressPos, FLastPos: TPoint;
     FGrab: TVec2;
@@ -49,6 +51,8 @@ type
     FSpaceDown: boolean;
     FOnSelectionChange: TNotifyEvent;
     procedure SetSelected(Value: integer);
+    procedure SetSelectedNote(Value: integer);
+    procedure DrawNotes;
     procedure DragTo(X, Y: integer);
     procedure TogglePageAt(const At: TVec2);
     procedure DrawPage(const Page: TTilePage);
@@ -70,10 +74,11 @@ type
     procedure ZoomToFit;
     // Layout position under a point of this control
     function LayoutAt(X, Y: integer): TVec2;
-    // Sends the selected copy back to the tray
+    // Sends the selected copy back to the tray, or deletes the selected note
     procedure RemoveSelected;
     property Document: TLayoutDocument read FDocument write FDocument;
     property Selected: integer read FSelected write SetSelected;
+    property SelectedNote: integer read FSelectedNote write SetSelectedNote;
     property OnSelectionChange: TNotifyEvent read FOnSelectionChange write FOnSelectionChange;
     property OnDragOver;
     property OnDragDrop;
@@ -83,6 +88,8 @@ resourcestring
   rsPreviewMove = 'Move piece';
   rsPreviewTogglePage = 'Leave page out';
   rsPreviewRemove = 'Unplace piece';
+  rsPreviewMoveNote = 'Move note';
+  rsPreviewDeleteNote = 'Delete note';
 
 implementation
 
@@ -94,6 +101,7 @@ const
   DragThreshold = 3;
   CaptionHeight = 13;
   LabelHeight = 12;
+  MinNoteHeight = 6;
 
 function Desk: TBGRAPixel;
 begin
@@ -141,6 +149,7 @@ begin
   FBitmap := TBGRABitmap.Create(1, 1);
   FView := DefaultPreviewView;
   FSelected := -1;
+  FSelectedNote := -1;
   FNeedsFit := True;
   TabStop := True;
   ControlStyle := ControlStyle + [csOpaque];
@@ -160,6 +169,8 @@ begin
   FPages := FDocument.Layout.Pages(FShapes, FRowCount, FColumnCount);
   if FSelected > High(FDocument.Layout.Placements) then
     SetSelected(-1);
+  if FSelectedNote > High(FDocument.Layout.Notes) then
+    SetSelectedNote(-1);
   Invalidate;
 end;
 
@@ -178,6 +189,15 @@ procedure TPreviewCanvas.RemoveSelected;
 var
   Index: integer;
 begin
+  if FSelectedNote >= 0 then
+  begin
+    Index := FSelectedNote;
+    SetSelectedNote(-1);
+    FDocument.BeginChange(rsPreviewDeleteNote);
+    FDocument.Layout.RemoveNote(Index);
+    FDocument.EndChange;
+    Exit;
+  end;
   Index := FSelected;
   if Index < 0 then
     Exit;
@@ -187,11 +207,25 @@ begin
   FDocument.EndChange;
 end;
 
+procedure TPreviewCanvas.SetSelectedNote(Value: integer);
+begin
+  if Value = FSelectedNote then
+    Exit;
+  FSelectedNote := Value;
+  if Value >= 0 then
+    FSelected := -1;
+  Invalidate;
+  if Assigned(FOnSelectionChange) then
+    FOnSelectionChange(Self);
+end;
+
 procedure TPreviewCanvas.SetSelected(Value: integer);
 begin
   if Value = FSelected then
     Exit;
   FSelected := Value;
+  if Value >= 0 then
+    FSelectedNote := -1;
   Invalidate;
   if Assigned(FOnSelectionChange) then
     FOnSelectionChange(Self);
@@ -202,8 +236,16 @@ var
   At: TVec2;
 begin
   At := FView.ToLayout(Vec2(X, Y));
-  FDocument.Layout.Placements[FSelected].X := RoundToStep(At.X + FGrab.X);
-  FDocument.Layout.Placements[FSelected].Y := RoundToStep(At.Y + FGrab.Y);
+  if FSelectedNote >= 0 then
+  begin
+    FDocument.Layout.Notes[FSelectedNote].X := RoundToStep(At.X + FGrab.X);
+    FDocument.Layout.Notes[FSelectedNote].Y := RoundToStep(At.Y + FGrab.Y);
+  end
+  else
+  begin
+    FDocument.Layout.Placements[FSelected].X := RoundToStep(At.X + FGrab.X);
+    FDocument.Layout.Placements[FSelected].Y := RoundToStep(At.Y + FGrab.Y);
+  end;
   FDocument.LiveUpdate;
 end;
 
@@ -244,6 +286,16 @@ begin
   end;
   if Button <> mbLeft then
     Exit;
+  // Notes lie over pieces
+  Hit := NoteAt(FDocument.Layout.Notes, FDocument.Layout.FieldValues('', ''), At);
+  if Hit >= 0 then
+  begin
+    SetSelectedNote(Hit);
+    FGrab := Vec2(FDocument.Layout.Notes[Hit].X - At.X, FDocument.Layout.Notes[Hit].Y - At.Y);
+    FMode := pmPressed;
+    Exit;
+  end;
+  SetSelectedNote(-1);
   Hit := ShapeAt(FShapes, At);
   if Hit < 0 then
   begin
@@ -267,7 +319,10 @@ begin
     pmPressed:
       if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DragThreshold then
       begin
-        FDocument.BeginChange(rsPreviewMove);
+        if FSelectedNote >= 0 then
+          FDocument.BeginChange(rsPreviewMoveNote)
+        else
+          FDocument.BeginChange(rsPreviewMove);
         FMode := pmDragging;
         DragTo(X, Y);
       end;
@@ -388,6 +443,30 @@ begin
   FBitmap.TextOut(Spot.X, Spot.Y, Shape.Caption, Ink);
 end;
 
+procedure TPreviewCanvas.DrawNotes;
+var
+  Index, LineIndex: integer;
+  Note: TSheetNote;
+  Lines: TStringArray;
+  Values: TFieldValues;
+  Spot: TVec2;
+  Ink: TBGRAPixel;
+begin
+  Values := FDocument.Layout.FieldValues('', '');
+  for Index := 0 to High(FDocument.Layout.Notes) do
+  begin
+    Note := FDocument.Layout.Notes[Index];
+    Lines := TextLines(ExpandFields(Note.Text, Values));
+    Ink := PieceInk;
+    if Index = FSelectedNote then
+      Ink := SelectedInk;
+    FBitmap.FontHeight := Max(MinNoteHeight, Round(LineHeight(Note.Size) * FView.Scale));
+    Spot := FView.ToScreen(Vec2(Note.X, Note.Y));
+    for LineIndex := 0 to High(Lines) do
+      FBitmap.TextOut(Spot.X, Spot.Y + LineIndex * FBitmap.FontHeight, Lines[LineIndex], Ink);
+  end;
+end;
+
 procedure TPreviewCanvas.Paint;
 var
   Page: TTilePage;
@@ -421,6 +500,8 @@ begin
       DrawPage(Page);
   for Shape in FShapes do
     DrawShape(Shape);
+  if FDocument <> nil then
+    DrawNotes;
   FBitmap.Draw(Canvas, 0, 0, True);
 end;
 

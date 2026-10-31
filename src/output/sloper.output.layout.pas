@@ -33,6 +33,13 @@ uses
   Sloper.Output.Tiling;
 
 const
+  // The fields a title block can show; also usable as {pattern.name} in text
+  FieldPatternName = 'pattern.name';
+  FieldMeasurementsName = 'measurements.name';
+  FieldLayoutName = 'layout.name';
+  FieldDate = 'date';
+  FieldPage = 'page';
+  FieldPages = 'pages';
   LayoutFormat = 'layout';
   LayoutVersion = 1;
   LayoutExtension = '.slayout';
@@ -98,6 +105,33 @@ type
 
   TPlacedPieceArray = array of TPlacedPiece;
 
+  // Which corner of the page the title block sits in. The cover's top left
+  // holds the test square, so it is not offered.
+  TTitleCorner = (tcBottomRight, tcBottomLeft, tcTopRight);
+
+  TTitleBlock = record
+    Enabled: boolean;
+    Corner: TTitleCorner;
+    // Field names, in the order they print
+    Fields: TStringArray;
+    // A copy on every tile as well as the cover
+    EveryPage: boolean;
+  end;
+
+  // Text on the layout, with its top left at (X, Y) and Size in points. It may
+  // run to several lines, and may hold fields such as {date}.
+  TSheetNote = record
+    Text: string;
+    X, Y, Size: double;
+  end;
+
+  TSheetNoteArray = array of TSheetNote;
+
+  // What fields stand for in text; an empty value leaves the field as typed
+  TFieldValues = record
+    PatternName, MeasurementsName, LayoutName, Date, Page, Pages: string;
+  end;
+
   // Blocking problems stop export; the others are only warnings
   TLayoutProblem = record
     Text: string;
@@ -136,6 +170,10 @@ type
     FileName: string;
     Output: TLayoutOutput;
     Placements: TPlacementArray;
+    Title: TTitleBlock;
+    Notes: TSheetNoteArray;
+    // The date to print, as text; empty for today. Not saved.
+    PrintDate: string;
     constructor Create;
     destructor Destroy; override;
     procedure Clear;
@@ -161,11 +199,31 @@ type
     function PlacedPieces: TPlacedPieceArray;
     // The pages Shapes need, with the empty ones marked Blank
     function Pages(const Shapes: TPlacedPieceArray; out RowCount, ColumnCount: integer): TTilePageArray;
+    // Turns on the usual title block, for a new layout
+    procedure UseDefaultTitle;
+    // Page and Pages empty leave {page} and {pages} as typed
+    function FieldValues(const APage, APages: string): TFieldValues;
+    // The title block's lines, each with its caption
+    function TitleLines(const Values: TFieldValues): TStringArray;
+    // Adds a note, returning its index
+    function AddNote(const AText: string; AX, AY, ASize: double): integer;
+    procedure RemoveNote(Index: integer);
     // Leaves the page out of the print, or puts it back
     procedure TogglePage(const Caption: string);
     function Problems: TLayoutProblemArray;
     property Sources: TLayoutSourceList read FSources;
   end;
+
+// Text with its known {fields} filled in
+function ExpandFields(const Text: string; const Values: TFieldValues): string;
+// Text as lines, however it was broken
+function TextLines(const Text: string): TStringArray;
+// About how far a line of text runs, in mm, at Size points in Helvetica
+function TextWidth(const Text: string; Size: double): double;
+// The height of one line of text, in mm
+function LineHeight(Size: double): double;
+// The rough area a note covers, in layout space
+function NoteBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
 
 // What the publish app should open for a pattern: its layout, when there is
 // one beside it, otherwise the pattern itself
@@ -195,6 +253,11 @@ resourcestring
   rsLayoutTrayItem = '%s (copy %d of %d)';
   rsLayoutExtraCopy = '%s: %s is cut %d times now, but copy %d is still placed';
   rsLayoutOverlap = '%s overlaps %s';
+  rsLayoutNoteOverlap = 'The note "%s" lies over %s';
+  rsTitlePattern = 'Pattern: %s';
+  rsTitleMeasurements = 'Measurements: %s';
+  rsTitleLayout = 'Layout: %s';
+  rsTitleDate = 'Date: %s';
   rsLayoutOffSheet = '%s runs off the sheet';
   rsLayoutProjectedAcross = '%s: %s lies across the fabric''s grain here. Projected as it is, it would be cut that way';
   rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
@@ -206,6 +269,12 @@ uses
   Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
 
 const
+  CornerNames: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
+  DefaultNoteSize = 12;
+  PointsToMM = 25.4 / 72;
+  // Line spacing, and the average width of a Helvetica letter, as shares of its size
+  LineSpacing = 1.25;
+  LetterWidth = 0.52;
   DefaultPaper = 'A4';
   CustomPaper = 'custom';
   DefaultMargin = 6;
@@ -254,6 +323,67 @@ begin
       Result := False;
     end;
   end;
+end;
+
+function ExpandFields(const Text: string; const Values: TFieldValues): string;
+
+  procedure Fill(const Field, Value: string);
+  begin
+    if Value <> '' then
+      Result := StringReplace(Result, '{' + Field + '}', Value, [rfReplaceAll]);
+  end;
+
+begin
+  Result := Text;
+  Fill(FieldPatternName, Values.PatternName);
+  Fill(FieldMeasurementsName, Values.MeasurementsName);
+  Fill(FieldLayoutName, Values.LayoutName);
+  Fill(FieldDate, Values.Date);
+  Fill(FieldPage, Values.Page);
+  Fill(FieldPages, Values.Pages);
+end;
+
+function TextLines(const Text: string): TStringArray;
+var
+  Unified: string;
+  Start, Position: integer;
+begin
+  Result := nil;
+  Unified := StringReplace(Text, #13#10, #10, [rfReplaceAll]);
+  Unified := StringReplace(Unified, #13, #10, [rfReplaceAll]);
+  Start := 1;
+  for Position := 1 to Length(Unified) + 1 do
+    if (Position > Length(Unified)) or (Unified[Position] = #10) then
+    begin
+      Insert(Copy(Unified, Start, Position - Start), Result, Length(Result));
+      Start := Position + 1;
+    end;
+end;
+
+function TextWidth(const Text: string; Size: double): double;
+begin
+  Result := Length(UTF8Decode(Text)) * Size * LetterWidth * PointsToMM;
+end;
+
+function LineHeight(Size: double): double;
+begin
+  Result := Size * LineSpacing * PointsToMM;
+end;
+
+function NoteBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
+var
+  Lines: TStringArray;
+  Line: string;
+  Widest: double;
+begin
+  Lines := TextLines(ExpandFields(Note.Text, Values));
+  Widest := 0;
+  for Line in Lines do
+    Widest := Max(Widest, TextWidth(Line, Note.Size));
+  Result.MinX := Note.X;
+  Result.MinY := Note.Y;
+  Result.MaxX := Note.X + Widest;
+  Result.MaxY := Note.Y + Length(Lines) * LineHeight(Note.Size);
 end;
 
 function DefaultOutput: TLayoutOutput;
@@ -321,6 +451,82 @@ begin
   Name := '';
   Output := DefaultOutput;
   Placements := nil;
+  Title := Default(TTitleBlock);
+  Notes := nil;
+end;
+
+procedure TLayout.UseDefaultTitle;
+begin
+  Title := Default(TTitleBlock);
+  Title.Enabled := True;
+  Insert(FieldPatternName, Title.Fields, 0);
+  Insert(FieldMeasurementsName, Title.Fields, 1);
+  Insert(FieldDate, Title.Fields, 2);
+end;
+
+function TLayout.FieldValues(const APage, APages: string): TFieldValues;
+var
+  Source: TLayoutSource;
+  SetName: string;
+begin
+  Result := Default(TFieldValues);
+  Result.LayoutName := Name;
+  Result.Page := APage;
+  Result.Pages := APages;
+  Result.Date := PrintDate;
+  if Result.Date = '' then
+    Result.Date := FormatDateTime('yyyy-mm-dd', Date);
+  for Source in FSources do
+  begin
+    if Result.PatternName <> '' then
+      Result.PatternName := Result.PatternName + ', ';
+    Result.PatternName := Result.PatternName + ChangeFileExt(ExtractFileName(Source.PatternFile), '');
+    SetName := '';
+    if Source.Measurements <> nil then
+      SetName := Source.Measurements.Name;
+    if SetName = '' then
+      SetName := ChangeFileExt(ExtractFileName(Source.MeasurementPath), '');
+    if (SetName <> '') and (Pos(SetName, Result.MeasurementsName) = 0) then
+    begin
+      if Result.MeasurementsName <> '' then
+        Result.MeasurementsName := Result.MeasurementsName + ', ';
+      Result.MeasurementsName := Result.MeasurementsName + SetName;
+    end;
+  end;
+end;
+
+function TLayout.TitleLines(const Values: TFieldValues): TStringArray;
+var
+  Field, Line: string;
+begin
+  Result := nil;
+  for Field in Title.Fields do
+  begin
+    case Field of
+      FieldPatternName: Line := Format(rsTitlePattern, [Values.PatternName]);
+      FieldMeasurementsName: Line := Format(rsTitleMeasurements, [Values.MeasurementsName]);
+      FieldLayoutName: Line := Format(rsTitleLayout, [Values.LayoutName]);
+      FieldDate: Line := Format(rsTitleDate, [Values.Date]);
+      else
+        Continue;
+    end;
+    Insert(Line, Result, Length(Result));
+  end;
+end;
+
+function TLayout.AddNote(const AText: string; AX, AY, ASize: double): integer;
+begin
+  Result := Length(Notes);
+  SetLength(Notes, Result + 1);
+  Notes[Result].Text := AText;
+  Notes[Result].X := AX;
+  Notes[Result].Y := AY;
+  Notes[Result].Size := ASize;
+end;
+
+procedure TLayout.RemoveNote(Index: integer);
+begin
+  System.Delete(Notes, Index, 1);
 end;
 
 function TLayout.AddSource(const APatternFile, AMeasurementFile, ASize: string): TLayoutSource;
@@ -439,6 +645,8 @@ var
   List: TJSONArray;
   Source: TLayoutSource;
   Placement: TPlacement;
+  Note: TSheetNote;
+  Field: string;
 begin
   Root := TJSONObject.Create;
   try
@@ -475,6 +683,31 @@ begin
       Item.Add('rotation', Placement.Rotation);
       Item.Add('flipped', Placement.Flipped);
     end;
+    if Notes <> nil then
+    begin
+      List := TJSONArray.Create;
+      Root.Add('sheetNotes', List);
+      for Note in Notes do
+      begin
+        Item := TJSONObject.Create;
+        List.Add(Item);
+        Item.Add('text', Note.Text);
+        Item.Add('x', JSONFloat(Note.X));
+        Item.Add('y', JSONFloat(Note.Y));
+        Item.Add('size', JSONFloat(Note.Size));
+      end;
+    end;
+    if Title.Enabled then
+    begin
+      Item := TJSONObject.Create;
+      Root.Add('titleBlock', Item);
+      Item.Add('corner', CornerNames[Title.Corner]);
+      List := TJSONArray.Create;
+      Item.Add('fields', List);
+      for Field in Title.Fields do
+        List.Add(Field);
+      Item.Add('everyPage', Title.EveryPage);
+    end;
     Result := JSONToText(Root);
   finally
     FreeAndNil(Root);
@@ -496,6 +729,49 @@ procedure ReadOptionalNumber(Item: TJSONObject; const AName: string; var Value: 
 begin
   if Item.Find(AName) <> nil then
     GetJSONNumber(Item, AName, Value);
+end;
+
+function ReadNotes(Data: TJSONData; var Notes: TSheetNoteArray): boolean;
+var
+  Index: integer;
+  Item: TJSONObject;
+  Note: TSheetNote;
+begin
+  if Data.JSONType <> jtArray then
+    Exit(False);
+  for Index := 0 to Data.Count - 1 do
+  begin
+    if Data.Items[Index].JSONType <> jtObject then
+      Exit(False);
+    Item := TJSONObject(Data.Items[Index]);
+    Note := Default(TSheetNote);
+    Note.Size := DefaultNoteSize;
+    if not GetJSONString(Item, 'text', Note.Text) or not GetJSONNumber(Item, 'x', Note.X) or not GetJSONNumber(Item, 'y', Note.Y) then
+      Exit(False);
+    ReadOptionalNumber(Item, 'size', Note.Size);
+    Insert(Note, Notes, Length(Notes));
+  end;
+  Result := True;
+end;
+
+procedure ReadTitle(Item: TJSONObject; var Title: TTitleBlock);
+var
+  CornerText: string;
+  Corner: TTitleCorner;
+  List: TJSONData;
+  Index: integer;
+begin
+  Title.Enabled := True;
+  if GetJSONString(Item, 'corner', CornerText) then
+    for Corner := Low(TTitleCorner) to High(TTitleCorner) do
+      if CornerText = CornerNames[Corner] then
+        Title.Corner := Corner;
+  GetJSONBoolean(Item, 'everyPage', Title.EveryPage);
+  List := Item.Find('fields');
+  if (List <> nil) and (List.JSONType = jtArray) then
+    for Index := 0 to List.Count - 1 do
+      if List.Items[Index].JSONType = jtString then
+        Insert(List.Items[Index].AsString, Title.Fields, Length(Title.Fields));
 end;
 
 function ReadOutput(Item: TJSONObject; var Output: TLayoutOutput; out ErrorMessage: string): boolean;
@@ -646,6 +922,13 @@ begin
         Placements[High(Placements)] := Placement;
       end;
     end;
+
+    Data := Root.Find('sheetNotes');
+    if (Data <> nil) and not ReadNotes(Data, Notes) then
+      Exit(Fail(Format(rsLayoutList, ['sheetNotes'])));
+    Data := Root.Find('titleBlock');
+    if (Data <> nil) and (Data.JSONType = jtObject) then
+      ReadTitle(TJSONObject(Data), Title);
     Result := True;
   finally
     FreeAndNil(Root);
@@ -925,12 +1208,22 @@ var
   Extent: TVec2;
   Shape: TPlacedPiece;
   Index: integer;
+  Note: TSheetNote;
+  Spread: TRect2;
+  Values: TFieldValues;
 begin
   Extent := Vec2(0, 0);
   for Shape in Shapes do
   begin
     Extent.X := Max(Extent.X, Shape.Bounds.MaxX);
     Extent.Y := Max(Extent.Y, Shape.Bounds.MaxY);
+  end;
+  Values := FieldValues('', '');
+  for Note in Notes do
+  begin
+    Spread := NoteBounds(Note, Values);
+    Extent.X := Max(Extent.X, Spread.MaxX);
+    Extent.Y := Max(Extent.Y, Spread.MaxY);
   end;
   if Output.Kind <> okTiled then
   begin
@@ -943,7 +1236,7 @@ begin
     else
       Result[0].Area.MaxX := Extent.X;
     Result[0].Area.MaxY := Extent.Y;
-    Result[0].Blank := Shapes = nil;
+    Result[0].Blank := (Shapes = nil) and (Notes = nil);
     Exit;
   end;
   Result := TilePages(Extent, Output.Tiles, RowCount, ColumnCount);
@@ -957,6 +1250,13 @@ begin
         Result[Index].Blank := False;
         Break;
       end;
+    for Note in Notes do
+    begin
+      Spread := NoteBounds(Note, Values);
+      if (Spread.MaxX > Result[Index].Area.MinX) and (Spread.MinX < Result[Index].Area.MaxX) and
+        (Spread.MaxY > Result[Index].Area.MinY) and (Spread.MinY < Result[Index].Area.MaxY) then
+        Result[Index].Blank := False;
+    end;
   end;
 end;
 
@@ -978,6 +1278,8 @@ procedure TLayout.AddOverlapProblems(var Problems: TLayoutProblemArray);
 var
   Shapes: TPlacedPieceArray;
   First, Second: integer;
+  Note: TSheetNote;
+  Values: TFieldValues;
 
   procedure Add(const Text: string);
   begin
@@ -988,6 +1290,11 @@ var
 
 begin
   Shapes := PlacedPieces;
+  Values := FieldValues('', '');
+  for Note in Notes do
+    for First := 0 to High(Shapes) do
+      if PolygonTouches(Shapes[First].CutLine, NoteBounds(Note, Values)) then
+        Add(Format(rsLayoutNoteOverlap, [TextLines(Note.Text)[0], Shapes[First].Caption]));
   for First := 0 to High(Shapes) do
   begin
     if (Shapes[First].Bounds.MinX < -DefaultTolerance) or (Shapes[First].Bounds.MinY < -DefaultTolerance) then
