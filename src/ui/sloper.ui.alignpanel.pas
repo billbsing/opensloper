@@ -30,6 +30,7 @@ uses
 
 type
   TAlignMessageEvent = procedure(Sender: TObject; const AText: string) of object;
+  TAlignSelectEvent = procedure(Sender: TObject; const Key: string) of object;
 
   TAlignPanel = class(TPanel)
   private
@@ -39,7 +40,9 @@ type
     FAnchorLabel: TLabel;
     FAnchor: string;
     FOnMessage: TAlignMessageEvent;
+    FOnSelect: TAlignSelectEvent;
     FNextTop: integer;
+    procedure RepeatClick(Sender: TObject);
     procedure AddButton(const ACaption: string; AAction: TArrangeAction);
     procedure AddHeading(const ACaption: string);
     procedure Place(Control: TControl);
@@ -57,6 +60,8 @@ type
     // The selected objects, in the order they were picked
     property Selection: TStringArray read FSelection write FSelection;
     property OnMessage: TAlignMessageEvent read FOnMessage write FOnMessage;
+    // A new repeat is selected, so that its count can be set
+    property OnSelect: TAlignSelectEvent read FOnSelect write FOnSelect;
   end;
 
 resourcestring
@@ -76,6 +81,10 @@ resourcestring
   rsDistributeHorizontally = 'Horizontally';
   rsDistributeVertically = 'Vertically';
   rsDistributeAlongEdge = 'Along edge';
+  rsRepeatHeading = 'Repeat';
+  rsRepeatAdd = 'Add repeat';
+  rsRepeatChange = 'Add repeat';
+  rsRepeatNeeds = 'Select two points, or one line or curve, to repeat along';
   rsAlignChange = 'Align points';
   rsDistributeChange = 'Distribute points';
   rsAlignAsk = '%s: %s. Replace it?';
@@ -86,17 +95,17 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.Draft;
+  Sloper.Core.Draft, Sloper.Core.Pattern;
 
 const
+  DefaultRepeatCount = '3';
   RowGap = 6;
   HeadingGap = 14;
   ActionTags: array[TArrangeAction] of integer = (0, 1, 2, 3, 4, 5);
 
 constructor TAlignPanel.Create(AOwner: TComponent);
 var
-  Title: TLabel;
-  Anchor: TButton;
+  Anchor, RepeatButton: TButton;
 begin
   inherited Create(AOwner);
   BevelOuter := bvNone;
@@ -124,6 +133,11 @@ begin
   AddButton(rsDistributeHorizontally, aaDistributeHorizontal);
   AddButton(rsDistributeVertically, aaDistributeVertical);
   AddButton(rsDistributeAlongEdge, aaDistributeAlongEdge);
+  AddHeading(rsRepeatHeading);
+  RepeatButton := TButton.Create(Self);
+  RepeatButton.Caption := rsRepeatAdd;
+  RepeatButton.OnClick := @RepeatClick;
+  Place(RepeatButton);
 end;
 
 procedure TAlignPanel.Place(Control: TControl);
@@ -267,6 +281,39 @@ begin
     ShowResult(Items, Replace)
   else
     Say(Err);
+end;
+
+// Between two selected points, or along a selected edge
+procedure TAlignPanel.RepeatClick(Sender: TObject);
+var
+  Request: TArrangeRequest;
+  Added: TRepeatObject;
+  Pattern: TPattern;
+  Err: string;
+begin
+  if (FDocument = nil) or FDocument.ChangeOpen then
+    Exit;
+  Request := BuildRequest(aaDistribute);
+  if not ((Length(Request.Points) = 2) and (Request.Edge = '') or (Request.Points = nil) and (Request.Edge <> '')) then
+  begin
+    Say(rsRepeatNeeds);
+    Exit;
+  end;
+  Pattern := FDocument.Pattern;
+  FDocument.BeginChange(rsRepeatChange);
+  if Request.Edge <> '' then
+    Added := Pattern.AddRepeatOnEdge('', Request.Edge, DefaultRepeatCount, True)
+  else
+    Added := Pattern.AddRepeatBetween('', Pattern.UsePoint(Request.Points[0]), Pattern.UsePoint(Request.Points[1]), DefaultRepeatCount, True);
+  Err := Pattern.LastError;
+  if not FDocument.Commit(Added <> nil) then
+  begin
+    Say(Err);
+    Exit;
+  end;
+  Added := TRepeatObject(Pattern.FindObject(Added.Name));
+  if Assigned(FOnSelect) and (Added.Item(1) <> nil) then
+    FOnSelect(Self, Added.Item(1).Key);
 end;
 
 procedure TAlignPanel.ActionClick(Sender: TObject);

@@ -76,6 +76,8 @@ type
     procedure TestArrangeAligns;
     procedure TestArrangeLeavesFormulasUnlessTold;
     procedure TestArrangeRefused;
+    procedure TestAddRepeat;
+    procedure TestRepeatPointAsAnInput;
     procedure TestSave;
     procedure TestSaveNeedsAPath;
     procedure TestBadJSON;
@@ -488,6 +490,28 @@ begin
   AssertNear('left', 15, ObjectNamed('Q').Get('x', 0.0));
   Call('arrange', '{"action": "alignVertical", "points": ["P", "Q"], "reference": "P", "replace": ["Q"]}');
   AssertNear('replaced', 70, ObjectNamed('Q').Get('x', 0.0));
+end;
+
+procedure TTestAPI.TestAddRepeat;
+begin
+  OpenTestPattern;
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": "0", "y": "0"}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": "300", "y": "0"}');
+  Call('add_repeat', '{"name": "Btn", "a": "P", "b": "Q", "count": "4", "ends": "include"}');
+  AssertEquals('Btn', Answer.Get('name', ''));
+  Call('get_object', '{"name": "Btn[3]"}');
+  AssertNear('x', 200, Answer.Get('x', 0.0));
+  AssertTrue(FServer.Document.CanUndo);
+end;
+
+procedure TTestAPI.TestRepeatPointAsAnInput;
+begin
+  OpenTestPattern;
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": "0", "y": "0"}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": "300", "y": "0"}');
+  Call('add_repeat', '{"name": "Btn", "a": "P", "b": "Q", "count": "4", "ends": "include"}');
+  Call('add_point', '{"type": "betweenPoint", "name": "R", "a": "Btn[2]", "b": "Q", "mode": "ratio", "value": "0.5"}');
+  AssertNear('x', 200, ObjectNamed('R').Get('x', 0.0));
 end;
 
 procedure TTestAPI.TestArrangeRefused;

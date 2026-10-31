@@ -136,6 +136,25 @@ var
     Result := Copy(Text, Start, Position - Start);
   end;
 
+  // Reads "[3]" if present, the index of one of a repeat's points
+  function ReadRepeatIndex: string;
+  var
+    Start, Scan: integer;
+  begin
+    Result := '';
+    Start := Position;
+    if (Position > Len) or (Text[Position] <> '[') then
+      Exit;
+    Scan := Position + 1;
+    while (Scan <= Len) and (Text[Scan] in ['0'..'9']) do
+      Inc(Scan);
+    if (Scan > Start + 1) and (Scan <= Len) and (Text[Scan] = ']') then
+    begin
+      Position := Scan + 1;
+      Result := Copy(Text, Start, Position - Start);
+    end;
+  end;
+
   // Reads ".prop" if present. False on a dot without a name.
   function ReadProperty(out Prop: string): boolean;
   begin
@@ -271,6 +290,7 @@ begin
     else if IsNameStart(Character) then
     begin
       Name := ReadName;
+      Name := Name + ReadRepeatIndex;
       if not ReadProperty(Prop) then
         Exit;
       if Prop = '' then

@@ -79,6 +79,8 @@ type
     // failure returns esError or esInvalid with Message set, keeping the last
     // good result.
     function Compute(Context: TEvalContext): TEvalState; virtual; abstract;
+    // For a node outside the graph, which something else computes
+    procedure MarkComputed;
     function Field(const AName: string): TFormula;
     // Swaps in a new formula for the field, freeing the old one
     procedure ReplaceField(const AName: string; Formula: TFormula);
@@ -209,6 +211,13 @@ begin
       FFields[Index].Name := NewName;
       Exit;
     end;
+end;
+
+procedure TEvalNode.MarkComputed;
+begin
+  FState := esValid;
+  FMessage := '';
+  FHasResult := True;
 end;
 
 function TEvalNode.Field(const AName: string): TFormula;

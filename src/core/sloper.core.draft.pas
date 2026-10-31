@@ -26,7 +26,7 @@ unit Sloper.Core.Draft;
 interface
 
 uses
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Bezier;
+  SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Bezier;
 
 type
   TEdgeRole = (erConstruction, erOutline);
@@ -97,6 +97,8 @@ type
     property Position: TVec2 read FPosition;
   end;
 
+  TPointObjectArray = array of TPointObject;
+
   // A point at fixed coordinates, given by formulas x and y
   TFreePoint = class(TPointObject)
   public
@@ -145,6 +147,69 @@ type
     property PointA: string read FA;
     property PointB: string read FB;
     property Mode: TAlongMode read FMode;
+  end;
+
+  TRepeatObject = class;
+
+  // One of a repeat's points. Until something uses it, it is virtual: the
+  // repeat keeps it for drawing and picking, under a key that is not an ID,
+  // and it is not in the graph. Once used it has an ID of its own, kept by the
+  // repeat against its index, and is an ordinary node.
+  TRepeatPoint = class(TPointObject)
+  private
+    FSource: TRepeatObject;
+    FIndex: integer;
+  public
+    constructor Create(const AKey: string; ASource: TRepeatObject; AIndex: integer);
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    function IsVirtual: boolean;
+    property Source: TRepeatObject read FSource;
+    // From 1
+    property Index: integer read FIndex;
+  end;
+
+  TRepeatPointList = specialize TObjectList<TRepeatPoint>;
+  TRepeatPointArray = array of TRepeatPoint;
+
+  // N evenly spaced points between two points, or along an edge by arc length.
+  // Count is a formula, so the number of points can change; evaluating only
+  // ever makes virtual points, so it never hands out an ID.
+  TRepeatObject = class(TDraftObject)
+  private
+    FFirst, FLast, FEdge: string;
+    FIncludeEnds: boolean;
+    FItems: TRepeatPointList;
+    FPositions: array of TVec2;
+    function FindItem(AIndex: integer): TRepeatPoint;
+    procedure UpdateVirtualItems;
+    function ComputePositions(Context: TEvalContext; ACount: integer): TEvalState;
+  public
+    constructor CreateBetween(const AKey, AFirst, ALast: string; AIncludeEnds: boolean);
+    constructor CreateOnEdge(const AKey, AEdge: string; AIncludeEnds: boolean);
+    destructor Destroy; override;
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    function TypeName: string; override;
+    function HasProperty(const Prop: string): boolean; override;
+    function PropertyValue(const Prop: string): double; override;
+    // The number of points at the last good evaluation
+    function Count: integer;
+    function PositionAt(AIndex: integer): TVec2;
+    // The point at this index, 1 to Count; nil outside that
+    function Item(AIndex: integer): TRepeatPoint;
+    // The points with IDs, whatever the count is now
+    function UsedItems: TRepeatPointArray;
+    // Gives the point at this index the ID NewKey; it may be past Count, as
+    // when loading a file
+    function UseItem(AIndex: integer; const NewKey: string): TRepeatPoint;
+    function HasUsedIndex(AIndex: integer): boolean;
+    procedure UpdateItemNames;
+    property FirstPoint: string read FFirst;
+    property LastPoint: string read FLast;
+    // Empty between two points
+    property Edge: string read FEdge;
+    property IncludeEnds: boolean read FIncludeEnds write FIncludeEnds;
   end;
 
   // Lines, curves, curve paths and split parts. Each keeps its computed
@@ -334,6 +399,8 @@ resourcestring
   rsDraftPastEnd = 'The distance %s mm is past the end of %s (%s mm long)';
   rsDraftRatioRange = 'The ratio %s is outside 0 to 1';
   rsDraftPastPoint = 'The distance %s mm is more than the %s mm between the points';
+  rsDraftRepeatCount = 'A repeat needs from 1 to %d points, not %s';
+  rsDraftRepeatGone = '%s no longer exists';
   rsDraftNegativeHandle = 'A handle length cannot be negative';
   rsDraftNoCrossing = '%s and %s do not cross';
   rsDraftPickMissing = 'There are only %d crossings, so crossing %d does not exist';
@@ -506,6 +573,263 @@ begin
     Exit(Fail(esInvalid, Format(rsDraftPastPoint, [FormatMM(Amount), FormatMM(Gap)])));
   FPosition := First + (Last - First) * (Amount / Gap);
   Result := esValid;
+end;
+
+{ TRepeatPoint }
+
+constructor TRepeatPoint.Create(const AKey: string; ASource: TRepeatObject; AIndex: integer);
+begin
+  inherited Create(AKey);
+  FSource := ASource;
+  FIndex := AIndex;
+end;
+
+function TRepeatPoint.InputKeys: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 1);
+  Result[0] := FSource.Key;
+end;
+
+function TRepeatPoint.Compute(Context: TEvalContext): TEvalState;
+begin
+  if FIndex > FSource.Count then
+    Exit(Fail(esError, Format(rsDraftRepeatGone, [DisplayName])));
+  FPosition := FSource.PositionAt(FIndex);
+  Result := esValid;
+end;
+
+function TRepeatPoint.IsVirtual: boolean;
+begin
+  Result := Pos('[', Key) > 0;
+end;
+
+{ TRepeatObject }
+
+constructor TRepeatObject.CreateBetween(const AKey, AFirst, ALast: string; AIncludeEnds: boolean);
+begin
+  inherited Create(AKey);
+  FFirst := AFirst;
+  FLast := ALast;
+  FIncludeEnds := AIncludeEnds;
+  FItems := TRepeatPointList.Create;
+  AddField('count');
+end;
+
+constructor TRepeatObject.CreateOnEdge(const AKey, AEdge: string; AIncludeEnds: boolean);
+begin
+  inherited Create(AKey);
+  FEdge := AEdge;
+  FIncludeEnds := AIncludeEnds;
+  FItems := TRepeatPointList.Create;
+  AddField('count');
+end;
+
+destructor TRepeatObject.Destroy;
+begin
+  FreeAndNil(FItems);
+  inherited Destroy;
+end;
+
+function TRepeatObject.TypeName: string;
+begin
+  Result := 'repeat';
+end;
+
+function TRepeatObject.HasProperty(const Prop: string): boolean;
+begin
+  Result := Prop = 'count';
+end;
+
+function TRepeatObject.PropertyValue(const Prop: string): double;
+begin
+  Result := Count;
+end;
+
+function TRepeatObject.InputKeys: TStringArray;
+begin
+  Result := nil;
+  if FEdge <> '' then
+  begin
+    SetLength(Result, 1);
+    Result[0] := FEdge;
+  end
+  else
+  begin
+    SetLength(Result, 2);
+    Result[0] := FFirst;
+    Result[1] := FLast;
+  end;
+end;
+
+function TRepeatObject.Count: integer;
+begin
+  Result := Length(FPositions);
+end;
+
+function TRepeatObject.PositionAt(AIndex: integer): TVec2;
+begin
+  Result := FPositions[AIndex - 1];
+end;
+
+function TRepeatObject.FindItem(AIndex: integer): TRepeatPoint;
+begin
+  for Result in FItems do
+    if Result.Index = AIndex then
+      Exit;
+  Result := nil;
+end;
+
+function TRepeatObject.Item(AIndex: integer): TRepeatPoint;
+begin
+  Result := nil;
+  if (AIndex >= 1) and (AIndex <= Count) then
+    Result := FindItem(AIndex);
+end;
+
+// In index order, so a file is written the same way each time
+function TRepeatObject.UsedItems: TRepeatPointArray;
+var
+  Candidate: TRepeatPoint;
+  Slot: integer;
+begin
+  Result := nil;
+  for Candidate in FItems do
+    if not Candidate.IsVirtual then
+    begin
+      Slot := 0;
+      while (Slot < Length(Result)) and (Result[Slot].Index < Candidate.Index) do
+        Inc(Slot);
+      Insert(Candidate, Result, Slot);
+    end;
+end;
+
+function TRepeatObject.HasUsedIndex(AIndex: integer): boolean;
+var
+  Candidate: TRepeatPoint;
+begin
+  Candidate := FindItem(AIndex);
+  Result := (Candidate <> nil) and not Candidate.IsVirtual;
+end;
+
+function TRepeatObject.UseItem(AIndex: integer; const NewKey: string): TRepeatPoint;
+var
+  Old: TRepeatPoint;
+begin
+  Old := FindItem(AIndex);
+  Result := TRepeatPoint.Create(NewKey, Self, AIndex);
+  if Old <> nil then
+  begin
+    Result.FPosition := Old.FPosition;
+    FItems.Remove(Old);
+  end;
+  FItems.Add(Result);
+  UpdateItemNames;
+end;
+
+procedure TRepeatObject.UpdateItemNames;
+var
+  Candidate: TRepeatPoint;
+begin
+  for Candidate in FItems do
+    Candidate.Name := Format('%s[%d]', [Name, Candidate.Index]);
+end;
+
+// A point past the count is dropped only if it is virtual: one with an ID stays,
+// so that it comes back if the count rises
+procedure TRepeatObject.UpdateVirtualItems;
+var
+  Index: integer;
+  Candidate: TRepeatPoint;
+begin
+  for Index := FItems.Count - 1 downto 0 do
+    if FItems[Index].IsVirtual and (FItems[Index].Index > Count) then
+      FItems.Delete(Index);
+  for Index := 1 to Count do
+  begin
+    Candidate := FindItem(Index);
+    if Candidate = nil then
+    begin
+      Candidate := TRepeatPoint.Create(Format('%s[%d]', [Key, Index]), Self, Index);
+      FItems.Add(Candidate);
+    end;
+    if Candidate.IsVirtual then
+    begin
+      Candidate.FPosition := FPositions[Index - 1];
+      Candidate.MarkComputed;
+    end;
+  end;
+  UpdateItemNames;
+end;
+
+function TRepeatObject.ComputePositions(Context: TEvalContext; ACount: integer): TEvalState;
+var
+  First, Last: TVec2;
+  Node: TEvalNode;
+  Target: TEdgeObject;
+  Index, Steps: integer;
+  Ratio: double;
+
+  function EndPoint(const AKey: string; out APosition: TVec2): boolean;
+  var
+    Input: TEvalNode;
+  begin
+    APosition := Vec2(0, 0);
+    Input := Context.FindNode(AKey);
+    Result := Input is TPointObject;
+    if Result then
+      APosition := TPointObject(Input).Position
+    else
+      Fail(esError, Format(rsDraftNotAPoint, [AKey]));
+  end;
+
+begin
+  Target := nil;
+  First := Vec2(0, 0);
+  Last := Vec2(0, 0);
+  if FEdge <> '' then
+  begin
+    Node := Context.FindNode(FEdge);
+    if not (Node is TEdgeObject) then
+      Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdge])));
+    Target := TEdgeObject(Node);
+  end
+  else if not EndPoint(FFirst, First) or not EndPoint(FLast, Last) then
+    Exit(esError);
+  if FIncludeEnds then
+    Steps := ACount - 1
+  else
+    Steps := ACount + 1;
+  SetLength(FPositions, ACount);
+  for Index := 1 to ACount do
+  begin
+    if Steps = 0 then
+      Ratio := 0.5
+    else if FIncludeEnds then
+      Ratio := (Index - 1) / Steps
+    else
+      Ratio := Index / Steps;
+    if Target <> nil then
+      FPositions[Index - 1] := Target.PointAtLength(Ratio * Target.Length)
+    else
+      FPositions[Index - 1] := First + (Last - First) * Ratio;
+  end;
+  Result := esValid;
+end;
+
+function TRepeatObject.Compute(Context: TEvalContext): TEvalState;
+const
+  MaxRepeatCount = 500;
+var
+  Amount: double;
+begin
+  if not EvalField(Context, 'count', Amount) then
+    Exit(esError);
+  if (Round(Amount) < 1) or (Round(Amount) > MaxRepeatCount) then
+    Exit(Fail(esInvalid, Format(rsDraftRepeatCount, [MaxRepeatCount, FormatFloat('0.###', Amount)])));
+  Result := ComputePositions(Context, Round(Amount));
+  if Result = esValid then
+    UpdateVirtualItems;
 end;
 
 { TAlongEdgePoint }

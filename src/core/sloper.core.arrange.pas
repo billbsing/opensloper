@@ -73,6 +73,7 @@ resourcestring
   rsArrangeOperation = 'its position comes from its operation, which this would replace';
   rsArrangeDepends = 'it is used by the points it would need, so it was left alone';
   rsArrangeAlready = 'it is already there';
+  rsArrangeRepeat = 'it is part of a repeat, so it can only be moved by editing the repeat';
 
 implementation
 
@@ -391,6 +392,12 @@ begin
   Item.Name := Target.Point.DisplayName;
   Item.Choice := acChange;
   Item.Reason := '';
+  if Target.Point is TRepeatPoint then
+  begin
+    Item.Choice := acKeep;
+    Item.Reason := rsArrangeRepeat;
+    Exit;
+  end;
   if ReadsPoint(Pattern, Target) then
   begin
     Item.Choice := acKeep;
@@ -481,19 +488,26 @@ var
   Item: TArrangeItem;
   Key: string;
   Wanted: boolean;
+  Used: TArrangeRequest;
 begin
-  Result := BuildTargets(Pattern, Request, Targets, First, Last, ErrorMessage);
+  // Anything these read must have an ID to be read by
+  Used := Request;
+  Used.Points := Copy(Request.Points);
+  for Index := 0 to High(Used.Points) do
+    Used.Points[Index] := Pattern.UsePoint(Used.Points[Index]);
+  Used.Reference := Pattern.UsePoint(Request.Reference);
+  Result := BuildTargets(Pattern, Used, Targets, First, Last, ErrorMessage);
   if not Result then
     Exit;
   for Index := 0 to High(Targets) do
   begin
     Item := Default(TArrangeItem);
-    Classify(Pattern, Request.Action, Targets[Index], Item);
+    Classify(Pattern, Used.Action, Targets[Index], Item);
     Wanted := Item.Choice = acChange;
     if Item.Choice = acAsk then
       for Key in Replace do
         Wanted := Wanted or (Key = Item.Key);
-    if Wanted and not ApplyTarget(Pattern, Request, Targets[Index], First, Last) then
+    if Wanted and not ApplyTarget(Pattern, Used, Targets[Index], First, Last) then
     begin
       ErrorMessage := Pattern.LastError;
       Exit(False);

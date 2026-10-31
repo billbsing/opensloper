@@ -66,6 +66,7 @@ type
     function DoSave(Params: TJSONObject): TJSONData;
     function DoGetMeasurements: TJSONData;
     function DoMissingMeasurements: TJSONData;
+    function DoAddRepeat(Params: TJSONObject): TJSONData;
     function DoArrange(Params: TJSONObject): TJSONData;
     function ReferenceList(Params: TJSONObject; const AName: string): TStringArray;
     // Selects it, refusing one the set does not have; empty leaves it alone
@@ -128,6 +129,7 @@ resourcestring
   rsApiAddNotch = 'Add notch';
   rsApiRemoveNotch = 'Remove notch';
   rsApiArrange = 'Arrange points';
+  rsApiAddRepeat = 'Add repeat';
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
   rsApiBadFold = 'Give an "edge", or "none": true';
@@ -247,7 +249,11 @@ var
 begin
   Result := TJSONObject.Create;
   try
-    Result.Add('id', StrToInt(Node.Key));
+    // A repeat's point has no ID until something uses it
+    if (Node is TRepeatPoint) and TRepeatPoint(Node).IsVirtual then
+      Result.Add('id', TJSONNull.Create)
+    else
+      Result.Add('id', StrToInt(Node.Key));
     if Node is TVariable then
     begin
       Result.Add('name', TVariable(Node).Name);
@@ -333,7 +339,7 @@ begin
   Target := FDocument.Pattern.FindObject(TargetName);
   if Target = nil then
     raise EApiError.Create(RpcRefused, Format(rsApiUnknownName, [TargetName]));
-  Result := Target.Key;
+  Result := FDocument.Pattern.UsePoint(Target.Key);
 end;
 
 // Ends the change that added Node, nil when it was refused
@@ -446,6 +452,31 @@ begin
     raise;
   end;
   FreeAndNil(Empty);
+end;
+
+function TApiServer.DoAddRepeat(Params: TJSONObject): TJSONData;
+var
+  CountText, First, Second, RepeatName: string;
+  IncludeEnds: boolean;
+  Added: TRepeatObject;
+begin
+  CountText := FormulaParam(Params, 'count');
+  RepeatName := OptionalString(Params, 'name');
+  IncludeEnds := ChoiceParam(Params, 'ends', ['include', 'exclude']) = 0;
+  if Params.Find('edge') <> nil then
+  begin
+    First := Reference(Params, 'edge');
+    FDocument.BeginChange(rsApiAddRepeat);
+    Added := FDocument.Pattern.AddRepeatOnEdge(RepeatName, First, CountText, IncludeEnds);
+  end
+  else
+  begin
+    First := Reference(Params, 'a');
+    Second := Reference(Params, 'b');
+    FDocument.BeginChange(rsApiAddRepeat);
+    Added := FDocument.Pattern.AddRepeatBetween(RepeatName, First, Second, CountText, IncludeEnds);
+  end;
+  Result := AddedNode(Added);
 end;
 
 // Each item is an ID or a name
@@ -1146,6 +1177,7 @@ begin
     'save': Result := DoSave(Params);
     'get_measurements': Result := DoGetMeasurements;
     'arrange': Result := DoArrange(Params);
+    'add_repeat': Result := DoAddRepeat(Params);
     'set_measurement': Result := DoSetMeasurement(Params);
     'missing_measurements': Result := DoMissingMeasurements;
     'list_objects': Result := DoListObjects;

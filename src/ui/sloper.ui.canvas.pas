@@ -814,7 +814,7 @@ begin
       if Piece.PathIndexOf(Target.EdgeKey) < 0 then
         Continue;
       if Target.PointKey <> '' then
-        Result := FDocument.Pattern.AddPointNotch(Piece, Target.PointKey) or Result
+        Result := FDocument.Pattern.AddPointNotch(Piece, FDocument.Pattern.UsePoint(Target.PointKey)) or Result
       else
         Result := FDocument.Pattern.AddEdgeNotch(Piece, Target.EdgeKey, RoundedText(Target.Position, DragLengthDecimals)) or Result;
     end;
@@ -1260,6 +1260,7 @@ end;
 
 procedure TPatternCanvas.DrawPattern;
 var
+  Point: TPointObject;
   Index: integer;
   DraftObject: TDraftObject;
 begin
@@ -1285,12 +1286,9 @@ begin
     if IsSelected(DraftObject.Key) or (DraftObject.Key = FHoverKey) then
       DrawChevrons(TPieceObject(DraftObject));
   end;
-  for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
-  begin
-    DraftObject := FDocument.Pattern.Objects[Index];
-    if (DraftObject is TPointObject) and DraftObject.HasResult then
-      DrawPoint(TPointObject(DraftObject));
-  end;
+  for Point in FDocument.Pattern.AllPoints do
+    if Point.HasResult then
+      DrawPoint(Point);
 end;
 
 // Each selected curve's tangent lines. A handle set by a formula is hollow,

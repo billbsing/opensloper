@@ -28,7 +28,8 @@ unit Sloper.UI.Properties;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Piece, Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
+  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Piece,
+  Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
 type
   // One line of text that cuts itself to the label's width with an ellipsis
@@ -72,6 +73,7 @@ type
     FNameEdit: TEdit;
     FDescriptionEdit: TEdit;
     FRoleBox: TComboBox;
+    FEndsBox: TComboBox;
     FCutEdit: TSpinEdit;
     FMirrorBox: TCheckBox;
     FFoldBox: TComboBox;
@@ -123,6 +125,9 @@ type
     function KeepsText(Edit: TEdit): boolean;
     procedure RoleChange(Sender: TObject);
     procedure AddPieceRows(Piece: TPieceObject);
+    procedure AddRepeatRows(ARepeat: TRepeatObject);
+    procedure EndsChange(Sender: TObject);
+    function EditableKey(const Key: string): string;
     procedure RefreshPieceRows(Piece: TPieceObject);
     procedure CutChange(Sender: TObject);
     procedure FoldChange(Sender: TObject);
@@ -148,6 +153,13 @@ resourcestring
   rsPropType = 'Type';
   rsPropName = 'Name';
   rsPropRole = 'Role';
+  rsPropRepeatFrom = 'From';
+  rsPropRepeatTo = 'To';
+  rsPropRepeatEdge = 'Along';
+  rsPropEnds = 'Ends';
+  rsPropEndsInclude = 'Include the ends';
+  rsPropEndsExclude = 'Leave out the ends';
+  rsPropChangeEnds = 'Change repeat ends';
   rsPropConstruction = 'Construction';
   rsPropOutline = 'Outline';
   rsPropPosition = 'Position';
@@ -169,7 +181,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings,
+  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
   Sloper.UI.GridColumns, Sloper.UI.ObjectList;
 
 const
@@ -298,10 +310,23 @@ procedure TPropertiesPanel.ShowSelection(const Keys: TStringArray);
 begin
   FSelectionCount := Length(Keys);
   if FSelectionCount = 1 then
-    FKey := Keys[0]
+    FKey := EditableKey(Keys[0])
   else
     FKey := '';
   Rebuild;
+end;
+
+// A repeat is edited through its first point
+function TPropertiesPanel.EditableKey(const Key: string): string;
+var
+  Node: TEvalNode;
+begin
+  Result := Key;
+  if FDocument = nil then
+    Exit;
+  Node := FDocument.Pattern.FindNode(Key);
+  if (Node is TRepeatPoint) and (TRepeatPoint(Node).Index = 1) then
+    Result := TRepeatPoint(Node).Source.Key;
 end;
 
 procedure TPropertiesPanel.DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
@@ -554,7 +579,9 @@ begin
     FDivider.OnDrag := @DividerDrag;
     SetLength(FRefusals, Node.FieldCount + RefusalBase);
     AddTextRow(rsPropType, TypeCaption(Node), Gap);
-    if (Node is TDraftObject) or (Node is TVariable) then
+    if Node is TRepeatPoint then
+      AddTextRow(rsPropName, TRepeatPoint(Node).Name, RowGap)
+    else if (Node is TDraftObject) or (Node is TVariable) then
       FNameEdit := AddEditRow(rsPropName, NameTag);
     SetLength(FEdits, Node.FieldCount);
     for Index := 0 to Node.FieldCount - 1 do
@@ -570,6 +597,8 @@ begin
       FRoleBox.OnChange := @RoleChange;
       AddRow(rsPropRole, FRoleBox, RowGap);
     end;
+    if Node is TRepeatObject then
+      AddRepeatRows(TRepeatObject(Node));
     if Node is TPieceObject then
       AddPieceRows(TPieceObject(Node));
     if Node is TPointObject then
@@ -642,6 +671,8 @@ begin
     SetEditText(FDescriptionEdit, OriginalText(FDescriptionEdit));
   if FRoleBox <> nil then
     FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
+  if FEndsBox <> nil then
+    FEndsBox.ItemIndex := Ord(not TRepeatObject(Node).IncludeEnds);
   if Node is TPieceObject then
     RefreshPieceRows(TPieceObject(Node));
   if FResult <> nil then
@@ -887,6 +918,52 @@ begin
   try
     FDocument.BeginChange(rsPropChangeFold);
     FDocument.Commit(FDocument.Pattern.SetFoldEdge(TPieceObject(Node), FFoldKeys[FFoldBox.ItemIndex]));
+  finally
+    FCommitting := False;
+  end;
+end;
+
+procedure TPropertiesPanel.AddRepeatRows(ARepeat: TRepeatObject);
+
+  function NameOf(const Key: string): string;
+  var
+    Node: TEvalNode;
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if Node = nil then
+      Result := Key
+    else
+      Result := Node.DisplayName;
+  end;
+
+begin
+  if ARepeat.Edge <> '' then
+    AddTextRow(rsPropRepeatEdge, NameOf(ARepeat.Edge), RowGap)
+  else
+  begin
+    AddTextRow(rsPropRepeatFrom, NameOf(ARepeat.FirstPoint), RowGap);
+    AddTextRow(rsPropRepeatTo, NameOf(ARepeat.LastPoint), RowGap);
+  end;
+  FEndsBox := TComboBox.Create(Self);
+  FEndsBox.Style := csDropDownList;
+  FEndsBox.Items.Add(rsPropEndsInclude);
+  FEndsBox.Items.Add(rsPropEndsExclude);
+  FEndsBox.OnChange := @EndsChange;
+  AddRow(rsPropEnds, FEndsBox, RowGap);
+end;
+
+procedure TPropertiesPanel.EndsChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TRepeatObject) or (Ord(not TRepeatObject(Node).IncludeEnds) = FEndsBox.ItemIndex) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeEnds);
+    TRepeatObject(Node).IncludeEnds := FEndsBox.ItemIndex = 0;
+    FDocument.EndChange;
   finally
     FCommitting := False;
   end;

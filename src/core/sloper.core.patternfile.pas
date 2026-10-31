@@ -55,6 +55,7 @@ resourcestring
   rsPatternFileUnits = 'Units "%s" are not supported; use mm';
   rsPatternFileList = 'The file has no valid "%s" list';
   rsPatternFileBadId = 'Item %d of "%s" has a missing, invalid or repeated ID';
+  rsPatternFileBadRepeatPoint = 'Repeat %s has a point that is not valid';
   rsPatternFileBadNextId = '"nextId" must be a whole number above every ID in the file';
   rsPatternVariableMissing = 'Variable %s has no valid "%s"';
   rsPatternVariableBadName = 'Variable %s: %s';
@@ -73,6 +74,10 @@ const
   TypeOffsetPoint = 'offsetPoint';
   TypeAlongEdgePoint = 'alongEdgePoint';
   TypeBetweenPoint = 'betweenPoint';
+  TypeRepeat = 'repeat';
+  // Only for reports: a repeat's points are saved inside it
+  TypeRepeatPoint = 'repeatPoint';
+  RepeatEndNames: array[0..1] of string = ('include', 'exclude');
   TypeIntersectPoint = 'intersectPoint';
   TypeCircleEdgePoint = 'circleEdgePoint';
   TypeProjectPoint = 'projectPoint';
@@ -105,6 +110,7 @@ type
     function LoadVariables(Data: TJSONData): boolean;
     function LoadObjects(Data: TJSONData): boolean;
     function CreateObject(Item: TJSONObject; const TypeText: string): TDraftObject;
+    function ReadRepeatPoints(Item: TJSONObject; ARepeat: TRepeatObject): boolean;
     function CreateCurvePath(Item: TJSONObject): TDraftObject;
     function CreatePiece(Item: TJSONObject): TDraftObject;
     function ReadGrainline(Item: TJSONObject; Piece: TPieceObject): boolean;
@@ -128,6 +134,10 @@ begin
     Result := TypeAlongEdgePoint
   else if DraftObject is TBetweenPoint then
     Result := TypeBetweenPoint
+  else if DraftObject is TRepeatObject then
+    Result := TypeRepeat
+  else if DraftObject is TRepeatPoint then
+    Result := TypeRepeatPoint
   else if DraftObject is TIntersectPoint then
     Result := TypeIntersectPoint
   else if DraftObject is TCircleEdgePoint then
@@ -272,6 +282,36 @@ begin
   end;
 end;
 
+procedure SaveRepeat(ARepeat: TRepeatObject; Into: TJSONObject);
+var
+  List: TJSONArray;
+  Entry: TJSONObject;
+  Item: TRepeatPoint;
+begin
+  if ARepeat.Edge <> '' then
+    Into.Add('edge', JSONId(ARepeat.Edge))
+  else
+  begin
+    Into.Add('a', JSONId(ARepeat.FirstPoint));
+    Into.Add('b', JSONId(ARepeat.LastPoint));
+  end;
+  if ARepeat.IncludeEnds then
+    Into.Add('ends', RepeatEndNames[0])
+  else
+    Into.Add('ends', RepeatEndNames[1]);
+  if ARepeat.UsedItems = nil then
+    Exit;
+  List := TJSONArray.Create;
+  Into.Add('points', List);
+  for Item in ARepeat.UsedItems do
+  begin
+    Entry := TJSONObject.Create;
+    List.Add(Entry);
+    Entry.Add('index', Item.Index);
+    Entry.Add('id', JSONId(Item.Key));
+  end;
+end;
+
 // id, type and name; then inputs and options; then formulas under their
 // field names; then the role of an edge
 function SaveObject(DraftObject: TDraftObject): TJSONObject;
@@ -313,6 +353,8 @@ begin
       Result.Add('b', JSONId(Between.PointB));
       Result.Add('mode', AlongModeNames[Between.Mode]);
     end
+    else if DraftObject is TRepeatObject then
+      SaveRepeat(TRepeatObject(DraftObject), Result)
     else if DraftObject is TIntersectPoint then
     begin
       Intersect := TIntersectPoint(DraftObject);
@@ -803,6 +845,18 @@ begin
       ReadChoice(Item, 'mode', AlongModeNames, Choice) then
       Result := TAlongEdgePoint.Create(FId, First, EndChoice = 1, TAlongMode(Choice));
   end
+  else if TypeText = TypeRepeat then
+  begin
+    if not ReadChoice(Item, 'ends', RepeatEndNames, Choice) then
+      Exit;
+    if Item.Find('edge') <> nil then
+    begin
+      if ReadInput(Item, 'edge', True, First) then
+        Result := TRepeatObject.CreateOnEdge(FId, First, Choice = 0);
+    end
+    else if ReadInput(Item, 'a', False, First) and ReadInput(Item, 'b', False, Second) then
+      Result := TRepeatObject.CreateBetween(FId, First, Second, Choice = 0);
+  end
   else if TypeText = TypeBetweenPoint then
   begin
     if ReadInput(Item, 'a', False, First) and ReadInput(Item, 'b', False, Second) and ReadChoice(Item, 'mode', AlongModeNames, Choice) then
@@ -855,9 +909,36 @@ begin
     Fail(Format(rsPatternObjectUnknownType, [FId, TypeText]));
 end;
 
+// Each is an index with the ID it was given on first use
+function TPatternLoader.ReadRepeatPoints(Item: TJSONObject; ARepeat: TRepeatObject): boolean;
+var
+  List: TJSONData;
+  Entry: TJSONObject;
+  Index, PointIndex: integer;
+  Id: string;
+begin
+  List := Item.Find('points');
+  if List = nil then
+    Exit(True);
+  if List.JSONType <> jtArray then
+    Exit(Fail(Format(rsPatternFileList, ['points'])));
+  for Index := 0 to List.Count - 1 do
+  begin
+    if List.Items[Index].JSONType <> jtObject then
+      Exit(Fail(Format(rsPatternFileList, ['points'])));
+    Entry := TJSONObject(List.Items[Index]);
+    if not GetJSONInteger(Entry, 'index', PointIndex) or (PointIndex < 1) or ARepeat.HasUsedIndex(PointIndex) then
+      Exit(Fail(Format(rsPatternFileBadRepeatPoint, [FId])));
+    if not IdIsFree(FPattern, Entry, Id) then
+      Exit(Fail(Format(rsPatternFileBadRepeatPoint, [FId])));
+    FPattern.InsertRepeatPoint(ARepeat, PointIndex, Id);
+  end;
+  Result := True;
+end;
+
 function TPatternLoader.LoadObject(Item: TJSONObject): boolean;
 var
-  DraftObject: TDraftObject;
+  DraftObject, Inserted: TDraftObject;
   TypeText, ObjectName, Msg: string;
   Index, Choice: integer;
   HasName: boolean;
@@ -871,7 +952,7 @@ begin
     // Points and pieces need a name; an edge without one is named after its ends
     ObjectName := '';
     HasName := Item.Find('name') <> nil;
-    if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) then
+    if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) or (DraftObject is TRepeatObject) then
     begin
       if not GetJSONString(Item, 'name', ObjectName) then
         Exit(Missing('name'));
@@ -891,9 +972,10 @@ begin
       TEdgeObject(DraftObject).NameIsDerived := not HasName;
     end;
     DraftObject.Name := ObjectName;
+    Inserted := DraftObject;
     FPattern.InsertObject(DraftObject);
     DraftObject := nil;
-    Result := True;
+    Result := not (Inserted is TRepeatObject) or ReadRepeatPoints(Item, TRepeatObject(Inserted));
   finally
     FreeAndNil(DraftObject);
   end;

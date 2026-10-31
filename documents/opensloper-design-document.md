@@ -272,6 +272,8 @@ Eight point operations and three edge types cover basic bodice, skirt and trouse
 
 A virtual point gets its ID on first use. The command that first uses `Btn[3]`, as an input or in a formula such as `Btn[3].x`, takes an ID from `nextId` and records it against index 3 in the repeat's `points[]`, in the same undo step. References are then ordinary IDs (`{41}.x`), and the ID stays with the index when the count changes. The index in a formula is a plain number, and one past the current count is rejected at entry like an unknown name. If the count drops, references to indices that no longer exist become errors ("Btn[6] no longer exists") rather than silently moving to another point; if the count rises again, the same point comes back. Creating or changing a repeat is one undoable command.
 
+Every point is a `TRepeatPoint` kept by its `TRepeatObject`, not in the pattern's object list, as in the file. Until it is used its key is the repeat's ID and its index (`12[3]`), which `FindNode` understands, so the canvas, the objects list and the properties work with it by key like anything else; it stays out of the graph, and the repeat computes it. `TPattern.UsePoint` turns such a key into an ID, and anything that stores a point goes through it; `CheckPoint` refuses a key that is not an ID, so one can never reach a file. A used point joins the graph and reads its position from the repeat. Parsing a formula that names `Btn[3]` uses the point, which is safe because formulas are only parsed to be kept. A repeat with no points yet, such as one with a bad count, is listed as itself so that it can be put right. Deleting the first point deletes the repeat, which is refused while anything uses one of its points. An edge named after a repeat's point is called `Line_Btn_2_C`, since a name cannot hold brackets. In the app, Add repeat on the Align tab works on two selected points or one edge.
+
 `extend` treats a line as infinite (or extends a curve along its end tangent), so long construction lines aren't needed just to find an intersection. `pick` is a stored crossing number, so the result stays stable when measurements change: crossings are numbered from 1 by distance along the first edge (`edgeA`, or the edge for circle × edge), counting from the start of its extension when extended. Project onto edge has no `pick`; it takes the result nearest the point. A perpendicular onto a curve counts only where the line meets the curve square, not where the curve simply ends.
 
 **Edge operations:**
@@ -1111,7 +1113,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `open`, `save` | Load or save a pattern, optionally with a measurement file and size |
 | `get_measurements`, `set_measurement`, `missing_measurements` | Read the current measurement set and its sizes, add or change one value, optionally in a given `size`, or list what the pattern needs that the set lacks |
 | `list_objects`, `get_object` | Names, IDs, operations, formulas (display form), computed values and state |
-| `add_point`, `add_edge`, `split_edge`, `add_variable` | Create objects with an operation and formula fields |
+| `add_point`, `add_edge`, `split_edge`, `add_variable`, `add_repeat` | Create objects with an operation and formula fields; a repeat's points are named like `Btn[3]` wherever a point is wanted |
 | `set_formula`, `rename`, `delete` | Edit existing objects |
 | `arrange` | Align or distribute points; points a formula drives are left and listed unless named in `replace` |
 | `create_piece` | Detect and create a piece from a position inside a region (`x`, `y`, optional `name` and `allowance`, default 10 mm) |
@@ -1176,7 +1178,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 3. Dependency graph and evaluator (dirty propagation, invalid states, cycle detection)
 4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
-6. Align and distribute, repeat along edge (under way: Between points and Align and distribute are done, with `arrange` in the Automation API; Repeat remains)
+6. Align and distribute, repeat along edge (done)
 7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)

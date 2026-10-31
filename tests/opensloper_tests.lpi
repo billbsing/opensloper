@@ -87,6 +87,11 @@
         <UnitName Value="Sloper.Tests.Arrange"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.repeatpoints.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.RepeatPoints"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.numeric.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Numeric"/>

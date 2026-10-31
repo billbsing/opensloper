@@ -322,13 +322,13 @@ var
 begin
   case Snap.Kind of
     snPoint:
-      Exit(Snap.PointKey);
+      Exit(Pattern.UsePoint(Snap.PointKey));
     snCrossing:
       Added := Pattern.AddIntersectPoint('', Snap.EdgeKey, Snap.OtherEdgeKey, False, False, Snap.Pick);
     snEdge:
       Added := Pattern.AddAlongEdgePoint('', Snap.EdgeKey, Snap.FromEnd, amLength, RoundedText(Snap.Distance, LengthDecimals));
     snHorizontal, snVertical:
-      Added := Pattern.AddOffsetPoint('', Snap.PointKey, omPolar, RoundedText(Snap.Distance, LengthDecimals),
+      Added := Pattern.AddOffsetPoint('', Pattern.UsePoint(Snap.PointKey), omPolar, RoundedText(Snap.Distance, LengthDecimals),
         RoundedText(Snap.Angle, 0));
     else
       Added := Pattern.AddFreePoint('', RoundedText(Snap.Position.X, LengthDecimals), RoundedText(Snap.Position.Y, LengthDecimals));

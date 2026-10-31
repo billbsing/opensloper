@@ -239,6 +239,7 @@ var
   View: TDraftView;
   Index: integer;
   DraftObject: TDraftObject;
+  Point: TPointObject;
 begin
   View := DraftView(Pattern, Options);
   Result := SVGStart(View);
@@ -265,12 +266,9 @@ begin
         Result := Result + PieceLabelElement(TPieceObject(DraftObject), View.Extent);
     end;
   end;
-  for Index := 0 to Pattern.ObjectCount - 1 do
-  begin
-    DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPointObject) and DraftObject.HasResult then
-      Result := Result + PointElement(TPointObject(DraftObject), View.Extent, Options.Labels);
-  end;
+  for Point in Pattern.AllPoints do
+    if Point.HasResult then
+      Result := Result + PointElement(Point, View.Extent, Options.Labels);
   Result := Result + '</svg>' + #10;
 end;
 

@@ -57,7 +57,8 @@ uses
   Sloper.Tests.MeasurementDocument,
   Sloper.Tests.Catalogue,
   Sloper.Tests.SeamlyFormat,
-  Sloper.Tests.Arrange;
+  Sloper.Tests.Arrange,
+  Sloper.Tests.RepeatPoints;
 
 var
   App: TTestRunner;

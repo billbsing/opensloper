@@ -112,6 +112,7 @@ type
     procedure SideItemClick(Sender: TObject);
     procedure ListPanelMessage(Sender: TObject; const AText: string);
     procedure ObjectsSelect(Sender: TObject);
+    procedure AlignSelect(Sender: TObject; const Key: string);
     procedure ObjectsZoom(Sender: TObject);
     procedure ObjectsDelete(Sender: TObject);
     procedure VariablesSelect(Sender: TObject);
@@ -362,6 +363,7 @@ begin
   FAlign.Align := alClient;
   FAlign.Document := FDocument;
   FAlign.OnMessage := @ListPanelMessage;
+  FAlign.OnSelect := @AlignSelect;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
@@ -393,6 +395,11 @@ end;
 procedure TMainForm.ListPanelMessage(Sender: TObject; const AText: string);
 begin
   StatusBar.Panels[PanelMessage].Text := AText;
+end;
+
+procedure TMainForm.AlignSelect(Sender: TObject; const Key: string);
+begin
+  FCanvas.SelectObjects([Key]);
 end;
 
 procedure TMainForm.ObjectsSelect(Sender: TObject);

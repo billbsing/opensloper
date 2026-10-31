@@ -52,6 +52,7 @@ type
     FVariableResolver: TNameResolver;  // variables and measurements only
     FContext: TEvalContext;
     FLastError: string;
+    FParsingNewObject: boolean;
     FLastErrorField: string;
     FLastErrorPos: integer;
     FNameExclude: TDraftObject;
@@ -67,13 +68,14 @@ type
     function GetObjectCount: integer;
     function GetObject(Index: integer): TDraftObject;
     function SetError(const Msg: string; const AField: string = ''; Pos: integer = 0): boolean;
+    function FindRepeatItem(const Key: string): TEvalNode;
     function ObjectNameTaken(const AName: string): boolean;
     function VariableNameTaken(const AName: string): boolean;
     function ResolverFor(Node: TEvalNode): TNameResolver;
     function ParseFields(Node: TEvalNode; const Names, Texts: array of string): boolean;
     function CheckPoint(const Id: string): boolean;
     function CheckEdgeTarget(const Id: string): boolean;
-    function AddPointObject(APoint: TPointObject; const AName: string;
+    function AddPointObject(APoint: TDraftObject; const AName: string;
       const Names, Texts: array of string): boolean;
     function CheckNotInCircle(Target: TEvalNode; const Key: string): boolean;
     // Takes NewFormula once it is parsed, refusing anything that would make
@@ -114,6 +116,14 @@ type
       Mode: TAlongMode; const Value: string): TAlongEdgePoint;
     // Where two edges cross; Pick numbers the crossings from 1 along EdgeA
     function AddBetweenPoint(const AName, FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
+    // Count points between two points, or along an edge by arc length
+    function AddRepeatBetween(const AName, FirstId, LastId, CountText: string; IncludeEnds: boolean): TRepeatObject;
+    function AddRepeatOnEdge(const AName, EdgeId, CountText: string; IncludeEnds: boolean): TRepeatObject;
+    // A key an operation can store: a virtual repeat point takes an ID now,
+    // which is what first use means. Call it inside a change.
+    function UsePoint(const Key: string): string;
+    // Every point there is, a repeat's included, in order
+    function AllPoints: TPointObjectArray;
     function AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
       ExtendA, ExtendB: boolean; Pick: integer): TIntersectPoint;
     // Where a circle around CentreId crosses an edge (a compass step)
@@ -188,6 +198,7 @@ type
     // IDs, names and inputs. NextId is kept above the inserted IDs.
     procedure InsertVariable(Variable: TVariable);
     procedure InsertObject(DraftObject: TDraftObject);
+    procedure InsertRepeatPoint(ARepeat: TRepeatObject; Index: integer; const Id: string);
     // Recomputes the names of edges named after their ends; called after
     // loading, since a loaded edge's ends come first
     procedure UpdateDerivedNames;
@@ -210,6 +221,8 @@ type
 resourcestring
   rsPatternUnknownObject = 'There is no object %s';
   rsPatternUsesItself = '%s cannot use itself';
+  rsPatternRepeatSamePoint = 'A repeat needs two different points';
+  rsPatternRepeatItem = '%s is part of a repeat, so it cannot be changed on its own';
   rsPatternCycle = '%s cannot use %s, because %s already uses %s';
   rsPatternInUse = '%s is used by %s';
   rsPatternNoField = '%s has no formula "%s"';
@@ -307,8 +320,9 @@ begin
     Exit(False);
   DraftObject := FPattern.FindObject(AName);
   Result := DraftObject <> nil;
+  // Formulas are only parsed to be kept, so this is a repeat point's first use
   if Result then
-    Id := DraftObject.Key;
+    Id := FPattern.UsePoint(DraftObject.Key);
 end;
 
 function TPatternResolver.ResolveProperty(const ObjectId, Prop: string;
@@ -471,8 +485,24 @@ begin
   MapKey := Key;
   if (Key <> '') and (Key[1] = '@') then
     MapKey := LowerCase(Key);
-  if not FNodes.TryGetValue(MapKey, Result) then
-    Result := nil;
+  if FNodes.TryGetValue(MapKey, Result) then
+    Exit;
+  Result := FindRepeatItem(Key);
+end;
+
+// A repeat point's key before it has an ID: the repeat's ID and its index, 12[3].
+// It still finds the point once it has one, so a selection stays good.
+function TPattern.FindRepeatItem(const Key: string): TEvalNode;
+var
+  Bracket: integer;
+  Owner: TEvalNode;
+begin
+  Result := nil;
+  Bracket := Pos('[', Key);
+  if (Bracket < 2) or (Key[Length(Key)] <> ']') then
+    Exit;
+  if FNodes.TryGetValue(Copy(Key, 1, Bracket - 1), Owner) and (Owner is TRepeatObject) then
+    Result := TRepeatObject(Owner).Item(StrToIntDef(Copy(Key, Bracket + 1, Length(Key) - Bracket - 1), 0));
 end;
 
 procedure TPattern.AddVariableNode(Variable: TVariable);
@@ -489,12 +519,19 @@ end;
 
 function TPattern.FindObject(const AName: string): TDraftObject;
 var
-  Index: integer;
+  Index, Bracket: integer;
 begin
   for Index := 0 to FObjects.Count - 1 do
     if SameName(Objects[Index].Name, AName) then
       Exit(Objects[Index]);
   Result := nil;
+  // Btn[3]: past the current count there is no such point
+  Bracket := Pos('[', AName);
+  if (Bracket < 2) or (AName[Length(AName)] <> ']') then
+    Exit;
+  for Index := 0 to FObjects.Count - 1 do
+    if (Objects[Index] is TRepeatObject) and SameName(Objects[Index].Name, Copy(AName, 1, Bracket - 1)) then
+      Exit(TRepeatObject(Objects[Index]).Item(StrToIntDef(Copy(AName, Bracket + 1, Length(AName) - Bracket - 1), 0)));
 end;
 
 function TPattern.FindVariable(const AName: string): TVariable;
@@ -561,13 +598,18 @@ var
   Index: integer;
   FieldFormula: TFormula;
 begin
-  for Index := 0 to High(Names) do
-  begin
-    FieldFormula := Node.Field(Names[Index]);
-    if not FieldFormula.Parse(Texts[Index], ResolverFor(Node)) then
-      Exit(SetError(FieldFormula.ErrorMessage, Names[Index], FieldFormula.ErrorPos));
+  FParsingNewObject := True;
+  try
+    for Index := 0 to High(Names) do
+    begin
+      FieldFormula := Node.Field(Names[Index]);
+      if not FieldFormula.Parse(Texts[Index], ResolverFor(Node)) then
+        Exit(SetError(FieldFormula.ErrorMessage, Names[Index], FieldFormula.ErrorPos));
+    end;
+    Result := True;
+  finally
+    FParsingNewObject := False;
   end;
-  Result := True;
 end;
 
 function TPattern.CheckPoint(const Id: string): boolean;
@@ -579,6 +621,9 @@ begin
     Exit(SetError(Format(rsPatternUnknownObject, [Id])));
   if not (Node is TPointObject) then
     Exit(SetError(Format(rsDraftNotAPoint, [Node.DisplayName])));
+  // Its key is not an ID, so nothing may store it; UsePoint gives it one
+  if (Node is TRepeatPoint) and TRepeatPoint(Node).IsVirtual then
+    Exit(SetError(Format(rsPatternUnknownObject, [Id])));
   Result := True;
 end;
 
@@ -628,7 +673,7 @@ begin
   AddVariableNode(Result);
 end;
 
-function TPattern.AddPointObject(APoint: TPointObject; const AName: string;
+function TPattern.AddPointObject(APoint: TDraftObject; const AName: string;
   const Names, Texts: array of string): boolean;
 var
   Msg, PointName: string;
@@ -699,6 +744,70 @@ begin
     Result := nil;
 end;
 
+function TPattern.AddRepeatBetween(const AName, FirstId, LastId, CountText: string; IncludeEnds: boolean): TRepeatObject;
+begin
+  Result := nil;
+  if not CheckPoint(FirstId) or not CheckPoint(LastId) then
+    Exit;
+  if FirstId = LastId then
+  begin
+    SetError(rsPatternRepeatSamePoint);
+    Exit;
+  end;
+  Result := TRepeatObject.CreateBetween(IntToStr(FNextId), FirstId, LastId, IncludeEnds);
+  if not AddPointObject(Result, AName, ['count'], [CountText]) then
+    Result := nil;
+end;
+
+function TPattern.AddRepeatOnEdge(const AName, EdgeId, CountText: string; IncludeEnds: boolean): TRepeatObject;
+begin
+  Result := nil;
+  if not CheckEdgeTarget(EdgeId) then
+    Exit;
+  Result := TRepeatObject.CreateOnEdge(IntToStr(FNextId), EdgeId, IncludeEnds);
+  if not AddPointObject(Result, AName, ['count'], [CountText]) then
+    Result := nil;
+end;
+
+function TPattern.UsePoint(const Key: string): string;
+var
+  Node: TEvalNode;
+  Used: TRepeatPoint;
+begin
+  Result := Key;
+  Node := FindNode(Key);
+  if not (Node is TRepeatPoint) then
+    Exit;
+  Result := Node.Key;
+  if not TRepeatPoint(Node).IsVirtual then
+    Exit;
+  // An object being added has its formulas parsed once it holds the next ID
+  if FParsingNewObject then
+    Inc(FNextId);
+  Used := TRepeatPoint(Node).Source.UseItem(TRepeatPoint(Node).Index, IntToStr(FNextId));
+  Inc(FNextId);
+  FNodes.Add(Used.Key, Used);
+  Result := Used.Key;
+end;
+
+function TPattern.AllPoints: TPointObjectArray;
+var
+  Index, Number: integer;
+  Item: TRepeatPoint;
+begin
+  Result := nil;
+  for Index := 0 to FObjects.Count - 1 do
+    if Objects[Index] is TPointObject then
+      Insert(TPointObject(Objects[Index]), Result, Length(Result))
+    else if Objects[Index] is TRepeatObject then
+      for Number := 1 to TRepeatObject(Objects[Index]).Count do
+      begin
+        Item := TRepeatObject(Objects[Index]).Item(Number);
+        if Item <> nil then
+          Insert(TPointObject(Item), Result, Length(Result));
+      end;
+end;
+
 function TPattern.AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
   ExtendA, ExtendB: boolean; Pick: integer): TIntersectPoint;
 begin
@@ -754,13 +863,16 @@ begin
 end;
 
 function TPattern.DerivedEdgeName(AEdge: TEdgeObject): string;
-var
-  StartNode, EndNode: TEvalNode;
+
+  // A repeat's point has brackets, which a name cannot: Btn[2] gives Btn_2
+  function EndName(Node: TEvalNode): string;
+  begin
+    Result := StringReplace(StringReplace(Node.DisplayName, '[', '_', []), ']', '', []);
+  end;
+
 begin
-  StartNode := FindNode(AEdge.StartKey);
-  EndNode := FindNode(AEdge.EndKey);
   FNameExclude := AEdge;
-  Result := NextFreeName(AEdge.NamePrefix + '_' + StartNode.DisplayName + '_' + EndNode.DisplayName, @ObjectNameTaken);
+  Result := NextFreeName(AEdge.NamePrefix + '_' + EndName(FindNode(AEdge.StartKey)) + '_' + EndName(FindNode(AEdge.EndKey)), @ObjectNameTaken);
   FNameExclude := nil;
 end;
 
@@ -957,7 +1069,10 @@ var
     for Key in DraftObject.InputKeys do
     begin
       Input := FindNode(Key);
-      if Input is TDraftObject then
+      // A repeat's points are saved with it
+      if Input is TRepeatPoint then
+        Visit(TRepeatPoint(Input).Source)
+      else if Input is TDraftObject then
         Visit(TDraftObject(Input));
     end;
     Insert(DraftObject, Ordered, Length(Ordered));
@@ -1168,6 +1283,11 @@ var
 begin
   Result := False;
   try
+    if Point is TRepeatPoint then
+    begin
+      SetError(Format(rsPatternRepeatItem, [Point.DisplayName]));
+      Exit;
+    end;
     for FieldIndex := 0 to High(Names) do
       if not NewPoint.Field(Names[FieldIndex]).ParseStored(Texts[FieldIndex]) then
       begin
@@ -1246,7 +1366,11 @@ begin
   begin
     if not CheckObjectName(NewName, TDraftObject(Node), Msg) then
       Exit(SetError(Msg));
+    if Node is TRepeatPoint then
+      Exit(SetError(Format(rsPatternRepeatItem, [Node.DisplayName])));
     TDraftObject(Node).Name := NewName;
+    if Node is TRepeatObject then
+      TRepeatObject(Node).UpdateItemNames;
     if Node is TEdgeObject then
       TEdgeObject(Node).NameIsDerived := False;
     UpdateDerivedNames;
@@ -1256,32 +1380,45 @@ begin
   Result := True;
 end;
 
+// A repeat's own points do not count, but whatever uses them does
 function TPattern.UsersOf(Node: TEvalNode): TEvalNodeArray;
 var
   Nodes: TEvalNodeArray;
   Candidate: TEvalNode;
   DepKey: string;
+  Item: TRepeatPoint;
 begin
   Result := nil;
   Nodes := AllNodes;
   for Candidate in Nodes do
     for DepKey in Candidate.DependencyKeys do
-      if DepKey = Node.Key then
+      if (DepKey = Node.Key) and not ((Candidate is TRepeatPoint) and (TRepeatPoint(Candidate).Source = Node)) then
       begin
         SetLength(Result, Length(Result) + 1);
         Result[High(Result)] := Candidate;
         Break;
       end;
+  if Node is TRepeatObject then
+    for Item in TRepeatObject(Node).UsedItems do
+      Result := Concat(Result, UsersOf(Item));
 end;
 
 function TPattern.Delete(Node: TEvalNode): boolean;
 var
+  Item: TRepeatPoint;
   Users: TEvalNodeArray;
   Names: string;
   User: TEvalNode;
 begin
   if not ((Node is TVariable) or (Node is TDraftObject)) then
     Exit(SetError(Format(rsPatternCannotDelete, [Node.DisplayName])));
+  // The first point stands for the repeat; the others go only with it
+  if Node is TRepeatPoint then
+  begin
+    if TRepeatPoint(Node).Index <> 1 then
+      Exit(SetError(Format(rsPatternRepeatItem, [Node.DisplayName])));
+    Node := TRepeatPoint(Node).Source;
+  end;
   Users := UsersOf(Node);
   if Length(Users) > 0 then
   begin
@@ -1296,6 +1433,9 @@ begin
   end;
   // The evaluator may hold the node; forget the old graph
   FEvaluator.Rebuild(nil, FContext);
+  if Node is TRepeatObject then
+    for Item in TRepeatObject(Node).UsedItems do
+      FNodes.Remove(Item.Key);
   FNodes.Remove(Node.Key);
   // The lists own their nodes, so removing frees it
   if Node is TVariable then
@@ -1348,6 +1488,7 @@ var
   MeasurementNode: TMeasurementNode;
   Variable: TVariable;
   DraftObject: TDraftObject;
+  Item: TRepeatPoint;
 begin
   Result := nil;
   SetLength(Result, FMeasurementNodes.Count + FVariables.Count + FObjects.Count);
@@ -1367,6 +1508,11 @@ begin
     Result[Count] := DraftObject;
     Inc(Count);
   end;
+  // Used repeat points are in the graph, though only their repeat is listed
+  for DraftObject in FObjects do
+    if DraftObject is TRepeatObject then
+      for Item in TRepeatObject(DraftObject).UsedItems do
+        Insert(TEvalNode(Item), Result, Length(Result));
 end;
 
 procedure TPattern.Evaluate;
@@ -1398,6 +1544,12 @@ procedure TPattern.InsertObject(DraftObject: TDraftObject);
 begin
   AddObjectNode(DraftObject);
   KeepIdsAbove(DraftObject.Key);
+end;
+
+procedure TPattern.InsertRepeatPoint(ARepeat: TRepeatObject; Index: integer; const Id: string);
+begin
+  FNodes.Add(Id, ARepeat.UseItem(Index, Id));
+  KeepIdsAbove(Id);
 end;
 
 end.

@@ -151,22 +151,20 @@ end;
 
 function PointAt(Pattern: TPattern; const At: TVec2; Radius: double): TPointObject;
 var
-  Index: integer;
-  DraftObject: TDraftObject;
+  Point: TPointObject;
   Best, Gap: double;
 begin
   Result := nil;
   Best := Radius;
-  for Index := 0 to Pattern.ObjectCount - 1 do
+  for Point in Pattern.AllPoints do
   begin
-    DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TPointObject) or not DraftObject.HasResult then
+    if not Point.HasResult then
       Continue;
-    Gap := Distance(TPointObject(DraftObject).Position, At);
+    Gap := Distance(Point.Position, At);
     if Gap <= Best then
     begin
       Best := Gap;
-      Result := TPointObject(DraftObject);
+      Result := Point;
     end;
   end;
 end;
@@ -332,6 +330,7 @@ end;
 function LabelKeys(Pattern: TPattern; Mode: TLabelMode; const Selection: TStringArray; const HoverKey: string;
   const ToolKeys: TStringArray): TStringArray;
 var
+  Point: TPointObject;
   Wanted: TKeySet;
   Key: string;
   Node, Neighbour: TEvalNode;
@@ -369,6 +368,9 @@ begin
       end;
     end;
     SetLength(Result, Count);
+    for Point in Pattern.AllPoints do
+      if (Point is TRepeatPoint) and Point.HasResult and ((Mode = lmAll) or Wanted.Contains(Point.Key)) then
+        Insert(Point.Key, Result, Length(Result));
   finally
     FreeAndNil(Wanted);
   end;

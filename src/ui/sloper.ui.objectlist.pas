@@ -109,6 +109,7 @@ resourcestring
   rsFieldDX = 'Across';
   rsFieldDY = 'Up';
   rsFieldValue = 'Distance or ratio';
+  rsFieldCount = 'Count';
   rsFieldRadius = 'Radius';
   rsFieldAllowance = 'Seam allowance';
   rsFieldGrainAngle = 'Grainline angle';
@@ -126,6 +127,8 @@ resourcestring
   rsTypeOffset = 'Offset point';
   rsTypeAlong = 'Point along an edge';
   rsTypeBetween = 'Point between points';
+  rsTypeRepeat = 'Repeat';
+  rsTypeRepeatPoint = 'Point in a repeat';
   rsTypeIntersect = 'Crossing of two edges';
   rsTypeCircle = 'Compass step onto an edge';
   rsTypeProject = 'Point projected onto an edge';
@@ -172,6 +175,7 @@ begin
     'dx': Result := rsFieldDX;
     'dy': Result := rsFieldDY;
     'value': Result := rsFieldValue;
+    'count': Result := rsFieldCount;
     'radius': Result := rsFieldRadius;
     'allowance': Result := rsFieldAllowance;
     'grainline.angle': Result := rsFieldGrainAngle;
@@ -195,6 +199,10 @@ begin
     Result := rsTypeAlong
   else if Node is TBetweenPoint then
     Result := rsTypeBetween
+  else if Node is TRepeatPoint then
+    Result := rsTypeRepeatPoint
+  else if Node is TRepeatObject then
+    Result := rsTypeRepeat
   else if Node is TIntersectPoint then
     Result := rsTypeIntersect
   else if Node is TCircleEdgePoint then
@@ -273,7 +281,7 @@ end;
 function PassesFilter(DraftObject: TDraftObject; Filter: TObjectFilter): boolean;
 begin
   case Filter of
-    ofPoints: Result := DraftObject is TPointObject;
+    ofPoints: Result := (DraftObject is TPointObject) or (DraftObject is TRepeatObject);
     ofEdges: Result := DraftObject is TEdgeObject;
     ofPieces: Result := DraftObject is TPieceObject;
     ofProblems: Result := DraftObject.State <> esValid;
@@ -290,24 +298,38 @@ end;
 
 function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: string): TObjectRowArray;
 var
-  Index, Count: integer;
+  Index, Count, Number: integer;
   LowerSearch: string;
-  Row: TObjectRow;
+
+  procedure AddRow(DraftObject: TDraftObject);
+  var
+    Row: TObjectRow;
+  begin
+    if DraftObject = nil then
+      Exit;
+    Row := ObjectRow(Pattern, DraftObject);
+    if not Matches(Row, LowerSearch) then
+      Exit;
+    if Count = Length(Result) then
+      SetLength(Result, Count * 2 + 1);
+    Result[Count] := Row;
+    Inc(Count);
+  end;
+
 begin
   Result := nil;
   SetLength(Result, Pattern.ObjectCount);
   LowerSearch := LowerCase(Trim(Search));
   Count := 0;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if PassesFilter(Pattern.Objects[Index], Filter) then
-    begin
-      Row := ObjectRow(Pattern, Pattern.Objects[Index]);
-      if Matches(Row, LowerSearch) then
-      begin
-        Result[Count] := Row;
-        Inc(Count);
-      end;
-    end;
+    if not PassesFilter(Pattern.Objects[Index], Filter) then
+      Continue
+    else if (Pattern.Objects[Index] is TRepeatObject) and (TRepeatObject(Pattern.Objects[Index]).Count > 0) then
+      // A repeat is listed as its points, and the first stands for it
+      for Number := 1 to TRepeatObject(Pattern.Objects[Index]).Count do
+        AddRow(TRepeatObject(Pattern.Objects[Index]).Item(Number))
+    else
+      AddRow(Pattern.Objects[Index]);
   SetLength(Result, Count);
 end;
 
