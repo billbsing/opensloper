@@ -236,6 +236,7 @@ begin
   Text := Render;
   AssertHas('the piece', 'data-name="Front"', Text);
   AssertTrue('under the edges', Pos('data-name="Front"', Text) < Pos('data-name="Line_P_Q"', Text));
+  AssertTrue('grainline over the edges', Pos('data-name="Line_P_Q"', Text) < Pos('data-marks="Front"', Text));
 end;
 
 initialization

@@ -155,6 +155,9 @@ type
     function PointAtLength(ADistance: double): TVec2;
     // The edge as a polyline from start to end, within Tolerance of it
     function Flatten(Tolerance: double): TVec2Array;
+    // Direction of travel at Position (mm along the edge), measured across a
+    // short span so a curve gives its tangent there
+    function DirectionAt(Position: double): double;
     // Direction of travel where the edge starts and where it ends
     function StartDirection: double;
     function EndDirection: double;
@@ -622,6 +625,17 @@ begin
       for Sample in Segment.Curve.Flatten(Tolerance) do
         Add(Sample.Point);
   SetLength(Result, Count);
+end;
+
+function TEdgeObject.DirectionAt(Position: double): double;
+const
+  DirectionSpan = 0.25;
+var
+  Before, After: double;
+begin
+  Before := Max(Position - DirectionSpan, 0);
+  After := Min(Position + DirectionSpan, Length);
+  Result := AngleBetween(PointAtLength(Before), PointAtLength(After));
 end;
 
 function TEdgeObject.StartDirection: double;

@@ -181,6 +181,7 @@ resourcestring
   rsToolLine = 'Line';
   rsToolCurve = 'Curve';
   rsToolPiece = 'Piece';
+  rsToolNotch = 'Notch';
   rsToolKey = '%s (%s)';
   rsMenuHelp = '&Help';
   rsMenuHelpAbout = '&About OpenSloper';
@@ -449,7 +450,7 @@ end;
 // The toolbar and Tools menu; each item's Tag is its TCanvasTool
 procedure TMainForm.CreateTools;
 const
-  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'K');
+  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'K', 'T');
 var
   MenuTools: TMenuItem;
   Tool: TCanvasTool;
@@ -460,6 +461,7 @@ begin
   Captions[ctLine] := rsToolLine;
   Captions[ctCurve] := rsToolCurve;
   Captions[ctPiece] := rsToolPiece;
+  Captions[ctNotch] := rsToolNotch;
   FToolBar := TToolBar.Create(Self);
   FToolBar.Parent := Self;
   FToolBar.Align := alTop;

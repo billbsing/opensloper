@@ -192,6 +192,24 @@ begin
     [Piece.Key, EscapeXML(Piece.DisplayName), PathText, PieceFill, StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
 end;
 
+// The grainline and notches, over the edges
+function PieceMarksElement(Piece: TPieceObject; Extent: double): string;
+var
+  Stroke: TLine2;
+  Mark: TNotchMark;
+  PathText: string;
+begin
+  PathText := '';
+  for Stroke in Piece.GrainArrow do
+    PathText := PathText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
+  for Mark in Piece.NotchMarks do
+    PathText := PathText + 'M ' + Coord(Mark.Cut) + ' L ' + Coord(Mark.Tip) + ' ';
+  Result := '';
+  if PathText <> '' then
+    Result := Format('<path data-id="%s" data-marks="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
+      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(PathText), StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
+end;
+
 function PointElement(Point: TPointObject; Extent: double; Labels: boolean): string;
 var
   Radius: double;
@@ -227,6 +245,12 @@ begin
     DraftObject := Pattern.Objects[Index];
     if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) then
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
+  end;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if (DraftObject is TPieceObject) and DraftObject.HasResult then
+      Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin

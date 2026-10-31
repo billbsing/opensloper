@@ -58,6 +58,7 @@ type
     procedure KeepIdsAbove(const Key: string);
     procedure AddVariableNode(Variable: TVariable);
     procedure AddObjectNode(DraftObject: TDraftObject);
+    procedure KeepInputsBefore(Piece: TPieceObject);
     function GetVariableCount: integer;
     function GetVariable(Index: integer): TVariable;
     function GetObjectCount: integer;
@@ -134,6 +135,16 @@ type
     // the piece's own
     function SetEdgeAllowance(Piece: TPieceObject; PathIndex: integer; const Text: string): boolean;
 
+    // A grainline at an angle formula, through the piece's middle
+    function SetGrainAngle(Piece: TPieceObject; const Text: string): boolean;
+    function SetGrainPoints(Piece: TPieceObject; const StartId, EndId: string): boolean;
+    procedure ClearGrain(Piece: TPieceObject);
+    // A notch where the piece passes a point
+    function AddPointNotch(Piece: TPieceObject; const PointId: string): boolean;
+    // A notch Position mm along an edge of the piece, from the edge's start
+    function AddEdgeNotch(Piece: TPieceObject; const EdgeId, Position: string): boolean;
+    function RemoveNotch(Piece: TPieceObject; Index: integer): boolean;
+
     // Editing returns False when refused, with the reason in LastError
     function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
     function Rename(Node: TEvalNode; const NewName: string): boolean;
@@ -188,6 +199,9 @@ resourcestring
   rsPatternPathArrays = 'A curve path needs an angle and handle lengths for every point';
   rsPatternPieceTooShort = 'A piece needs at least two edges';
   rsPatternPieceRepeats = 'A piece cannot use %s twice';
+  rsPatternNotInPiece = '%s is not part of %s';
+  rsPatternGrainSamePoint = 'The grainline needs two different points';
+  rsPatternNoNotch = 'There is no notch %d';
 
 implementation
 
@@ -877,6 +891,77 @@ begin
   Inc(FNextId);
   Result.Name := PieceName;
   AddObjectNode(Result);
+  SetGrainAngle(Result, DefaultGrainAngle);
+end;
+
+// A file lists an object's inputs before it. Nothing uses a piece, so a piece
+// that takes on a newer point can simply move to the end.
+procedure TPattern.KeepInputsBefore(Piece: TPieceObject);
+begin
+  FObjects.Move(FObjects.IndexOf(Piece), FObjects.Count - 1);
+end;
+
+function TPattern.SetGrainAngle(Piece: TPieceObject; const Text: string): boolean;
+var
+  OldKind: TGrainKind;
+  OldStart, OldEnd: string;
+begin
+  OldKind := Piece.GrainKind;
+  if OldKind = gkAngle then
+    Exit(SetFormula(Piece, GrainAngleField, Text));
+  OldStart := Piece.GrainStartKey;
+  OldEnd := Piece.GrainEndKey;
+  Piece.SetGrainKind(gkAngle);
+  Result := SetFormula(Piece, GrainAngleField, Text);
+  if not Result then
+    Piece.SetGrainKind(OldKind, OldStart, OldEnd);
+end;
+
+function TPattern.SetGrainPoints(Piece: TPieceObject; const StartId, EndId: string): boolean;
+begin
+  if not CheckPoint(StartId) or not CheckPoint(EndId) then
+    Exit(False);
+  if StartId = EndId then
+    Exit(SetError(rsPatternGrainSamePoint));
+  Piece.SetGrainKind(gkPoints, StartId, EndId);
+  KeepInputsBefore(Piece);
+  Result := True;
+end;
+
+procedure TPattern.ClearGrain(Piece: TPieceObject);
+begin
+  Piece.SetGrainKind(gkNone);
+end;
+
+function TPattern.AddPointNotch(Piece: TPieceObject; const PointId: string): boolean;
+begin
+  if not CheckPoint(PointId) then
+    Exit(False);
+  Piece.AddNotch(PointId, '');
+  KeepInputsBefore(Piece);
+  Result := True;
+end;
+
+function TPattern.AddEdgeNotch(Piece: TPieceObject; const EdgeId, Position: string): boolean;
+var
+  Index: integer;
+begin
+  if not CheckEdgeTarget(EdgeId) then
+    Exit(False);
+  if Piece.PathIndexOf(EdgeId) < 0 then
+    Exit(SetError(Format(rsPatternNotInPiece, [FindNode(EdgeId).DisplayName, Piece.DisplayName])));
+  Index := Piece.AddNotch('', EdgeId);
+  Result := SetFormula(Piece, Piece.NotchField(Index), Position);
+  if not Result then
+    Piece.RemoveNotch(Index);
+end;
+
+function TPattern.RemoveNotch(Piece: TPieceObject; Index: integer): boolean;
+begin
+  if (Index < 0) or (Index > High(Piece.Notches)) then
+    Exit(SetError(Format(rsPatternNoNotch, [Index + 1])));
+  Piece.RemoveNotch(Index);
+  Result := True;
 end;
 
 function TPattern.SetEdgeAllowance(Piece: TPieceObject; PathIndex: integer; const Text: string): boolean;

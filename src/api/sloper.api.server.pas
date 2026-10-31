@@ -30,7 +30,7 @@ unit Sloper.API.Server;
 interface
 
 uses
-  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Document.PatternDocument;
+  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Piece, Sloper.Document.PatternDocument;
 
 const
   // JSON-RPC 2.0's own codes
@@ -81,6 +81,10 @@ type
     function DoSplitEdge(Params: TJSONObject): TJSONData;
     function DoCreatePiece(Params: TJSONObject): TJSONData;
     function DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
+    function TargetPiece(Params: TJSONObject): TPieceObject;
+    function DoSetGrainline(Params: TJSONObject): TJSONData;
+    function DoAddNotch(Params: TJSONObject): TJSONData;
+    function DoRemoveNotch(Params: TJSONObject): TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -113,13 +117,18 @@ resourcestring
   rsApiNotAPiece = '%s is not a piece';
   rsApiNotInPiece = '%s is not part of %s';
   rsApiEdgeAllowance = 'Change seam allowance';
+  rsApiGrainline = 'Change grainline';
+  rsApiAddNotch = 'Add notch';
+  rsApiRemoveNotch = 'Remove notch';
+  rsApiBadGrainline = 'Give an "angle", a "start" and "end" point, or "none": true';
+  rsApiBadNotch = 'Give a "point", or an "edge" and a "position"';
   rsApiBadRegion = 'A region needs minX, minY, maxX and maxY, with each max above its min';
 
 implementation
 
 uses
   Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
-  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
+  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
 
 const
   VariableType = 'variable';
@@ -256,6 +265,7 @@ begin
         Result.Add('area', ReportFloat(TPieceObject(Node).Area));
         Result.Add('perimeter', ReportFloat(TPieceObject(Node).Perimeter));
         Result.Add('path', PiecePathToJSON(TPieceObject(Node)));
+        Result.Add('notches', Length(TPieceObject(Node).Notches));
       end;
     Formulas := TJSONObject.Create;
     Result.Add('formulas', Formulas);
@@ -822,6 +832,91 @@ begin
   Result := AddedNode(FDocument.Pattern.AddPiece(PieceName, Path, Allowance));
 end;
 
+function TApiServer.TargetPiece(Params: TJSONObject): TPieceObject;
+var
+  Target: TEvalNode;
+begin
+  Target := FindTarget(Params);
+  if not (Target is TPieceObject) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotAPiece, [Target.DisplayName]));
+  Result := TPieceObject(Target);
+end;
+
+function TApiServer.DoSetGrainline(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  First, Second, Angle: string;
+  Done: boolean;
+begin
+  Piece := TargetPiece(Params);
+  if BooleanParam(Params, 'none') then
+  begin
+    FDocument.BeginChange(rsApiGrainline);
+    FDocument.Pattern.ClearGrain(Piece);
+    Exit(AddedNode(Piece));
+  end;
+  Angle := OptionalFormula(Params, 'angle');
+  if (Angle = '') and (Params.Find('start') = nil) then
+    raise EApiError.Create(RpcInvalidParams, rsApiBadGrainline);
+  if Angle <> '' then
+  begin
+    FDocument.BeginChange(rsApiGrainline);
+    Done := FDocument.Pattern.SetGrainAngle(Piece, Angle);
+  end
+  else
+  begin
+    First := Reference(Params, 'start');
+    Second := Reference(Params, 'end');
+    FDocument.BeginChange(rsApiGrainline);
+    Done := FDocument.Pattern.SetGrainPoints(Piece, First, Second);
+  end;
+  if not Done then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
+function TApiServer.DoAddNotch(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Key, Position: string;
+  Done: boolean;
+begin
+  Piece := TargetPiece(Params);
+  if Params.Find('point') <> nil then
+  begin
+    Key := Reference(Params, 'point');
+    FDocument.BeginChange(rsApiAddNotch);
+    Done := FDocument.Pattern.AddPointNotch(Piece, Key);
+  end
+  else
+  begin
+    if (Params.Find('edge') = nil) or (Params.Find('position') = nil) then
+      raise EApiError.Create(RpcInvalidParams, rsApiBadNotch);
+    Key := Reference(Params, 'edge');
+    Position := FormulaParam(Params, 'position');
+    FDocument.BeginChange(rsApiAddNotch);
+    Done := FDocument.Pattern.AddEdgeNotch(Piece, Key, Position);
+  end;
+  if not Done then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
+// Notches count from 1, as in the field names
+function TApiServer.DoRemoveNotch(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Index: integer;
+begin
+  Piece := TargetPiece(Params);
+  if not GetJSONInteger(Params, 'notch', Index) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['notch']));
+  FDocument.BeginChange(rsApiRemoveNotch);
+  if not FDocument.Pattern.RemoveNotch(Piece, Index - 1) then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
 // An empty or missing allowance puts the edge back on the piece's own
 function TApiServer.DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
 var
@@ -829,9 +924,7 @@ var
   Edge, Allowance: string;
   PathIndex: integer;
 begin
-  Target := FindTarget(Params);
-  if not (Target is TPieceObject) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotAPiece, [Target.DisplayName]));
+  Target := TargetPiece(Params);
   Edge := Reference(Params, 'edge');
   PathIndex := TPieceObject(Target).PathIndexOf(Edge);
   if PathIndex < 0 then
@@ -866,6 +959,9 @@ begin
     'split_edge': Result := DoSplitEdge(Params);
     'create_piece': Result := DoCreatePiece(Params);
     'set_edge_allowance': Result := DoSetEdgeAllowance(Params);
+    'set_grainline': Result := DoSetGrainline(Params);
+    'add_notch': Result := DoAddNotch(Params);
+    'remove_notch': Result := DoRemoveNotch(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;

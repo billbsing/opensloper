@@ -88,6 +88,7 @@ type
     procedure TestCreatePiece;
     procedure TestCreatePieceRefusals;
     procedure TestEdgeAllowance;
+    procedure TestGrainlineAndNotches;
     procedure TestAddVariable;
     procedure TestAddIsOneUndoStep;
     procedure TestAddRefusals;
@@ -634,11 +635,42 @@ begin
   AssertEquals('10', FormulaOf(Answer, 'allowance'));
   Call('set_edge_allowance', '{"name": "Front", "edge": "Line_A_B", "allowance": 30}');
   AssertEquals('state', 'valid', Answer.Get('state', ''));
-  AssertEquals('two formulas', 2, Answer.Objects['formulas'].Count);
+  AssertEquals('allowance, grainline, edge', 3, Answer.Objects['formulas'].Count);
   Call('set_edge_allowance', '{"name": "Front", "edge": "Line_A_B"}');
-  AssertEquals('back to one', 1, Answer.Objects['formulas'].Count);
+  AssertEquals('allowance and grainline', 2, Answer.Objects['formulas'].Count);
   Call('set_edge_allowance', '{"name": "A", "edge": "Line_A_B"}');
   AssertEquals('not a piece', RpcRefused, ErrorCode);
+end;
+
+procedure TTestAPI.TestGrainlineAndNotches;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
+  AssertEquals('90', FormulaOf(Answer, 'grainline.angle'));
+  Call('set_grainline', '{"name": "Front", "angle": 45}');
+  AssertEquals('45', FormulaOf(Answer, 'grainline.angle'));
+  Call('set_grainline', '{"name": "Front", "start": "A", "end": "C"}');
+  AssertEquals('between points', 'valid', Answer.Get('state', ''));
+  AssertEquals('field gone', 1, Answer.Objects['formulas'].Count);
+  Call('set_grainline', '{"name": "Front"}');
+  AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
+  Call('set_grainline', '{"name": "Front", "none": true}');
+  AssertEquals('cleared', 'valid', Answer.Get('state', ''));
+
+  Call('add_notch', '{"name": "Front", "edge": "Line_A_B", "position": 30}');
+  AssertEquals('notches', 1, Answer.Get('notches', 0));
+  AssertEquals('30', FormulaOf(Answer, 'notch1.position'));
+  Call('add_notch', '{"name": "Front", "point": "A"}');
+  AssertEquals('notches', 2, Answer.Get('notches', 0));
+  Call('add_notch', '{"name": "Front"}');
+  AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
+  Call('remove_notch', '{"name": "Front", "notch": 1}');
+  AssertEquals('notches', 1, Answer.Get('notches', 0));
+  Call('remove_notch', '{"name": "Front", "notch": 9}');
+  AssertEquals('no such notch', RpcRefused, ErrorCode);
+  Call('undo');
+  Call('get_object', '{"name": "Front"}');
+  AssertEquals('undone', 2, Answer.Get('notches', 0));
 end;
 
 procedure TTestAPI.TestSplitEdge;

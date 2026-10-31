@@ -62,6 +62,7 @@ type
   protected
     procedure AddField(const AName: string);
     procedure RemoveField(const AName: string);
+    procedure RenameField(const AName, NewName: string);
     // Evaluates a field; on failure sets Message and returns False
     function EvalField(Context: TEvalContext; const AName: string; out Value: double): boolean;
     // Sets Message and returns AState, for use as "Exit(Fail(esInvalid, ...))"
@@ -194,6 +195,18 @@ begin
     begin
       FreeAndNil(FFields[Index].Formula);
       System.Delete(FFields, Index, 1);
+      Exit;
+    end;
+end;
+
+procedure TEvalNode.RenameField(const AName, NewName: string);
+var
+  Index: integer;
+begin
+  for Index := 0 to High(FFields) do
+    if SameText(FFields[Index].Name, AName) then
+    begin
+      FFields[Index].Name := NewName;
       Exit;
     end;
 end;

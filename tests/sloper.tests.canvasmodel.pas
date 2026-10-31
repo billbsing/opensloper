@@ -52,6 +52,7 @@ type
     procedure TestPolylineMiddle;
     procedure TestHandleAt;
     procedure TestPieceAt;
+    procedure TestNotchTarget;
     procedure TestPieceChevrons;
     procedure TestPieceLabelledInAllMode;
     procedure TestObjectsBounds;
@@ -283,6 +284,20 @@ begin
   AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(50, 50), Path, ErrorMessage));
   Result := FPattern.AddPiece('Front', Path, '10');
   FPattern.Evaluate;
+end;
+
+procedure TTestCanvasModel.TestNotchTarget;
+var
+  Target: TNotchTarget;
+begin
+  BuildPiece;
+  AssertFalse('nothing here', NotchTargetAt(FPattern, Vec2(50, 50), 2, Target));
+  AssertTrue('on the bottom', NotchTargetAt(FPattern, Vec2(30, 1), 2, Target));
+  AssertEquals('edge', FPattern.FindObject('Line_A_B').Key, Target.EdgeKey);
+  AssertNear('position', 30, Target.Position);
+  AssertEquals('no point', '', Target.PointKey);
+  AssertTrue('at a corner', NotchTargetAt(FPattern, Vec2(1, 1), 2, Target));
+  AssertEquals('takes the point', FPattern.FindObject('A').Key, Target.PointKey);
 end;
 
 procedure TTestCanvasModel.TestPieceAt;

@@ -69,6 +69,20 @@ type
     procedure TestPieceKeepsItsEdges;
     procedure TestPieceDefaultNames;
     procedure TestPieceFileRoundTrip;
+    procedure TestGrainlineDefault;
+    procedure TestGrainlineAngleFormula;
+    procedure TestGrainlineBetweenPoints;
+    procedure TestGrainlineChecks;
+    procedure TestNotchOnEdge;
+    procedure TestNotchOnReversedEdgePointsInwards;
+    procedure TestNotchOnPoint;
+    procedure TestNotchOffPieceIsInvalid;
+    procedure TestNotchPastEndIsInvalid;
+    procedure TestNotchChecks;
+    procedure TestRemoveNotchRenumbers;
+    procedure TestNotchUsesEdgeAllowance;
+    procedure TestPointKeepsItsNotch;
+    procedure TestMarksRoundTripWithNewerPoint;
     procedure TestPieceCurvedEdgeStaysAtItsAllowance;
   end;
 
@@ -585,6 +599,210 @@ begin
       Curve.Locate(P, Position, Gap);
       AssertNear('10 mm off the curve', 10, Gap, 0.1);
     end;
+end;
+
+procedure TTestPiece.TestGrainlineDefault;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(Piece.GrainKind = gkAngle);
+  // Straight up through the middle, 60% of the height
+  AssertPointsNear('start', Vec2(50, 20), Piece.Grainline.P1);
+  AssertPointsNear('end', Vec2(50, 80), Piece.Grainline.P2);
+  AssertEquals('shaft and two heads', 5, Length(Piece.GrainArrow));
+end;
+
+procedure TTestPiece.TestGrainlineAngleFormula;
+var
+  Piece: TPieceObject;
+begin
+  FPattern.AddVariable('bias', '45');
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.LastError, FPattern.SetGrainAngle(Piece, '#bias'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertNear('angle', 45, Piece.Grainline.Angle);
+  AssertFalse('bad formula', FPattern.SetGrainAngle(Piece, '1 +'));
+end;
+
+procedure TTestPiece.TestGrainlineBetweenPoints;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.LastError, FPattern.SetGrainPoints(Piece, Pt('G1', 10, 10), Pt('G2', 90, 10)));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertPointsNear('start', Vec2(10, 10), Piece.Grainline.P1);
+  AssertNull('the angle field went', Piece.Field(GrainAngleField));
+  AssertFalse('a point in use', FPattern.Delete(FPattern.FindObject('G1')));
+end;
+
+procedure TTestPiece.TestGrainlineChecks;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertFalse('same point', FPattern.SetGrainPoints(Piece, Piece.Path[0].EdgeKey, Piece.Path[0].EdgeKey));
+  AssertFalse('not a point', FPattern.SetGrainPoints(Piece, FPattern.FindObject('A').Key, Piece.Path[0].EdgeKey));
+  FPattern.ClearGrain(Piece);
+  FPattern.Evaluate;
+  AssertTrue(Piece.State = esValid);
+  AssertEquals('no arrow', 0, Length(Piece.GrainArrow));
+end;
+
+procedure TTestPiece.TestNotchOnEdge;
+var
+  Piece: TPieceObject;
+  Mark: TNotchMark;
+begin
+  Piece := SquarePiece('10');
+  // Line_A_B is the bottom, running from x = 0
+  AssertTrue(FPattern.LastError, FPattern.AddEdgeNotch(Piece, FPattern.FindObject('Line_A_B').Key, '30'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  Mark := Piece.NotchMarks[0];
+  AssertPointsNear('on the seam', Vec2(30, 0), Mark.Seam);
+  AssertPointsNear('at the cutting line', Vec2(30, -10), Mark.Cut);
+  AssertPointsNear('cut inwards', Vec2(30, -4), Mark.Tip);
+end;
+
+procedure TTestPiece.TestNotchOnReversedEdgePointsInwards;
+var
+  A, B, C, D: string;
+  Piece: TPieceObject;
+begin
+  // Drawn so that the top edge runs with the clockwise path, unreversed
+  A := Pt('', 0, 0);
+  B := Pt('', 100, 0);
+  C := Pt('', 100, 100);
+  D := Pt('', 0, 100);
+  Line(A, B);
+  Line(B, C);
+  Line(D, C);
+  Line(D, A);
+  Piece := FPattern.AddPiece('', Detect(50, 50), '10');
+  AssertTrue(FPattern.AddEdgeNotch(Piece, FPattern.FindObject('Line_D_C').Key, '30'));
+  AssertTrue(FPattern.AddEdgeNotch(Piece, FPattern.FindObject('Line_A_B').Key, '30'));
+  FPattern.Evaluate;
+  AssertPointsNear('top goes up', Vec2(30, 110), Piece.NotchMarks[0].Cut);
+  AssertPointsNear('bottom goes down', Vec2(30, -10), Piece.NotchMarks[1].Cut);
+end;
+
+procedure TTestPiece.TestNotchOnPoint;
+var
+  Piece: TPieceObject;
+  Spot: TAlongEdgePoint;
+begin
+  Piece := SquarePiece('10');
+  Spot := FPattern.AddAlongEdgePoint('N', FPattern.FindObject('Line_B_C').Key, False, amLength, '40');
+  AssertTrue(FPattern.LastError, FPattern.AddPointNotch(Piece, Spot.Key));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertPointsNear('on the right side', Vec2(100, 40), Piece.NotchMarks[0].Seam);
+  AssertPointsNear('at the cutting line', Vec2(110, 40), Piece.NotchMarks[0].Cut);
+end;
+
+procedure TTestPiece.TestNotchOffPieceIsInvalid;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.AddPointNotch(Piece, Pt('Off', 50, 50)));
+  FPattern.Evaluate;
+  AssertTrue(Piece.State = esInvalid);
+  AssertEquals(Format(rsPieceNotchOffPiece, ['Off']), Piece.Message);
+end;
+
+procedure TTestPiece.TestNotchPastEndIsInvalid;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.AddEdgeNotch(Piece, Piece.Path[0].EdgeKey, '150'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.State = esInvalid);
+end;
+
+procedure TTestPiece.TestNotchChecks;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertFalse('bad formula', FPattern.AddEdgeNotch(Piece, Piece.Path[0].EdgeKey, '1 +'));
+  AssertEquals('leaves nothing', 0, Length(Piece.Notches));
+  Line(FPattern.FindObject('A').Key, FPattern.FindObject('C').Key);
+  AssertFalse('not on the piece', FPattern.AddEdgeNotch(Piece, FPattern.FindObject('Line_A_C').Key, '10'));
+  AssertFalse('no such notch', FPattern.RemoveNotch(Piece, 0));
+end;
+
+procedure TTestPiece.TestRemoveNotchRenumbers;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.AddEdgeNotch(Piece, Piece.Path[0].EdgeKey, '10'));
+  AssertTrue(FPattern.AddEdgeNotch(Piece, Piece.Path[0].EdgeKey, '20'));
+  AssertTrue(FPattern.AddEdgeNotch(Piece, Piece.Path[1].EdgeKey, '30'));
+  AssertTrue(FPattern.RemoveNotch(Piece, 0));
+  AssertEquals('notches', 2, Length(Piece.Notches));
+  AssertEquals('20', FPattern.FormulaText(Piece, Piece.NotchField(0)));
+  AssertEquals('30', FPattern.FormulaText(Piece, Piece.NotchField(1)));
+  AssertNull('nothing left at the end', Piece.Field(Piece.NotchField(2)));
+end;
+
+procedure TTestPiece.TestNotchUsesEdgeAllowance;
+var
+  Piece: TPieceObject;
+  Bottom: string;
+begin
+  Piece := SquarePiece('10');
+  Bottom := FPattern.FindObject('Line_A_B').Key;
+  AssertTrue(FPattern.SetEdgeAllowance(Piece, Piece.PathIndexOf(Bottom), '30'));
+  AssertTrue(FPattern.AddEdgeNotch(Piece, Bottom, '50'));
+  FPattern.Evaluate;
+  AssertPointsNear('at the wider cutting line', Vec2(50, -30), Piece.NotchMarks[0].Cut);
+end;
+
+procedure TTestPiece.TestPointKeepsItsNotch;
+var
+  Piece: TPieceObject;
+  Spot: TAlongEdgePoint;
+begin
+  Piece := SquarePiece('10');
+  Spot := FPattern.AddAlongEdgePoint('N', FPattern.FindObject('Line_B_C').Key, False, amLength, '40');
+  AssertTrue(FPattern.AddPointNotch(Piece, Spot.Key));
+  AssertFalse('in use', FPattern.Delete(Spot));
+end;
+
+procedure TTestPiece.TestMarksRoundTripWithNewerPoint;
+var
+  Piece: TPieceObject;
+  Spot: TAlongEdgePoint;
+  Text, ErrorMessage: string;
+  Loaded: TPattern;
+begin
+  Piece := SquarePiece('10');
+  // These points are newer than the piece, and a file lists inputs first
+  Spot := FPattern.AddAlongEdgePoint('N', FPattern.FindObject('Line_B_C').Key, False, amLength, '40');
+  AssertTrue(FPattern.AddPointNotch(Piece, Spot.Key));
+  AssertTrue(FPattern.AddEdgeNotch(Piece, Piece.Path[0].EdgeKey, '25'));
+  AssertTrue(FPattern.SetGrainPoints(Piece, Pt('G1', 10, 10), Pt('G2', 90, 10)));
+  FPattern.Evaluate;
+  Text := SavePatternToText(FPattern);
+  Loaded := TPattern.Create;
+  try
+    AssertTrue(ErrorMessage, LoadPatternFromText(Loaded, Text, ErrorMessage));
+    AssertEquals('same text', Text, SavePatternToText(Loaded));
+    Loaded.Evaluate;
+    Piece := TPieceObject(Loaded.FindObject('Front'));
+    AssertTrue(Piece.Message, Piece.State = esValid);
+    AssertEquals('notches', 2, Length(Piece.NotchMarks));
+    AssertTrue('grainline', Piece.GrainKind = gkPoints);
+  finally
+    FreeAndNil(Loaded);
+  end;
 end;
 
 initialization

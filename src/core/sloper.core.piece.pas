@@ -32,6 +32,10 @@ const
   // The formula field of the seam allowance, and its member in pattern files
   PieceAllowanceField = 'allowance';
   DefaultPieceAllowance = '10';
+  GrainAngleField = 'grainline.angle';
+  DefaultGrainAngle = '90';
+  // A point this close (in mm) to a piece's seam line can carry a notch
+  NotchPointTolerance = 0.05;
   // Ends of neighbouring edges this close (in mm) count as joined, so formula
   // rounding cannot open a piece
   PieceJoinTolerance = 0.01;
@@ -45,6 +49,25 @@ type
 
   TPiecePath = array of TPieceEdge;
 
+  // gkAngle lays the grainline through the piece's middle at a formula angle;
+  // gkPoints runs it between two points
+  TGrainKind = (gkNone, gkAngle, gkPoints);
+
+  // On a point, or at the formula "notchN.position": mm from the edge's start
+  TPieceNotch = record
+    PointKey, EdgeKey: string;
+  end;
+
+  TPieceNotchArray = array of TPieceNotch;
+
+  // A notch as cut: from the cutting line in towards the seam line
+  TNotchMark = record
+    Seam, Cut, Tip: TVec2;
+  end;
+
+  TNotchMarkArray = array of TNotchMark;
+  TLine2Array = array of TLine2;
+
   // The default seam allowance is the field "allowance"; an edge with its own
   // has a field such as "edge2.allowance", which exists only while it does
   TPieceObject = class(TDraftObject)
@@ -52,7 +75,16 @@ type
     FPath: TPiecePath;
     FOutline: TVec2Array;
     FCutLine: TVec2Array;
-    function BuildOutline(Context: TEvalContext; DefaultWidth: double; out Outline: TVec2Array; out Widths: TDoubleArray): TEvalState;
+    FGrainKind: TGrainKind;
+    FGrainStartKey, FGrainEndKey: string;
+    FGrainline: TLine2;
+    FNotches: TPieceNotchArray;
+    FNotchMarks: TNotchMarkArray;
+    function BuildOutline(Context: TEvalContext; DefaultWidth: double; out Outline: TVec2Array; out Widths, EdgeWidths: TDoubleArray): TEvalState;
+    function ComputeGrainline(Context: TEvalContext; const Points: TVec2Array; out Line: TLine2): TEvalState;
+    function ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray; Anticlockwise: boolean;
+      out Mark: TNotchMark): TEvalState;
+    function LocateNotch(Context: TEvalContext; Index: integer; out PathIndex: integer; out Position: double): TEvalState;
   public
     constructor Create(const AKey: string; const APath: TPiecePath);
     function InputKeys: TStringArray; override;
@@ -66,13 +98,32 @@ type
     function HasOverride(PathIndex: integer): boolean;
     procedure AddOverride(PathIndex: integer);
     procedure RemoveOverride(PathIndex: integer);
+    // Clears the old grainline's field, if any. gkAngle adds its field;
+    // gkPoints takes the two point keys.
+    procedure SetGrainKind(AKind: TGrainKind; const AStartKey: string = ''; const AEndKey: string = '');
+    // A new notch's index. An edge notch has the field NotchField(Index).
+    function AddNotch(const APointKey, AEdgeKey: string): integer;
+    procedure RemoveNotch(Index: integer);
+    function NotchField(Index: integer): string;
     function Area: double;
     function Perimeter: double;
+    // The middle of the outline's extent
+    function Middle: TVec2;
+    // The grainline's shaft and the strokes of an arrowhead at each end
+    function GrainArrow: TLine2Array;
     property Path: TPiecePath read FPath;
     // Last good seam line, closed without repeating its first point
     property Outline: TVec2Array read FOutline;
     // Last good cutting line, clockwise, closed without repeating its first point
     property CutLine: TVec2Array read FCutLine;
+    property GrainKind: TGrainKind read FGrainKind;
+    property GrainStartKey: string read FGrainStartKey;
+    property GrainEndKey: string read FGrainEndKey;
+    // Last good grainline
+    property Grainline: TLine2 read FGrainline;
+    property Notches: TPieceNotchArray read FNotches;
+    // Last good marks, one per notch
+    property NotchMarks: TNotchMarkArray read FNotchMarks;
   end;
 
 resourcestring
@@ -80,11 +131,21 @@ resourcestring
   rsPieceNoArea = 'The outline encloses no area';
   rsPieceNegativeAllowance = 'A seam allowance cannot be negative';
   rsPieceNoCutLine = 'No cutting line could be worked out';
+  rsPieceGrainSamePlace = 'The grainline starts and ends at the same place';
+  rsPieceNotchOffPiece = 'The notch at %s is not on the seam line';
+  rsPieceNotchPastEnd = 'The notch at %s mm is off %s (%s mm long)';
 
 implementation
 
 uses
-  Sloper.Core.Bezier;
+  Math, Sloper.Core.Bezier;
+
+const
+  // Share of the piece's span along its grain that the arrow covers
+  GrainShare = 0.6;
+  GrainHeadLength = 10;
+  GrainHeadSpread = 155;
+  NotchLength = 6;
 
 constructor TPieceObject.Create(const AKey: string; const APath: TPiecePath);
 begin
@@ -101,6 +162,14 @@ begin
   SetLength(Result, Length(FPath));
   for Index := 0 to High(FPath) do
     Result[Index] := FPath[Index].EdgeKey;
+  if FGrainKind = gkPoints then
+  begin
+    System.Insert(FGrainStartKey, Result, Length(Result));
+    System.Insert(FGrainEndKey, Result, Length(Result));
+  end;
+  for Index := 0 to High(FNotches) do
+    if FNotches[Index].PointKey <> '' then
+      System.Insert(FNotches[Index].PointKey, Result, Length(Result));
 end;
 
 function TPieceObject.TypeName: string;
@@ -147,6 +216,47 @@ begin
   RemoveField(OverrideField(PathIndex));
 end;
 
+procedure TPieceObject.SetGrainKind(AKind: TGrainKind; const AStartKey, AEndKey: string);
+begin
+  if FGrainKind = gkAngle then
+    RemoveField(GrainAngleField);
+  FGrainKind := AKind;
+  FGrainStartKey := AStartKey;
+  FGrainEndKey := AEndKey;
+  if AKind = gkAngle then
+    AddField(GrainAngleField);
+end;
+
+function TPieceObject.NotchField(Index: integer): string;
+begin
+  Result := 'notch' + IntToStr(Index + 1) + '.position';
+end;
+
+function TPieceObject.AddNotch(const APointKey, AEdgeKey: string): integer;
+begin
+  Result := Length(FNotches);
+  SetLength(FNotches, Result + 1);
+  FNotches[Result].PointKey := APointKey;
+  FNotches[Result].EdgeKey := AEdgeKey;
+  if AEdgeKey <> '' then
+    AddField(NotchField(Result));
+end;
+
+procedure TPieceObject.RemoveNotch(Index: integer);
+var
+  Later: integer;
+begin
+  if FNotches[Index].EdgeKey <> '' then
+    RemoveField(NotchField(Index));
+  // Fields are named by place in the list, so later ones move down
+  for Later := Index + 1 to High(FNotches) do
+    if FNotches[Later].EdgeKey <> '' then
+      RenameField(NotchField(Later), NotchField(Later - 1));
+  System.Delete(FNotches, Index, 1);
+  if Index <= High(FNotchMarks) then
+    System.Delete(FNotchMarks, Index, 1);
+end;
+
 function ReversedPoints(const Points: TVec2Array): TVec2Array;
 var
   Index: integer;
@@ -158,7 +268,7 @@ begin
 end;
 
 function TPieceObject.BuildOutline(Context: TEvalContext; DefaultWidth: double; out Outline: TVec2Array;
-  out Widths: TDoubleArray): TEvalState;
+  out Widths, EdgeWidths: TDoubleArray): TEvalState;
 var
   Index, Added, PointIndex: integer;
   Node: TEvalNode;
@@ -169,6 +279,8 @@ var
 begin
   Outline := nil;
   Widths := nil;
+  EdgeWidths := nil;
+  SetLength(EdgeWidths, Length(FPath));
   First := nil;
   Previous := nil;
   LastEnd := Vec2(0, 0);
@@ -182,6 +294,7 @@ begin
       Exit(esError);
     if Width < 0 then
       Exit(Fail(esInvalid, rsPieceNegativeAllowance));
+    EdgeWidths[Index] := Width;
     Points := TEdgeObject(Node).Flatten(CoarseFlatness);
     if FPath[Index].Reversed then
       Points := ReversedPoints(Points);
@@ -206,25 +319,172 @@ begin
   Result := esValid;
 end;
 
+function ExtentMiddle(const Points: TVec2Array): TVec2;
+var
+  P: TVec2;
+  MinX, MinY, MaxX, MaxY: double;
+begin
+  MinX := Infinity;
+  MinY := Infinity;
+  MaxX := -Infinity;
+  MaxY := -Infinity;
+  for P in Points do
+  begin
+    MinX := Min(MinX, P.X);
+    MinY := Min(MinY, P.Y);
+    MaxX := Max(MaxX, P.X);
+    MaxY := Max(MaxY, P.Y);
+  end;
+  Result := Vec2((MinX + MaxX) / 2, (MinY + MaxY) / 2);
+end;
+
+function TPieceObject.ComputeGrainline(Context: TEvalContext; const Points: TVec2Array; out Line: TLine2): TEvalState;
+var
+  Angle, Along, Lowest, Highest: double;
+  Centre, Direction, P: TVec2;
+  StartNode, EndNode: TEvalNode;
+begin
+  Line := FGrainline;
+  case FGrainKind of
+    gkAngle:
+    begin
+      if not EvalField(Context, GrainAngleField, Angle) then
+        Exit(esError);
+      Centre := ExtentMiddle(Points);
+      Direction := PolarPoint(Vec2(0, 0), 1, Angle);
+      Lowest := Infinity;
+      Highest := -Infinity;
+      for P in Points do
+      begin
+        Along := Dot(P - Centre, Direction);
+        Lowest := Min(Lowest, Along);
+        Highest := Max(Highest, Along);
+      end;
+      Centre := Centre + Direction * ((Lowest + Highest) / 2);
+      Along := (Highest - Lowest) * GrainShare / 2;
+      Line := Line2(Centre - Direction * Along, Centre + Direction * Along);
+    end;
+    gkPoints:
+    begin
+      StartNode := Context.FindNode(FGrainStartKey);
+      EndNode := Context.FindNode(FGrainEndKey);
+      if not (StartNode is TPointObject) then
+        Exit(Fail(esError, Format(rsDraftNotAPoint, [FGrainStartKey])));
+      if not (EndNode is TPointObject) then
+        Exit(Fail(esError, Format(rsDraftNotAPoint, [FGrainEndKey])));
+      Line := Line2(TPointObject(StartNode).Position, TPointObject(EndNode).Position);
+      if PointsNear(Line.P1, Line.P2) then
+        Exit(Fail(esInvalid, rsPieceGrainSamePlace));
+    end;
+  end;
+  Result := esValid;
+end;
+
+// Where a notch falls: which edge of the path, and how far along it
+function TPieceObject.LocateNotch(Context: TEvalContext; Index: integer; out PathIndex: integer; out Position: double): TEvalState;
+var
+  Notch: TPieceNotch;
+  Node: TEvalNode;
+  Edge: TEdgeObject;
+  Entry: integer;
+  Spot: TVec2;
+  Along, Gap, Best: double;
+begin
+  Notch := FNotches[Index];
+  PathIndex := -1;
+  Position := 0;
+  if Notch.EdgeKey <> '' then
+  begin
+    PathIndex := PathIndexOf(Notch.EdgeKey);
+    if PathIndex < 0 then
+      Exit(Fail(esError, Format(rsDraftNotAnEdge, [Notch.EdgeKey])));
+    Edge := TEdgeObject(Context.FindNode(Notch.EdgeKey));
+    if not EvalField(Context, NotchField(Index), Position) then
+      Exit(esError);
+    if (Position < -DefaultTolerance) or (Position > Edge.Length + DefaultTolerance) then
+      Exit(Fail(esInvalid, Format(rsPieceNotchPastEnd, [FormatFloat('0.#', Position), Edge.DisplayName, FormatFloat('0.#', Edge.Length)])));
+    Exit(esValid);
+  end;
+  Node := Context.FindNode(Notch.PointKey);
+  if not (Node is TPointObject) then
+    Exit(Fail(esError, Format(rsDraftNotAPoint, [Notch.PointKey])));
+  Spot := TPointObject(Node).Position;
+  Best := NotchPointTolerance;
+  for Entry := 0 to High(FPath) do
+  begin
+    TEdgeObject(Context.FindNode(FPath[Entry].EdgeKey)).Locate(Spot, Along, Gap);
+    if Gap <= Best then
+    begin
+      Best := Gap;
+      PathIndex := Entry;
+      Position := Along;
+    end;
+  end;
+  if PathIndex < 0 then
+    Exit(Fail(esInvalid, Format(rsPieceNotchOffPiece, [Node.DisplayName])));
+  Result := esValid;
+end;
+
+function TPieceObject.ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray;
+  Anticlockwise: boolean; out Mark: TNotchMark): TEvalState;
+var
+  PathIndex: integer;
+  Position, Outwards: double;
+  Edge: TEdgeObject;
+begin
+  Mark := Default(TNotchMark);
+  Result := LocateNotch(Context, Index, PathIndex, Position);
+  if Result <> esValid then
+    Exit;
+  Edge := TEdgeObject(Context.FindNode(FPath[PathIndex].EdgeKey));
+  Outwards := Edge.DirectionAt(Position);
+  if FPath[PathIndex].Reversed then
+    Outwards := Outwards + 180;
+  // Outside is left of the way a clockwise path runs
+  if Anticlockwise then
+    Outwards := Outwards - 90
+  else
+    Outwards := Outwards + 90;
+  Mark.Seam := Edge.PointAtLength(Position);
+  Mark.Cut := PolarPoint(Mark.Seam, EdgeWidths[PathIndex], Outwards);
+  Mark.Tip := PolarPoint(Mark.Cut, NotchLength, Outwards + 180);
+end;
+
 function TPieceObject.Compute(Context: TEvalContext): TEvalState;
 var
   Width: double;
   Points, Cut: TVec2Array;
-  Widths: TDoubleArray;
+  Widths, EdgeWidths: TDoubleArray;
+  Line: TLine2;
+  Marks: TNotchMarkArray;
+  Index: integer;
 begin
   if not EvalField(Context, PieceAllowanceField, Width) then
     Exit(esError);
   if Width < 0 then
     Exit(Fail(esInvalid, rsPieceNegativeAllowance));
-  Result := BuildOutline(Context, Width, Points, Widths);
+  Result := BuildOutline(Context, Width, Points, Widths, EdgeWidths);
   if Result <> esValid then
     Exit;
   if Abs(SignedArea(Points)) < PieceJoinTolerance then
     Exit(Fail(esInvalid, rsPieceNoArea));
   if not OffsetOutline(Points, Widths, Cut) then
     Exit(Fail(esInvalid, rsPieceNoCutLine));
+  Result := ComputeGrainline(Context, Points, Line);
+  if Result <> esValid then
+    Exit;
+  Marks := nil;
+  SetLength(Marks, Length(FNotches));
+  for Index := 0 to High(FNotches) do
+  begin
+    Result := ComputeNotch(Context, Index, EdgeWidths, SignedArea(Points) > 0, Marks[Index]);
+    if Result <> esValid then
+      Exit;
+  end;
   FOutline := Points;
   FCutLine := Cut;
+  FGrainline := Line;
+  FNotchMarks := Marks;
 end;
 
 function TPieceObject.Area: double;
@@ -237,6 +497,33 @@ begin
   Result := 0;
   if FOutline <> nil then
     Result := PolylineLength(FOutline) + Distance(FOutline[High(FOutline)], FOutline[0]);
+end;
+
+function TPieceObject.Middle: TVec2;
+begin
+  Result := ExtentMiddle(FOutline);
+end;
+
+function TPieceObject.GrainArrow: TLine2Array;
+var
+  Angle: double;
+
+  procedure AddStroke(const From, Target: TVec2);
+  begin
+    SetLength(Result, Length(Result) + 1);
+    Result[High(Result)] := Line2(From, Target);
+  end;
+
+begin
+  Result := nil;
+  if FGrainKind = gkNone then
+    Exit;
+  Angle := FGrainline.Angle;
+  AddStroke(FGrainline.P1, FGrainline.P2);
+  AddStroke(FGrainline.P2, PolarPoint(FGrainline.P2, GrainHeadLength, Angle + GrainHeadSpread));
+  AddStroke(FGrainline.P2, PolarPoint(FGrainline.P2, GrainHeadLength, Angle - GrainHeadSpread));
+  AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GrainHeadLength, Angle + GrainHeadSpread + 180));
+  AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GrainHeadLength, Angle - GrainHeadSpread + 180));
 end;
 
 end.

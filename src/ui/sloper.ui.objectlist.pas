@@ -111,6 +111,8 @@ resourcestring
   rsFieldValue = 'Distance or ratio';
   rsFieldRadius = 'Radius';
   rsFieldAllowance = 'Seam allowance';
+  rsFieldGrainAngle = 'Grainline angle';
+  rsFieldNotch = 'Notch %s position';
   rsFieldEdgeAllowance = 'Edge %s seam allowance';
   rsFieldAngle1 = 'Start angle';
   rsFieldLength1 = 'Start handle';
@@ -149,6 +151,8 @@ begin
   Dot := Pos('.', FieldName);
   if (Dot > 0) and (Copy(FieldName, 1, 4) = 'edge') then
     Exit(Format(rsFieldEdgeAllowance, [Copy(FieldName, 5, Dot - 5)]));
+  if (Dot > 0) and (Copy(FieldName, 1, 5) = 'notch') then
+    Exit(Format(rsFieldNotch, [Copy(FieldName, 6, Dot - 6)]));
   if (Dot > 0) and (Copy(FieldName, 1, 4) = 'node') then
   begin
     NodeNumber := Copy(FieldName, 5, Dot - 5);
@@ -169,6 +173,7 @@ begin
     'value': Result := rsFieldValue;
     'radius': Result := rsFieldRadius;
     'allowance': Result := rsFieldAllowance;
+    'grainline.angle': Result := rsFieldGrainAngle;
     'angle1': Result := rsFieldAngle1;
     'length1': Result := rsFieldLength1;
     'angle2': Result := rsFieldAngle2;

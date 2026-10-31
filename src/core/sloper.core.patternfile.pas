@@ -106,6 +106,8 @@ type
     function CreateObject(Item: TJSONObject; const TypeText: string): TDraftObject;
     function CreateCurvePath(Item: TJSONObject): TDraftObject;
     function CreatePiece(Item: TJSONObject): TDraftObject;
+    function ReadGrainline(Item: TJSONObject; Piece: TPieceObject): boolean;
+    function ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
     function LoadObject(Item: TJSONObject): boolean;
   public
     constructor Create(APattern: TPattern);
@@ -211,6 +213,48 @@ begin
   end;
 end;
 
+function SaveGrainline(Piece: TPieceObject): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  try
+    if Piece.GrainKind = gkAngle then
+      Result.Add('angle', Piece.Field(GrainAngleField).StoredText)
+    else
+    begin
+      Result.Add('start', JSONId(Piece.GrainStartKey));
+      Result.Add('end', JSONId(Piece.GrainEndKey));
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+function SaveNotches(Piece: TPieceObject): TJSONArray;
+var
+  Index: integer;
+  Item: TJSONObject;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Index := 0 to High(Piece.Notches) do
+    begin
+      Item := TJSONObject.Create;
+      Result.Add(Item);
+      if Piece.Notches[Index].PointKey <> '' then
+        Item.Add('point', JSONId(Piece.Notches[Index].PointKey))
+      else
+      begin
+        Item.Add('edge', JSONId(Piece.Notches[Index].EdgeKey));
+        Item.Add('position', Piece.Field(Piece.NotchField(Index)).StoredText);
+      end;
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
 // id, type and name; then inputs and options; then formulas under their
 // field names; then the role of an edge
 function SaveObject(DraftObject: TDraftObject): TJSONObject;
@@ -288,6 +332,10 @@ begin
     begin
       Result.Add('path', SavePiecePath(TPieceObject(DraftObject)));
       Result.Add(PieceAllowanceField, DraftObject.Field(PieceAllowanceField).StoredText);
+      if TPieceObject(DraftObject).GrainKind <> gkNone then
+        Result.Add('grainline', SaveGrainline(TPieceObject(DraftObject)));
+      if TPieceObject(DraftObject).Notches <> nil then
+        Result.Add('notches', SaveNotches(TPieceObject(DraftObject)));
     end
     else
       for Index := 0 to DraftObject.FieldCount - 1 do
@@ -539,6 +587,68 @@ begin
   end;
 end;
 
+// Optional. An "angle", or a "start" and "end" point.
+function TPatternLoader.ReadGrainline(Item: TJSONObject; Piece: TPieceObject): boolean;
+var
+  Data: TJSONData;
+  Grain: TJSONObject;
+  First, Second: string;
+begin
+  Data := Item.Find('grainline');
+  if Data = nil then
+    Exit(True);
+  if Data.JSONType <> jtObject then
+    Exit(Missing('grainline'));
+  Grain := TJSONObject(Data);
+  if Grain.Find('angle') <> nil then
+  begin
+    Piece.SetGrainKind(gkAngle);
+    Exit(ReadFormula(Grain, 'angle', Piece, GrainAngleField));
+  end;
+  if not ReadInput(Grain, 'start', False, First) or not ReadInput(Grain, 'end', False, Second) then
+    Exit(False);
+  if First = Second then
+    Exit(Problem(rsPatternGrainSamePoint));
+  Piece.SetGrainKind(gkPoints, First, Second);
+  Result := True;
+end;
+
+// Optional. Each has a "point", or an "edge" of the piece and a "position".
+function TPatternLoader.ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
+var
+  Data: TJSONData;
+  Notch: TJSONObject;
+  Index, Added: integer;
+  Key: string;
+begin
+  Data := Item.Find('notches');
+  if Data = nil then
+    Exit(True);
+  if Data.JSONType <> jtArray then
+    Exit(Missing('notches'));
+  for Index := 0 to Data.Count - 1 do
+  begin
+    if Data.Items[Index].JSONType <> jtObject then
+      Exit(Missing('notches'));
+    Notch := TJSONObject(Data.Items[Index]);
+    if Notch.Find('point') <> nil then
+    begin
+      if not ReadInput(Notch, 'point', False, Key) then
+        Exit(False);
+      Piece.AddNotch(Key, '');
+      Continue;
+    end;
+    if not ReadInput(Notch, 'edge', True, Key) then
+      Exit(False);
+    if Piece.PathIndexOf(Key) < 0 then
+      Exit(Problem(Format(rsPatternNotInPiece, [NodeLabel(FPattern.FindNode(Key)), FId])));
+    Added := Piece.AddNotch('', Key);
+    if not ReadFormula(Notch, 'position', Piece, Piece.NotchField(Added)) then
+      Exit(False);
+  end;
+  Result := True;
+end;
+
 function TPatternLoader.CreatePiece(Item: TJSONObject): TDraftObject;
 var
   Entries: TJSONData;
@@ -597,6 +707,8 @@ begin
       Exit;
     end;
   end;
+  if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) then
+    FreeAndNil(Result);
 end;
 
 // The object with its inputs and options; formulas come later. nil on failure.

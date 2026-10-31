@@ -34,8 +34,9 @@ type
   // cmRefused: a drag was refused; the reason stays up until the button is released
   TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging, cmRefused);
   // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
-  // the snap points; ctPiece makes a piece of the region clicked
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctPiece);
+  // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
+  // or removes a notch on a piece's seam line
+  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctPiece, ctNotch);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -91,6 +92,9 @@ type
     procedure AddPointHere;
     procedure AddEdgeHere;
     procedure AddPieceHere(X, Y: integer);
+    procedure ToggleNotchHere(X, Y: integer);
+    function RemoveNotchesAt(const At: TVec2; Radius: double): boolean;
+    function AddNotchesAt(const At: TVec2; Radius: double): boolean;
     function UsesSnap: boolean;
     procedure CancelStart;
     procedure SetLabelMode(Value: TLabelMode);
@@ -100,6 +104,7 @@ type
     procedure DrawGrid;
     procedure DrawPiece(Piece: TPieceObject);
     procedure DrawChevrons(Piece: TPieceObject);
+    procedure DrawPieceMarks(Piece: TPieceObject);
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
     procedure DrawPattern;
@@ -155,12 +160,16 @@ resourcestring
   rsCanvasAddLine = 'Add line';
   rsCanvasAddCurve = 'Add curve';
   rsCanvasAddPiece = 'Add piece';
+  rsCanvasAddNotch = 'Add notch';
+  rsCanvasRemoveNotch = 'Remove notch';
   rsCanvasToolSelect = 'Select: click to select, drag a point to move it';
   rsCanvasToolPoint = 'Point: click to add a point where it snaps';
   rsCanvasToolLine = 'Line: click the start, then the end; Escape stops';
   rsCanvasToolCurve = 'Curve: click the start, then the end; Escape stops';
   rsCanvasToolPiece = 'Piece: click inside a closed outline';
   rsCanvasPieceExists = '%s already covers this region';
+  rsCanvasToolNotch = 'Notch: click a piece''s edge to add a notch, or a notch to remove it';
+  rsCanvasNoSeam = 'There is no piece''s edge here';
 
 implementation
 
@@ -611,6 +620,7 @@ begin
     ctLine: ShowMessageText(rsCanvasToolLine);
     ctCurve: ShowMessageText(rsCanvasToolCurve);
     ctPiece: ShowMessageText(rsCanvasToolPiece);
+    ctNotch: ShowMessageText(rsCanvasToolNotch);
   end;
   Invalidate;
   if Assigned(FOnToolChange) then
@@ -770,6 +780,62 @@ begin
     ShowMessageText(Reason);
 end;
 
+// Every notch here goes, since a notch often sits on two pieces sewn together
+function TPatternCanvas.RemoveNotchesAt(const At: TVec2; Radius: double): boolean;
+var
+  Index, Notch: integer;
+  Piece: TPieceObject;
+begin
+  Result := False;
+  for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
+    if FDocument.Pattern.Objects[Index] is TPieceObject then
+    begin
+      Piece := TPieceObject(FDocument.Pattern.Objects[Index]);
+      for Notch := High(Piece.NotchMarks) downto 0 do
+        if Distance(Piece.NotchMarks[Notch].Seam, At) <= Radius then
+          Result := FDocument.Pattern.RemoveNotch(Piece, Notch) or Result;
+    end;
+end;
+
+// On every piece that uses the edge, so two sides of a seam get matching notches
+function TPatternCanvas.AddNotchesAt(const At: TVec2; Radius: double): boolean;
+var
+  Index: integer;
+  Piece: TPieceObject;
+  Target: TNotchTarget;
+begin
+  Result := False;
+  if not NotchTargetAt(FDocument.Pattern, At, Radius, Target) then
+    Exit;
+  for Index := FDocument.Pattern.ObjectCount - 1 downto 0 do
+    if FDocument.Pattern.Objects[Index] is TPieceObject then
+    begin
+      Piece := TPieceObject(FDocument.Pattern.Objects[Index]);
+      if Piece.PathIndexOf(Target.EdgeKey) < 0 then
+        Continue;
+      if Target.PointKey <> '' then
+        Result := FDocument.Pattern.AddPointNotch(Piece, Target.PointKey) or Result
+      else
+        Result := FDocument.Pattern.AddEdgeNotch(Piece, Target.EdgeKey, RoundedText(Target.Position, DragLengthDecimals)) or Result;
+    end;
+end;
+
+// A click on a notch removes it; one on a piece's edge adds one
+procedure TPatternCanvas.ToggleNotchHere(X, Y: integer);
+var
+  At: TVec2;
+  Radius: double;
+begin
+  At := ModelAt(X, Y);
+  Radius := FView.PixelsToMM(SnapRadius);
+  FDocument.BeginChange(rsCanvasRemoveNotch);
+  if FDocument.Commit(RemoveNotchesAt(At, Radius)) then
+    Exit;
+  FDocument.BeginChange(rsCanvasAddNotch);
+  if not FDocument.Commit(AddNotchesAt(At, Radius)) then
+    ShowMessageText(rsCanvasNoSeam);
+end;
+
 procedure TPatternCanvas.ClickTool;
 begin
   case FTool of
@@ -806,6 +872,12 @@ begin
   begin
     if Button = mbLeft then
       AddPieceHere(X, Y);
+    Exit;
+  end;
+  if FTool = ctNotch then
+  begin
+    if Button = mbLeft then
+      ToggleNotchHere(X, Y);
     Exit;
   end;
   if FTool <> ctSelect then
@@ -949,7 +1021,7 @@ begin
         SelectNone;
     VK_DELETE, VK_BACK:
       DeleteSelection;
-    VK_S, VK_P, VK_L, VK_C, VK_K:
+    VK_S, VK_P, VK_L, VK_C, VK_K, VK_T:
     begin
       if Shift <> [] then
         Exit;
@@ -959,6 +1031,7 @@ begin
         VK_L: SetTool(ctLine);
         VK_C: SetTool(ctCurve);
         VK_K: SetTool(ctPiece);
+        VK_T: SetTool(ctNotch);
       end;
     end;
     VK_N:
@@ -1098,6 +1171,31 @@ begin
   end;
 end;
 
+// The grainline and notches, over the edges
+procedure TPatternCanvas.DrawPieceMarks(Piece: TPieceObject);
+var
+  Stroke: TLine2;
+  Mark: TNotchMark;
+  LineColor: TBGRAPixel;
+  First, Last: TVec2;
+begin
+  LineColor := Faded(StateInk(Piece.State, ConstructionInk), Piece.State);
+  if IsSelected(Piece.Key) then
+    LineColor := SelectedInk;
+  for Stroke in Piece.GrainArrow do
+  begin
+    First := FView.ToScreen(Stroke.P1);
+    Last := FView.ToScreen(Stroke.P2);
+    FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, LineColor, 1.5);
+  end;
+  for Mark in Piece.NotchMarks do
+  begin
+    First := FView.ToScreen(Mark.Cut);
+    Last := FView.ToScreen(Mark.Tip);
+    FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, LineColor, 2);
+  end;
+end;
+
 procedure TPatternCanvas.DrawEdge(Edge: TEdgeObject);
 var
   Model: TVec2Array;
@@ -1181,7 +1279,10 @@ begin
   for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
   begin
     DraftObject := FDocument.Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult and (IsSelected(DraftObject.Key) or (DraftObject.Key = FHoverKey)) then
+    if not (DraftObject is TPieceObject) or not DraftObject.HasResult then
+      Continue;
+    DrawPieceMarks(TPieceObject(DraftObject));
+    if IsSelected(DraftObject.Key) or (DraftObject.Key = FHoverKey) then
       DrawChevrons(TPieceObject(DraftObject));
   end;
   for Index := 0 to FDocument.Pattern.ObjectCount - 1 do

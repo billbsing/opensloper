@@ -366,7 +366,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Dragging points:** only fields that are plain numbers change (free x/y, offset length/angle or dx/dy, along-edge value), rounded to 0.1 mm, 0.1° or 0.0001. A point placed by a formula or by other objects is refused, with the reason shown until the mouse button is released. One drag is one undo step; Escape cancels it.
 - **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
-- **Tools:** Select (S), Point (P), Line (L), Curve (C) and Piece (K), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
+- **Tools:** Select (S), Point (P), Line (L), Curve (C), Piece (K) and Notch (T), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
 - **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
   1. An existing point is reused.
   2. A crossing of two nearby edges becomes an intersect point, with its `pick`. An edge and its own split parts are not treated as crossing.
@@ -385,6 +385,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Measurements tab** (`Sloper.UI.MeasurementsPanel`): the current set's keys, values and descriptions, searchable, with New and Open for the set. Keys the pattern uses and the set lacks are listed in red as Missing. Selecting a row fills the fields below the list; Enter or Save writes the change straight to the file through `TPatternDocument.ChangeMeasurement`, and the status bar says what changed. Add starts a new key. Saving with no file asks for a new one first. See Small edits from the drafting app. Not done yet: switching size, which waits for size tables in the core; watching the file for changes made elsewhere; and the button that opens the measurements app, which does not exist yet.
 - **Curve handles** (`CurveHandles` in `Sloper.Core.Drag`): selecting a curve or curve path shows its tangent lines. Dragging a handle's end sets its angle and length, rounded like point drags, as one undo step; Escape cancels. As with points, only plain numbers change: a handle whose angle or length is a formula is drawn hollow and refuses the drag with the reason. The two handles at a path's inner node share one angle, so dragging either turns both and the join stays smooth, while each keeps its own length. A split part follows its source curve and has no handles. A handle lies over the objects under it.
 - **Pieces:** with the Piece tool, one click inside a closed outline makes a piece with a 10 mm allowance, as one undo step, and selects it; a refusal shows in the status bar, and a region that already has a piece selects that piece instead of adding another. The tool stays on until Escape. The cutting line is drawn in a light tint under the edges. In the Select tool a click inside a piece selects it, with points and edges taking precedence, so to clear the selection click off the piece or press Escape. Hovering or selecting a piece shows chevrons at each edge's middle (see Links and problem display). Its name label sits in the middle of its extent. The properties show its allowance and any per-edge allowances; adding an edge's own allowance is only in the Automation API so far.
+- **Grainlines and notches** are drawn over the edges. The grainline's angle is edited in the properties; running it between two points is only in the Automation API so far. With the Notch tool a click near a piece's edge adds a notch to every piece using that edge, so both sides of a shared seam match; on a point it follows the point, and elsewhere it stores a position rounded to 0.1 mm. A click on a notch removes every notch there. Either is one undo step.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -408,6 +409,9 @@ Handling the edge cases:
 - An edge that has outline split parts is left out; the parts stand in for it, since it stays in the pattern and would overlap them.
 - **Overlapping panels.** Panels often overlap (a skirt's side seams cross above the hip), so crossings would cut each panel into faces that no whole edge bounds. When the faces fail, a second pass treats edges as whole and finds the smallest simple closed path around the click. Walking faces cannot do this: at a node the two panels share, the crossing turns the walk onto the wrong panel. A path where one edge's end lies part way along another is rejected, because it is really two regions joined at a point; the user splits that edge (a hem drawn once under a front and a back).
 - Not done yet: Shift-click merging and the start-edge fallback.
+- **Grainline.** Either the field `grainline.angle`, drawn through the middle of the outline's extent over 60% of the piece's span that way, or two points. New pieces start at 90°. A pattern file's piece may have none.
+- **Notches.** A notch sits on a point on the seam line (within 0.05 mm) or at `notchN.position`, millimetres from an edge's own start, whichever way the path runs along it. It is computed as a 6 mm mark from the cutting line inwards, square to the edge at that place, using that edge's allowance. A point off the seam line or a position off the edge makes the piece invalid. Fields go by place in the list, so removing a notch renumbers the later ones.
+- **Object order.** A file lists inputs first, and a point can be newer than the piece that comes to use it, so taking on a point moves the piece to the end of the object list. Nothing uses a piece, so this is safe; object order is otherwise creation order.
 - `TPieceObject` is an evaluator node whose inputs are its edges, so edges cannot be deleted while a piece uses them. A gap of more than 0.01 mm between neighbouring edges makes it invalid, and it keeps its last good outline. Nothing reads a piece's properties yet, so nothing depends on a piece.
 - **Seam allowance.** The field `allowance` is the piece's width; `SetEdgeAllowance` gives one edge its own, in a field such as `edge2.allowance` that exists only while it does. Zero suits an edge on a fold; a negative width is invalid. Clipper2's offset takes one width per path, so `OffsetOutline` builds the raw offset itself, the way Clipper2 does (mitres on convex corners, through the vertex on concave ones), with a width per segment, and Clipper2's union with a positive fill removes the loops. Corners with a mitre over four times the allowance are bevelled. A dart's allowance follows the dart as drawn; shaping it for a closed dart comes with notches.
 
@@ -601,9 +605,9 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 | `curve` | `start`, `end`, `angle1`, `length1`, `angle2`, `length2`, `role` |
 | `curvePath` | `nodes[]` of `point`, `angle`, `lengthIn` (not on the first), `lengthOut` (not on the last); `role` |
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
-| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance` |
+| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`) |
 
-Seams are added to the file when they exist in the model. Grainlines, notches, labels, cut counts and fold edges join `piece` as they are built.
+Seams are added to the file when they exist in the model. Labels, cut counts and fold edges join `piece` as they are built.
 
 ## Measurements app
 
@@ -953,7 +957,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece` and `set_edge_allowance`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode; `create_piece` and `export` wait for pieces and the output layer.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch` and `remove_notch`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode; `create_piece` and `export` wait for pieces and the output layer.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -967,6 +971,8 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `set_formula`, `rename`, `delete` | Edit existing objects |
 | `create_piece` | Detect and create a piece from a position inside a region (`x`, `y`, optional `name` and `allowance`, default 10 mm) |
 | `set_edge_allowance` | Give one edge of a piece its own seam allowance, or clear it |
+| `set_grainline` | Set a piece's grainline: `angle`, `start` and `end` points, or `none` |
+| `add_notch`, `remove_notch` | Add a notch on a `point` or at an `edge` and `position`; remove one by number from 1 |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
 | `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
@@ -1011,7 +1017,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 4. JSON save/load and undo/redo commands (done)
 5. Canvas with pan/zoom and the six point operations, snap-inferred (done)
 6. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
-7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (under way: detection, seam allowance, save/load, the API and the canvas tool are done; grainlines and notches are next)
+7. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches (done for now; Shift-click merging, the start-edge fallback, piece labels, cut counts and fold edges remain)
 8. Publish app: layout files with one or more patterns, true-scale tiled PDF printing
 9. Measurements app: measurement and size table editing, Valentina/Seamly2D import; SVG export
 10. Seams and seam-length checks
