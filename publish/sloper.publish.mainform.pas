@@ -105,6 +105,7 @@ resourcestring
   rsOutput = 'Output';
   rsOutputTiled = 'Tiled pages';
   rsOutputLarge = 'Large format';
+  rsOutputProjector = 'Projector';
   rsRollWidth = 'Roll width (mm)';
   rsPaper = 'Paper';
   rsMargin = 'Margin (mm)';
@@ -284,6 +285,7 @@ begin
   // In the order of TOutputKind
   FKindBox.Items.Add(rsOutputTiled);
   FKindBox.Items.Add(rsOutputLarge);
+  FKindBox.Items.Add(rsOutputProjector);
   FKindBox.OnChange := @SettingChange;
   FRollEdit := AddSpin(rsRollWidth, MaxRollWidth, 1, 0);
   AddLabel(rsPaper);
@@ -473,9 +475,10 @@ begin
   RefreshProblems;
   RefreshTray;
   Pages := Layout.Pages(Layout.PlacedPieces, Rows, Columns);
-  if Layout.Output.Kind = okLarge then
+  if Layout.Output.Kind <> okTiled then
   begin
-    ShowStatus(Format(rsLargeSheet, [FormatFloat('0', Layout.Output.RollWidth), FormatFloat('0', LargeSheetLength(Layout, Pages[0].Area.MaxY))]));
+    ShowStatus(Format(rsLargeSheet, [FormatFloat('0', OneSheetWidth(Layout, Pages[0].Area.MaxX)),
+      FormatFloat('0', LargeSheetLength(Layout, Pages[0].Area.MaxY))]));
     Exit;
   end;
   Blank := 0;

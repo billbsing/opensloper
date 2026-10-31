@@ -43,6 +43,9 @@ type
     procedure SetLineWidth(Millimetres: double);
     // Dashes and gaps this long; 0 for a solid line
     procedure SetDash(Millimetres: double);
+    // Lines and text from here on, from 0 for black to 1 for white
+    procedure SetGray(Level: double);
+    procedure FillRectangle(const Area: TRect2);
     procedure Polyline(const Points: TVec2Array; Closed: boolean);
     procedure Line(const From, Target: TVec2);
     procedure Rectangle(const Area: TRect2);
@@ -114,6 +117,17 @@ begin
     Add('[] 0 d')
   else
     Add('[' + PointsText(Millimetres * PointsPerMM) + '] 0 d');
+end;
+
+procedure TPDFWriter.SetGray(Level: double);
+begin
+  Add(PointsText(Level) + ' G ' + PointsText(Level) + ' g');
+end;
+
+procedure TPDFWriter.FillRectangle(const Area: TRect2);
+begin
+  Add(PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * PointsPerMM) + ' ' +
+    PointsText((Area.MaxY - Area.MinY) * PointsPerMM) + ' re f');
 end;
 
 procedure TPDFWriter.Polyline(const Points: TVec2Array; Closed: boolean);

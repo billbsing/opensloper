@@ -31,8 +31,9 @@ uses
 
 // The PDF as bytes, whatever problems the layout has; callers check first
 function LayoutToPDF(Layout: TLayout): rawbytestring;
-// How long the large-format sheet comes out for pages from TLayout.Pages
-// (one page, in that kind of output)
+// The size of the one sheet of large-format or projector output, for the
+// page from TLayout.Pages
+function OneSheetWidth(Layout: TLayout; const PageWidth: double): double;
 function LargeSheetLength(Layout: TLayout; const PageHeight: double): double;
 // Refuses, listing the blocking problems in ErrorMessage, or writes the file
 function ExportLayoutPDF(Layout: TLayout; const FileName: string; out ErrorMessage: string): boolean;
@@ -42,6 +43,8 @@ resourcestring
   rsPDFCheckSquare = 'This square must measure %s. If it does not, set the calibration factors.';
   rsPDFPages = '%d pages to print, %d blank, %d left out';
   rsPDFRefused = 'The layout cannot be exported:';
+  rsPDFProjectorFit = 'Set the projector so that this square measures %s on the fabric.';
+  rsPDFProjectorZoom = 'Show at 100%, then adjust the projector, not the viewer.';
 
 implementation
 
@@ -63,6 +66,12 @@ const
   SeamDash = 2;
   OverlapDash = 1.5;
   DiamondSize = 3;
+  ProjectorCutWidth = 1.5;
+  ProjectorSeamWidth = 0.7;
+  ProjectorMarkWidth = 1;
+  ProjectorLabelSize = 28;
+  // Room for the header, when there is little or nothing below it
+  MinProjectorWidth = 130;
   // Room for the title, reminder and test square above a large sheet
   LargeHeaderHeight = 140;
 
@@ -76,12 +85,13 @@ type
     FRowCount, FColumnCount: integer;
     // Where the top left of the page's area lands on the paper
     FOrigin: TVec2;
+    FCutWidth, FSeamWidth, FMarkWidth, FLabelSize: double;
     function PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
     function PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
     procedure DrawCover;
     procedure DrawMap(Top: double);
     function DrawCheckBlock(Left, Top: double): double;
-    procedure DrawLarge;
+    procedure DrawOneSheet;
     procedure DrawTile(const Page: TTilePage);
     procedure DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
     procedure DrawDiamond(const Page: TTilePage; const Centre: TVec2);
@@ -143,7 +153,10 @@ var
   Width: string;
 begin
   FWriter.Text(Left, Top + 6, TitleSize, FLayout.Name);
-  FWriter.Text(Left, Top + 15, BodySize, rsPDFPrintFullSize);
+  if FLayout.Output.Kind = okProjector then
+    FWriter.Text(Left, Top + 15, BodySize, rsPDFProjectorZoom)
+  else
+    FWriter.Text(Left, Top + 15, BodySize, rsPDFPrintFullSize);
   if FLayout.Output.Paper = 'Letter' then
   begin
     Side := LetterTestSquareSide;
@@ -154,7 +167,10 @@ begin
     Side := TestSquareSide;
     Width := '10 cm';
   end;
-  FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFCheckSquare, [Width]));
+  if FLayout.Output.Kind = okProjector then
+    FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFProjectorFit, [Width]))
+  else
+    FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFCheckSquare, [Width]));
   Square.MinX := Left;
   Square.MinY := Top + 27;
   Square.MaxX := Square.MinX + Side * FLayout.Output.CalibrationX;
@@ -187,25 +203,37 @@ begin
 end;
 
 // One sheet: the check block across the top, then the layout, as long as it
-// needs to be
-procedure TLayoutPrinter.DrawLarge;
+// needs to be. For a projector it is light on dark, and the lines are thick
+// enough to see on fabric.
+procedure TLayoutPrinter.DrawOneSheet;
 var
-  Margin, Bottom: double;
+  Margin, Bottom, SheetWidth, SheetLength: double;
   Page: TTilePage;
-  Printable: TRect2;
+  Printable, Whole: TRect2;
   Shape: TPlacedPiece;
 begin
   Margin := FLayout.Output.Tiles.Margin;
   Page := FPages[0];
   Bottom := Margin + LargeHeaderHeight;
-  FWriter.BeginPage(FLayout.Output.RollWidth, LargeSheetLength(FLayout, Page.Area.MaxY - Page.Area.MinY));
-  FWriter.SetLineWidth(MarkLineWidth);
+  SheetWidth := OneSheetWidth(FLayout, Page.Area.MaxX - Page.Area.MinX);
+  SheetLength := LargeSheetLength(FLayout, Page.Area.MaxY - Page.Area.MinY);
+  FWriter.BeginPage(SheetWidth, SheetLength);
+  if FLayout.Output.Kind = okProjector then
+  begin
+    Whole := Default(TRect2);
+    Whole.MaxX := SheetWidth;
+    Whole.MaxY := SheetLength;
+    FWriter.SetGray(0);
+    FWriter.FillRectangle(Whole);
+    FWriter.SetGray(1);
+  end;
+  FWriter.SetLineWidth(FMarkWidth);
   DrawCheckBlock(Margin, Margin);
   FOrigin := Vec2(Margin, Bottom);
   Printable.MinX := Margin;
   Printable.MinY := Bottom;
-  Printable.MaxX := FLayout.Output.RollWidth - Margin;
-  Printable.MaxY := LargeSheetLength(FLayout, Page.Area.MaxY - Page.Area.MinY) - Margin;
+  Printable.MaxX := SheetWidth - Margin;
+  Printable.MaxY := SheetLength - Margin;
   FWriter.PushClip(Printable);
   for Shape in FShapes do
     DrawShape(Page, Shape);
@@ -218,17 +246,17 @@ var
   Spot: TVec2;
 begin
   FWriter.SetDash(0);
-  FWriter.SetLineWidth(CutLineWidth);
+  FWriter.SetLineWidth(FCutWidth);
   FWriter.Polyline(PagePoints(Page, Shape.CutLine), True);
   FWriter.SetDash(SeamDash);
-  FWriter.SetLineWidth(SeamLineWidth);
+  FWriter.SetLineWidth(FSeamWidth);
   FWriter.Polyline(PagePoints(Page, Shape.SeamLine), True);
   FWriter.SetDash(0);
-  FWriter.SetLineWidth(MarkLineWidth);
+  FWriter.SetLineWidth(FMarkWidth);
   for Mark in Shape.Marks do
     FWriter.Line(PagePoint(Page, Mark.P1), PagePoint(Page, Mark.P2));
   Spot := PagePoint(Page, Shape.LabelAt);
-  FWriter.Text(Spot.X, Spot.Y, PieceLabelSize, Shape.Caption);
+  FWriter.Text(Spot.X, Spot.Y, FLabelSize, Shape.Caption);
 end;
 
 procedure TLayoutPrinter.DrawDiamond(const Page: TTilePage; const Centre: TVec2);
@@ -300,9 +328,20 @@ var
 begin
   FShapes := FLayout.PlacedPieces;
   FPages := FLayout.Pages(FShapes, FRowCount, FColumnCount);
-  if FLayout.Output.Kind = okLarge then
+  FCutWidth := CutLineWidth;
+  FSeamWidth := SeamLineWidth;
+  FMarkWidth := MarkLineWidth;
+  FLabelSize := PieceLabelSize;
+  if FLayout.Output.Kind = okProjector then
   begin
-    DrawLarge;
+    FCutWidth := ProjectorCutWidth;
+    FSeamWidth := ProjectorSeamWidth;
+    FMarkWidth := ProjectorMarkWidth;
+    FLabelSize := ProjectorLabelSize;
+  end;
+  if FLayout.Output.Kind <> okTiled then
+  begin
+    DrawOneSheet;
     Exit;
   end;
   FOrigin := Vec2(FLayout.Output.Tiles.Margin, FLayout.Output.Tiles.Margin);
@@ -310,6 +349,14 @@ begin
   for Index := 0 to High(FPages) do
     if not FPages[Index].Blank and not FPages[Index].Excluded then
       DrawTile(FPages[Index]);
+end;
+
+function OneSheetWidth(Layout: TLayout; const PageWidth: double): double;
+begin
+  if Layout.Output.Kind = okLarge then
+    Result := Layout.Output.RollWidth
+  else
+    Result := Max(MinProjectorWidth, 2 * Layout.Output.Tiles.Margin + PageWidth * Layout.Output.CalibrationX);
 end;
 
 function LargeSheetLength(Layout: TLayout; const PageHeight: double): double;

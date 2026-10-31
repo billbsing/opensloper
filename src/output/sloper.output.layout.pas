@@ -39,8 +39,9 @@ const
 
 type
   TLayoutMarks = (lkDiamond, lkNone);
-  // okTiled prints on pages of paper; okLarge on one sheet off a roll
-  TOutputKind = (okTiled, okLarge);
+  // okTiled prints on pages of paper; okLarge on one sheet off a roll;
+  // okProjector is one dark sheet with thick light lines, shown on the fabric
+  TOutputKind = (okTiled, okLarge, okProjector);
 
   TLayoutOutput = record
     Kind: TOutputKind;
@@ -195,6 +196,7 @@ resourcestring
   rsLayoutExtraCopy = '%s: %s is cut %d times now, but copy %d is still placed';
   rsLayoutOverlap = '%s overlaps %s';
   rsLayoutOffSheet = '%s runs off the sheet';
+  rsLayoutProjectedAcross = '%s: %s lies across the fabric''s grain here. Projected as it is, it would be cut that way';
   rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
   rsLayoutBadRoll = 'The roll is too narrow for its margins';
 
@@ -209,7 +211,7 @@ const
   DefaultMargin = 6;
   DefaultOverlap = 10;
   MarksNames: array[TLayoutMarks] of string = ('diamond', 'none');
-  KindNames: array[TOutputKind] of string = ('tiled', 'large');
+  KindNames: array[TOutputKind] of string = ('tiled', 'large', 'projector');
   // 36 inches, a common copy-shop width
   DefaultRollWidth = 914;
   // New rows are this wide before wrapping, and this far apart
@@ -500,13 +502,16 @@ function ReadOutput(Item: TJSONObject; var Output: TLayoutOutput; out ErrorMessa
 var
   MarksText, KindText: string;
   Mark: TLayoutMarks;
+  Kind: TOutputKind;
   Found: boolean;
   Excluded: TJSONData;
   Index: integer;
 begin
   ErrorMessage := '';
-  if GetJSONString(Item, 'kind', KindText) and (KindText = KindNames[okLarge]) then
-    Output.Kind := okLarge;
+  if GetJSONString(Item, 'kind', KindText) then
+    for Kind := Low(TOutputKind) to High(TOutputKind) do
+      if KindText = KindNames[Kind] then
+        Output.Kind := Kind;
   ReadOptionalNumber(Item, 'rollWidth', Output.RollWidth);
   Excluded := Item.Find('excludedPages');
   if (Excluded <> nil) and (Excluded.JSONType = jtArray) then
@@ -927,13 +932,16 @@ begin
     Extent.X := Max(Extent.X, Shape.Bounds.MaxX);
     Extent.Y := Max(Extent.Y, Shape.Bounds.MaxY);
   end;
-  if Output.Kind = okLarge then
+  if Output.Kind <> okTiled then
   begin
     RowCount := 1;
     ColumnCount := 1;
     SetLength(Result, 1);
     Result[0] := Default(TTilePage);
-    Result[0].Area.MaxX := Output.RollWidth - 2 * Output.Tiles.Margin;
+    if Output.Kind = okLarge then
+      Result[0].Area.MaxX := Output.RollWidth - 2 * Output.Tiles.Margin
+    else
+      Result[0].Area.MaxX := Extent.X;
     Result[0].Area.MaxY := Extent.Y;
     Result[0].Blank := Shapes = nil;
     Exit;
@@ -1031,6 +1039,8 @@ begin
       Add(Format(rsLayoutPieceFailing, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.Message]), True);
     if (Placement.Rotation mod 90) <> 0 then
       Add(Format(rsLayoutOffGrain, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Placement.Rotation]), False);
+    if (Output.Kind = okProjector) and ((Placement.Rotation mod 180) <> 0) then
+      Add(Format(rsLayoutProjectedAcross, [ExtractFileName(Source.PatternFile), Piece.DisplayName]), False);
     if Placement.Copy > Piece.CutCount then
       Add(Format(rsLayoutExtraCopy, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.CutCount, Placement.Copy]), False);
   end;

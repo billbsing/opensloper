@@ -86,6 +86,13 @@ type
     procedure TestDocumentNewForPattern;
     procedure TestDocumentNoChangeNoStep;
     procedure TestPublishTarget;
+    procedure TestProjectorIsOneDarkSheet;
+    procedure TestProjectorSheetFitsThePieces;
+    procedure TestProjectorThickerThanPaper;
+    procedure TestProjectorRoundTrip;
+    procedure TestProjectorWarnsAcrossTheGrain;
+    procedure TestPaperHasNoBackground;
+    procedure TestPDFGray;
     procedure TestUnplacedCopies;
     procedure TestPlaceOneCopy;
     procedure TestPlaceCopyAtCentres;
@@ -1245,6 +1252,117 @@ begin
   WritePattern(1);
   FLayout.LoadSources;
   AssertTrue(ProblemText, Pos(Format(rsLayoutExtraCopy, ['front.sloper', 'Front', 1, 2]), ProblemText) > 0);
+end;
+
+procedure TTestLayout.TestProjectorIsOneDarkSheet;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern(2);
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okProjector;
+  Bytes := LayoutToPDF(FLayout);
+  AssertEquals('one sheet', 1, CountOf('/Type /Page ', Bytes));
+  AssertTrue('black fill', Pos('0 G 0 g', Bytes) > 0);
+  AssertTrue('then light lines', Pos('0 G 0 g', Bytes) < Pos('1 G 1 g', Bytes));
+  AssertTrue('test square kept', Pos(' 283.465 283.465 re S', Bytes) > 0);
+end;
+
+procedure TTestLayout.TestProjectorSheetFitsThePieces;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okProjector;
+  Bytes := LayoutToPDF(FLayout);
+  // 6 + 120 + 6 = 132 mm wide, 6 + 140 + 120 + 6 = 272 mm long, not a roll or a paper size
+  AssertTrue(Bytes, Pos('/MediaBox [0 0 374.173 771.024]', Bytes) > 0);
+end;
+
+procedure TTestLayout.TestProjectorThickerThanPaper;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okProjector;
+  Bytes := LayoutToPDF(FLayout);
+  // 1.5 mm in points
+  AssertTrue(Bytes, Pos(#10 + '4.252 w', Bytes) > 0);
+end;
+
+procedure TTestLayout.TestProjectorRoundTrip;
+var
+  Text, ErrorMessage: string;
+  Other: TLayout;
+begin
+  FLayout.Output.Kind := okProjector;
+  Text := FLayout.SaveToText;
+  Other := TLayout.Create;
+  try
+    AssertTrue(ErrorMessage, Other.LoadFromText(Text, ErrorMessage));
+    AssertTrue(Other.Output.Kind = okProjector);
+    AssertEquals('same text', Text, Other.SaveToText);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestLayout.TestProjectorWarnsAcrossTheGrain;
+var
+  Problems: TLayoutProblemArray;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Placements[0].Rotation := 90;
+  AssertEquals('fine on paper', 0, Length(FLayout.Problems));
+  FLayout.Output.Kind := okProjector;
+  Problems := FLayout.Problems;
+  AssertEquals(1, Length(Problems));
+  AssertFalse(Problems[0].Blocking);
+  AssertEquals(Format(rsLayoutProjectedAcross, ['front.sloper', 'Front']), Problems[0].Text);
+  FLayout.Placements[0].Rotation := 180;
+  AssertEquals('a half turn stays on the grain', 0, Length(FLayout.Problems));
+end;
+
+procedure TTestLayout.TestPaperHasNoBackground;
+var
+  Bytes: rawbytestring;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  AssertEquals('tiled', 0, CountOf(' re f', LayoutToPDF(FLayout)));
+  FLayout.Output.Kind := okLarge;
+  Bytes := LayoutToPDF(FLayout);
+  AssertEquals('large', 0, CountOf(' re f', Bytes));
+end;
+
+procedure TTestLayout.TestPDFGray;
+var
+  Writer: TPDFWriter;
+  Bytes: rawbytestring;
+  Area: TRect2;
+begin
+  Writer := TPDFWriter.Create;
+  try
+    Writer.BeginPage(100, 100);
+    Writer.SetGray(0.5);
+    Area := Default(TRect2);
+    Area.MaxX := 10;
+    Area.MaxY := 10;
+    Writer.FillRectangle(Area);
+    Bytes := Writer.Finish;
+  finally
+    FreeAndNil(Writer);
+  end;
+  AssertTrue(Bytes, Pos('0.5 G 0.5 g', Bytes) > 0);
+  AssertTrue(Bytes, Pos(' re f', Bytes) > 0);
 end;
 
 initialization
