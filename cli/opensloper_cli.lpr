@@ -49,6 +49,7 @@ resourcestring
   rsOptHelp = 'Show this help';
   rsOptVersion = 'Show the version';
   rsOptMeasurements = 'Measurement file (.slm); default: the one the pattern names';
+  rsOptSize = 'check, layout: the size to use from a size table; default: the first';
   rsOptJSON = 'check: print every computed value as JSON';
   rsOptOutput = 'layout, export: the file to write';
   rsArgCommand = 'Command to run';
@@ -80,7 +81,7 @@ resourcestring
 
   // Loads and evaluates the pattern, then prints its problems, or its report
   // as JSON. Returns the exit code.
-  function RunCheck(const PatternFile, MeasurementOption: string; AsJSON: boolean): integer;
+  function RunCheck(const PatternFile, MeasurementOption, SizeOption: string; AsJSON: boolean): integer;
   var
     Pattern: TPattern;
     Measurements: TMeasurementSet;
@@ -111,6 +112,11 @@ resourcestring
         if not Measurements.LoadFromFile(MeasurementPath, Err) then
         begin
           WriteLn(StdErr, Format(rsLoadFailed, [MeasurementPath, Err]));
+          Exit(ExitFailure);
+        end;
+        if (SizeOption <> '') and not Measurements.SelectSize(SizeOption) then
+        begin
+          WriteLn(StdErr, Format(rsMeasurementUnknownSize, [SizeOption]));
           Exit(ExitFailure);
         end;
         Pattern.Measurements := Measurements;
@@ -152,7 +158,7 @@ resourcestring
   end;
 
   // Starts a layout beside the pattern, with every piece placed in rows
-  function RunLayout(const PatternFile, MeasurementOption, OutputOption: string): integer;
+  function RunLayout(const PatternFile, MeasurementOption, SizeOption, OutputOption: string): integer;
   var
     Layout: TLayout;
     Target, Err: string;
@@ -165,7 +171,7 @@ resourcestring
     try
       Layout.FileName := Target;
       Layout.Name := ChangeFileExt(ExtractFileName(PatternFile), '');
-      Layout.AddSource(ExtractRelativePath(ExpandFileName(ExtractFilePath(Target)), ExpandFileName(PatternFile)), MeasurementOption, '');
+      Layout.AddSource(ExtractRelativePath(ExpandFileName(ExtractFilePath(Target)), ExpandFileName(PatternFile)), MeasurementOption, SizeOption);
       Layout.LoadSources;
       Layout.PlaceNewPieces;
       Layout.UseDefaultTitle;
@@ -258,6 +264,7 @@ begin
     Parser.AddOption('help', '-h', '--help', rsOptHelp, '', avSwitch);
     Parser.AddOption('version', '-V', '--version', rsOptVersion, '', avSwitch);
     Parser.AddOption('measurements', '-m', '--measurements', rsOptMeasurements, 'file');
+    Parser.AddOption('size', '-s', '--size', rsOptSize, 'size');
     Parser.AddOption('json', '', '--json', rsOptJSON, '', avSwitch);
     Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
@@ -303,9 +310,11 @@ begin
       Exit;
     end;
     if CommandName = 'check' then
-      ExitCode := RunCheck(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.IsOption('json'))
+      ExitCode := RunCheck(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
+        Parser.IsOption('json'))
     else if CommandName = 'layout' then
-      ExitCode := RunLayout(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('output'))
+      ExitCode := RunLayout(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
+        Parser.GetOptionValueAsString('output'))
     else
       ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'));
   finally

@@ -34,6 +34,7 @@ type
     FLayout: TLayout;
     // A 100 mm square piece "Front" (10 mm allowance) saved to a file
     procedure WritePattern(CutCount: integer = 1; Mirrored: boolean = False; const Allowance: string = '10');
+    procedure WriteSizedPattern(const Width38: string);
     procedure Prepare;
     function ProblemText: string;
     function Tiles: TTileSettings;
@@ -67,7 +68,9 @@ type
     procedure TestFailingPieceBlocks;
     procedure TestOverlapIsAWarning;
     procedure TestOffGrainIsAWarning;
-    procedure TestSizeTableBlocks;
+    procedure TestUnknownSizeBlocks;
+    procedure TestSourceUsesItsSize;
+    procedure TestNoValueForSizeBlocks;
     procedure TestPDFStructure;
     procedure TestPDFRepeats;
     procedure TestPDFPageSize;
@@ -642,7 +645,7 @@ begin
   AssertFalse(Problems[0].Blocking);
 end;
 
-procedure TTestLayout.TestSizeTableBlocks;
+procedure TTestLayout.TestUnknownSizeBlocks;
 var
   Problems: TLayoutProblemArray;
 begin
@@ -651,7 +654,67 @@ begin
   FLayout.LoadSources;
   Problems := FLayout.Problems;
   AssertTrue(Problems[0].Blocking);
-  AssertTrue(Problems[0].Text, Pos('38', Problems[0].Text) > 0);
+  AssertEquals(Format(rsLayoutSourceProblem, ['front.sloper', Format(rsMeasurementUnknownSize, ['38'])]), Problems[0].Text);
+end;
+
+// A square as wide as @width, from a table with sizes 36 and 38
+procedure TTestLayout.WriteSizedPattern(const Width38: string);
+const
+  Table = '{"format": "measurements", "version": 1, "name": "Block", "sizes": ["36", "38"], ' +
+    '"measurements": [{"key": "width", "values": [100, %s]}]}';
+var
+  Pattern: TPattern;
+  Measurements: TMeasurementSet;
+  A, B, C, D, Reason: string;
+  Path: TPiecePath;
+begin
+  Pattern := nil;
+  Measurements := TMeasurementSet.Create;
+  try
+    AssertTrue(Reason, Measurements.LoadFromText(Format(Table, [Width38]), Reason));
+    AssertTrue(Reason, Measurements.SaveToFile(ConcatPaths([FFolder, 'sizes.slm']), Reason));
+    Pattern := TPattern.Create;
+    Pattern.Measurements := Measurements;
+    A := Pattern.AddFreePoint('A', '0', '0').Key;
+    B := Pattern.AddFreePoint('B', '@width', '0').Key;
+    C := Pattern.AddFreePoint('C', '@width', '100').Key;
+    D := Pattern.AddFreePoint('D', '0', '100').Key;
+    Pattern.AddLine(A, B, erOutline);
+    Pattern.AddLine(B, C, erOutline);
+    Pattern.AddLine(C, D, erOutline);
+    Pattern.AddLine(D, A, erOutline);
+    Pattern.Evaluate;
+    AssertTrue(Reason, DetectPiecePath(Pattern, Vec2(50, 50), Path, Reason));
+    Pattern.AddPiece('Front', Path, '10');
+    AssertTrue(Reason, SavePatternToFile(Pattern, FPatternPath, Reason));
+  finally
+    FreeAndNil(Pattern);
+    FreeAndNil(Measurements);
+  end;
+end;
+
+procedure TTestLayout.TestSourceUsesItsSize;
+var
+  Shape: TPlacedPieceArray;
+begin
+  WriteSizedPattern('120');
+  FLayout.AddSource('front.sloper', 'sizes.slm', '38');
+  FLayout.LoadSources;
+  FLayout.PlaceNewPieces;
+  AssertEquals(ProblemText, 0, Length(FLayout.Problems));
+  Shape := FLayout.PlacedPieces;
+  AssertNear('120 wide, plus the allowance both sides', 140, Shape[0].Bounds.MaxX - Shape[0].Bounds.MinX);
+  AssertEquals(Format(rsLayoutSetAndSize, ['Block', '38']), FLayout.FieldValues('', '').MeasurementsName);
+end;
+
+procedure TTestLayout.TestNoValueForSizeBlocks;
+begin
+  WriteSizedPattern('null');
+  FLayout.AddSource('front.sloper', 'sizes.slm', '38');
+  FLayout.LoadSources;
+  AssertEquals('it cannot be placed', 1, Length(FLayout.Unplaced));
+  AssertFalse(FLayout.Unplaced[0].CanPlace);
+  AssertEquals('@width', Format(rsMeasurementNoSizeValue, ['width', '38']), FLayout.Sources[0].Pattern.FindNode('@width').Message);
 end;
 
 procedure TTestLayout.TestPDFStructure;

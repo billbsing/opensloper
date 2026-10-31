@@ -466,6 +466,7 @@ function TPatternDocument.ChangeMeasurement(const Key: string; Value: double; co
   out Change: TMeasurementChange; out ErrorMessage: string): boolean;
 var
   NewSet: TMeasurementSet;
+  Size: string;
 begin
   RequireNoChange;
   Change := Default(TMeasurementChange);
@@ -475,12 +476,16 @@ begin
     ErrorMessage := rsDocumentNoMeasurements;
     Exit(False);
   end;
-  if not ChangeMeasurementInFile(FMeasurementPath, Key, Value, Description, Change, ErrorMessage) then
+  Size := '';
+  if FMeasurements <> nil then
+    Size := FMeasurements.SizeName;
+  if not ChangeMeasurementInFile(FMeasurementPath, Key, Value, Description, Change, ErrorMessage, Size) then
     Exit(False);
   NewSet := TMeasurementSet.Create;
   try
     if not NewSet.LoadFromFile(FMeasurementPath, ErrorMessage) then
       Exit(False);
+    NewSet.SelectSize(Size);
     SetMeasurementSet(NewSet, FMeasurementPath);
     NewSet := nil;
   finally

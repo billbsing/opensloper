@@ -241,6 +241,7 @@ type
     constructor Create(APattern: TPattern);
     function FindNode(const Key: string): TEvalNode; override;
     function MeasurementValue(const Key: string; out Value: double): boolean; override;
+    function MeasurementProblem(const Key: string): string; override;
     function VariableValue(const Id: string; out Value: double): boolean; override;
     function PropertyValue(const ObjectId, Prop: string; out Value: double): boolean; override;
   end;
@@ -341,6 +342,14 @@ function TPatternContext.MeasurementValue(const Key: string; out Value: double):
 begin
   Value := 0;
   Result := (FPattern.Measurements <> nil) and FPattern.Measurements.TryGetValue(Key, Value);
+end;
+
+function TPatternContext.MeasurementProblem(const Key: string): string;
+begin
+  if FPattern.Measurements = nil then
+    Result := ''
+  else
+    Result := FPattern.Measurements.ValueProblem(Key);
 end;
 
 function TPatternContext.VariableValue(const Id: string; out Value: double): boolean;

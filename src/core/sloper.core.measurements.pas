@@ -16,9 +16,10 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// Measurement sets: a person's body measurements, kept in their own file
-// (.slm) so one set can drive many patterns. Patterns refer to measurements
-// by key (@waist). Values are in millimetres. No LCL dependency.
+// Measurement sets: a person's body measurements, or a table of them by size,
+// kept in their own file (.slm) so one set can drive many patterns. Patterns
+// refer to measurements by key (@waist). Values are in millimetres. No LCL
+// dependency.
 unit Sloper.Core.Measurements;
 
 {$mode ObjFPC}{$H+}
@@ -35,13 +36,31 @@ const
 type
   EMeasurementError = class(Exception);
 
+  TMeasurementSet = class;
+
+  TMeasurementCell = record
+    Value: double;       // mm
+    Present: boolean;
+  end;
+
   TMeasurement = class
   private
     FKey: string;
+    FOwner: TMeasurementSet;
+    // One per size; a personal set has just the one, always present
+    FCells: array of TMeasurementCell;
+    function GetValue: double;
+    procedure SetValue(AValue: double);
   public
-    Value: double;       // mm
     Description: string;
+    // For the set's selected size; a size with no value reads as 0
+    function HasValue: boolean;
+    function HasValueFor(SizeIndex: integer): boolean;
+    function ValueFor(SizeIndex: integer): double;
+    procedure SetValueFor(SizeIndex: integer; AValue: double);
+    procedure ClearValueFor(SizeIndex: integer);
     property Key: string read FKey;
+    property Value: double read GetValue write SetValue;
   end;
 
   TMeasurementList = specialize TObjectList<TMeasurement>;
@@ -52,8 +71,15 @@ type
     FItems: TMeasurementList;
     // Measurements by key in lower case, for Find
     FByKey: TMeasurementMap;
+    FSizes: TStringArray;
+    FSizeIndex: integer;
     function GetCount: integer;
     function GetItem(Index: integer): TMeasurement;
+    function GetSize(Index: integer): string;
+    function GetSizeCount: integer;
+    function GetSizeName: string;
+    function LoadSizes(Obj: TJSONObject; out ErrorMessage: string): boolean;
+    function LoadValues(Item: TJSONObject; Measurement: TMeasurement; out ErrorMessage: string): boolean;
     function ToJSON: TJSONObject;
   public
     Name: string;
@@ -71,6 +97,21 @@ type
     function Add(const Key: string; Value: double; const Description: string = ''): TMeasurement;
     procedure Rename(Measurement: TMeasurement; const NewKey: string);
     procedure Delete(Measurement: TMeasurement);
+    procedure Move(Measurement: TMeasurement; NewIndex: integer);
+    // Sizes are compared without regard to case. Values follow the selected
+    // size, the first until another is selected.
+    function IndexOfSize(const Size: string): integer;
+    function SelectSize(const Size: string): boolean;
+    function CheckSize(const Size: string; Exclude: integer; out ErrorMessage: string): boolean;
+    // The first size of a personal set takes over its values; a later size
+    // starts with none. These raise EMeasurementError for a size that fails
+    // CheckSize, and DeleteSize for the last size, since every table has one.
+    procedure AddSize(const Size: string);
+    procedure RenameSize(Index: integer; const NewSize: string);
+    procedure DeleteSize(Index: integer);
+    procedure MoveSize(Index, NewIndex: integer);
+    // Why Key has no value: not in the set, or not for the selected size
+    function ValueProblem(const Key: string): string;
     function SaveToText: string;
     // On failure the set is left empty and ErrorMessage says why
     function LoadFromText(const Text: string; out ErrorMessage: string): boolean;
@@ -78,6 +119,11 @@ type
     function LoadFromFile(const FileName: string; out ErrorMessage: string): boolean;
     property Count: integer read GetCount;
     property Items[Index: integer]: TMeasurement read GetItem; default;
+    property SizeCount: integer read GetSizeCount;
+    property Sizes[Index: integer]: string read GetSize;
+    property SizeIndex: integer read FSizeIndex;
+    // Empty for a personal set
+    property SizeName: string read GetSizeName;
   end;
 
   // One small edit to a measurement file
@@ -91,9 +137,10 @@ type
 
 // Re-reads the file, gives Key this value and description, adding it when it
 // is new, and writes the file atomically, so a change made elsewhere to any
-// other key is kept. On failure the file is left as it was.
+// other key is kept. A size table needs Size, and a personal set refuses one.
+// On failure the file is left as it was.
 function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
-  out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+  out Change: TMeasurementChange; out ErrorMessage: string; const Size: string = ''): boolean;
 // A new, empty measurement file
 function CreateMeasurementFile(const FileName: string; out ErrorMessage: string): boolean;
 
@@ -105,11 +152,59 @@ resourcestring
   rsMeasurementBadValue = 'Measurement "%s" has no valid value';
   rsMeasurementBadKey = 'Measurement key: %s';
   rsMeasurementList = 'The file has no list of measurements';
+  rsMeasurementNotInSet = '@%s is not in the measurement set';
+  rsMeasurementNoSizeValue = '@%s has no value for size %s';
+  rsMeasurementBadValues = 'Measurement "%s" needs one value for each of the %d sizes';
+  rsMeasurementBadSizes = '"sizes" must be a list of size names';
+  rsMeasurementSizeEmpty = 'A size needs a name';
+  rsMeasurementSizeTaken = 'Size "%s" is already in the table';
+  rsMeasurementLastSize = 'A size table needs at least one size';
+  rsMeasurementNeedsSize = 'This is a size table, so a size is needed';
+  rsMeasurementUnknownSize = 'Size "%s" is not in the measurement set';
 
 implementation
 
 uses
-  Sloper.Core.Names, Sloper.Core.JSON;
+  Math, Sloper.Core.Names, Sloper.Core.JSON;
+
+function TMeasurement.GetValue: double;
+begin
+  Result := ValueFor(FOwner.SizeIndex);
+end;
+
+procedure TMeasurement.SetValue(AValue: double);
+begin
+  SetValueFor(FOwner.SizeIndex, AValue);
+end;
+
+function TMeasurement.HasValue: boolean;
+begin
+  Result := HasValueFor(FOwner.SizeIndex);
+end;
+
+function TMeasurement.HasValueFor(SizeIndex: integer): boolean;
+begin
+  Result := FCells[SizeIndex].Present;
+end;
+
+function TMeasurement.ValueFor(SizeIndex: integer): double;
+begin
+  if FCells[SizeIndex].Present then
+    Result := FCells[SizeIndex].Value
+  else
+    Result := 0;
+end;
+
+procedure TMeasurement.SetValueFor(SizeIndex: integer; AValue: double);
+begin
+  FCells[SizeIndex].Value := AValue;
+  FCells[SizeIndex].Present := True;
+end;
+
+procedure TMeasurement.ClearValueFor(SizeIndex: integer);
+begin
+  FCells[SizeIndex].Present := False;
+end;
 
 constructor TMeasurementSet.Create;
 begin
@@ -129,6 +224,8 @@ procedure TMeasurementSet.Clear;
 begin
   FByKey.Clear;
   FItems.Clear;
+  FSizes := nil;
+  FSizeIndex := 0;
   Name := '';
   Notes := '';
 end;
@@ -141,6 +238,24 @@ end;
 function TMeasurementSet.GetItem(Index: integer): TMeasurement;
 begin
   Result := FItems[Index];
+end;
+
+function TMeasurementSet.GetSize(Index: integer): string;
+begin
+  Result := FSizes[Index];
+end;
+
+function TMeasurementSet.GetSizeCount: integer;
+begin
+  Result := Length(FSizes);
+end;
+
+function TMeasurementSet.GetSizeName: string;
+begin
+  if FSizes = nil then
+    Result := ''
+  else
+    Result := FSizes[FSizeIndex];
 end;
 
 function TMeasurementSet.IndexOf(const Key: string): integer;
@@ -167,11 +282,10 @@ var
   Measurement: TMeasurement;
 begin
   Measurement := Find(Key);
-  Result := Measurement <> nil;
+  Value := 0;
+  Result := (Measurement <> nil) and Measurement.HasValue;
   if Result then
-    Value := Measurement.Value
-  else
-    Value := 0;
+    Value := Measurement.Value;
 end;
 
 function TMeasurementSet.CheckKey(const Key: string; Exclude: TMeasurement;
@@ -199,6 +313,8 @@ begin
     raise EMeasurementError.Create(Msg);
   Result := TMeasurement.Create;
   Result.FKey := Key;
+  Result.FOwner := Self;
+  SetLength(Result.FCells, Max(SizeCount, 1));
   Result.Value := Value;
   Result.Description := Description;
   FItems.Add(Result);
@@ -226,11 +342,123 @@ begin
   end;
 end;
 
+procedure TMeasurementSet.Move(Measurement: TMeasurement; NewIndex: integer);
+begin
+  FItems.Move(FItems.IndexOf(Measurement), NewIndex);
+end;
+
+function TMeasurementSet.IndexOfSize(const Size: string): integer;
+begin
+  for Result := 0 to High(FSizes) do
+    if SameText(FSizes[Result], Size) then
+      Exit;
+  Result := -1;
+end;
+
+function TMeasurementSet.SelectSize(const Size: string): boolean;
+var
+  Index: integer;
+begin
+  Index := IndexOfSize(Size);
+  Result := Index >= 0;
+  if Result then
+    FSizeIndex := Index;
+end;
+
+function TMeasurementSet.CheckSize(const Size: string; Exclude: integer; out ErrorMessage: string): boolean;
+var
+  Existing: integer;
+begin
+  ErrorMessage := '';
+  if Trim(Size) = '' then
+  begin
+    ErrorMessage := rsMeasurementSizeEmpty;
+    Exit(False);
+  end;
+  Existing := IndexOfSize(Size);
+  if (Existing >= 0) and (Existing <> Exclude) then
+  begin
+    ErrorMessage := Format(rsMeasurementSizeTaken, [Size]);
+    Exit(False);
+  end;
+  Result := True;
+end;
+
+procedure TMeasurementSet.AddSize(const Size: string);
+var
+  Msg: string;
+  Index: integer;
+begin
+  if not CheckSize(Size, -1, Msg) then
+    raise EMeasurementError.Create(Msg);
+  if FSizes <> nil then
+    for Index := 0 to Count - 1 do
+      SetLength(Items[Index].FCells, Length(Items[Index].FCells) + 1);
+  SetLength(FSizes, Length(FSizes) + 1);
+  FSizes[High(FSizes)] := Size;
+end;
+
+procedure TMeasurementSet.RenameSize(Index: integer; const NewSize: string);
+var
+  Msg: string;
+begin
+  if not CheckSize(NewSize, Index, Msg) then
+    raise EMeasurementError.Create(Msg);
+  FSizes[Index] := NewSize;
+end;
+
+procedure TMeasurementSet.DeleteSize(Index: integer);
+var
+  ItemIndex: integer;
+begin
+  if SizeCount = 1 then
+    raise EMeasurementError.Create(rsMeasurementLastSize);
+  for ItemIndex := 0 to Count - 1 do
+    System.Delete(Items[ItemIndex].FCells, Index, 1);
+  System.Delete(FSizes, Index, 1);
+  if FSizeIndex > Index then
+    Dec(FSizeIndex)
+  else
+    FSizeIndex := Min(FSizeIndex, High(FSizes));
+end;
+
+procedure TMeasurementSet.MoveSize(Index, NewIndex: integer);
+var
+  ItemIndex: integer;
+  Selected, Moved: string;
+  Cell: TMeasurementCell;
+begin
+  Selected := SizeName;
+  Moved := FSizes[Index];
+  System.Delete(FSizes, Index, 1);
+  System.Insert(Moved, FSizes, NewIndex);
+  for ItemIndex := 0 to Count - 1 do
+  begin
+    Cell := Items[ItemIndex].FCells[Index];
+    System.Delete(Items[ItemIndex].FCells, Index, 1);
+    System.Insert(Cell, Items[ItemIndex].FCells, NewIndex);
+  end;
+  SelectSize(Selected);
+end;
+
+function TMeasurementSet.ValueProblem(const Key: string): string;
+var
+  Measurement: TMeasurement;
+begin
+  Measurement := Find(Key);
+  if Measurement = nil then
+    Result := Format(rsMeasurementNotInSet, [Key])
+  else if Measurement.HasValue then
+    Result := ''
+  else
+    Result := Format(rsMeasurementNoSizeValue, [Measurement.Key, SizeName]);
+end;
+
 function TMeasurementSet.ToJSON: TJSONObject;
 var
-  List: TJSONArray;
+  List, Values: TJSONArray;
   Item: TJSONObject;
-  Index: integer;
+  Index, SizeNumber: integer;
 begin
   Result := TJSONObject.Create;
   try
@@ -239,6 +467,13 @@ begin
     Result.Add('units', 'mm');
     Result.Add('name', Name);
     Result.Add('notes', Notes);
+    if FSizes <> nil then
+    begin
+      List := TJSONArray.Create;
+      Result.Add('sizes', List);
+      for SizeNumber := 0 to High(FSizes) do
+        List.Add(FSizes[SizeNumber]);
+    end;
     List := TJSONArray.Create;
     Result.Add('measurements', List);
     for Index := 0 to Count - 1 do
@@ -246,7 +481,18 @@ begin
       Item := TJSONObject.Create;
       List.Add(Item);
       Item.Add('key', Items[Index].Key);
-      Item.Add('value', JSONFloat(Items[Index].Value));
+      if FSizes = nil then
+        Item.Add('value', JSONFloat(Items[Index].Value))
+      else
+      begin
+        Values := TJSONArray.Create;
+        Item.Add('values', Values);
+        for SizeNumber := 0 to High(FSizes) do
+          if Items[Index].HasValueFor(SizeNumber) then
+            Values.Add(JSONFloat(Items[Index].ValueFor(SizeNumber)))
+          else
+            Values.Add(TJSONNull.Create);
+      end;
       Item.Add('description', Items[Index].Description);
     end;
   except
@@ -267,14 +513,76 @@ begin
   end;
 end;
 
+function TMeasurementSet.LoadSizes(Obj: TJSONObject; out ErrorMessage: string): boolean;
+var
+  List: TJSONData;
+  Index: integer;
+begin
+  ErrorMessage := '';
+  List := Obj.Find('sizes');
+  if List = nil then
+    Exit(True);
+  if List.JSONType <> jtArray then
+  begin
+    ErrorMessage := rsMeasurementBadSizes;
+    Exit(False);
+  end;
+  for Index := 0 to List.Count - 1 do
+  begin
+    if List.Items[Index].JSONType <> jtString then
+    begin
+      ErrorMessage := rsMeasurementBadSizes;
+      Exit(False);
+    end;
+    if not CheckSize(List.Items[Index].AsString, -1, ErrorMessage) then
+      Exit(False);
+    AddSize(List.Items[Index].AsString);
+  end;
+  Result := True;
+end;
+
+function TMeasurementSet.LoadValues(Item: TJSONObject; Measurement: TMeasurement; out ErrorMessage: string): boolean;
+var
+  List: TJSONData;
+  Value: double;
+  Index: integer;
+begin
+  ErrorMessage := '';
+  if FSizes = nil then
+  begin
+    Result := GetJSONNumber(Item, 'value', Value);
+    if Result then
+      Measurement.Value := Value
+    else
+      ErrorMessage := Format(rsMeasurementBadValue, [Measurement.Key]);
+    Exit;
+  end;
+  List := Item.Find('values');
+  if (List = nil) or (List.JSONType <> jtArray) or (List.Count <> SizeCount) then
+  begin
+    ErrorMessage := Format(rsMeasurementBadValues, [Measurement.Key, SizeCount]);
+    Exit(False);
+  end;
+  for Index := 0 to SizeCount - 1 do
+    case List.Items[Index].JSONType of
+      jtNumber: Measurement.SetValueFor(Index, List.Items[Index].AsFloat);
+      jtNull: Measurement.ClearValueFor(Index);
+      else
+      begin
+        ErrorMessage := Format(rsMeasurementBadValue, [Measurement.Key]);
+        Exit(False);
+      end;
+    end;
+  Result := True;
+end;
+
 function TMeasurementSet.LoadFromText(const Text: string; out ErrorMessage: string): boolean;
 var
   Obj, Item: TJSONObject;
   List: TJSONData;
   TextValue, Key, Desc: string;
   Version, Index: integer;
-  Value: double;
-  KeyError: string;
+  KeyError, ValueError: string;
 
   function Fail(const Msg: string): boolean;
   begin
@@ -298,6 +606,8 @@ begin
       Exit(Fail(Format(rsMeasurementUnits, [TextValue])));
     GetJSONString(Obj, 'name', Name);
     GetJSONString(Obj, 'notes', Notes);
+    if not LoadSizes(Obj, ValueError) then
+      Exit(Fail(ValueError));
     List := Obj.Find('measurements');
     if (List = nil) or (List.JSONType <> jtArray) then
       Exit(Fail(rsMeasurementList));
@@ -310,10 +620,10 @@ begin
         Exit(Fail(Format(rsMeasurementMissing, ['key'])));
       if not CheckKey(Key, nil, KeyError) then
         Exit(Fail(Format(rsMeasurementBadKey, [KeyError])));
-      if not GetJSONNumber(Item, 'value', Value) then
-        Exit(Fail(Format(rsMeasurementBadValue, [Key])));
+      Desc := '';
       GetJSONString(Item, 'description', Desc);
-      Add(Key, Value, Desc);
+      if not LoadValues(Item, Add(Key, 0, Desc), ValueError) then
+        Exit(Fail(ValueError));
     end;
     Result := True;
   finally
@@ -337,7 +647,7 @@ begin
 end;
 
 function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
-  out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+  out Change: TMeasurementChange; out ErrorMessage: string; const Size: string): boolean;
 var
   MeasurementSet: TMeasurementSet;
   Existing: TMeasurement;
@@ -348,6 +658,16 @@ begin
   try
     if not MeasurementSet.LoadFromFile(FileName, ErrorMessage) then
       Exit;
+    if (MeasurementSet.SizeCount > 0) and (Size = '') then
+    begin
+      ErrorMessage := rsMeasurementNeedsSize;
+      Exit;
+    end;
+    if (Size <> '') and not MeasurementSet.SelectSize(Size) then
+    begin
+      ErrorMessage := Format(rsMeasurementUnknownSize, [Size]);
+      Exit;
+    end;
     Existing := MeasurementSet.Find(Key);
     if Existing = nil then
     begin

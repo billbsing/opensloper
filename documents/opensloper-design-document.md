@@ -723,6 +723,8 @@ Measurement files are edited in a third application, `opensloper-measurements`, 
 }
 ```
 
+A size with no value is `null` in `values`. Each measurement holds one value per size, and a personal set is the same with a single value, so everything reads `Value`, which follows the selected size: the first until another is chosen. A table always keeps at least one size. The first size added to a personal set takes over its values; each later size starts empty.
+
 **One unit is the central control.** All reading, writing and editing of measurement files goes through `Sloper.Core.Measurements` in the core, used by all three apps and the CLI, so key rules, units and formatting are the same everywhere. A long-running service that the apps connect to was considered and rejected: it would add process management, sockets on every platform and crash handling, for a problem that a careful write and a merge by key already solve.
 
 **No measurement set needed to draft.** To keep the drafting app easy to start with, it works with no measurement set: a pattern can be drafted with plain numbers and `#` variables, and `measurementFile` stays empty. Only formulas that use a `@key` show the missing-key error, and adding a key from that error first offers to create a new measurement file for the pattern.
@@ -806,7 +808,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Commands.** `opensloper-cli layout PATTERN` starts a layout beside the pattern with every copy placed; `opensloper-cli export LAYOUT` writes the PDF, refusing with the list of blocking problems. `-o` names the file written.
 - **Layout space** is millimetres from the top left, y down. A placement gives the top left of the piece's cutting line after any rotation and flip (flip first), so it stays put when the piece grows.
 - **New pieces** are placed in plain rows up to 1 m wide, 10 mm apart. This is a starting point, not packing. Even-numbered copies of a mirrored piece start flipped.
-- **Problems.** A missing or unreadable file, a deleted piece, a failing piece and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, a pattern with no pieces, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. Size tables are not in the model yet, so a source with a `size` blocks for now.
+- **Problems.** A missing or unreadable file, a deleted piece, a failing piece and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, a pattern with no pieces, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. A source's `size` must be in its measurement file; with none given, a size table uses its first size. The title block names the size.
 - **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration scales everything drawn at true size, including the test square.
 - **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Opening it out to a whole piece can be an output option later.
 - **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font.
@@ -1162,7 +1164,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-10. Measurements app: measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
+10. Measurements app (under way: size tables are in the core, layouts and `opensloper-cli --size`; the app, and choosing a size in the drafting app, remain): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
 11. Seams and seam-length checks
 12. DXF-AAMA export, automatic packing in the publish app
 13. Blender export for 3D preview

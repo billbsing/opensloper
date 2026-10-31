@@ -244,7 +244,7 @@ resourcestring
   rsLayoutNoPrintArea = 'The margin and overlap leave nothing to print on';
   rsLayoutBadCalibration = 'Calibration factors must be above zero';
   rsLayoutNoFile = 'File not found: %s';
-  rsLayoutSizeTable = 'Size tables are not supported yet, so size "%s" cannot be used';
+  rsLayoutSetAndSize = '%s, size %s';
   rsLayoutSourceProblem = '%s: %s';
   rsLayoutPieceGone = '%s: piece %s no longer exists';
   rsLayoutPieceFailing = '%s: %s cannot be printed: %s';
@@ -488,6 +488,8 @@ begin
       SetName := Source.Measurements.Name;
     if SetName = '' then
       SetName := ChangeFileExt(ExtractFileName(Source.MeasurementPath), '');
+    if (Source.Measurements <> nil) and (Source.Measurements.SizeName <> '') then
+      SetName := Format(rsLayoutSetAndSize, [SetName, Source.Measurements.SizeName]);
     if (SetName <> '') and (Pos(SetName, Result.MeasurementsName) = 0) then
     begin
       if Result.MeasurementsName <> '' then
@@ -574,11 +576,6 @@ begin
     Source.LoadError := Err;
     Exit;
   end;
-  if Source.Size <> '' then
-  begin
-    Source.LoadError := Format(rsLayoutSizeTable, [Source.Size]);
-    Exit;
-  end;
   Source.MeasurementPath := ResolvePath(Source.MeasurementFile);
   if Source.MeasurementPath = '' then
     Source.MeasurementPath := MeasurementFilePath(Source.Pattern, Source.PatternPath);
@@ -596,6 +593,11 @@ begin
       Exit;
     end;
     Source.Pattern.Measurements := Source.Measurements;
+  end;
+  if (Source.Size <> '') and not Source.Measurements.SelectSize(Source.Size) then
+  begin
+    Source.LoadError := Format(rsMeasurementUnknownSize, [Source.Size]);
+    Exit;
   end;
   Source.Pattern.Evaluate;
 end;

@@ -56,13 +56,10 @@ type
     property Value: double read FValue;
   end;
 
-resourcestring
-  rsMeasurementNotInSet = '@%s is not in the measurement set';
-
 implementation
 
 uses
-  SysUtils;
+  SysUtils, Sloper.Core.Measurements;
 
   { TVariable }
 
@@ -102,10 +99,16 @@ end;
 function TMeasurementNode.Compute(Context: TEvalContext): TEvalState;
 var
   NewValue: double;
+  Problem: string;
 begin
   // Key is '@waist'; the context looks up 'waist' in the measurement set
   if not Context.MeasurementValue(Copy(Key, 2, MaxInt), NewValue) then
-    Exit(Fail(esError, Format(rsMeasurementNotInSet, [Copy(Key, 2, MaxInt)])));
+  begin
+    Problem := Context.MeasurementProblem(Copy(Key, 2, MaxInt));
+    if Problem = '' then
+      Problem := Format(rsMeasurementNotInSet, [Copy(Key, 2, MaxInt)]);
+    Exit(Fail(esError, Problem));
+  end;
   FValue := NewValue;
   Result := esValid;
 end;

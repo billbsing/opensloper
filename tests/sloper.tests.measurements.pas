@@ -30,6 +30,7 @@ type
   private
     FSet: TMeasurementSet;
     procedure AssertLoadFails(const Text, Msg: string);
+    procedure LoadTable;
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -53,12 +54,30 @@ type
     procedure TestLoadErrors;
     procedure TestFailedLoadLeavesSetEmpty;
     procedure TestMissingFile;
+    procedure TestSizeTable;
+    procedure TestSizeTableRoundTrip;
+    procedure TestPersonalSetHasNoSizes;
+    procedure TestBadSizeTables;
+    procedure TestNoValueForSize;
+    procedure TestNoValueBlocksFormulas;
+    procedure TestFirstSizeKeepsValues;
+    procedure TestAddSizeStartsEmpty;
+    procedure TestAddToATable;
+    procedure TestSizeNames;
+    procedure TestRenameSize;
+    procedure TestDeleteSize;
+    procedure TestDeleteLastSizeRefused;
+    procedure TestMoveSize;
+    procedure TestMoveMeasurement;
+    procedure TestChangeOneSize;
+    procedure TestChangeNeedsASize;
+    procedure TestChangeAddsToOneSize;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.Names;
+  SysUtils, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.Pattern, Sloper.Core.Draft;
 
 const
   SampleText =
@@ -82,6 +101,41 @@ const
     '  ]'#10 +
     '}'#10;
 
+const
+  TableText =
+    '{'#10 +
+    '  "format": "measurements",'#10 +
+    '  "version": 1,'#10 +
+    '  "units": "mm",'#10 +
+    '  "name": "Block",'#10 +
+    '  "notes": "",'#10 +
+    '  "sizes": ['#10 +
+    '    "36",'#10 +
+    '    "38",'#10 +
+    '    "40"'#10 +
+    '  ],'#10 +
+    '  "measurements": ['#10 +
+    '    {'#10 +
+    '      "key": "waist",'#10 +
+    '      "values": ['#10 +
+    '        700,'#10 +
+    '        740.5,'#10 +
+    '        780'#10 +
+    '      ],'#10 +
+    '      "description": "Waist"'#10 +
+    '    },'#10 +
+    '    {'#10 +
+    '      "key": "hip",'#10 +
+    '      "values": ['#10 +
+    '        900,'#10 +
+    '        null,'#10 +
+    '        980'#10 +
+    '      ],'#10 +
+    '      "description": ""'#10 +
+    '    }'#10 +
+    '  ]'#10 +
+    '}'#10;
+
 procedure TTestMeasurements.SetUp;
 begin
   FSet := TMeasurementSet.Create;
@@ -98,6 +152,262 @@ var
 begin
   AssertFalse(Msg + ' loads', FSet.LoadFromText(Text, Err));
   AssertEquals(Msg, Msg, Err);
+end;
+
+procedure TTestMeasurements.LoadTable;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FSet.LoadFromText(TableText, Err));
+end;
+
+procedure TTestMeasurements.TestSizeTable;
+begin
+  LoadTable;
+  AssertEquals(3, FSet.SizeCount);
+  AssertEquals('the first until another is selected', '36', FSet.SizeName);
+  AssertNear('value', 700, FSet.Find('waist').Value);
+  AssertTrue(FSet.SelectSize('38'));
+  AssertEquals(1, FSet.SizeIndex);
+  AssertNear('value', 740.5, FSet.Find('waist').Value);
+  AssertFalse('unknown', FSet.SelectSize('42'));
+  AssertEquals('stays where it was', '38', FSet.SizeName);
+end;
+
+procedure TTestMeasurements.TestSizeTableRoundTrip;
+begin
+  LoadTable;
+  AssertEquals(TableText, FSet.SaveToText);
+end;
+
+procedure TTestMeasurements.TestPersonalSetHasNoSizes;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FSet.LoadFromText(SampleText, Err));
+  AssertEquals(0, FSet.SizeCount);
+  AssertEquals('', FSet.SizeName);
+  AssertTrue(FSet.Find('waist').HasValue);
+  AssertEquals(SampleText, FSet.SaveToText);
+end;
+
+procedure TTestMeasurements.TestBadSizeTables;
+const
+  Head = '{"format": "measurements", "version": 1, ';
+begin
+  AssertLoadFails(Head + '"sizes": 3, "measurements": []}', rsMeasurementBadSizes);
+  AssertLoadFails(Head + '"sizes": [36], "measurements": []}', rsMeasurementBadSizes);
+  AssertLoadFails(Head + '"sizes": [" "], "measurements": []}', rsMeasurementSizeEmpty);
+  AssertLoadFails(Head + '"sizes": ["S", "s"], "measurements": []}', Format(rsMeasurementSizeTaken, ['s']));
+  AssertLoadFails(Head + '"sizes": ["36", "38"], "measurements": [{"key": "a", "values": [1]}]}',
+    Format(rsMeasurementBadValues, ['a', 2]));
+  AssertLoadFails(Head + '"sizes": ["36"], "measurements": [{"key": "a", "value": 1}]}',
+    Format(rsMeasurementBadValues, ['a', 1]));
+  AssertLoadFails(Head + '"sizes": ["36"], "measurements": [{"key": "a", "values": ["1"]}]}',
+    Format(rsMeasurementBadValue, ['a']));
+end;
+
+procedure TTestMeasurements.TestNoValueForSize;
+var
+  Value: double;
+begin
+  LoadTable;
+  FSet.SelectSize('38');
+  AssertFalse(FSet.Find('hip').HasValue);
+  AssertFalse(FSet.TryGetValue('hip', Value));
+  AssertEquals(Format(rsMeasurementNoSizeValue, ['hip', '38']), FSet.ValueProblem('hip'));
+  AssertEquals(Format(rsMeasurementNotInSet, ['chest']), FSet.ValueProblem('chest'));
+  AssertEquals('', FSet.ValueProblem('waist'));
+  FSet.SelectSize('40');
+  AssertNear('value', 980, FSet.Find('hip').Value);
+end;
+
+procedure TTestMeasurements.TestNoValueBlocksFormulas;
+var
+  Pattern: TPattern;
+  Point: TDraftObject;
+begin
+  LoadTable;
+  FSet.SelectSize('38');
+  Pattern := TPattern.Create;
+  try
+    Pattern.Measurements := FSet;
+    Point := Pattern.AddFreePoint('A', '@hip', '0');
+    Pattern.Evaluate;
+    AssertEquals('one error, on the measurement', Format(rsMeasurementNoSizeValue, ['hip', '38']), Pattern.FindNode('@hip').Message);
+    AssertTrue('what reads it is blocked', Point.State = esBlocked);
+    FSet.SelectSize('36');
+    Pattern.Evaluate;
+    AssertTrue('valid at a size with a value', Point.State = esValid);
+    Pattern.Measurements := nil;
+  finally
+    FreeAndNil(Pattern);
+  end;
+end;
+
+procedure TTestMeasurements.TestFirstSizeKeepsValues;
+begin
+  FSet.Add('waist', 820);
+  FSet.AddSize('M');
+  AssertEquals('M', FSet.SizeName);
+  AssertNear('value', 820, FSet.Find('waist').Value);
+end;
+
+procedure TTestMeasurements.TestAddSizeStartsEmpty;
+begin
+  LoadTable;
+  FSet.AddSize('42');
+  AssertEquals(4, FSet.SizeCount);
+  AssertFalse(FSet.Find('waist').HasValueFor(3));
+  AssertEquals('the selection stays', '36', FSet.SizeName);
+  AssertNear('value', 780, FSet.Find('waist').ValueFor(2));
+end;
+
+procedure TTestMeasurements.TestAddToATable;
+var
+  Measurement: TMeasurement;
+begin
+  LoadTable;
+  FSet.SelectSize('38');
+  Measurement := FSet.Add('chest', 880);
+  AssertTrue('the selected size', Measurement.HasValueFor(1));
+  AssertFalse(Measurement.HasValueFor(0));
+  AssertFalse(Measurement.HasValueFor(2));
+end;
+
+procedure TTestMeasurements.TestSizeNames;
+var
+  Err: string;
+begin
+  LoadTable;
+  AssertFalse(FSet.CheckSize('', -1, Err));
+  AssertEquals(rsMeasurementSizeEmpty, Err);
+  AssertFalse(FSet.CheckSize('38', -1, Err));
+  AssertEquals(Format(rsMeasurementSizeTaken, ['38']), Err);
+  AssertTrue('itself', FSet.CheckSize('38', 1, Err));
+  AssertTrue(FSet.CheckSize('42', -1, Err));
+end;
+
+procedure TTestMeasurements.TestRenameSize;
+begin
+  LoadTable;
+  FSet.RenameSize(0, 'S');
+  AssertEquals('S', FSet.SizeName);
+  AssertNear('value', 700, FSet.Find('waist').Value);
+  try
+    FSet.RenameSize(0, '38');
+    Fail('a taken name is refused');
+  except
+    on EMeasurementError do ;
+  end;
+end;
+
+procedure TTestMeasurements.TestDeleteSize;
+begin
+  LoadTable;
+  FSet.SelectSize('40');
+  FSet.DeleteSize(0);
+  AssertEquals(2, FSet.SizeCount);
+  AssertEquals('the selection follows its size', '40', FSet.SizeName);
+  AssertNear('value', 780, FSet.Find('waist').Value);
+  FSet.DeleteSize(1);
+  AssertEquals('the selected one goes', '38', FSet.SizeName);
+  AssertNear('value', 740.5, FSet.Find('waist').Value);
+end;
+
+procedure TTestMeasurements.TestDeleteLastSizeRefused;
+begin
+  FSet.AddSize('M');
+  try
+    FSet.DeleteSize(0);
+    Fail('a table keeps one size');
+  except
+    on Failure: EMeasurementError do
+      AssertEquals(rsMeasurementLastSize, Failure.Message);
+  end;
+end;
+
+procedure TTestMeasurements.TestMoveSize;
+begin
+  LoadTable;
+  FSet.SelectSize('36');
+  FSet.MoveSize(0, 2);
+  AssertEquals('38', FSet.Sizes[0]);
+  AssertEquals('36', FSet.Sizes[2]);
+  AssertEquals('the selection follows its size', '36', FSet.SizeName);
+  AssertNear('value', 700, FSet.Find('waist').Value);
+  AssertFalse('values move with their size', FSet.Find('hip').HasValueFor(0));
+  AssertNear('value', 980, FSet.Find('hip').ValueFor(1));
+end;
+
+procedure TTestMeasurements.TestMoveMeasurement;
+begin
+  LoadTable;
+  FSet.Move(FSet.Find('hip'), 0);
+  AssertEquals('hip', FSet[0].Key);
+  AssertEquals('waist', FSet[1].Key);
+  AssertEquals('found by key as before', 1, FSet.IndexOf('waist'));
+end;
+
+procedure TTestMeasurements.TestChangeOneSize;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    LoadTable;
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'waist', 750, '', Change, Err, '38'));
+    AssertNear('old', 740.5, Change.OldValue);
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    AssertNear('changed', 750, FSet.Find('waist').ValueFor(1));
+    AssertNear('the others stay', 700, FSet.Find('waist').ValueFor(0));
+    AssertNear('the others stay', 780, FSet.Find('waist').ValueFor(2));
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestChangeNeedsASize;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    LoadTable;
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertFalse(ChangeMeasurementInFile(FileName, 'waist', 750, '', Change, Err));
+    AssertEquals(rsMeasurementNeedsSize, Err);
+    AssertFalse(ChangeMeasurementInFile(FileName, 'waist', 750, '', Change, Err, '42'));
+    AssertEquals(Format(rsMeasurementUnknownSize, ['42']), Err);
+    FSet.Clear;
+    FSet.Add('waist', 820);
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertFalse('a personal set has no sizes', ChangeMeasurementInFile(FileName, 'waist', 750, '', Change, Err, '38'));
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestChangeAddsToOneSize;
+var
+  FileName, Err: string;
+  Change: TMeasurementChange;
+begin
+  FileName := GetTempFileName(GetTempDir, 'osm');
+  try
+    LoadTable;
+    AssertTrue(Err, FSet.SaveToFile(FileName, Err));
+    AssertTrue(Err, ChangeMeasurementInFile(FileName, 'chest', 880, '', Change, Err, '40'));
+    AssertTrue(Change.Added);
+    AssertTrue(Err, FSet.LoadFromFile(FileName, Err));
+    AssertNear('value', 880, FSet.Find('chest').ValueFor(2));
+    AssertFalse(FSet.Find('chest').HasValueFor(0));
+  finally
+    DeleteFile(FileName);
+  end;
 end;
 
 procedure TTestMeasurements.TestAddAndFind;

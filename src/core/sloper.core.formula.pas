@@ -65,6 +65,8 @@ type
   TFormulaContext = class
   public
     function MeasurementValue(const Key: string; out Value: double): boolean; virtual; abstract;
+    // Why MeasurementValue failed, when there is more to say than a missing key
+    function MeasurementProblem(const Key: string): string; virtual;
     function VariableValue(const Id: string; out Value: double): boolean; virtual; abstract;
     function PropertyValue(const ObjectId, Prop: string; out Value: double): boolean; virtual; abstract;
   end;
@@ -246,6 +248,11 @@ begin
 end;
 
 { EFormulaError }
+
+function TFormulaContext.MeasurementProblem(const Key: string): string;
+begin
+  Result := '';
+end;
 
 constructor EFormulaError.Create(const Msg: string; AToken: integer);
 begin

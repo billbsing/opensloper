@@ -369,7 +369,10 @@ begin
   LowerSearch := LowerCase(Trim(Search));
   if MeasurementSet <> nil then
     for Index := 0 to MeasurementSet.Count - 1 do
-      Add(MeasurementSet[Index].Key, FormatJSONFloat(MeasurementSet[Index].Value), MeasurementSet[Index].Description, False);
+      if MeasurementSet[Index].HasValue then
+        Add(MeasurementSet[Index].Key, FormatJSONFloat(MeasurementSet[Index].Value), MeasurementSet[Index].Description, False)
+      else
+        Add(MeasurementSet[Index].Key, '', MeasurementSet[Index].Description, False);
   for Node in Pattern.AllNodes do
     if Node is TMeasurementNode then
     begin

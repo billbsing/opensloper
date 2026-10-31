@@ -426,7 +426,10 @@ begin
         Item := TJSONObject.Create;
         List.Add(Item);
         Item.Add('key', FDocument.Measurements[Index].Key);
-        Item.Add('value', JSONFloat(FDocument.Measurements[Index].Value));
+        if FDocument.Measurements[Index].HasValue then
+          Item.Add('value', JSONFloat(FDocument.Measurements[Index].Value))
+        else
+          Item.Add('value', TJSONNull.Create);
         Item.Add('description', FDocument.Measurements[Index].Description);
       end;
     Result := Info;
