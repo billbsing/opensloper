@@ -83,6 +83,15 @@ type
     procedure TestNotchUsesEdgeAllowance;
     procedure TestPointKeepsItsNotch;
     procedure TestMarksRoundTripWithNewerPoint;
+    procedure TestCutDefaults;
+    procedure TestSetCut;
+    procedure TestCutCaption;
+    procedure TestFoldHasNoAllowance;
+    procedure TestFoldOverridesEdgeAllowance;
+    procedure TestFoldNotchAtFoldLine;
+    procedure TestFoldArrowPointsAtFold;
+    procedure TestFoldChecks;
+    procedure TestCutAndFoldRoundTrip;
     procedure TestPieceCurvedEdgeStaysAtItsAllowance;
   end;
 
@@ -800,6 +809,140 @@ begin
     AssertTrue(Piece.Message, Piece.State = esValid);
     AssertEquals('notches', 2, Length(Piece.NotchMarks));
     AssertTrue('grainline', Piece.GrainKind = gkPoints);
+  finally
+    FreeAndNil(Loaded);
+  end;
+end;
+
+procedure TTestPiece.TestCutDefaults;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertEquals(1, Piece.CutCount);
+  AssertFalse(Piece.Mirrored);
+  AssertFalse(Piece.OnFold);
+  AssertEquals('no bracket', 0, Length(Piece.FoldArrow));
+end;
+
+procedure TTestPiece.TestSetCut;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.SetCut(Piece, 2, True));
+  AssertEquals(2, Piece.CutCount);
+  AssertTrue(Piece.Mirrored);
+  AssertFalse('none is refused', FPattern.SetCut(Piece, 0, False));
+  AssertEquals('and leaves it', 2, Piece.CutCount);
+end;
+
+procedure TTestPiece.TestCutCaption;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertEquals('Front, cut 1', Piece.CutCaption);
+  AssertTrue(FPattern.SetCut(Piece, 2, True));
+  AssertEquals('Front, cut 2 mirrored', Piece.CutCaption);
+  AssertTrue(FPattern.SetCut(Piece, 1, True));
+  AssertEquals('one cannot be mirrored', 'Front, cut 1', Piece.CutCaption);
+  AssertTrue(FPattern.SetFoldEdge(Piece, Piece.Path[0].EdgeKey));
+  AssertEquals('Front, cut 1 on fold', Piece.CutCaption);
+end;
+
+procedure TTestPiece.TestFoldHasNoAllowance;
+var
+  Piece: TPieceObject;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, FPattern.FindObject('Line_D_A').Key));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertNear('nothing added at the fold', 110 * 120, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertTrue('the cut runs along the fold', HasPoint(Piece.CutLine, 0, -10));
+end;
+
+procedure TTestPiece.TestFoldOverridesEdgeAllowance;
+var
+  Piece: TPieceObject;
+  Fold: string;
+begin
+  Piece := SquarePiece('10');
+  Fold := FPattern.FindObject('Line_D_A').Key;
+  AssertTrue(FPattern.SetEdgeAllowance(Piece, Piece.PathIndexOf(Fold), '25'));
+  AssertTrue(FPattern.SetFoldEdge(Piece, Fold));
+  FPattern.Evaluate;
+  AssertNear('still none', 110 * 120, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertTrue('clearing it brings the allowance back', FPattern.SetFoldEdge(Piece, ''));
+  FPattern.Evaluate;
+  AssertNear('the override', 135 * 120, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+end;
+
+procedure TTestPiece.TestFoldNotchAtFoldLine;
+var
+  Piece: TPieceObject;
+  Fold: string;
+begin
+  Piece := SquarePiece('10');
+  Fold := FPattern.FindObject('Line_D_A').Key;
+  AssertTrue(FPattern.SetFoldEdge(Piece, Fold));
+  AssertTrue(FPattern.AddEdgeNotch(Piece, Fold, '50'));
+  FPattern.Evaluate;
+  AssertPointsNear('no allowance to cross', Vec2(0, 50), Piece.NotchMarks[0].Cut);
+end;
+
+procedure TTestPiece.TestFoldArrowPointsAtFold;
+var
+  Piece: TPieceObject;
+  Strokes: TLine2Array;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.SetFoldEdge(Piece, FPattern.FindObject('Line_D_A').Key));
+  FPattern.Evaluate;
+  Strokes := Piece.FoldArrow;
+  AssertEquals('bracket, stubs and heads', 7, Length(Strokes));
+  // The fold is x = 0, so the bracket stands inside the piece
+  AssertNear('bracket inside', 20, Strokes[0].P1.X);
+  AssertNear('stub ends on the fold', 0, Strokes[1].P2.X);
+  AssertTrue('head comes back inside', Strokes[3].P2.X > 0);
+end;
+
+procedure TTestPiece.TestFoldChecks;
+var
+  A, B: string;
+  Piece: TPieceObject;
+  Curve: TCurveObject;
+begin
+  A := Pt('', 0, 0);
+  B := Pt('', 100, 0);
+  Line(A, B);
+  Curve := FPattern.AddCurve(A, B, '90', '50', '90', '50', erOutline);
+  Piece := FPattern.AddPiece('', Detect(50, 10), '10');
+  AssertFalse('curved', FPattern.SetFoldEdge(Piece, Curve.Key));
+  AssertEquals(Format(rsPatternFoldNotStraight, [Curve.Name]), FPattern.LastError);
+  Line(B, Pt('', 200, 0));
+  AssertFalse('not in the piece', FPattern.SetFoldEdge(Piece, FPattern.Objects[FPattern.ObjectCount - 1].Key));
+end;
+
+procedure TTestPiece.TestCutAndFoldRoundTrip;
+var
+  Piece: TPieceObject;
+  Text, ErrorMessage: string;
+  Loaded: TPattern;
+begin
+  Piece := SquarePiece('10');
+  AssertTrue(FPattern.SetCut(Piece, 4, True));
+  AssertTrue(FPattern.SetFoldEdge(Piece, Piece.Path[1].EdgeKey));
+  Text := SavePatternToText(FPattern);
+  Loaded := TPattern.Create;
+  try
+    AssertTrue(ErrorMessage, LoadPatternFromText(Loaded, Text, ErrorMessage));
+    AssertEquals('same text', Text, SavePatternToText(Loaded));
+    Piece := TPieceObject(Loaded.FindObject('Front'));
+    AssertEquals(4, Piece.CutCount);
+    AssertTrue(Piece.Mirrored);
+    AssertTrue(Piece.OnFold);
   finally
     FreeAndNil(Loaded);
   end;

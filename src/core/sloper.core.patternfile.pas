@@ -108,6 +108,8 @@ type
     function CreatePiece(Item: TJSONObject): TDraftObject;
     function ReadGrainline(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
+    function ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
+    function ReadFold(Item: TJSONObject; Piece: TPieceObject): boolean;
     function LoadObject(Item: TJSONObject): boolean;
   public
     constructor Create(APattern: TPattern);
@@ -230,6 +232,18 @@ begin
   end;
 end;
 
+function SaveCut(Piece: TPieceObject): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  try
+    Result.Add('count', Piece.CutCount);
+    Result.Add('mirrored', Piece.Mirrored);
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
 function SaveNotches(Piece: TPieceObject): TJSONArray;
 var
   Index: integer;
@@ -336,6 +350,9 @@ begin
         Result.Add('grainline', SaveGrainline(TPieceObject(DraftObject)));
       if TPieceObject(DraftObject).Notches <> nil then
         Result.Add('notches', SaveNotches(TPieceObject(DraftObject)));
+      Result.Add('cut', SaveCut(TPieceObject(DraftObject)));
+      if TPieceObject(DraftObject).OnFold then
+        Result.Add('foldEdge', JSONId(TPieceObject(DraftObject).FoldEdgeKey));
     end
     else
       for Index := 0 to DraftObject.FieldCount - 1 do
@@ -649,6 +666,49 @@ begin
   Result := True;
 end;
 
+// Optional; cut once, not mirrored
+function TPatternLoader.ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
+var
+  Data: TJSONData;
+  Cut: TJSONObject;
+  Count: integer;
+  Mirrored: boolean;
+begin
+  Data := Item.Find('cut');
+  if Data = nil then
+    Exit(True);
+  if Data.JSONType <> jtObject then
+    Exit(Missing('cut'));
+  Cut := TJSONObject(Data);
+  Count := 1;
+  if (Cut.Find('count') <> nil) and not GetJSONInteger(Cut, 'count', Count) then
+    Exit(Missing('count'));
+  if Count < 1 then
+    Exit(Problem(rsPatternBadCutCount));
+  if not ReadBoolean(Cut, 'mirrored', Mirrored) then
+    Exit(False);
+  Piece.CutCount := Count;
+  Piece.Mirrored := Mirrored;
+  Result := True;
+end;
+
+// Optional
+function TPatternLoader.ReadFold(Item: TJSONObject; Piece: TPieceObject): boolean;
+var
+  Key: string;
+begin
+  if Item.Find('foldEdge') = nil then
+    Exit(True);
+  if not ReadInput(Item, 'foldEdge', True, Key) then
+    Exit(False);
+  if Piece.PathIndexOf(Key) < 0 then
+    Exit(Problem(Format(rsPatternNotInPiece, [NodeLabel(FPattern.FindNode(Key)), FId])));
+  if not IsStraightEdge(TEdgeObject(FPattern.FindNode(Key))) then
+    Exit(Problem(Format(rsPatternFoldNotStraight, [NodeLabel(FPattern.FindNode(Key))])));
+  Piece.FoldEdgeKey := Key;
+  Result := True;
+end;
+
 function TPatternLoader.CreatePiece(Item: TJSONObject): TDraftObject;
 var
   Entries: TJSONData;
@@ -707,7 +767,7 @@ begin
       Exit;
     end;
   end;
-  if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) then
+  if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) or not ReadCut(Item, Piece) or not ReadFold(Item, Piece) then
     FreeAndNil(Result);
 end;
 

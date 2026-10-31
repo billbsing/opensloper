@@ -85,6 +85,8 @@ type
     function DoSetGrainline(Params: TJSONObject): TJSONData;
     function DoAddNotch(Params: TJSONObject): TJSONData;
     function DoRemoveNotch(Params: TJSONObject): TJSONData;
+    function DoSetCut(Params: TJSONObject): TJSONData;
+    function DoSetFold(Params: TJSONObject): TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -120,6 +122,9 @@ resourcestring
   rsApiGrainline = 'Change grainline';
   rsApiAddNotch = 'Add notch';
   rsApiRemoveNotch = 'Remove notch';
+  rsApiCut = 'Change cut';
+  rsApiFold = 'Change fold';
+  rsApiBadFold = 'Give an "edge", or "none": true';
   rsApiBadGrainline = 'Give an "angle", a "start" and "end" point, or "none": true';
   rsApiBadNotch = 'Give a "point", or an "edge" and a "position"';
   rsApiBadRegion = 'A region needs minX, minY, maxX and maxY, with each max above its min';
@@ -266,6 +271,9 @@ begin
         Result.Add('perimeter', ReportFloat(TPieceObject(Node).Perimeter));
         Result.Add('path', PiecePathToJSON(TPieceObject(Node)));
         Result.Add('notches', Length(TPieceObject(Node).Notches));
+        Result.Add('cutCount', TPieceObject(Node).CutCount);
+        Result.Add('mirrored', TPieceObject(Node).Mirrored);
+        Result.Add('onFold', TPieceObject(Node).OnFold);
       end;
     Formulas := TJSONObject.Create;
     Result.Add('formulas', Formulas);
@@ -917,6 +925,45 @@ begin
   Result := AddedNode(Piece);
 end;
 
+// Either can be left out, keeping what the piece has
+function TApiServer.DoSetCut(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Count: integer;
+  Mirrored: boolean;
+begin
+  Piece := TargetPiece(Params);
+  Count := Piece.CutCount;
+  Mirrored := Piece.Mirrored;
+  if (Params.Find('count') <> nil) and not GetJSONInteger(Params, 'count', Count) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['count']));
+  if Params.Find('mirrored') <> nil then
+    Mirrored := BooleanParam(Params, 'mirrored');
+  FDocument.BeginChange(rsApiCut);
+  if not FDocument.Pattern.SetCut(Piece, Count, Mirrored) then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
+function TApiServer.DoSetFold(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Edge: string;
+begin
+  Piece := TargetPiece(Params);
+  Edge := '';
+  if not BooleanParam(Params, 'none') then
+  begin
+    if Params.Find('edge') = nil then
+      raise EApiError.Create(RpcInvalidParams, rsApiBadFold);
+    Edge := Reference(Params, 'edge');
+  end;
+  FDocument.BeginChange(rsApiFold);
+  if not FDocument.Pattern.SetFoldEdge(Piece, Edge) then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
 // An empty or missing allowance puts the edge back on the piece's own
 function TApiServer.DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
 var
@@ -962,6 +1009,8 @@ begin
     'set_grainline': Result := DoSetGrainline(Params);
     'add_notch': Result := DoAddNotch(Params);
     'remove_notch': Result := DoRemoveNotch(Params);
+    'set_cut': Result := DoSetCut(Params);
+    'set_fold': Result := DoSetFold(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;

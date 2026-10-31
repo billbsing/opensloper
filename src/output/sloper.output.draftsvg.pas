@@ -200,7 +200,7 @@ var
   PathText: string;
 begin
   PathText := '';
-  for Stroke in Piece.GrainArrow do
+  for Stroke in Concat(Piece.GrainArrow, Piece.FoldArrow) do
     PathText := PathText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
   for Mark in Piece.NotchMarks do
     PathText := PathText + 'M ' + Coord(Mark.Cut) + ' L ' + Coord(Mark.Tip) + ' ';
@@ -208,6 +208,15 @@ begin
   if PathText <> '' then
     Result := Format('<path data-id="%s" data-marks="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
       [Piece.Key, EscapeXML(Piece.DisplayName), Trim(PathText), StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
+end;
+
+function PieceLabelElement(Piece: TPieceObject; Extent: double): string;
+var
+  Middle: TVec2;
+begin
+  Middle := Piece.Middle;
+  Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
+    [Num(Middle.X), Num(-Middle.Y), Num(Extent * FontShare), StateColor(Piece.State, InkColor), EscapeXML(Piece.CutCaption)]) + #10;
 end;
 
 function PointElement(Point: TPointObject; Extent: double; Labels: boolean): string;
@@ -250,7 +259,11 @@ begin
   begin
     DraftObject := Pattern.Objects[Index];
     if (DraftObject is TPieceObject) and DraftObject.HasResult then
+    begin
       Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
+      if Options.Labels then
+        Result := Result + PieceLabelElement(TPieceObject(DraftObject), View.Extent);
+    end;
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin

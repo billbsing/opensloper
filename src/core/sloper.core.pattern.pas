@@ -144,6 +144,10 @@ type
     // A notch Position mm along an edge of the piece, from the edge's start
     function AddEdgeNotch(Piece: TPieceObject; const EdgeId, Position: string): boolean;
     function RemoveNotch(Piece: TPieceObject; Index: integer): boolean;
+    function SetCut(Piece: TPieceObject; Count: integer; Mirrored: boolean): boolean;
+    // Cuts the piece on the fold along a straight edge of it; an empty EdgeId
+    // clears the fold
+    function SetFoldEdge(Piece: TPieceObject; const EdgeId: string): boolean;
 
     // Editing returns False when refused, with the reason in LastError
     function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
@@ -202,6 +206,8 @@ resourcestring
   rsPatternNotInPiece = '%s is not part of %s';
   rsPatternGrainSamePoint = 'The grainline needs two different points';
   rsPatternNoNotch = 'There is no notch %d';
+  rsPatternBadCutCount = 'A piece must be cut at least once';
+  rsPatternFoldNotStraight = 'A fold has to be straight, and %s is not';
 
 implementation
 
@@ -979,6 +985,30 @@ begin
   Result := SetFormula(Piece, Piece.OverrideField(PathIndex), Text);
   if Added and not Result then
     Piece.RemoveOverride(PathIndex);
+end;
+
+function TPattern.SetCut(Piece: TPieceObject; Count: integer; Mirrored: boolean): boolean;
+begin
+  if Count < 1 then
+    Exit(SetError(rsPatternBadCutCount));
+  Piece.CutCount := Count;
+  Piece.Mirrored := Mirrored;
+  Result := True;
+end;
+
+function TPattern.SetFoldEdge(Piece: TPieceObject; const EdgeId: string): boolean;
+begin
+  if EdgeId <> '' then
+  begin
+    if not CheckEdgeTarget(EdgeId) then
+      Exit(False);
+    if Piece.PathIndexOf(EdgeId) < 0 then
+      Exit(SetError(Format(rsPatternNotInPiece, [FindNode(EdgeId).DisplayName, Piece.DisplayName])));
+    if not IsStraightEdge(TEdgeObject(FindNode(EdgeId))) then
+      Exit(SetError(Format(rsPatternFoldNotStraight, [FindNode(EdgeId).DisplayName])));
+  end;
+  Piece.FoldEdgeKey := EdgeId;
+  Result := True;
 end;
 
 function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boolean;

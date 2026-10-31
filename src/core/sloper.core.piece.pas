@@ -80,10 +80,17 @@ type
     FGrainline: TLine2;
     FNotches: TPieceNotchArray;
     FNotchMarks: TNotchMarkArray;
+    FCutCount: integer;
+    FMirrored: boolean;
+    FFoldEdgeKey: string;
+    FFoldLine: TLine2;
+    FFoldInwards: double;
     function BuildOutline(Context: TEvalContext; DefaultWidth: double; out Outline: TVec2Array; out Widths, EdgeWidths: TDoubleArray): TEvalState;
     function ComputeGrainline(Context: TEvalContext; const Points: TVec2Array; out Line: TLine2): TEvalState;
     function ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray; Anticlockwise: boolean;
       out Mark: TNotchMark): TEvalState;
+    procedure ComputeFold(Context: TEvalContext; Anticlockwise: boolean; out Line: TLine2; out Inwards: double);
+    function OutwardAngle(Edge: TEdgeObject; PathIndex: integer; Position: double; Anticlockwise: boolean): double;
     function LocateNotch(Context: TEvalContext; Index: integer; out PathIndex: integer; out Position: double): TEvalState;
   public
     constructor Create(const AKey: string; const APath: TPiecePath);
@@ -111,6 +118,11 @@ type
     function Middle: TVec2;
     // The grainline's shaft and the strokes of an arrowhead at each end
     function GrainArrow: TLine2Array;
+    // The fold line's bracket: a line in from the fold with an arrow down to
+    // it at each end. Empty when the piece is not cut on a fold.
+    function FoldArrow: TLine2Array;
+    // The name with how to cut it: "Front, cut 2 mirrored"
+    function CutCaption: string;
     property Path: TPiecePath read FPath;
     // Last good seam line, closed without repeating its first point
     property Outline: TVec2Array read FOutline;
@@ -124,6 +136,14 @@ type
     property Notches: TPieceNotchArray read FNotches;
     // Last good marks, one per notch
     property NotchMarks: TNotchMarkArray read FNotchMarks;
+    // How many to cut, at least 1
+    property CutCount: integer read FCutCount write FCutCount;
+    // Copies after the first are cut mirrored, as a left and a right
+    property Mirrored: boolean read FMirrored write FMirrored;
+    // The edge the piece is cut on the fold along, or '' when none. It has no
+    // seam allowance, whatever its allowance says.
+    property FoldEdgeKey: string read FFoldEdgeKey write FFoldEdgeKey;
+    function OnFold: boolean;
   end;
 
 resourcestring
@@ -134,6 +154,9 @@ resourcestring
   rsPieceGrainSamePlace = 'The grainline starts and ends at the same place';
   rsPieceNotchOffPiece = 'The notch at %s is not on the seam line';
   rsPieceNotchPastEnd = 'The notch at %s mm is off %s (%s mm long)';
+  rsPieceCaption = '%s, cut %d';
+  rsPieceCaptionMirrored = '%s, cut %d mirrored';
+  rsPieceCaptionFold = '%s, cut %d on fold';
 
 implementation
 
@@ -146,12 +169,17 @@ const
   GrainHeadLength = 10;
   GrainHeadSpread = 155;
   NotchLength = 6;
+  FoldDepth = 20;
+  FoldInset = 0.15;
+  FoldHeadLength = 8;
+  FoldHeadWidth = 25;
 
 constructor TPieceObject.Create(const AKey: string; const APath: TPiecePath);
 begin
   inherited Create(AKey);
   FPath := Copy(APath);
   AddField(PieceAllowanceField);
+  FCutCount := 1;
 end;
 
 function TPieceObject.InputKeys: TStringArray;
@@ -294,6 +322,8 @@ begin
       Exit(esError);
     if Width < 0 then
       Exit(Fail(esInvalid, rsPieceNegativeAllowance));
+    if FPath[Index].EdgeKey = FFoldEdgeKey then
+      Width := 0;
     EdgeWidths[Index] := Width;
     Points := TEdgeObject(Node).Flatten(CoarseFlatness);
     if FPath[Index].Reversed then
@@ -425,6 +455,31 @@ begin
   Result := esValid;
 end;
 
+// Outside is left of the way a clockwise path runs
+function TPieceObject.OutwardAngle(Edge: TEdgeObject; PathIndex: integer; Position: double; Anticlockwise: boolean): double;
+begin
+  Result := Edge.DirectionAt(Position);
+  if FPath[PathIndex].Reversed then
+    Result := Result + 180;
+  if Anticlockwise then
+    Result := Result - 90
+  else
+    Result := Result + 90;
+end;
+
+procedure TPieceObject.ComputeFold(Context: TEvalContext; Anticlockwise: boolean; out Line: TLine2; out Inwards: double);
+var
+  Edge: TEdgeObject;
+begin
+  Line := FFoldLine;
+  Inwards := FFoldInwards;
+  if FFoldEdgeKey = '' then
+    Exit;
+  Edge := TEdgeObject(Context.FindNode(FFoldEdgeKey));
+  Line := Line2(Edge.PointAtLength(0), Edge.PointAtLength(Edge.Length));
+  Inwards := OutwardAngle(Edge, PathIndexOf(FFoldEdgeKey), Edge.Length / 2, Anticlockwise) + 180;
+end;
+
 function TPieceObject.ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray;
   Anticlockwise: boolean; out Mark: TNotchMark): TEvalState;
 var
@@ -437,14 +492,7 @@ begin
   if Result <> esValid then
     Exit;
   Edge := TEdgeObject(Context.FindNode(FPath[PathIndex].EdgeKey));
-  Outwards := Edge.DirectionAt(Position);
-  if FPath[PathIndex].Reversed then
-    Outwards := Outwards + 180;
-  // Outside is left of the way a clockwise path runs
-  if Anticlockwise then
-    Outwards := Outwards - 90
-  else
-    Outwards := Outwards + 90;
+  Outwards := OutwardAngle(Edge, PathIndex, Position, Anticlockwise);
   Mark.Seam := Edge.PointAtLength(Position);
   Mark.Cut := PolarPoint(Mark.Seam, EdgeWidths[PathIndex], Outwards);
   Mark.Tip := PolarPoint(Mark.Cut, NotchLength, Outwards + 180);
@@ -458,6 +506,8 @@ var
   Line: TLine2;
   Marks: TNotchMarkArray;
   Index: integer;
+  FoldLine: TLine2;
+  FoldInwards: double;
 begin
   if not EvalField(Context, PieceAllowanceField, Width) then
     Exit(esError);
@@ -481,10 +531,13 @@ begin
     if Result <> esValid then
       Exit;
   end;
+  ComputeFold(Context, SignedArea(Points) > 0, FoldLine, FoldInwards);
   FOutline := Points;
   FCutLine := Cut;
   FGrainline := Line;
   FNotchMarks := Marks;
+  FFoldLine := FoldLine;
+  FFoldInwards := FoldInwards;
 end;
 
 function TPieceObject.Area: double;
@@ -502,6 +555,52 @@ end;
 function TPieceObject.Middle: TVec2;
 begin
   Result := ExtentMiddle(FOutline);
+end;
+
+function TPieceObject.OnFold: boolean;
+begin
+  Result := FFoldEdgeKey <> '';
+end;
+
+function TPieceObject.CutCaption: string;
+begin
+  if OnFold then
+    Result := Format(rsPieceCaptionFold, [DisplayName, FCutCount])
+  else if FMirrored and (FCutCount > 1) then
+    Result := Format(rsPieceCaptionMirrored, [DisplayName, FCutCount])
+  else
+    Result := Format(rsPieceCaption, [DisplayName, FCutCount]);
+end;
+
+function TPieceObject.FoldArrow: TLine2Array;
+var
+  Near1, Near2, Far1, Far2: TVec2;
+
+  procedure AddStroke(const From, Target: TVec2);
+  begin
+    SetLength(Result, Length(Result) + 1);
+    Result[High(Result)] := Line2(From, Target);
+  end;
+
+  procedure AddHead(const Tip: TVec2);
+  begin
+    AddStroke(Tip, PolarPoint(Tip, FoldHeadLength, FFoldInwards + FoldHeadWidth));
+    AddStroke(Tip, PolarPoint(Tip, FoldHeadLength, FFoldInwards - FoldHeadWidth));
+  end;
+
+begin
+  Result := nil;
+  if not OnFold then
+    Exit;
+  Near1 := FFoldLine.PointAt(FoldInset);
+  Near2 := FFoldLine.PointAt(1 - FoldInset);
+  Far1 := PolarPoint(Near1, FoldDepth, FFoldInwards);
+  Far2 := PolarPoint(Near2, FoldDepth, FFoldInwards);
+  AddStroke(Far1, Far2);
+  AddStroke(Far1, Near1);
+  AddStroke(Far2, Near2);
+  AddHead(Near1);
+  AddHead(Near2);
 end;
 
 function TPieceObject.GrainArrow: TLine2Array;

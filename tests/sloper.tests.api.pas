@@ -89,6 +89,7 @@ type
     procedure TestCreatePieceRefusals;
     procedure TestEdgeAllowance;
     procedure TestGrainlineAndNotches;
+    procedure TestCutAndFold;
     procedure TestAddVariable;
     procedure TestAddIsOneUndoStep;
     procedure TestAddRefusals;
@@ -671,6 +672,26 @@ begin
   Call('undo');
   Call('get_object', '{"name": "Front"}');
   AssertEquals('undone', 2, Answer.Get('notches', 0));
+end;
+
+procedure TTestAPI.TestCutAndFold;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
+  AssertEquals('default', 1, Answer.Get('cutCount', 0));
+  Call('set_cut', '{"name": "Front", "count": 2, "mirrored": true}');
+  AssertEquals(2, Answer.Get('cutCount', 0));
+  AssertTrue(Answer.Get('mirrored', False));
+  Call('set_cut', '{"name": "Front", "count": 3}');
+  AssertTrue('keeps mirrored', Answer.Get('mirrored', False));
+  Call('set_cut', '{"name": "Front", "count": 0}');
+  AssertEquals('refused', RpcRefused, ErrorCode);
+  Call('set_fold', '{"name": "Front", "edge": "Line_D_A"}');
+  AssertTrue(Answer.Get('onFold', False));
+  Call('set_fold', '{"name": "Front"}');
+  AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
+  Call('set_fold', '{"name": "Front", "none": true}');
+  AssertFalse(Answer.Get('onFold', True));
 end;
 
 procedure TTestAPI.TestSplitEdge;

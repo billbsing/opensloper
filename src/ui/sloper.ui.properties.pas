@@ -28,7 +28,7 @@ unit Sloper.UI.Properties;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, Forms, Graphics, LCLType, Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
+  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Piece, Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
 type
   // One line of text that cuts itself to the label's width with an ellipsis
@@ -72,6 +72,11 @@ type
     FNameEdit: TEdit;
     FDescriptionEdit: TEdit;
     FRoleBox: TComboBox;
+    FCutEdit: TSpinEdit;
+    FMirrorBox: TCheckBox;
+    FFoldBox: TComboBox;
+    // The edge of each fold choice; '' for none
+    FFoldKeys: TStringArray;
     FEdits: array of TEdit;
     // Each field's row for a refused entry, hidden until needed; see RefusalRow
     FRefusals: array of TLabel;
@@ -117,6 +122,10 @@ type
     procedure SetEditText(Edit: TEdit; const AText: string);
     function KeepsText(Edit: TEdit): boolean;
     procedure RoleChange(Sender: TObject);
+    procedure AddPieceRows(Piece: TPieceObject);
+    procedure RefreshPieceRows(Piece: TPieceObject);
+    procedure CutChange(Sender: TObject);
+    procedure FoldChange(Sender: TObject);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
   protected
@@ -144,6 +153,12 @@ resourcestring
   rsPropPosition = 'Position';
   rsPropLength = 'Length';
   rsPropPerimeter = 'Perimeter';
+  rsPropCut = 'Cut';
+  rsPropMirrored = 'Mirrored';
+  rsPropFold = 'Fold';
+  rsPropNoFold = 'None';
+  rsPropChangeCut = 'Change cut';
+  rsPropChangeFold = 'Change fold';
   rsPropValue = 'Value';
   rsPropEdit = 'Change %s';
   rsPropRename = 'Rename';
@@ -154,7 +169,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Drag, Sloper.Core.Settings,
+  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Settings,
   Sloper.UI.GridColumns, Sloper.UI.ObjectList;
 
 const
@@ -168,6 +183,7 @@ const
   NameTag = -1;
   DescriptionTag = -2;
   RefusalBase = 2;
+  MaxCutCount = 99;
 
 function SameNames(const First, Second: TStringArray): boolean;
 var
@@ -348,6 +364,10 @@ begin
   FNameEdit := nil;
   FDescriptionEdit := nil;
   FRoleBox := nil;
+  FCutEdit := nil;
+  FMirrorBox := nil;
+  FFoldBox := nil;
+  FFoldKeys := nil;
   FEdits := nil;
   FRefusals := nil;
   FResult := nil;
@@ -550,6 +570,8 @@ begin
       FRoleBox.OnChange := @RoleChange;
       AddRow(rsPropRole, FRoleBox, RowGap);
     end;
+    if Node is TPieceObject then
+      AddPieceRows(TPieceObject(Node));
     if Node is TPointObject then
       FResult := AddTextRow(rsPropPosition, '', Gap)
     else if Node is TEdgeObject then
@@ -620,6 +642,8 @@ begin
     SetEditText(FDescriptionEdit, OriginalText(FDescriptionEdit));
   if FRoleBox <> nil then
     FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
+  if Node is TPieceObject then
+    RefreshPieceRows(TPieceObject(Node));
   if FResult <> nil then
     if Node is TDraftObject then
       FResult.Caption := ResultText(TDraftObject(Node))
@@ -787,6 +811,85 @@ procedure TPropertiesPanel.EditClick(Sender: TObject);
 begin
   if FCompleter <> nil then
     FCompleter.Hide;
+end;
+
+// Only straight edges can be a fold, so only those are offered
+procedure TPropertiesPanel.AddPieceRows(Piece: TPieceObject);
+var
+  Entry: TPieceEdge;
+  Edge: TEvalNode;
+begin
+  FCutEdit := TSpinEdit.Create(Self);
+  FCutEdit.MinValue := 1;
+  FCutEdit.MaxValue := MaxCutCount;
+  FCutEdit.OnChange := @CutChange;
+  AddRow(rsPropCut, FCutEdit, RowGap);
+  FMirrorBox := TCheckBox.Create(Self);
+  FMirrorBox.OnChange := @CutChange;
+  AddRow(rsPropMirrored, FMirrorBox, RowGap);
+  FFoldBox := TComboBox.Create(Self);
+  FFoldBox.Style := csDropDownList;
+  FFoldBox.Items.Add(rsPropNoFold);
+  Insert('', FFoldKeys, 0);
+  for Entry in Piece.Path do
+  begin
+    Edge := FDocument.Pattern.FindNode(Entry.EdgeKey);
+    if IsStraightEdge(TEdgeObject(Edge)) then
+    begin
+      FFoldBox.Items.Add(Edge.DisplayName);
+      Insert(Entry.EdgeKey, FFoldKeys, Length(FFoldKeys));
+    end;
+  end;
+  FFoldBox.OnChange := @FoldChange;
+  AddRow(rsPropFold, FFoldBox, RowGap);
+end;
+
+procedure TPropertiesPanel.RefreshPieceRows(Piece: TPieceObject);
+var
+  Index: integer;
+begin
+  FCutEdit.Value := Piece.CutCount;
+  FMirrorBox.Checked := Piece.Mirrored;
+  for Index := 0 to High(FFoldKeys) do
+    if FFoldKeys[Index] = Piece.FoldEdgeKey then
+      FFoldBox.ItemIndex := Index;
+end;
+
+// Runs of spin clicks merge into one undo step
+procedure TPropertiesPanel.CutChange(Sender: TObject);
+var
+  Node: TEvalNode;
+  Piece: TPieceObject;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TPieceObject) then
+    Exit;
+  Piece := TPieceObject(Node);
+  if (Piece.CutCount = FCutEdit.Value) and (Piece.Mirrored = FMirrorBox.Checked) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeCut);
+    FDocument.Commit(FDocument.Pattern.SetCut(Piece, FCutEdit.Value, FMirrorBox.Checked), 'cut:' + FKey);
+  finally
+    FCommitting := False;
+  end;
+end;
+
+procedure TPropertiesPanel.FoldChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TPieceObject) or (TPieceObject(Node).FoldEdgeKey = FFoldKeys[FFoldBox.ItemIndex]) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeFold);
+    FDocument.Commit(FDocument.Pattern.SetFoldEdge(TPieceObject(Node), FFoldKeys[FFoldBox.ItemIndex]));
+  finally
+    FCommitting := False;
+  end;
 end;
 
 procedure TPropertiesPanel.RoleChange(Sender: TObject);

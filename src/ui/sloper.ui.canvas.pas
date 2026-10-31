@@ -1182,7 +1182,7 @@ begin
   LineColor := Faded(StateInk(Piece.State, ConstructionInk), Piece.State);
   if IsSelected(Piece.Key) then
     LineColor := SelectedInk;
-  for Stroke in Piece.GrainArrow do
+  for Stroke in Concat(Piece.GrainArrow, Piece.FoldArrow) do
   begin
     First := FView.ToScreen(Stroke.P1);
     Last := FView.ToScreen(Stroke.P2);
@@ -1350,7 +1350,10 @@ begin
       InkColor := SelectedInk
     else
       InkColor := Faded(StateInk(Node.State, Ink), Node.State);
-    FBitmap.TextOut(Screen.X, Screen.Y, Node.DisplayName, InkColor);
+    if Node is TPieceObject then
+      FBitmap.TextOut(Screen.X, Screen.Y, TPieceObject(Node).CutCaption, InkColor)
+    else
+      FBitmap.TextOut(Screen.X, Screen.Y, Node.DisplayName, InkColor);
   end;
 end;
 
