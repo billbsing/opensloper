@@ -57,6 +57,10 @@ type
     Measurements: TMeasurementSet;
     // Why the source could not be read; empty when it is ready
     LoadError: string;
+    // The files read, and their stamps when they were
+    PatternPath, MeasurementPath, LoadedStamp: string;
+    // The files' stamps now; differs from LoadedStamp once either is saved
+    function CurrentStamp: string;
     destructor Destroy; override;
     procedure Unload;
   end;
@@ -131,6 +135,9 @@ type
     property Sources: TLayoutSourceList read FSources;
   end;
 
+// What the publish app should open for a pattern: its layout, when there is
+// one beside it, otherwise the pattern itself
+function PublishTargetFor(const PatternFile: string): string;
 // The width and height of a named paper; False when the name is unknown
 function PaperSize(const AName: string; out AWidth, AHeight: double): boolean;
 
@@ -159,7 +166,7 @@ resourcestring
 implementation
 
 uses
-  Math, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
+  Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
 
 const
   DefaultPaper = 'A4';
@@ -173,6 +180,13 @@ const
   SeamFlatness = 0.05;
   // Overlaps smaller than this (in mm²) are rounding, not a problem
   OverlapArea = 1;
+
+function PublishTargetFor(const PatternFile: string): string;
+begin
+  Result := ChangeFileExt(PatternFile, LayoutExtension);
+  if not FileExists(Result) then
+    Result := PatternFile;
+end;
 
 function PaperSize(const AName: string; out AWidth, AHeight: double): boolean;
 begin
@@ -220,6 +234,22 @@ destructor TLayoutSource.Destroy;
 begin
   Unload;
   inherited Destroy;
+end;
+
+// A checksum of the contents: file times only go to the second, and these
+// files are small enough to read each time. '-' when the file cannot be read.
+function FileStamp(const Path: string): string;
+var
+  Text, Reason: string;
+begin
+  Result := '-';
+  if (Path <> '') and FileExists(Path) and ReadTextFile(Path, Text, Reason) then
+    Result := IntToStr(crc32(crc32(0, nil, 0), pbyte(PChar(Text)), Length(Text)));
+end;
+
+function TLayoutSource.CurrentStamp: string;
+begin
+  Result := FileStamp(PatternPath) + ' ' + FileStamp(MeasurementPath);
 end;
 
 // The pattern reads the measurement set, so it goes first
@@ -275,19 +305,22 @@ end;
 
 procedure TLayout.LoadSource(Source: TLayoutSource);
 var
-  PatternPath, MeasurementPath, Err: string;
+  Err: string;
 begin
   Source.Unload;
   Source.LoadError := '';
-  PatternPath := ResolvePath(Source.PatternFile);
-  if not FileExists(PatternPath) then
+  Source.PatternPath := ResolvePath(Source.PatternFile);
+  Source.MeasurementPath := '';
+  // Taken before reading, so a save during the read is not missed
+  Source.LoadedStamp := Source.CurrentStamp;
+  if not FileExists(Source.PatternPath) then
   begin
-    Source.LoadError := Format(rsLayoutNoFile, [PatternPath]);
+    Source.LoadError := Format(rsLayoutNoFile, [Source.PatternPath]);
     Exit;
   end;
   Source.Pattern := TPattern.Create;
   Source.Measurements := TMeasurementSet.Create;
-  if not LoadPatternFromFile(Source.Pattern, PatternPath, Err) then
+  if not LoadPatternFromFile(Source.Pattern, Source.PatternPath, Err) then
   begin
     Source.LoadError := Err;
     Exit;
@@ -297,17 +330,18 @@ begin
     Source.LoadError := Format(rsLayoutSizeTable, [Source.Size]);
     Exit;
   end;
-  MeasurementPath := ResolvePath(Source.MeasurementFile);
-  if MeasurementPath = '' then
-    MeasurementPath := MeasurementFilePath(Source.Pattern, PatternPath);
-  if MeasurementPath <> '' then
+  Source.MeasurementPath := ResolvePath(Source.MeasurementFile);
+  if Source.MeasurementPath = '' then
+    Source.MeasurementPath := MeasurementFilePath(Source.Pattern, Source.PatternPath);
+  Source.LoadedStamp := Source.CurrentStamp;
+  if Source.MeasurementPath <> '' then
   begin
-    if not FileExists(MeasurementPath) then
+    if not FileExists(Source.MeasurementPath) then
     begin
-      Source.LoadError := Format(rsLayoutNoFile, [MeasurementPath]);
+      Source.LoadError := Format(rsLayoutNoFile, [Source.MeasurementPath]);
       Exit;
     end;
-    if not Source.Measurements.LoadFromFile(MeasurementPath, Err) then
+    if not Source.Measurements.LoadFromFile(Source.MeasurementPath, Err) then
     begin
       Source.LoadError := Err;
       Exit;

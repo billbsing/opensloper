@@ -41,6 +41,7 @@ type
     FProblems: TListBox;
     FTurnButton, FFlipButton: TButton;
     FUndoItem, FRedoItem: TMenuItem;
+    FWatch: TTimer;
     FRefreshing: boolean;
     // Rows stack in the order their Top says, so each takes the next one
     FNextRowTop: integer;
@@ -53,6 +54,7 @@ type
     procedure DocumentChanged(Sender: TObject);
     procedure SelectionChanged(Sender: TObject);
     procedure RefreshControls;
+    procedure WatchTick(Sender: TObject);
     procedure RefreshProblems;
     procedure SettingChange(Sender: TObject);
     procedure OpenClick(Sender: TObject);
@@ -109,6 +111,7 @@ resourcestring
   rsFlipChange = 'Flip piece';
   rsDiscardQuestion = 'Discard the changes to this layout?';
   rsPages = '%d pages, %d blank';
+  rsReloaded = '%s changed on disk, so it was read again';
   rsExported = 'Wrote %s';
   rsFilterOpen = 'Layouts and patterns (*.slayout;*.sloper)|*.slayout;*.sloper';
   rsFilterLayout = 'Layouts (*.slayout)|*.slayout';
@@ -123,6 +126,7 @@ const
   SideWidth = 260;
   SideGap = 6;
   SideRowStep = 100;
+  WatchMilliseconds = 1000;
   SpinDecimals = 1;
   CalibrationDecimals = 3;
   MaxMillimetres = 100;
@@ -156,6 +160,9 @@ begin
   FPreview.OnSelectionChange := @SelectionChanged;
   BuildSide;
   RefreshControls;
+  FWatch := TTimer.Create(Self);
+  FWatch.Interval := WatchMilliseconds;
+  FWatch.OnTimer := @WatchTick;
   if (ParamCount >= 1) and FileExists(ParamStr(1)) then
     OpenPath(ParamStr(1));
 end;
@@ -283,6 +290,16 @@ end;
 procedure TPublishForm.SelectionChanged(Sender: TObject);
 begin
   RefreshControls;
+end;
+
+// Only saved files are seen; unsaved edits in the drafting app stay there
+procedure TPublishForm.WatchTick(Sender: TObject);
+var
+  Names: string;
+begin
+  Names := FDocument.CheckSources;
+  if Names <> '' then
+    ShowStatus(Format(rsReloaded, [Names]));
 end;
 
 procedure TPublishForm.RefreshProblems;

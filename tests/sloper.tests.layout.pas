@@ -84,12 +84,18 @@ type
     procedure TestDocumentModified;
     procedure TestDocumentNewForPattern;
     procedure TestDocumentNoChangeNoStep;
+    procedure TestPublishTarget;
+    procedure TestPublishProgram;
+    procedure TestWatchWaitsForAStableFile;
+    procedure TestWatchIgnoresUnchangedFiles;
+    procedure TestWatchSeesMeasurements;
+    procedure TestWatchSeesDeletedPattern;
   end;
 
 implementation
 
 uses
-  Classes, Math, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.Measurements, Sloper.Core.PatternFile, Sloper.Core.PieceDetect,
+  Classes, Math, Sloper.Core.AppPaths, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.Measurements, Sloper.Core.PatternFile, Sloper.Core.PieceDetect,
   Sloper.Output.LayoutDocument, Sloper.Output.LayoutPDF, Sloper.Output.PDFWriter, Sloper.Output.Preview;
 
 function CountOf(const Part, Text: rawbytestring): integer;
@@ -825,6 +831,120 @@ begin
     Document.BeginChange('Nothing');
     Document.EndChange;
     AssertFalse(Document.CanUndo);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestPublishTarget;
+var
+  Reason: string;
+begin
+  WritePattern;
+  AssertEquals('no layout yet', FPatternPath, PublishTargetFor(FPatternPath));
+  FLayout.AddSource('front.sloper', '', '');
+  AssertTrue(Reason, FLayout.SaveToFile(FLayout.FileName, Reason));
+  AssertEquals('its layout', FLayout.FileName, PublishTargetFor(FPatternPath));
+end;
+
+procedure TTestLayout.TestPublishProgram;
+var
+  Name: string;
+  Sub, Reason: string;
+begin
+  AssertEquals('not there', '', TAppPaths.PublishProgramIn(FFolder));
+  Name := 'opensloper-publish' {$IFDEF WINDOWS} + '.exe' {$ENDIF};
+  Sub := ConcatPaths([FFolder, 'publish']);
+  ForceDirectories(Sub);
+  try
+    AssertTrue(Reason, WriteTextFile(ConcatPaths([Sub, Name]), '', Reason));
+    AssertEquals('source tree', ConcatPaths([Sub, Name]), TAppPaths.PublishProgramIn(FFolder));
+    AssertTrue(Reason, WriteTextFile(ConcatPaths([FFolder, Name]), '', Reason));
+    AssertEquals('beside it first', ConcatPaths([FFolder, Name]), TAppPaths.PublishProgramIn(FFolder));
+  finally
+    DeleteFile(ConcatPaths([Sub, Name]));
+    RemoveDir(Sub);
+  end;
+end;
+
+procedure TTestLayout.TestWatchWaitsForAStableFile;
+var
+  Document: TLayoutDocument;
+begin
+  WritePattern;
+  Document := TLayoutDocument.Create;
+  try
+    Document.NewForPattern(FPatternPath);
+    AssertEquals('unchanged', '', Document.CheckSources);
+    WritePattern(3);
+    AssertEquals('first sight waits', '', Document.CheckSources);
+    AssertEquals('still the old one', 1, Document.Layout.Sources[0].Pattern.ObjectCount div 9);
+    AssertEquals('settled, so read', 'front.sloper', Document.CheckSources);
+    AssertEquals('new copies are unplaced', 2, Length(Document.Layout.Unplaced));
+    AssertEquals('quiet again', '', Document.CheckSources);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestWatchIgnoresUnchangedFiles;
+var
+  Document: TLayoutDocument;
+  Calls: integer;
+begin
+  WritePattern;
+  Document := TLayoutDocument.Create;
+  try
+    Document.NewForPattern(FPatternPath);
+    for Calls := 1 to 3 do
+      AssertEquals('nothing to do', '', Document.CheckSources);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestWatchSeesMeasurements;
+var
+  Document: TLayoutDocument;
+  Measurements: TMeasurementSet;
+  Reason, Path: string;
+begin
+  WritePattern;
+  Path := ConcatPaths([FFolder, 'me.slm']);
+  Measurements := TMeasurementSet.Create;
+  try
+    Measurements.Add('waist', 700);
+    AssertTrue(Reason, Measurements.SaveToFile(Path, Reason));
+    Document := TLayoutDocument.Create;
+    try
+      Document.Layout.FileName := FLayout.FileName;
+      Document.Layout.AddSource('front.sloper', 'me.slm', '');
+      Document.Reload;
+      AssertEquals('settled', '', Document.CheckSources);
+      Measurements.Add('hip', 950);
+      AssertTrue(Reason, Measurements.SaveToFile(Path, Reason));
+      Document.CheckSources;
+      AssertEquals('read again', 'front.sloper', Document.CheckSources);
+    finally
+      FreeAndNil(Document);
+    end;
+  finally
+    FreeAndNil(Measurements);
+  end;
+end;
+
+procedure TTestLayout.TestWatchSeesDeletedPattern;
+var
+  Document: TLayoutDocument;
+begin
+  WritePattern;
+  Document := TLayoutDocument.Create;
+  try
+    Document.NewForPattern(FPatternPath);
+    DeleteFile(FPatternPath);
+    Document.CheckSources;
+    Document.CheckSources;
+    AssertTrue('now a problem', Document.Layout.Problems[0].Blocking);
   finally
     FreeAndNil(Document);
   end;

@@ -35,6 +35,10 @@ type
     class function SettingsFile: string;
     // True when portable.ini sits beside the executable
     class function IsPortable: boolean;
+    // The publish app beside this program, or in publish/ below it as in a
+    // source tree. Empty when it is in neither place.
+    class function PublishProgram: string;
+    class function PublishProgramIn(const Folder: string): string;
     // Creates Dir if missing and returns it; folders are made on first use
     class function ForceDir(const Dir: string): string;
     // XDG rule: EnvValue when it is an absolute path, else Home + Fallback
@@ -49,6 +53,12 @@ uses
 const
   PortableFileName = 'portable.ini';
   SettingsFileName = 'settings.json';
+  PublishFolder = 'publish';
+  {$IFDEF WINDOWS}
+  PublishFileName = 'opensloper-publish.exe';
+  {$ELSE}
+  PublishFileName = 'opensloper-publish';
+  {$ENDIF}
 
 function HomeDir: string;
 begin
@@ -151,6 +161,21 @@ end;
 class function TAppPaths.SettingsFile: string;
 begin
   Result := ConcatPaths([ConfigDir, SettingsFileName]);
+end;
+
+class function TAppPaths.PublishProgram: string;
+begin
+  Result := PublishProgramIn(ExeDir);
+end;
+
+class function TAppPaths.PublishProgramIn(const Folder: string): string;
+begin
+  Result := ConcatPaths([Folder, PublishFileName]);
+  if FileExists(Result) then
+    Exit;
+  Result := ConcatPaths([Folder, PublishFolder, PublishFileName]);
+  if not FileExists(Result) then
+    Result := '';
 end;
 
 class function TAppPaths.IsPortable: boolean;

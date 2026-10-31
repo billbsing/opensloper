@@ -43,6 +43,7 @@ type
     MenuFileSaveAs: TMenuItem;
     MenuFileSep1: TMenuItem;
     MenuFileMeasurements: TMenuItem;
+    MenuFilePublish: TMenuItem;
     MenuFileSep2: TMenuItem;
     MenuFileQuit: TMenuItem;
     MenuEdit: TMenuItem;
@@ -70,6 +71,7 @@ type
     procedure MenuFileSaveClick(Sender: TObject);
     procedure MenuFileSaveAsClick(Sender: TObject);
     procedure MenuFileMeasurementsClick(Sender: TObject);
+    procedure MenuFilePublishClick(Sender: TObject);
     procedure MenuFileQuitClick(Sender: TObject);
     procedure MenuEditUndoClick(Sender: TObject);
     procedure MenuEditRedoClick(Sender: TObject);
@@ -138,7 +140,7 @@ var
 implementation
 
 uses
-  Math, Sloper.Core.Version, Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.PatternCheck;
+  Math, process, Sloper.Core.Version, Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Output.Layout;
 
   {$R *.lfm}
 
@@ -155,6 +157,10 @@ resourcestring
   rsMenuFileSave = '&Save';
   rsMenuFileSaveAs = 'Save &As...';
   rsMenuFileMeasurements = '&Measurements...';
+  rsMenuFilePublish = '&Publish...';
+  rsPublishSaveFirst = 'The publish app reads the saved file. Save your changes first?';
+  rsPublishMissing = 'The publish app (opensloper-publish) was not found beside this program.';
+  rsPublishFailed = 'The publish app could not be started: %s';
   rsMenuFileQuit = '&Quit';
   rsMenuEdit = '&Edit';
   rsMenuEditUndo = '&Undo';
@@ -217,6 +223,8 @@ begin
   MenuFileSaveAs.ShortCut := ShortCut(VK_S, [ssModifier, ssShift]);
   MenuFileMeasurements.Caption := rsMenuFileMeasurements;
   MenuFileMeasurements.ShortCut := ShortCut(VK_M, [ssModifier]);
+  MenuFilePublish.Caption := rsMenuFilePublish;
+  MenuFilePublish.ShortCut := ShortCut(VK_P, [ssModifier]);
   MenuFileQuit.Caption := rsMenuFileQuit;
   MenuFileQuit.ShortCut := ShortCut(VK_Q, [ssModifier]);
   MenuEdit.Caption := rsMenuEdit;
@@ -714,6 +722,47 @@ begin
     Exit;
   if not FDocument.UseMeasurements(MeasurementsDialog.FileName, Err) then
     MessageDlg(Format(rsMeasurementsFailed, [MeasurementsDialog.FileName, Err]), mtError, [mbOK], 0);
+end;
+
+// The publish app reads saved files, so an unsaved pattern has to be saved,
+// and a modified one is offered the choice
+procedure TMainForm.MenuFilePublishClick(Sender: TObject);
+var
+  ProgramFile: string;
+  Process: TProcess;
+begin
+  ProgramFile := TAppPaths.PublishProgram;
+  if ProgramFile = '' then
+  begin
+    MessageDlg(rsPublishMissing, mtError, [mbOK], 0);
+    Exit;
+  end;
+  if FDocument.FileName = '' then
+  begin
+    if not Save then
+      Exit;
+  end
+  else if FDocument.Modified then
+    case MessageDlg(rsPublishSaveFirst, mtConfirmation, [mbYes, mbNo, mbCancel], 0) of
+      mrYes:
+        if not Save then
+          Exit;
+      mrCancel:
+        Exit;
+    end;
+  Process := TProcess.Create(nil);
+  try
+    Process.Executable := ProgramFile;
+    Process.Parameters.Add(PublishTargetFor(FDocument.FileName));
+    try
+      Process.Execute;
+    except
+      on Failure: EProcess do
+        MessageDlg(Format(rsPublishFailed, [Failure.Message]), mtError, [mbOK], 0);
+    end;
+  finally
+    FreeAndNil(Process);
+  end;
 end;
 
 procedure TMainForm.MenuFileQuitClick(Sender: TObject);

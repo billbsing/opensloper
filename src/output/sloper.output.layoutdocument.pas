@@ -44,6 +44,8 @@ type
     FBefore, FDescription: string;
     FLastKey: string;
     FLastTime: TDateTime;
+    // The files' stamps last time CheckSources saw them differ
+    FPendingStamps: string;
     FOnChange: TNotifyEvent;
     function GetModified: boolean;
     function GetCanUndo: boolean;
@@ -61,6 +63,9 @@ type
     function Save(const FileName: string; out ErrorMessage: string): boolean;
     // Reads the pattern files again; not an undo step
     procedure Reload;
+    // Call regularly: reads the sources again once a saved file has stopped
+    // changing, and returns the names of the patterns read, '' when none
+    function CheckSources: string;
     procedure BeginChange(const Description: string);
     // A step that matches the last one's non-empty key, within a second, joins it
     procedure EndChange(const MergeKey: string = '');
@@ -149,6 +154,39 @@ procedure TLayoutDocument.Reload;
 begin
   FLayout.LoadSources;
   Changed;
+end;
+
+// A file seen changing may still be being written, so it has to read the same
+// on two checks running before it is loaded
+function TLayoutDocument.CheckSources: string;
+var
+  Source: TLayoutSource;
+  Stamps: string;
+begin
+  Result := '';
+  Stamps := '';
+  for Source in FLayout.Sources do
+  begin
+    Stamps := Stamps + Source.CurrentStamp + ';';
+    if Source.CurrentStamp <> Source.LoadedStamp then
+    begin
+      if Result <> '' then
+        Result := Result + ', ';
+      Result := Result + ExtractFileName(Source.PatternPath);
+    end;
+  end;
+  if Result = '' then
+  begin
+    FPendingStamps := '';
+    Exit;
+  end;
+  if Stamps <> FPendingStamps then
+  begin
+    FPendingStamps := Stamps;
+    Exit('');
+  end;
+  FPendingStamps := '';
+  Reload;
 end;
 
 function TLayoutDocument.GetModified: boolean;

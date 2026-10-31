@@ -59,6 +59,10 @@ object MainForm: TMainForm
         Caption = '&Measurements...'
         OnClick = MenuFileMeasurementsClick
       end
+      object MenuFilePublish: TMenuItem
+        Caption = '&Publish...'
+        OnClick = MenuFilePublishClick
+      end
       object MenuFileSep2: TMenuItem
         Caption = '-'
       end
