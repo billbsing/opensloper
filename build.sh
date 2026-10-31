@@ -20,3 +20,4 @@ git submodule update --init --recursive
 "$LAZBUILD" "${PCP_ARGS[@]}" -q cli/opensloper_cli.lpi "$@"
 "$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" opensloper.lpi "$@"
 "$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" publish/opensloper-publish.lpi "$@"
+"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" measurements/opensloper-measurements.lpi "$@"

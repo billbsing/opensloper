@@ -92,6 +92,7 @@ type
     FVariables: TVariablesPanel;
     FMeasurements: TMeasurementsPanel;
     FNewSetDialog: TSaveDialog;
+    FMeasurementWatch: TTimer;
     FChoosingVariable: boolean;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
@@ -115,6 +116,8 @@ type
     procedure VariablesSelect(Sender: TObject);
     procedure VariablesAdded(Sender: TObject);
     procedure MeasurementsNewSet(Sender: TObject);
+    procedure MeasurementsEditSet(Sender: TObject);
+    procedure MeasurementWatchTick(Sender: TObject);
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
@@ -149,6 +152,7 @@ const
   PanelProblems = 1;
   PanelMeasurements = 2;
   PanelMessage = 3;
+  MeasurementWatchMilliseconds = 1000;
 
 resourcestring
   rsMenuFile = '&File';
@@ -160,6 +164,9 @@ resourcestring
   rsMenuFilePublish = '&Publish...';
   rsPublishSaveFirst = 'The publish app reads the saved file. Save your changes first?';
   rsPublishMissing = 'The publish app (opensloper-publish) was not found beside this program.';
+  rsMeasurementsAppMissing = 'The measurements app (opensloper-measurements) was not found beside this program.';
+  rsMeasurementsAppFailed = 'The measurements app could not be started: %s';
+  rsMeasurementsReloaded = '%s changed, so it was read again';
   rsPublishFailed = 'The publish app could not be started: %s';
   rsMenuFileQuit = '&Quit';
   rsMenuEdit = '&Edit';
@@ -343,6 +350,10 @@ begin
   FMeasurements := TMeasurementsPanel(AddTab(rsTabMeasurements, TMeasurementsPanel.Create(Self)));
   FMeasurements.OnOpenSet := @MenuFileMeasurementsClick;
   FMeasurements.OnNewSet := @MeasurementsNewSet;
+  FMeasurements.OnEditSet := @MeasurementsEditSet;
+  FMeasurementWatch := TTimer.Create(Self);
+  FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
+  FMeasurementWatch.OnTimer := @MeasurementWatchTick;
   FSideSplitter := TSplitter.Create(Self);
   FSideSplitter.Parent := Self;
   FSideSplitter.Align := alLeft;
@@ -404,6 +415,39 @@ end;
 procedure TMainForm.VariablesAdded(Sender: TObject);
 begin
   FProperties.FocusName;
+end;
+
+procedure TMainForm.MeasurementsEditSet(Sender: TObject);
+var
+  ProgramFile: string;
+  Process: TProcess;
+begin
+  ProgramFile := TAppPaths.MeasurementsProgram;
+  if ProgramFile = '' then
+  begin
+    MessageDlg(rsMeasurementsAppMissing, mtError, [mbOK], 0);
+    Exit;
+  end;
+  Process := TProcess.Create(nil);
+  try
+    Process.Executable := ProgramFile;
+    if FDocument.MeasurementPath <> '' then
+      Process.Parameters.Add(FDocument.MeasurementPath);
+    try
+      Process.Execute;
+    except
+      on Failure: EProcess do
+        MessageDlg(Format(rsMeasurementsAppFailed, [Failure.Message]), mtError, [mbOK], 0);
+    end;
+  finally
+    FreeAndNil(Process);
+  end;
+end;
+
+procedure TMainForm.MeasurementWatchTick(Sender: TObject);
+begin
+  if FDocument.CheckMeasurementFile then
+    StatusBar.Panels[PanelMessage].Text := Format(rsMeasurementsReloaded, [ExtractFileName(FDocument.MeasurementPath)]);
 end;
 
 procedure TMainForm.MeasurementsNewSet(Sender: TObject);

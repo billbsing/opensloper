@@ -72,6 +72,10 @@ type
     procedure TestChangeOneSize;
     procedure TestChangeNeedsASize;
     procedure TestChangeAddsToOneSize;
+    procedure TestFormatMeasure;
+    procedure TestParseMeasure;
+    procedure TestMergeSizes;
+    procedure TestMergeKeepsSizeValues;
   end;
 
 implementation
@@ -407,6 +411,90 @@ begin
     AssertFalse(FSet.Find('chest').HasValueFor(0));
   finally
     DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestMeasurements.TestFormatMeasure;
+begin
+  AssertEquals('820.5', FormatMeasure(820.5, muMillimetre));
+  AssertEquals('82.05', FormatMeasure(820.5, muCentimetre));
+  AssertEquals('32.2835', FormatMeasure(820, muInch));
+  AssertEquals('whole numbers stay whole', '10', FormatMeasure(254, muInch));
+end;
+
+procedure TTestMeasurements.TestParseMeasure;
+var
+  Value: double;
+begin
+  AssertTrue(ParseMeasure('820', muMillimetre, Value));
+  AssertNear('mm', 820, Value);
+  AssertTrue(ParseMeasure(' 82.5 ', muCentimetre, Value));
+  AssertNear('cm', 825, Value);
+  AssertTrue(ParseMeasure('10', muInch, Value));
+  AssertNear('in', 254, Value);
+  AssertTrue('a decimal comma', ParseMeasure('82,5', muCentimetre, Value));
+  AssertNear('comma', 825, Value);
+  AssertFalse(ParseMeasure('', muMillimetre, Value));
+  AssertFalse(ParseMeasure('wide', muMillimetre, Value));
+  AssertFalse('too big', ParseMeasure('1e13', muMillimetre, Value));
+end;
+
+procedure TTestMeasurements.TestMergeSizes;
+var
+  Base, Mine, Theirs, Merged: TMeasurementSet;
+  Conflicts: TStringArray;
+begin
+  Base := TMeasurementSet.Create;
+  Mine := TMeasurementSet.Create;
+  Theirs := TMeasurementSet.Create;
+  Merged := TMeasurementSet.Create;
+  try
+    Base.AddSize('36');
+    Base.AddSize('38');
+    Mine.AddSize('36');
+    Mine.AddSize('38');
+    Mine.AddSize('40');
+    Theirs.AddSize('38');
+    Theirs.AddSize('42');
+    MergeMeasurementSets(Base, Mine, Theirs, nil, Merged, Conflicts);
+    AssertEquals('they deleted 36, each added one', 3, Merged.SizeCount);
+    AssertEquals('38', Merged.Sizes[0]);
+    AssertEquals('42', Merged.Sizes[1]);
+    AssertEquals('40', Merged.Sizes[2]);
+  finally
+    FreeAndNil(Merged);
+    FreeAndNil(Theirs);
+    FreeAndNil(Mine);
+    FreeAndNil(Base);
+  end;
+end;
+
+procedure TTestMeasurements.TestMergeKeepsSizeValues;
+var
+  Base, Mine, Theirs, Merged: TMeasurementSet;
+  Conflicts: TStringArray;
+  Err: string;
+begin
+  Base := TMeasurementSet.Create;
+  Mine := TMeasurementSet.Create;
+  Theirs := TMeasurementSet.Create;
+  Merged := TMeasurementSet.Create;
+  try
+    AssertTrue(Err, Base.LoadFromText(TableText, Err));
+    AssertTrue(Err, Mine.LoadFromText(TableText, Err));
+    AssertTrue(Err, Theirs.LoadFromText(TableText, Err));
+    Mine.Find('waist').SetValueFor(1, 745);
+    Theirs.Find('hip').SetValueFor(1, 940);
+    MergeMeasurementSets(Base, Mine, Theirs, nil, Merged, Conflicts);
+    AssertEquals(0, Length(Conflicts));
+    AssertNear('mine', 745, Merged.Find('waist').ValueFor(1));
+    AssertNear('the rest of it', 780, Merged.Find('waist').ValueFor(2));
+    AssertNear('theirs', 940, Merged.Find('hip').ValueFor(1));
+  finally
+    FreeAndNil(Merged);
+    FreeAndNil(Theirs);
+    FreeAndNil(Mine);
+    FreeAndNil(Base);
   end;
 end;
 

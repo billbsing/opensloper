@@ -39,6 +39,9 @@ type
     // source tree. Empty when it is in neither place.
     class function PublishProgram: string;
     class function PublishProgramIn(const Folder: string): string;
+    // opensloper-measurements, found the same way; '' when it is not there
+    class function MeasurementsProgram: string;
+    class function MeasurementsProgramIn(const Folder: string): string;
     // Creates Dir if missing and returns it; folders are made on first use
     class function ForceDir(const Dir: string): string;
     // XDG rule: EnvValue when it is an absolute path, else Home + Fallback
@@ -54,10 +57,13 @@ const
   PortableFileName = 'portable.ini';
   SettingsFileName = 'settings.json';
   PublishFolder = 'publish';
+  MeasurementsFolder = 'measurements';
   {$IFDEF WINDOWS}
   PublishFileName = 'opensloper-publish.exe';
+  MeasurementsFileName = 'opensloper-measurements.exe';
   {$ELSE}
   PublishFileName = 'opensloper-publish';
+  MeasurementsFileName = 'opensloper-measurements';
   {$ENDIF}
 
 function HomeDir: string;
@@ -163,6 +169,17 @@ begin
   Result := ConcatPaths([ConfigDir, SettingsFileName]);
 end;
 
+// Beside this program when installed, in its own folder in the source tree
+function CompanionIn(const Folder, SubFolder, FileName: string): string;
+begin
+  Result := ConcatPaths([Folder, FileName]);
+  if FileExists(Result) then
+    Exit;
+  Result := ConcatPaths([Folder, SubFolder, FileName]);
+  if not FileExists(Result) then
+    Result := '';
+end;
+
 class function TAppPaths.PublishProgram: string;
 begin
   Result := PublishProgramIn(ExeDir);
@@ -170,12 +187,17 @@ end;
 
 class function TAppPaths.PublishProgramIn(const Folder: string): string;
 begin
-  Result := ConcatPaths([Folder, PublishFileName]);
-  if FileExists(Result) then
-    Exit;
-  Result := ConcatPaths([Folder, PublishFolder, PublishFileName]);
-  if not FileExists(Result) then
-    Result := '';
+  Result := CompanionIn(Folder, PublishFolder, PublishFileName);
+end;
+
+class function TAppPaths.MeasurementsProgram: string;
+begin
+  Result := MeasurementsProgramIn(ExeDir);
+end;
+
+class function TAppPaths.MeasurementsProgramIn(const Folder: string): string;
+begin
+  Result := CompanionIn(Folder, MeasurementsFolder, MeasurementsFileName);
 end;
 
 class function TAppPaths.IsPortable: boolean;

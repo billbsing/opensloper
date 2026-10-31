@@ -27,23 +27,16 @@ unit Sloper.Output.LayoutDocument;
 interface
 
 uses
-  Classes, SysUtils, Sloper.Output.Layout;
-
-const
-  // Changes with the same merge key this close together become one step
-  LayoutMergeSeconds = 1.0;
+  Classes, SysUtils, Sloper.Core.TextHistory, Sloper.Output.Layout;
 
 type
   TLayoutDocument = class
   private
     FLayout: TLayout;
-    FUndo, FRedo: array of string;
-    FDescriptions, FRedoDescriptions: array of string;
+    FHistory: TTextHistory;
     FSavedText: string;
     FChangeOpen: boolean;
     FBefore, FDescription: string;
-    FLastKey: string;
-    FLastTime: TDateTime;
     // The files' stamps last time CheckSources saw them differ
     FPendingStamps: string;
     FOnChange: TNotifyEvent;
@@ -53,7 +46,6 @@ type
     function GetUndoDescription: string;
     procedure Restore(const Text: string);
     procedure Changed;
-    procedure ClearHistory;
   public
     constructor Create;
     destructor Destroy; override;
@@ -84,17 +76,16 @@ type
 
 implementation
 
-uses
-  DateUtils;
-
 constructor TLayoutDocument.Create;
 begin
   FLayout := TLayout.Create;
+  FHistory := TTextHistory.Create;
   FSavedText := FLayout.SaveToText;
 end;
 
 destructor TLayoutDocument.Destroy;
 begin
+  FreeAndNil(FHistory);
   FreeAndNil(FLayout);
   inherited Destroy;
 end;
@@ -103,15 +94,6 @@ procedure TLayoutDocument.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
-end;
-
-procedure TLayoutDocument.ClearHistory;
-begin
-  FUndo := nil;
-  FRedo := nil;
-  FDescriptions := nil;
-  FRedoDescriptions := nil;
-  FLastKey := '';
 end;
 
 procedure TLayoutDocument.NewForPattern(const PatternFile: string);
@@ -123,7 +105,7 @@ begin
   FLayout.LoadSources;
   FLayout.PlaceNewPieces;
   FLayout.UseDefaultTitle;
-  ClearHistory;
+  FHistory.Clear;
   // Not saved yet, so closing it asks
   FSavedText := '';
   Changed;
@@ -135,7 +117,7 @@ begin
   if not Result then
     Exit;
   FLayout.LoadSources;
-  ClearHistory;
+  FHistory.Clear;
   FSavedText := FLayout.SaveToText;
   Changed;
 end;
@@ -146,7 +128,7 @@ begin
   if Result then
   begin
     FSavedText := FLayout.SaveToText;
-    FLastKey := '';
+    FHistory.EndMerging;
     Changed;
   end;
 end;
@@ -197,19 +179,17 @@ end;
 
 function TLayoutDocument.GetCanUndo: boolean;
 begin
-  Result := Length(FUndo) > 0;
+  Result := FHistory.CanUndo;
 end;
 
 function TLayoutDocument.GetCanRedo: boolean;
 begin
-  Result := Length(FRedo) > 0;
+  Result := FHistory.CanRedo;
 end;
 
 function TLayoutDocument.GetUndoDescription: string;
 begin
-  Result := '';
-  if CanUndo then
-    Result := FDescriptions[High(FDescriptions)];
+  Result := FHistory.UndoDescription;
 end;
 
 procedure TLayoutDocument.BeginChange(const Description: string);
@@ -220,24 +200,13 @@ begin
 end;
 
 procedure TLayoutDocument.EndChange(const MergeKey: string);
-var
-  Merges: boolean;
 begin
   if not FChangeOpen then
     Exit;
   FChangeOpen := False;
   if FLayout.SaveToText = FBefore then
     Exit;
-  Merges := (MergeKey <> '') and (MergeKey = FLastKey) and CanUndo and (SecondSpan(Now, FLastTime) <= LayoutMergeSeconds);
-  if not Merges then
-  begin
-    Insert(FBefore, FUndo, Length(FUndo));
-    Insert(FDescription, FDescriptions, Length(FDescriptions));
-  end;
-  FRedo := nil;
-  FRedoDescriptions := nil;
-  FLastKey := MergeKey;
-  FLastTime := Now;
+  FHistory.Add(FBefore, FDescription, MergeKey);
   Changed;
 end;
 
@@ -261,40 +230,19 @@ var
 begin
   if FLayout.LoadFromText(Text, Reason) then
     FLayout.LoadSources;
-  FLastKey := '';
   Changed;
 end;
 
 procedure TLayoutDocument.Undo;
-var
-  Last: integer;
-  Text: string;
 begin
-  if not CanUndo then
-    Exit;
-  Last := High(FUndo);
-  Text := FUndo[Last];
-  Insert(FLayout.SaveToText, FRedo, Length(FRedo));
-  Insert(FDescriptions[Last], FRedoDescriptions, Length(FRedoDescriptions));
-  SetLength(FUndo, Last);
-  SetLength(FDescriptions, Last);
-  Restore(Text);
+  if CanUndo then
+    Restore(FHistory.Undo(FLayout.SaveToText));
 end;
 
 procedure TLayoutDocument.Redo;
-var
-  Last: integer;
-  Text: string;
 begin
-  if not CanRedo then
-    Exit;
-  Last := High(FRedo);
-  Text := FRedo[Last];
-  Insert(FLayout.SaveToText, FUndo, Length(FUndo));
-  Insert(FRedoDescriptions[Last], FDescriptions, Length(FDescriptions));
-  SetLength(FRedo, Last);
-  SetLength(FRedoDescriptions, Last);
-  Restore(Text);
+  if CanRedo then
+    Restore(FHistory.Redo(FLayout.SaveToText));
 end;
 
 end.

@@ -37,11 +37,17 @@ type
     FEditors: TPanel;
     FKeyEdit, FValueEdit, FDescriptionEdit: TEdit;
     FSaveButton: TButton;
+    FSizeBar: TPanel;
+    FSizeBox: TComboBox;
     FOnOpenSet: TNotifyEvent;
     FOnNewSet: TNotifyEvent;
+    FOnEditSet: TNotifyEvent;
     function AddEditor(const ACaption: string): TEdit;
     function AddButton(Host: TWinControl; const ACaption: string; OnPress: TNotifyEvent): TButton;
     procedure UpdateFileLabel;
+    procedure UpdateSizes;
+    procedure SizeChange(Sender: TObject);
+    procedure EditClick(Sender: TObject);
     procedure ShowEditors;
     procedure Save;
     procedure OpenClick(Sender: TObject);
@@ -58,12 +64,16 @@ type
     property OnOpenSet: TNotifyEvent read FOnOpenSet write FOnOpenSet;
     // The user wants a new, empty file; saving with no file asks for this first
     property OnNewSet: TNotifyEvent read FOnNewSet write FOnNewSet;
+    // The user wants the set in the measurements app
+    property OnEditSet: TNotifyEvent read FOnEditSet write FOnEditSet;
   end;
 
 resourcestring
   rsMeasurementsNoSet = 'No measurement set';
   rsMeasurementsOpen = '&Open...';
   rsMeasurementsNew = '&New...';
+  rsMeasurementsEdit = '&Edit...';
+  rsMeasurementsSize = 'Size';
   rsMeasurementsAdd = '&Add';
   rsMeasurementsSave = '&Save';
   rsMeasurementsKey = 'Key';
@@ -92,6 +102,7 @@ end;
 constructor TMeasurementsPanel.Create(AOwner: TComponent);
 var
   FileBar, Buttons: TPanel;
+  SizeLabel: TLabel;
 begin
   inherited Create(AOwner);
   MultiSelect := False;
@@ -103,11 +114,30 @@ begin
   FileBar.AutoSize := True;
   AddButton(FileBar, rsMeasurementsNew, @NewClick);
   AddButton(FileBar, rsMeasurementsOpen, @OpenClick);
+  AddButton(FileBar, rsMeasurementsEdit, @EditClick);
   FFileLabel := TLabel.Create(Self);
   FFileLabel.Parent := FileBar;
   FFileLabel.Align := alClient;
   FFileLabel.Layout := tlCenter;
   FFileLabel.Caption := rsMeasurementsNoSet;
+  FSizeBar := TPanel.Create(Self);
+  FSizeBar.Parent := FHeader;
+  FSizeBar.Align := alTop;
+  FSizeBar.Top := 0;
+  FSizeBar.BevelOuter := bvNone;
+  FSizeBar.AutoSize := True;
+  FSizeBar.Visible := False;
+  SizeLabel := TLabel.Create(Self);
+  SizeLabel.Parent := FSizeBar;
+  SizeLabel.Align := alLeft;
+  SizeLabel.Layout := tlCenter;
+  SizeLabel.BorderSpacing.Right := 6;
+  SizeLabel.Caption := rsMeasurementsSize;
+  FSizeBox := TComboBox.Create(Self);
+  FSizeBox.Parent := FSizeBar;
+  FSizeBox.Align := alClient;
+  FSizeBox.Style := csDropDownList;
+  FSizeBox.OnChange := @SizeChange;
 
   FEditors := TPanel.Create(Self);
   FEditors.Parent := Self;
@@ -165,6 +195,40 @@ begin
     FFileLabel.Caption := ExtractFileName(Document.MeasurementPath);
 end;
 
+// The list is put back only when it differs, so a change of size while the
+// list is open is not lost
+procedure TMeasurementsPanel.UpdateSizes;
+var
+  Sizes: TStringList;
+  Index: integer;
+begin
+  FSizeBar.Visible := (Document <> nil) and (Document.Measurements <> nil) and (Document.Measurements.SizeCount > 0);
+  if not FSizeBar.Visible then
+    Exit;
+  Sizes := TStringList.Create;
+  try
+    for Index := 0 to Document.Measurements.SizeCount - 1 do
+      Sizes.Add(Document.Measurements.Sizes[Index]);
+    if not FSizeBox.Items.Equals(Sizes) then
+      FSizeBox.Items.Assign(Sizes);
+  finally
+    FreeAndNil(Sizes);
+  end;
+  FSizeBox.ItemIndex := Document.Measurements.SizeIndex;
+end;
+
+procedure TMeasurementsPanel.SizeChange(Sender: TObject);
+begin
+  if (Document <> nil) and (FSizeBox.ItemIndex >= 0) then
+    Document.SelectMeasurementSize(FSizeBox.Items[FSizeBox.ItemIndex]);
+end;
+
+procedure TMeasurementsPanel.EditClick(Sender: TObject);
+begin
+  if Assigned(FOnEditSet) then
+    FOnEditSet(Self);
+end;
+
 function TMeasurementsPanel.BuildRows: TListPanelRowArray;
 var
   Rows: TMeasurementRowArray;
@@ -172,6 +236,7 @@ var
 begin
   Result := nil;
   UpdateFileLabel;
+  UpdateSizes;
   Rows := MeasurementRows(Document.Pattern, Document.Measurements, SearchText);
   SetLength(Result, Length(Rows));
   for Index := 0 to High(Rows) do
@@ -207,7 +272,8 @@ begin
     Measurement := Document.Measurements.Find(Selection[0]);
   if Measurement <> nil then
   begin
-    FValueEdit.Text := FormatJSONFloat(Measurement.Value);
+    if Measurement.HasValue then
+      FValueEdit.Text := FormatJSONFloat(Measurement.Value);
     FDescriptionEdit.Text := Measurement.Description;
   end;
 end;

@@ -25,6 +25,9 @@ unit Sloper.Core.Settings;
 
 interface
 
+uses
+  Sloper.Core.Measurements;
+
 type
   // Which labels the canvas shows: those that help the current step, all, or none
   TLabelMode = (lmContextual, lmAll, lmNone);
@@ -40,6 +43,8 @@ type
     NameColumnShare: double;
     LabelMode: TLabelMode;
     ShowSidePanel: boolean;
+    // How the measurements app shows values
+    MeasureUnit: TMeasureUnit;
     constructor Create;
     procedure Reset;
     function SaveToText: string;
@@ -74,6 +79,7 @@ begin
   NameColumnShare := DefaultNameColumnShare;
   LabelMode := DefaultLabelMode;
   ShowSidePanel := True;
+  MeasureUnit := muMillimetre;
 end;
 
 function TAppSettings.SaveToText: string;
@@ -87,6 +93,7 @@ begin
     Obj.Add('nameColumnShare', JSONFloat(NameColumnShare));
     Obj.Add('labelMode', LabelModeNames[LabelMode]);
     Obj.Add('showSidePanel', ShowSidePanel);
+    Obj.Add('measureUnit', MeasureUnitNames[MeasureUnit]);
     Result := JSONToText(Obj);
   finally
     FreeAndNil(Obj);
@@ -100,6 +107,7 @@ var
   Version: integer;
   Share: double;
   Mode: TLabelMode;
+  AUnit: TMeasureUnit;
   Shown: boolean;
 begin
   Reset;
@@ -124,6 +132,10 @@ begin
           LabelMode := Mode;
     if GetJSONBoolean(Obj, 'showSidePanel', Shown) then
       ShowSidePanel := Shown;
+    if GetJSONString(Obj, 'measureUnit', TextValue) then
+      for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
+        if TextValue = MeasureUnitNames[AUnit] then
+          MeasureUnit := AUnit;
     Result := True;
   finally
     FreeAndNil(Obj);

@@ -1,0 +1,813 @@
+{
+  OpenSloper - parametric sewing pattern drafting
+  Copyright (C) 2026 The OpenSloper authors
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+}
+
+// The measurements app's one window: a table of keys, values and descriptions,
+// with a column per size. Every edit goes through TMeasurementDocument. Built
+// in code, so it has no form file.
+unit Sloper.Measurements.MainForm;
+
+{$mode ObjFPC}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, Sloper.Core.Measurements,
+  Sloper.Document.MeasurementDocument;
+
+type
+  TMeasurementsForm = class(TForm)
+  private
+    FDocument: TMeasurementDocument;
+    FGrid: TStringGrid;
+    FNameEdit, FNotesEdit: TEdit;
+    FUnitBox: TComboBox;
+    FStatus: TStatusBar;
+    FUndoItem, FRedoItem: TMenuItem;
+    FBar: TPanel;
+    FWatch: TTimer;
+    FUnit: TMeasureUnit;
+    FRefreshing, FAnswering: boolean;
+    procedure BuildMenu;
+    procedure BuildHeader;
+    procedure BuildBar;
+    procedure BuildGrid;
+    function AddButton(const ACaption: string; AHandler: TNotifyEvent): TButton;
+    procedure DocumentChanged(Sender: TObject);
+    procedure RefreshLater(Data: PtrInt);
+    procedure RefreshAll;
+    procedure RefreshGrid;
+    function CellText(Row, Column: integer): string;
+    function ValueColumns: integer;
+    function DescriptionColumn: integer;
+    // The measurement on a grid row, -1 for the heading or an empty table
+    function RowIndex(Row: integer): integer;
+    function ColumnSize(Column: integer): integer;
+    function CurrentSize: integer;
+    procedure SelectCell(Index, Column: integer);
+    procedure GridValidate(Sender: TObject; ACol, ARow: integer; const OldValue: string; var NewValue: string);
+    procedure GridEditText(Sender: TObject; ACol, ARow: integer; const Value: string);
+    function CommitCell(Column, Index: integer; const NewText: string): boolean;
+    procedure HeaderDone(Sender: TObject);
+    procedure UnitChange(Sender: TObject);
+    procedure WatchTick(Sender: TObject);
+    procedure AnswerConflicts;
+    procedure NewClick(Sender: TObject);
+    procedure OpenClick(Sender: TObject);
+    procedure SaveClick(Sender: TObject);
+    procedure SaveAsClick(Sender: TObject);
+    procedure QuitClick(Sender: TObject);
+    procedure UndoClick(Sender: TObject);
+    procedure RedoClick(Sender: TObject);
+    procedure AddClick(Sender: TObject);
+    procedure DeleteClick(Sender: TObject);
+    procedure UpClick(Sender: TObject);
+    procedure DownClick(Sender: TObject);
+    procedure AddSizeClick(Sender: TObject);
+    procedure RenameSizeClick(Sender: TObject);
+    procedure DeleteSizeClick(Sender: TObject);
+    procedure SizeLeftClick(Sender: TObject);
+    procedure SizeRightClick(Sender: TObject);
+    procedure CloseAsked(Sender: TObject; var CanClose: boolean);
+    function ConfirmDiscard: boolean;
+    function SaveTo(const FileName: string): boolean;
+    procedure OpenPath(const Path: string);
+    procedure ShowStatus(const AText: string);
+    procedure ShowRefusal(const Reason: string);
+    procedure LoadUnit;
+    procedure SaveUnit;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+  end;
+
+resourcestring
+  rsMeasurementsTitle = 'OpenSloper Measurements';
+  rsMeasurementsTitleFile = '%s%s - OpenSloper Measurements';
+  rsUntitled = 'Untitled';
+  rsMenuFile = '&File';
+  rsMenuNew = '&New';
+  rsMenuOpen = '&Open...';
+  rsMenuSave = '&Save';
+  rsMenuSaveAs = 'Save &As...';
+  rsMenuQuit = '&Quit';
+  rsMenuEdit = '&Edit';
+  rsMenuUndo = '&Undo';
+  rsMenuUndoNamed = '&Undo %s';
+  rsMenuRedo = '&Redo';
+  rsName = 'Name';
+  rsNotes = 'Notes';
+  rsShowIn = 'Show in';
+  rsAdd = 'Add';
+  rsDelete = 'Delete';
+  rsUp = 'Up';
+  rsDown = 'Down';
+  rsAddSize = 'Add size...';
+  rsRenameSize = 'Rename size...';
+  rsDeleteSize = 'Delete size';
+  rsSizeLeft = 'Size left';
+  rsSizeRight = 'Size right';
+  rsColumnKey = 'Key';
+  rsColumnValue = 'Value';
+  rsColumnDescription = 'Description';
+  rsSizePrompt = 'Size name';
+  rsAddSizeTitle = 'Add a size';
+  rsRenameSizeTitle = 'Rename size %s';
+  rsDeleteSizeQuestion = 'Delete size %s and its values?';
+  rsDeleteQuestion = 'Delete @%s? Patterns using it will show it as missing.';
+  rsDiscardQuestion = 'Discard the changes to this file?';
+  rsChooseASize = 'Click a value in the size''s column first';
+  rsChooseAMeasurement = 'Click a measurement first';
+  rsRenamed = 'Renamed to @%s. Patterns using @%s will show it as missing';
+  rsBadValue = 'A value must be a number, such as 82.5';
+  rsFileReloaded = 'The file changed on disk, so it was read again';
+  rsFileMerged = 'The file changed on disk; those changes were merged with yours';
+  rsConflictQuestion = '@%s was changed here and in the file. Keep your version? No takes the one in the file.';
+  rsConflictsAnswered = 'The file changed on disk; your answers were merged with it';
+  rsSaved = 'Wrote %s';
+  rsOpenFailed = 'Could not open %s: %s';
+  rsSaveFailed = 'Could not save %s: %s';
+  rsFilter = 'Measurements (*.slm)|*.slm';
+
+implementation
+
+uses
+  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.Settings;
+
+const
+  HeaderHeight = 30;
+  SideGap = 6;
+  LabelWidth = 50;
+  KeyColumnWidth = 190;
+  ValueColumnWidth = 80;
+  DescriptionColumnWidth = 320;
+  WatchMilliseconds = 1000;
+  MeasurementExtension = 'slm';
+  // The key is the first column and the values follow
+  KeyColumn = 0;
+  FirstValueColumn = 1;
+
+constructor TMeasurementsForm.Create(AOwner: TComponent);
+begin
+  inherited CreateNew(AOwner);
+  Caption := rsMeasurementsTitle;
+  Width := 900;
+  Height := 620;
+  Position := poScreenCenter;
+  OnCloseQuery := @CloseAsked;
+  LoadUnit;
+  FDocument := TMeasurementDocument.Create;
+  FDocument.OnChange := @DocumentChanged;
+  BuildMenu;
+  FStatus := TStatusBar.Create(Self);
+  FStatus.Parent := Self;
+  FStatus.SimplePanel := True;
+  BuildHeader;
+  BuildBar;
+  BuildGrid;
+  RefreshAll;
+  FWatch := TTimer.Create(Self);
+  FWatch.Interval := WatchMilliseconds;
+  FWatch.OnTimer := @WatchTick;
+  if (ParamCount >= 1) and FileExists(ParamStr(1)) then
+    OpenPath(ParamStr(1));
+end;
+
+destructor TMeasurementsForm.Destroy;
+begin
+  Application.RemoveAsyncCalls(Self);
+  FreeAndNil(FDocument);
+  inherited Destroy;
+end;
+
+procedure TMeasurementsForm.BuildMenu;
+var
+  Bar: TMainMenu;
+
+  function AddMenu(const ACaption: string): TMenuItem;
+  begin
+    Result := TMenuItem.Create(Bar);
+    Result.Caption := ACaption;
+    Bar.Items.Add(Result);
+  end;
+
+  function AddItem(Parent: TMenuItem; const ACaption: string; AHandler: TNotifyEvent; AShortCut: TShortCut = 0): TMenuItem;
+  begin
+    Result := TMenuItem.Create(Parent);
+    Result.Caption := ACaption;
+    Result.OnClick := AHandler;
+    Result.ShortCut := AShortCut;
+    Parent.Add(Result);
+  end;
+
+var
+  Group: TMenuItem;
+begin
+  Bar := TMainMenu.Create(Self);
+  Menu := Bar;
+  Group := AddMenu(rsMenuFile);
+  AddItem(Group, rsMenuNew, @NewClick, ShortCut(VK_N, [ssModifier]));
+  AddItem(Group, rsMenuOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
+  AddItem(Group, rsMenuSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
+  AddItem(Group, rsMenuSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
+  AddItem(Group, rsMenuQuit, @QuitClick, ShortCut(VK_Q, [ssModifier]));
+  Group := AddMenu(rsMenuEdit);
+  FUndoItem := AddItem(Group, rsMenuUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
+  FRedoItem := AddItem(Group, rsMenuRedo, @RedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
+end;
+
+procedure TMeasurementsForm.BuildHeader;
+var
+  Row: TPanel;
+
+  function AddField(const ACaption: string; AWidth: integer): TEdit;
+  var
+    Title: TLabel;
+  begin
+    Title := TLabel.Create(Self);
+    Title.Parent := Row;
+    Title.Caption := ACaption;
+    Title.Align := alLeft;
+    Title.Left := Row.ControlCount * 1000;
+    Title.Layout := tlCenter;
+    Title.AutoSize := False;
+    Title.Width := LabelWidth;
+    Title.BorderSpacing.Left := SideGap;
+    Result := TEdit.Create(Self);
+    Result.Parent := Row;
+    Result.Align := alLeft;
+    Result.Left := Row.ControlCount * 1000;
+    Result.Width := AWidth;
+    Result.BorderSpacing.Around := 2;
+    Result.OnEditingDone := @HeaderDone;
+  end;
+
+begin
+  Row := TPanel.Create(Self);
+  Row.Parent := Self;
+  Row.Align := alTop;
+  Row.Height := HeaderHeight + SideGap;
+  Row.BevelOuter := bvNone;
+  FNameEdit := AddField(rsName, 240);
+  FNotesEdit := AddField(rsNotes, 420);
+end;
+
+function TMeasurementsForm.AddButton(const ACaption: string; AHandler: TNotifyEvent): TButton;
+begin
+  Result := TButton.Create(Self);
+  Result.Parent := FBar;
+  Result.Align := alLeft;
+  Result.Left := FBar.ControlCount * 1000;
+  Result.AutoSize := True;
+  Result.BorderSpacing.Around := 2;
+  Result.Caption := ACaption;
+  Result.OnClick := AHandler;
+end;
+
+procedure TMeasurementsForm.BuildBar;
+var
+  Title: TLabel;
+  AUnit: TMeasureUnit;
+begin
+  FBar := TPanel.Create(Self);
+  FBar.Parent := Self;
+  FBar.Align := alTop;
+  FBar.Top := HeaderHeight * 2;
+  FBar.Height := HeaderHeight + SideGap;
+  FBar.BevelOuter := bvNone;
+  AddButton(rsAdd, @AddClick);
+  AddButton(rsDelete, @DeleteClick);
+  AddButton(rsUp, @UpClick);
+  AddButton(rsDown, @DownClick).BorderSpacing.Right := SideGap * 3;
+  AddButton(rsAddSize, @AddSizeClick);
+  AddButton(rsRenameSize, @RenameSizeClick);
+  AddButton(rsDeleteSize, @DeleteSizeClick);
+  AddButton(rsSizeLeft, @SizeLeftClick);
+  AddButton(rsSizeRight, @SizeRightClick);
+  FUnitBox := TComboBox.Create(Self);
+  FUnitBox.Parent := FBar;
+  FUnitBox.Align := alRight;
+  FUnitBox.Style := csDropDownList;
+  FUnitBox.Width := 70;
+  FUnitBox.BorderSpacing.Around := 2;
+  for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
+    FUnitBox.Items.Add(MeasureUnitNames[AUnit]);
+  FUnitBox.ItemIndex := Ord(FUnit);
+  FUnitBox.OnChange := @UnitChange;
+  Title := TLabel.Create(Self);
+  Title.Parent := FBar;
+  Title.Caption := rsShowIn;
+  Title.Align := alRight;
+  Title.Layout := tlCenter;
+  Title.BorderSpacing.Right := SideGap;
+end;
+
+procedure TMeasurementsForm.BuildGrid;
+begin
+  FGrid := TStringGrid.Create(Self);
+  FGrid.Parent := Self;
+  FGrid.Align := alClient;
+  FGrid.FixedCols := 0;
+  FGrid.FixedRows := 1;
+  FGrid.RowCount := 1;
+  FGrid.Options := FGrid.Options + [goEditing, goColSizing, goTabs, goAlwaysShowEditor] - [goRangeSelect];
+  FGrid.OnValidateEntry := @GridValidate;
+  FGrid.OnSetEditText := @GridEditText;
+end;
+
+function TMeasurementsForm.ValueColumns: integer;
+begin
+  Result := Max(FDocument.Measurements.SizeCount, 1);
+end;
+
+function TMeasurementsForm.DescriptionColumn: integer;
+begin
+  Result := FirstValueColumn + ValueColumns;
+end;
+
+function TMeasurementsForm.RowIndex(Row: integer): integer;
+begin
+  Result := Row - FGrid.FixedRows;
+  if (Result < 0) or (Result >= FDocument.Measurements.Count) then
+    Result := -1;
+end;
+
+function TMeasurementsForm.ColumnSize(Column: integer): integer;
+begin
+  Result := Column - FirstValueColumn;
+  if (Result < 0) or (Result >= ValueColumns) then
+    Result := -1;
+end;
+
+function TMeasurementsForm.CurrentSize: integer;
+begin
+  Result := -1;
+  if FDocument.Measurements.SizeCount > 0 then
+    Result := ColumnSize(FGrid.Col);
+end;
+
+function TMeasurementsForm.CellText(Row, Column: integer): string;
+var
+  Measurement: TMeasurement;
+  Size: integer;
+begin
+  Measurement := FDocument.Measurements[Row];
+  Size := ColumnSize(Column);
+  if Column = KeyColumn then
+    Result := Measurement.Key
+  else if Column = DescriptionColumn then
+    Result := Measurement.Description
+  else if Measurement.HasValueFor(Size) then
+    Result := FormatMeasure(Measurement.ValueFor(Size), FUnit)
+  else
+    Result := '';
+end;
+
+procedure TMeasurementsForm.RefreshGrid;
+var
+  Row, Column, Size: integer;
+  Table: TMeasurementSet;
+begin
+  Table := FDocument.Measurements;
+  FRefreshing := True;
+  try
+    FGrid.EditorMode := False;
+    FGrid.ColCount := DescriptionColumn + 1;
+    FGrid.RowCount := FGrid.FixedRows + Max(Table.Count, 0);
+    FGrid.ColWidths[KeyColumn] := KeyColumnWidth;
+    FGrid.Cells[KeyColumn, 0] := rsColumnKey;
+    for Size := 0 to ValueColumns - 1 do
+    begin
+      FGrid.ColWidths[FirstValueColumn + Size] := ValueColumnWidth;
+      if Table.SizeCount > 0 then
+        FGrid.Cells[FirstValueColumn + Size, 0] := Table.Sizes[Size]
+      else
+        FGrid.Cells[FirstValueColumn + Size, 0] := rsColumnValue;
+    end;
+    FGrid.ColWidths[DescriptionColumn] := DescriptionColumnWidth;
+    FGrid.Cells[DescriptionColumn, 0] := rsColumnDescription;
+    for Row := 0 to Table.Count - 1 do
+      for Column := 0 to DescriptionColumn do
+        FGrid.Cells[Column, FGrid.FixedRows + Row] := CellText(Row, Column);
+  finally
+    FRefreshing := False;
+  end;
+end;
+
+procedure TMeasurementsForm.RefreshAll;
+const
+  ModifiedMark: array[boolean] of string = ('', '*');
+var
+  FileTitle: string;
+begin
+  RefreshGrid;
+  FRefreshing := True;
+  try
+    if not FNameEdit.Focused then
+      FNameEdit.Text := FDocument.Measurements.Name;
+    if not FNotesEdit.Focused then
+      FNotesEdit.Text := FDocument.Measurements.Notes;
+  finally
+    FRefreshing := False;
+  end;
+  FUndoItem.Enabled := FDocument.CanUndo;
+  if FDocument.CanUndo then
+    FUndoItem.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
+  else
+    FUndoItem.Caption := rsMenuUndo;
+  FRedoItem.Enabled := FDocument.CanRedo;
+  FileTitle := ExtractFileName(FDocument.FileName);
+  if FileTitle = '' then
+    FileTitle := rsUntitled;
+  Caption := Format(rsMeasurementsTitleFile, [FileTitle, ModifiedMark[FDocument.Modified]]);
+end;
+
+// A change made while the grid is finishing an edit is drawn once it has
+procedure TMeasurementsForm.DocumentChanged(Sender: TObject);
+begin
+  Application.QueueAsyncCall(@RefreshLater, 0);
+end;
+
+procedure TMeasurementsForm.RefreshLater(Data: PtrInt);
+begin
+  RefreshAll;
+end;
+
+procedure TMeasurementsForm.SelectCell(Index, Column: integer);
+begin
+  if Index < 0 then
+    Exit;
+  RefreshAll;
+  FGrid.Row := FGrid.FixedRows + Index;
+  FGrid.Col := Min(Column, DescriptionColumn);
+end;
+
+function TMeasurementsForm.CommitCell(Column, Index: integer; const NewText: string): boolean;
+var
+  OldKey, Reason: string;
+  Value: double;
+  Size: integer;
+begin
+  Reason := '';
+  Result := True;
+  if Column = KeyColumn then
+  begin
+    OldKey := FDocument.Measurements[Index].Key;
+    Result := FDocument.RenameKey(Index, Trim(NewText), Reason);
+    if Result then
+      ShowStatus(Format(rsRenamed, [Trim(NewText), OldKey]));
+  end
+  else if Column = DescriptionColumn then
+    FDocument.SetDescription(Index, NewText)
+  else
+  begin
+    Size := ColumnSize(Column);
+    if Trim(NewText) = '' then
+      Result := FDocument.ClearValue(Index, Size, Reason)
+    else
+    begin
+      Result := ParseMeasure(NewText, FUnit, Value);
+      if Result then
+        FDocument.SetValue(Index, Size, Value)
+      else
+        Reason := rsBadValue;
+    end;
+  end;
+  if not Result then
+    ShowRefusal(Reason);
+end;
+
+// An unchanged cell is left alone, so moving through a table in inches does
+// not round its values
+procedure TMeasurementsForm.GridValidate(Sender: TObject; ACol, ARow: integer; const OldValue: string; var NewValue: string);
+var
+  Index: integer;
+begin
+  Index := RowIndex(ARow);
+  if FRefreshing or (Index < 0) or (NewValue = OldValue) then
+    Exit;
+  if not CommitCell(ACol, Index, NewValue) then
+    NewValue := OldValue;
+end;
+
+// Keys are checked as they are typed; the edit itself is made on leaving the cell
+procedure TMeasurementsForm.GridEditText(Sender: TObject; ACol, ARow: integer; const Value: string);
+var
+  Index: integer;
+  Reason: string;
+begin
+  Index := RowIndex(ARow);
+  if FRefreshing or (Index < 0) or (ACol <> KeyColumn) then
+    Exit;
+  if FDocument.Measurements.CheckKey(Trim(Value), FDocument.Measurements[Index], Reason) then
+    ShowStatus('')
+  else
+    ShowStatus(Reason);
+end;
+
+procedure TMeasurementsForm.HeaderDone(Sender: TObject);
+begin
+  if FRefreshing then
+    Exit;
+  if FNameEdit.Text <> FDocument.Measurements.Name then
+    FDocument.SetName(FNameEdit.Text);
+  if FNotesEdit.Text <> FDocument.Measurements.Notes then
+    FDocument.SetNotes(FNotesEdit.Text);
+end;
+
+procedure TMeasurementsForm.UnitChange(Sender: TObject);
+begin
+  FUnit := TMeasureUnit(FUnitBox.ItemIndex);
+  SaveUnit;
+  RefreshAll;
+end;
+
+procedure TMeasurementsForm.LoadUnit;
+var
+  Settings: TAppSettings;
+  Reason: string;
+begin
+  Settings := TAppSettings.Create;
+  try
+    if FileExists(TAppPaths.SettingsFile) then
+      Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
+    FUnit := Settings.MeasureUnit;
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+// Read first, since the drafting app keeps its settings in the same file
+procedure TMeasurementsForm.SaveUnit;
+var
+  Settings: TAppSettings;
+  Reason: string;
+begin
+  Settings := TAppSettings.Create;
+  try
+    if FileExists(TAppPaths.SettingsFile) and not Settings.LoadFromFile(TAppPaths.SettingsFile, Reason) then
+      Exit;
+    Settings.MeasureUnit := FUnit;
+    Settings.SaveToFile(TAppPaths.SettingsFile, Reason);
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+procedure TMeasurementsForm.WatchTick(Sender: TObject);
+begin
+  // Taking in a change now would lose what is being typed
+  if FAnswering or (FGrid.Editor <> nil) and (FGrid.Cells[FGrid.Col, FGrid.Row] <> FGrid.Editor.Caption) then
+    Exit;
+  case FDocument.CheckFile of
+    fcReloaded: ShowStatus(rsFileReloaded);
+    fcMerged: ShowStatus(rsFileMerged);
+    fcConflict: AnswerConflicts;
+    else;
+  end;
+end;
+
+procedure TMeasurementsForm.AnswerConflicts;
+var
+  Conflict: string;
+  TakeTheirs: TStringArray;
+begin
+  FAnswering := True;
+  try
+    TakeTheirs := nil;
+    for Conflict in FDocument.Conflicts do
+      if MessageDlg(Format(rsConflictQuestion, [Conflict]), mtConfirmation, [mbYes, mbNo], 0) = mrNo then
+        Insert(Conflict, TakeTheirs, Length(TakeTheirs));
+    FDocument.ResolveConflicts(TakeTheirs);
+    ShowStatus(rsConflictsAnswered);
+  finally
+    FAnswering := False;
+  end;
+end;
+
+procedure TMeasurementsForm.ShowStatus(const AText: string);
+begin
+  FStatus.SimpleText := AText;
+end;
+
+procedure TMeasurementsForm.ShowRefusal(const Reason: string);
+begin
+  ShowStatus(Reason);
+  Beep;
+end;
+
+function TMeasurementsForm.ConfirmDiscard: boolean;
+begin
+  Result := not FDocument.Modified or (MessageDlg(rsDiscardQuestion, mtConfirmation, [mbYes, mbNo], 0) = mrYes);
+end;
+
+procedure TMeasurementsForm.CloseAsked(Sender: TObject; var CanClose: boolean);
+begin
+  FGrid.EditingDone;
+  CanClose := ConfirmDiscard;
+end;
+
+procedure TMeasurementsForm.NewClick(Sender: TObject);
+begin
+  if ConfirmDiscard then
+    FDocument.New;
+end;
+
+procedure TMeasurementsForm.OpenPath(const Path: string);
+var
+  Reason: string;
+begin
+  if not FDocument.Open(Path, Reason) then
+    MessageDlg(Format(rsOpenFailed, [Path, Reason]), mtError, [mbOK], 0);
+end;
+
+procedure TMeasurementsForm.OpenClick(Sender: TObject);
+var
+  Dialog: TOpenDialog;
+begin
+  if not ConfirmDiscard then
+    Exit;
+  Dialog := TOpenDialog.Create(Self);
+  try
+    Dialog.Filter := rsFilter;
+    if Dialog.Execute then
+      OpenPath(Dialog.FileName);
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+function TMeasurementsForm.SaveTo(const FileName: string): boolean;
+var
+  Reason: string;
+begin
+  Result := FDocument.Save(FileName, Reason);
+  if Result then
+    ShowStatus(Format(rsSaved, [FileName]))
+  else
+    MessageDlg(Format(rsSaveFailed, [FileName, Reason]), mtError, [mbOK], 0);
+end;
+
+procedure TMeasurementsForm.SaveClick(Sender: TObject);
+begin
+  FGrid.EditingDone;
+  HeaderDone(Sender);
+  if FDocument.FileName = '' then
+    SaveAsClick(Sender)
+  else
+    SaveTo(FDocument.FileName);
+end;
+
+procedure TMeasurementsForm.SaveAsClick(Sender: TObject);
+var
+  Dialog: TSaveDialog;
+begin
+  FGrid.EditingDone;
+  HeaderDone(Sender);
+  Dialog := TSaveDialog.Create(Self);
+  try
+    Dialog.Filter := rsFilter;
+    Dialog.DefaultExt := MeasurementExtension;
+    Dialog.FileName := FDocument.FileName;
+    Dialog.Options := Dialog.Options + [ofOverwritePrompt];
+    if Dialog.Execute then
+      SaveTo(Dialog.FileName);
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+procedure TMeasurementsForm.QuitClick(Sender: TObject);
+begin
+  Close;
+end;
+
+procedure TMeasurementsForm.UndoClick(Sender: TObject);
+begin
+  FDocument.Undo;
+end;
+
+procedure TMeasurementsForm.RedoClick(Sender: TObject);
+begin
+  FDocument.Redo;
+end;
+
+procedure TMeasurementsForm.AddClick(Sender: TObject);
+begin
+  FDocument.AddMeasurement;
+  SelectCell(FDocument.Measurements.Count - 1, KeyColumn);
+  FGrid.SetFocus;
+end;
+
+procedure TMeasurementsForm.DeleteClick(Sender: TObject);
+var
+  Index: integer;
+begin
+  Index := RowIndex(FGrid.Row);
+  if Index < 0 then
+    ShowRefusal(rsChooseAMeasurement)
+  else if MessageDlg(Format(rsDeleteQuestion, [FDocument.Measurements[Index].Key]), mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+    FDocument.DeleteMeasurement(Index);
+end;
+
+procedure TMeasurementsForm.UpClick(Sender: TObject);
+var
+  Index: integer;
+begin
+  Index := RowIndex(FGrid.Row);
+  if Index > 0 then
+  begin
+    FDocument.MoveMeasurement(Index, Index - 1);
+    SelectCell(Index - 1, FGrid.Col);
+  end;
+end;
+
+procedure TMeasurementsForm.DownClick(Sender: TObject);
+var
+  Index: integer;
+begin
+  Index := RowIndex(FGrid.Row);
+  if (Index >= 0) and (Index < FDocument.Measurements.Count - 1) then
+  begin
+    FDocument.MoveMeasurement(Index, Index + 1);
+    SelectCell(Index + 1, FGrid.Col);
+  end;
+end;
+
+procedure TMeasurementsForm.AddSizeClick(Sender: TObject);
+var
+  Size, Reason: string;
+begin
+  Size := '';
+  if InputQuery(rsAddSizeTitle, rsSizePrompt, Size) and not FDocument.AddSize(Size, Reason) then
+    ShowRefusal(Reason);
+end;
+
+procedure TMeasurementsForm.RenameSizeClick(Sender: TObject);
+var
+  Index: integer;
+  Size, Reason: string;
+begin
+  Index := CurrentSize;
+  if Index < 0 then
+  begin
+    ShowRefusal(rsChooseASize);
+    Exit;
+  end;
+  Size := FDocument.Measurements.Sizes[Index];
+  if InputQuery(Format(rsRenameSizeTitle, [Size]), rsSizePrompt, Size) and not FDocument.RenameSize(Index, Size, Reason) then
+    ShowRefusal(Reason);
+end;
+
+procedure TMeasurementsForm.DeleteSizeClick(Sender: TObject);
+var
+  Index: integer;
+  Reason: string;
+begin
+  Index := CurrentSize;
+  if Index < 0 then
+    ShowRefusal(rsChooseASize)
+  else if (MessageDlg(Format(rsDeleteSizeQuestion, [FDocument.Measurements.Sizes[Index]]), mtConfirmation, [mbYes, mbNo], 0) = mrYes) and
+    not FDocument.DeleteSize(Index, Reason) then
+    ShowRefusal(Reason);
+end;
+
+procedure TMeasurementsForm.SizeLeftClick(Sender: TObject);
+var
+  Index: integer;
+begin
+  Index := CurrentSize;
+  if Index > 0 then
+  begin
+    FDocument.MoveSize(Index, Index - 1);
+    SelectCell(RowIndex(FGrid.Row), FGrid.Col - 1);
+  end;
+end;
+
+procedure TMeasurementsForm.SizeRightClick(Sender: TObject);
+var
+  Index: integer;
+begin
+  Index := CurrentSize;
+  if (Index >= 0) and (Index < FDocument.Measurements.SizeCount - 1) then
+  begin
+    FDocument.MoveSize(Index, Index + 1);
+    SelectCell(RowIndex(FGrid.Row), FGrid.Col + 1);
+  end;
+end;
+
+end.

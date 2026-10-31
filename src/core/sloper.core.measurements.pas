@@ -126,6 +126,9 @@ type
     property SizeName: string read GetSizeName;
   end;
 
+  // How values are shown and typed; files always store mm
+  TMeasureUnit = (muMillimetre, muCentimetre, muInch);
+
   // One small edit to a measurement file
   TMeasurementChange = record
     Key: string;
@@ -141,8 +144,20 @@ type
 // On failure the file is left as it was.
 function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
   out Change: TMeasurementChange; out ErrorMessage: string; const Size: string = ''): boolean;
+// A value in mm, as shown in this unit
+function FormatMeasure(Millimetres: double; AUnit: TMeasureUnit): string;
+// Text in this unit, in mm. A comma is taken as the decimal point.
+function ParseMeasure(const Text: string; AUnit: TMeasureUnit; out Millimetres: double): boolean;
+// A three-way merge by key of two sets that both started from Base. A key
+// changed on one side takes that side; one changed on both is a conflict, which
+// keeps Mine and is listed, unless it is in TakeTheirs. Merged is filled in.
+procedure MergeMeasurementSets(Base, Mine, Theirs: TMeasurementSet; const TakeTheirs: TStringArray; Merged: TMeasurementSet;
+  out Conflicts: TStringArray);
 // A new, empty measurement file
 function CreateMeasurementFile(const FileName: string; out ErrorMessage: string): boolean;
+
+const
+  MeasureUnitNames: array[TMeasureUnit] of string = ('mm', 'cm', 'in');
 
 resourcestring
   rsMeasurementWrongFormat = 'This is not a measurements file';
@@ -165,7 +180,13 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Names, Sloper.Core.JSON;
+  Classes, Math, Sloper.Core.Names, Sloper.Core.JSON;
+
+const
+  MillimetresPerUnit: array[TMeasureUnit] of double = (1, 10, 25.4);
+  // Enough places to tell 0.1 mm apart in each unit
+  MeasureFormats: array[TMeasureUnit] of string = ('0.######', '0.####', '0.####');
+  MaxMeasure = 1e12;
 
 function TMeasurement.GetValue: double;
 begin
@@ -689,6 +710,147 @@ begin
   finally
     FreeAndNil(MeasurementSet);
   end;
+end;
+
+function FormatMeasure(Millimetres: double; AUnit: TMeasureUnit): string;
+var
+  Settings: TFormatSettings;
+begin
+  Settings := DefaultFormatSettings;
+  Settings.DecimalSeparator := '.';
+  Result := FormatFloat(MeasureFormats[AUnit], Millimetres / MillimetresPerUnit[AUnit], Settings);
+end;
+
+function ParseMeasure(const Text: string; AUnit: TMeasureUnit; out Millimetres: double): boolean;
+var
+  Settings: TFormatSettings;
+  Value: double;
+begin
+  Millimetres := 0;
+  Settings := DefaultFormatSettings;
+  Settings.DecimalSeparator := '.';
+  Result := TryStrToFloat(StringReplace(Trim(Text), ',', '.', []), Value, Settings) and (Abs(Value) < MaxMeasure);
+  if Result then
+    Millimetres := Value * MillimetresPerUnit[AUnit];
+end;
+
+// All a side says about a key, to see whether it changed; '' when it has none
+function KeyFingerprint(MeasurementSet: TMeasurementSet; const Key: string): string;
+var
+  Measurement: TMeasurement;
+  Lines: TStringList;
+  Index: integer;
+begin
+  Result := '';
+  Measurement := MeasurementSet.Find(Key);
+  if Measurement = nil then
+    Exit;
+  Lines := TStringList.Create;
+  try
+    for Index := 0 to High(Measurement.FCells) do
+      if Measurement.HasValueFor(Index) then
+        if MeasurementSet.SizeCount = 0 then
+          Lines.Add('=' + FormatJSONFloat(Measurement.ValueFor(Index)))
+        else
+          Lines.Add(LowerCase(MeasurementSet.Sizes[Index]) + '=' + FormatJSONFloat(Measurement.ValueFor(Index)));
+    Lines.Sort;
+    Result := Measurement.Key + #10 + Measurement.Description + #10 + Lines.Text;
+  finally
+    FreeAndNil(Lines);
+  end;
+end;
+
+// Adds the key to Merged, its values going by size name
+procedure CopyMeasurement(Source: TMeasurementSet; const Key: string; Merged: TMeasurementSet);
+var
+  From, Into: TMeasurement;
+  Index, Target: integer;
+begin
+  From := Source.Find(Key);
+  Into := Merged.Add(From.Key, 0, From.Description);
+  for Index := 0 to Merged.SizeCount - 1 do
+    Into.ClearValueFor(Index);
+  for Index := 0 to High(From.FCells) do
+    if From.HasValueFor(Index) then
+    begin
+      Target := 0;
+      if Source.SizeCount > 0 then
+        Target := Merged.IndexOfSize(Source.Sizes[Index]);
+      if Target >= 0 then
+        Into.SetValueFor(Target, From.ValueFor(Index));
+    end;
+end;
+
+procedure MergeSizes(Base, Mine, Theirs, Merged: TMeasurementSet);
+var
+  Index: integer;
+begin
+  // Sizes they kept, unless deleted here
+  for Index := 0 to Theirs.SizeCount - 1 do
+    if (Mine.IndexOfSize(Theirs.Sizes[Index]) >= 0) or (Base.IndexOfSize(Theirs.Sizes[Index]) < 0) then
+      Merged.AddSize(Theirs.Sizes[Index]);
+  for Index := 0 to Mine.SizeCount - 1 do
+    if (Base.IndexOfSize(Mine.Sizes[Index]) < 0) and (Merged.IndexOfSize(Mine.Sizes[Index]) < 0) then
+      Merged.AddSize(Mine.Sizes[Index]);
+end;
+
+procedure MergeMeasurementSets(Base, Mine, Theirs: TMeasurementSet; const TakeTheirs: TStringArray; Merged: TMeasurementSet;
+  out Conflicts: TStringArray);
+
+  function Listed(const Key: string): boolean;
+  var
+    Taken: string;
+  begin
+    for Taken in TakeTheirs do
+      if SameName(Taken, Key) then
+        Exit(True);
+    Result := False;
+  end;
+
+  procedure MergeKey(const Key: string);
+  var
+    OnBase, OnMine, OnTheirs: string;
+    FromTheirs: boolean;
+  begin
+    OnBase := KeyFingerprint(Base, Key);
+    OnMine := KeyFingerprint(Mine, Key);
+    OnTheirs := KeyFingerprint(Theirs, Key);
+    FromTheirs := OnMine = OnBase;
+    if (OnMine <> OnBase) and (OnTheirs <> OnBase) and (OnMine <> OnTheirs) then
+    begin
+      FromTheirs := Listed(Key);
+      if not FromTheirs then
+      begin
+        SetLength(Conflicts, Length(Conflicts) + 1);
+        Conflicts[High(Conflicts)] := Key;
+      end;
+    end;
+    if FromTheirs and (Theirs.Find(Key) <> nil) then
+      CopyMeasurement(Theirs, Key, Merged)
+    else if not FromTheirs and (Mine.Find(Key) <> nil) then
+      CopyMeasurement(Mine, Key, Merged);
+  end;
+
+var
+  Index: integer;
+begin
+  Conflicts := nil;
+  Merged.Clear;
+  MergeSizes(Base, Mine, Theirs, Merged);
+  if Mine.Name = Base.Name then
+    Merged.Name := Theirs.Name
+  else
+    Merged.Name := Mine.Name;
+  if Mine.Notes = Base.Notes then
+    Merged.Notes := Theirs.Notes
+  else
+    Merged.Notes := Mine.Notes;
+  for Index := 0 to Theirs.Count - 1 do
+    MergeKey(Theirs[Index].Key);
+  // Keys they do not have: added here, or deleted there
+  for Index := 0 to Mine.Count - 1 do
+    if Theirs.Find(Mine[Index].Key) = nil then
+      MergeKey(Mine[Index].Key);
 end;
 
 function CreateMeasurementFile(const FileName: string; out ErrorMessage: string): boolean;

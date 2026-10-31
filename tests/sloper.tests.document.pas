@@ -42,6 +42,7 @@ type
     procedure AddPoint(const AName, X: string);
     procedure Nudge(const AName: string; Dx: double);
     function WriteSet(const AName: string; Waist: double): string;
+    function WriteTable: string;
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -71,6 +72,13 @@ type
     procedure TestFailedLoadKeepsPattern;
     procedure TestMeasurementsSurviveUndo;
     procedure TestChangeMeasurementReevaluates;
+    procedure TestSelectSizeReevaluates;
+    procedure TestChangeMeasurementKeepsSize;
+    procedure TestSeesMeasurementFileChange;
+    procedure TestMeasurementWatchWaitsForAStableFile;
+    procedure TestMeasurementWatchKeepsSize;
+    procedure TestMeasurementWatchIgnoresBrokenFile;
+    procedure TestMeasurementWatchIgnoresOwnChange;
     procedure TestChangeMeasurementIsNotAnUndoStep;
     procedure TestChangeMeasurementFixesMissingKey;
     procedure TestChangeMeasurementNeedsAFile;
@@ -80,6 +88,7 @@ type
 implementation
 
 uses
+  Sloper.Core.JSON,
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.PatternFile;
 
 procedure TTestDocument.SetUp;
@@ -525,6 +534,121 @@ begin
 end;
 
 // The measurement set is the document's choice; undo does not bring back an old one
+function TTestDocument.WriteTable: string;
+var
+  Table: TMeasurementSet;
+  Err: string;
+begin
+  Result := ConcatPaths([FFolder, 'sets', 'bill.slm']);
+  ForceDirectories(ExtractFileDir(Result));
+  Table := TMeasurementSet.Create;
+  try
+    AssertTrue(Err, Table.LoadFromText('{"format": "measurements", "version": 1, "sizes": ["36", "38"], ' +
+      '"measurements": [{"key": "waist", "values": [400, 800]}]}', Err));
+    AssertTrue(Err, Table.SaveToFile(Result, Err));
+  finally
+    FreeAndNil(Table);
+  end;
+end;
+
+procedure TTestDocument.TestSelectSizeReevaluates;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteTable, Err));
+  FDocument.BeginChange('Add point');
+  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  AssertNear('first size', 100, PointX('A'));
+  FChanges := nil;
+  FDocument.AddListener(@Listen);
+  AssertTrue(FDocument.SelectMeasurementSize('38'));
+  AssertNear('second size', 200, PointX('A'));
+  AssertEquals('one notification', 1, Length(FChanges));
+  AssertFalse('unknown size', FDocument.SelectMeasurementSize('42'));
+  AssertEquals('38', FDocument.Measurements.SizeName);
+  AssertFalse('not a pattern edit', FDocument.CanUndo and (FDocument.UndoDescription <> 'Add point'));
+end;
+
+procedure TTestDocument.TestChangeMeasurementKeepsSize;
+var
+  Err: string;
+  Change: TMeasurementChange;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteTable, Err));
+  AssertTrue(FDocument.SelectMeasurementSize('38'));
+  AssertTrue(Err, FDocument.ChangeMeasurement('waist', 820, '', Change, Err));
+  AssertEquals('38', FDocument.Measurements.SizeName);
+  AssertNear('that size', 820, FDocument.Measurements.Find('waist').Value);
+  AssertNear('not the other', 400, FDocument.Measurements.Find('waist').ValueFor(0));
+end;
+
+procedure TTestDocument.TestSeesMeasurementFileChange;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  FDocument.BeginChange('Add point');
+  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  AssertFalse('no change', FDocument.CheckMeasurementFile);
+  WriteSet('bill.slm', 800);
+  AssertFalse('the first sight waits', FDocument.CheckMeasurementFile);
+  AssertTrue(FDocument.CheckMeasurementFile);
+  AssertNear('pattern follows', 200, PointX('A'));
+  AssertFalse('once only', FDocument.CheckMeasurementFile);
+end;
+
+procedure TTestDocument.TestMeasurementWatchWaitsForAStableFile;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  WriteSet('bill.slm', 800);
+  AssertFalse(FDocument.CheckMeasurementFile);
+  WriteSet('bill.slm', 810);
+  AssertFalse('still changing', FDocument.CheckMeasurementFile);
+  AssertTrue(FDocument.CheckMeasurementFile);
+  AssertNear('the last value', 810, FDocument.Measurements.Find('waist').Value);
+end;
+
+procedure TTestDocument.TestMeasurementWatchKeepsSize;
+var
+  Err: string;
+  Path: string;
+  Change: TMeasurementChange;
+begin
+  Path := WriteTable;
+  AssertTrue(Err, FDocument.UseMeasurements(Path, Err));
+  AssertTrue(FDocument.SelectMeasurementSize('38'));
+  AssertTrue(Err, ChangeMeasurementInFile(Path, 'waist', 830, '', Change, Err, '38'));
+  AssertFalse(FDocument.CheckMeasurementFile);
+  AssertTrue(FDocument.CheckMeasurementFile);
+  AssertEquals('38', FDocument.Measurements.SizeName);
+  AssertNear('value', 830, FDocument.Measurements.Find('waist').Value);
+end;
+
+procedure TTestDocument.TestMeasurementWatchIgnoresBrokenFile;
+var
+  Err, Path: string;
+begin
+  Path := WriteSet('bill.slm', 720);
+  AssertTrue(Err, FDocument.UseMeasurements(Path, Err));
+  AssertTrue(Err, WriteTextFile(Path, 'half a fi', Err));
+  AssertFalse(FDocument.CheckMeasurementFile);
+  AssertFalse(FDocument.CheckMeasurementFile);
+  AssertNear('stays', 720, FDocument.Measurements.Find('waist').Value);
+end;
+
+procedure TTestDocument.TestMeasurementWatchIgnoresOwnChange;
+var
+  Err: string;
+  Change: TMeasurementChange;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  AssertTrue(Err, FDocument.ChangeMeasurement('waist', 800, '', Change, Err));
+  AssertFalse(FDocument.CheckMeasurementFile);
+  AssertFalse(FDocument.CheckMeasurementFile);
+end;
+
 procedure TTestDocument.TestChangeMeasurementReevaluates;
 var
   Err: string;

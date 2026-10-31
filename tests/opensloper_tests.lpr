@@ -53,7 +53,8 @@ uses
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper,
   Sloper.Tests.Piece,
-  Sloper.Tests.Layout;
+  Sloper.Tests.Layout,
+  Sloper.Tests.MeasurementDocument;
 
 var
   App: TTestRunner;

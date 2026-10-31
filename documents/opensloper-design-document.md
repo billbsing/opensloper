@@ -744,7 +744,11 @@ Everything else (reordering, sizes, imports, the client library) is done in the 
 
 **From the CLI and the Automation API:** `opensloper-cli measurements set FILE KEY VALUE [--size SIZE] [--description TEXT]` and `opensloper-cli measurements list FILE` for scripts, and matching `get_measurements` and `set_measurement` methods in the Automation API, so Claude can add a missing measurement. Both use `Sloper.Core.Measurements`.
 
-**Code.** A third Lazarus project, `measurements/opensloper-measurements.lpi`, using `src/core` and BGRABitmap for the body figure.
+**Undo and watching.** `TMeasurementDocument` (`src/document`) keeps its own history of the file's text, through the `TTextHistory` it shares with the publish app. A change read from disk clears that history, since an older step would bring back what the file has just replaced. A file seen changing has to read the same on two checks before it is taken in, and a file that does not parse is left alone. Saving over a file that has changed since it was read is refused until the change has been taken in, so a change made elsewhere is never lost. The merge compares each key with the file as last read: a key changed on one side takes that side, and one changed on both asks which to keep, as a whole, including a key deleted on one side.
+
+**The selected size is not saved in the pattern.** The drafting app's size chooser, in the Measurements tab, is for the session; a set opens on its first size.
+
+**Code.** A third Lazarus project, `measurements/opensloper-measurements.lpi`, using `src/core` and `src/document`, and BGRABitmap for the body figure once it is added.
 
 ## Publish app
 
@@ -1164,7 +1168,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-10. Measurements app (under way: size tables are in the core, layouts and `opensloper-cli --size`; the app, and choosing a size in the drafting app, remain): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
+10. Measurements app (under way: size tables, the `opensloper-measurements` table editor with undo, units and merging, and the size chooser and file watching in the drafting app are done; the catalogue, body figure, import and export, and `opensloper-cli measurements` remain): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
 11. Seams and seam-length checks
 12. DXF-AAMA export, automatic packing in the publish app
 13. Blender export for 3D preview

@@ -19,6 +19,7 @@ backup/
 /opensloper
 /cli/opensloper-cli
 /publish/opensloper-publish
+/measurements/opensloper-measurements
 /tests/opensloper_tests
 *.exe
 *.dll

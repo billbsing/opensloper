@@ -139,6 +139,7 @@ type
     procedure TestLargeIgnoresExclusions;
     procedure TestLargeNarrowRollRefused;
     procedure TestPublishProgram;
+    procedure TestMeasurementsProgram;
     procedure TestWatchWaitsForAStableFile;
     procedure TestWatchIgnoresUnchangedFiles;
     procedure TestWatchSeesMeasurements;
@@ -1030,6 +1031,23 @@ begin
   FLayout.AddSource('front.sloper', '', '');
   AssertTrue(Reason, FLayout.SaveToFile(FLayout.FileName, Reason));
   AssertEquals('its layout', FLayout.FileName, PublishTargetFor(FPatternPath));
+end;
+
+procedure TTestLayout.TestMeasurementsProgram;
+var
+  Sub, Reason, Name: string;
+begin
+  AssertEquals('not there', '', TAppPaths.MeasurementsProgramIn(FFolder));
+  Name := 'opensloper-measurements' {$IFDEF WINDOWS} + '.exe' {$ENDIF};
+  Sub := ConcatPaths([FFolder, 'measurements']);
+  ForceDirectories(Sub);
+  try
+    AssertTrue(Reason, WriteTextFile(ConcatPaths([Sub, Name]), '', Reason));
+    AssertEquals('source tree', ConcatPaths([Sub, Name]), TAppPaths.MeasurementsProgramIn(FFolder));
+  finally
+    DeleteFile(ConcatPaths([Sub, Name]));
+    RemoveDir(Sub);
+  end;
 end;
 
 procedure TTestLayout.TestPublishProgram;

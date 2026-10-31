@@ -67,6 +67,11 @@
         <UnitName Value="Sloper.Tests.Layout"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.measurementdocument.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.MeasurementDocument"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.numeric.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Numeric"/>

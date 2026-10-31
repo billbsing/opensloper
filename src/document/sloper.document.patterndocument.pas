@@ -89,6 +89,8 @@ type
     FMeasurements: TMeasurementSet;
     FMeasurementPath: string;
     FMeasurementError: string;
+    // The set's file as it was read, and its text seen changing since
+    FMeasurementText, FPendingMeasurementText: string;
     FMeasurementsChanged: boolean;
     FFileName: string;
     FUndo, FRedo: TCommandList;
@@ -136,6 +138,12 @@ type
     // since the set is not part of it. On failure nothing changes.
     function ChangeMeasurement(const Key: string; Value: double; const Description: string;
       out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+    // Uses this size of a size table and re-evaluates; False when it is not in
+    // the set. Not an undo step, and not saved: a set starts on its first size.
+    function SelectMeasurementSize(const Size: string): boolean;
+    // Call regularly: reads the set again and re-evaluates once a change made
+    // elsewhere has stopped changing, keeping the size. True when it did.
+    function CheckMeasurementFile: boolean;
 
     // A change: BeginChange, any number of edits to Pattern (with LiveUpdate
     // to show them, e.g. while dragging), then EndChange to record them as
@@ -381,11 +389,16 @@ begin
 end;
 
 procedure TPatternDocument.SetMeasurementSet(ASet: TMeasurementSet; const APath: string);
+var
+  Reason: string;
 begin
   FPattern.Measurements := ASet;
   FreeAndNil(FMeasurements);
   FMeasurements := ASet;
   FMeasurementPath := APath;
+  FPendingMeasurementText := '';
+  if (APath = '') or not ReadTextFile(APath, FMeasurementText, Reason) then
+    FMeasurementText := '';
 end;
 
 procedure TPatternDocument.NewPattern;
@@ -485,6 +498,53 @@ begin
   try
     if not NewSet.LoadFromFile(FMeasurementPath, ErrorMessage) then
       Exit(False);
+    NewSet.SelectSize(Size);
+    SetMeasurementSet(NewSet, FMeasurementPath);
+    NewSet := nil;
+  finally
+    FreeAndNil(NewSet);
+  end;
+  FMeasurementError := '';
+  FPattern.Evaluate;
+  Notify([dcPattern, dcMeasurements]);
+  Result := True;
+end;
+
+function TPatternDocument.SelectMeasurementSize(const Size: string): boolean;
+begin
+  RequireNoChange;
+  Result := (FMeasurements <> nil) and FMeasurements.SelectSize(Size);
+  if not Result then
+    Exit;
+  FPattern.Evaluate;
+  Notify([dcPattern, dcMeasurements]);
+end;
+
+function TPatternDocument.CheckMeasurementFile: boolean;
+var
+  Text, Reason, Size: string;
+  NewSet: TMeasurementSet;
+begin
+  Result := False;
+  if FChangeOpen or (FMeasurementPath = '') or not ReadTextFile(FMeasurementPath, Text, Reason) or (Text = FMeasurementText) then
+  begin
+    FPendingMeasurementText := '';
+    Exit;
+  end;
+  if Text <> FPendingMeasurementText then
+  begin
+    FPendingMeasurementText := Text;
+    Exit;
+  end;
+  FPendingMeasurementText := '';
+  NewSet := TMeasurementSet.Create;
+  try
+    // A broken file is left for whoever is writing it to put right
+    if not NewSet.LoadFromText(Text, Reason) then
+      Exit;
+    Size := '';
+    if FMeasurements <> nil then
+      Size := FMeasurements.SizeName;
     NewSet.SelectSize(Size);
     SetMeasurementSet(NewSet, FMeasurementPath);
     NewSet := nil;
