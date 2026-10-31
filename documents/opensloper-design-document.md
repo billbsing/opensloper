@@ -1175,9 +1175,9 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 7. Automation API, phase 1: `opensloper-cli serve` (JSON-RPC over stdio) with `open`, `list_objects`, `set_formula`, `evaluate`, `check` and `render` (done, render as SVG)
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
-10. Measurements app (done, with 72 measurements in the catalogue so far, except the SVG export, whose purpose has not been decided): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files; SVG export
+10. Measurements app (done, with 72 measurements in the catalogue so far): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files
 11. Seams and seam-length checks
-12. DXF-AAMA export, automatic packing in the publish app
+12. SVG piece export and DXF-AAMA export, automatic packing in the publish app
 13. Blender export for 3D preview
 
 Open questions:
