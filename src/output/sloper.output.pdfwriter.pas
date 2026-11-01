@@ -46,6 +46,7 @@ type
     // Lines and text from here on, from 0 for black to 1 for white
     procedure SetGray(Level: double);
     procedure FillRectangle(const Area: TRect2);
+    procedure FillPolygon(const Points: TVec2Array);
     procedure Polyline(const Points: TVec2Array; Closed: boolean);
     procedure Line(const From, Target: TVec2);
     procedure Rectangle(const Area: TRect2);
@@ -128,6 +129,18 @@ procedure TPDFWriter.FillRectangle(const Area: TRect2);
 begin
   Add(PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * PointsPerMM) + ' ' +
     PointsText((Area.MaxY - Area.MinY) * PointsPerMM) + ' re f');
+end;
+
+procedure TPDFWriter.FillPolygon(const Points: TVec2Array);
+var
+  Index: integer;
+begin
+  for Index := 0 to High(Points) do
+    if Index = 0 then
+      Add(PageX(Points[Index].X) + ' ' + PageY(Points[Index].Y) + ' m')
+    else
+      Add(PageX(Points[Index].X) + ' ' + PageY(Points[Index].Y) + ' l');
+  Add('h f');
 end;
 
 procedure TPDFWriter.Polyline(const Points: TVec2Array; Closed: boolean);

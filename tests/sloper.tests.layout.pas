@@ -52,6 +52,14 @@ type
     procedure TestLoadRefusals;
     procedure TestPaperSizes;
     procedure TestCustomPaper;
+    procedure TestNamedPaperWithSizesSurvivesSaving;
+    procedure TestAddAndRemoveSource;
+    procedure TestRemoveSourceTakesPlacements;
+    procedure TestStoredPathIsRelative;
+    procedure TestSourceChangeUndoes;
+    procedure TestHalfCircleMarks;
+    procedure TestTintFill;
+    procedure TestNoTintOnProjector;
     procedure TestMissingOutputMembersKeepDefaults;
     procedure TestPlaceNewPieces;
     procedure TestCopiesAndMirror;
@@ -390,6 +398,126 @@ begin
   AssertTrue(PaperSize('Letter', PaperWidth, PaperHeight));
   AssertNear('Letter', 215.9, PaperWidth);
   AssertFalse(PaperSize('B9', PaperWidth, PaperHeight));
+end;
+
+procedure TTestLayout.TestNamedPaperWithSizesSurvivesSaving;
+var
+  Reason, Saved: string;
+begin
+  AssertTrue(Reason, FLayout.LoadFromText('{"format": "layout", "version": 1, "sources": [], "output": {"paper": "B4", "paperWidth": 250, "paperHeight": 353}}',
+    Reason));
+  Saved := FLayout.SaveToText;
+  AssertTrue(Reason, FLayout.LoadFromText(Saved, Reason));
+  AssertNear('width', 250, FLayout.Output.Tiles.PaperWidth);
+  AssertEquals('B4', FLayout.Output.Paper);
+end;
+
+procedure TTestLayout.TestAddAndRemoveSource;
+var
+  Source: TLayoutSource;
+begin
+  WritePattern;
+  Prepare;
+  Source := FLayout.AddSource('front.sloper', '', '');
+  FLayout.LoadSources;
+  AssertEquals('two sources', 2, FLayout.Sources.Count);
+  AssertEquals('both in the tray', 2, Length(FLayout.Unplaced));
+  FLayout.RemoveSource(Source);
+  AssertEquals('one source', 1, FLayout.Sources.Count);
+  AssertEquals('one in the tray', 1, Length(FLayout.Unplaced));
+end;
+
+procedure TTestLayout.TestRemoveSourceTakesPlacements;
+var
+  Second: TLayoutSource;
+begin
+  WritePattern;
+  Prepare;
+  Second := FLayout.AddSource('front.sloper', '', '');
+  FLayout.LoadSources;
+  FLayout.PlaceNewPieces;
+  AssertEquals('both placed', 2, Length(FLayout.Placements));
+  FLayout.RemoveSource(Second);
+  AssertEquals('its copy has gone', 1, Length(FLayout.Placements));
+  AssertEquals('no problem left', '', ProblemText);
+end;
+
+procedure TTestLayout.TestStoredPathIsRelative;
+begin
+  FLayout.FileName := ConcatPaths([FFolder, 'test.slayout']);
+  AssertEquals('beside it', 'front.sloper', FLayout.StoredPath(FPatternPath));
+  FLayout.FileName := '';
+  AssertEquals('no folder yet', FPatternPath, FLayout.StoredPath(FPatternPath));
+end;
+
+procedure TTestLayout.TestSourceChangeUndoes;
+var
+  Document: TLayoutDocument;
+begin
+  WritePattern;
+  Document := TLayoutDocument.Create;
+  try
+    Document.NewForPattern(FPatternPath);
+    AssertEquals('one', 1, Document.Layout.Sources.Count);
+    Document.BeginChange('Add');
+    Document.Layout.AddSource(Document.Layout.StoredPath(FPatternPath), '', '');
+    Document.Layout.LoadSources;
+    Document.EndChange;
+    AssertEquals('two', 2, Document.Layout.Sources.Count);
+    Document.Undo;
+    AssertEquals('undone', 1, Document.Layout.Sources.Count);
+    Document.Redo;
+    AssertEquals('redone', 2, Document.Layout.Sources.Count);
+    AssertNotNull('and read', Document.Layout.Sources[1].Pattern);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestLayout.TestHalfCircleMarks;
+var
+  Reason, Diamonds, Halves: string;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Placements[0].X := 150;
+  FLayout.PrintDate := '2026-11-01';
+  Diamonds := LayoutToPDF(FLayout);
+  FLayout.Output.Marks := lkHalfCircle;
+  Halves := LayoutToPDF(FLayout);
+  AssertTrue('draws something else', Diamonds <> Halves);
+  AssertTrue('more points', Length(Halves) > Length(Diamonds));
+  AssertTrue(Reason, FLayout.LoadFromText(FLayout.SaveToText, Reason));
+  AssertTrue('saved', FLayout.Output.Marks = lkHalfCircle);
+end;
+
+procedure TTestLayout.TestTintFill;
+var
+  Reason, Plain, Tinted: string;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.PrintDate := '2026-11-01';
+  Plain := LayoutToPDF(FLayout);
+  AssertEquals('not in the file by default', 0, Pos('"fill"', FLayout.SaveToText));
+  FLayout.Output.Fill := lfTint;
+  Tinted := LayoutToPDF(FLayout);
+  AssertEquals('plain has no piece fill', 0, Pos('h f', Plain));
+  AssertTrue('filled', Pos('h f', Tinted) > 0);
+  AssertTrue(Reason, FLayout.LoadFromText(FLayout.SaveToText, Reason));
+  AssertTrue('saved', FLayout.Output.Fill = lfTint);
+end;
+
+procedure TTestLayout.TestNoTintOnProjector;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Kind := okProjector;
+  FLayout.Output.Fill := lfTint;
+  AssertEquals('stays dark', 0, Pos('h f', LayoutToPDF(FLayout)));
 end;
 
 procedure TTestLayout.TestCustomPaper;

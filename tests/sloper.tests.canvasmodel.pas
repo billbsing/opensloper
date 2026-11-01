@@ -48,6 +48,9 @@ type
     procedure TestSeamHasNoLabel;
     procedure TestSeamBounds;
     procedure TestSplitFromSelection;
+    procedure TestScrollContentLargerThanView;
+    procedure TestScrollNothingToScroll;
+    procedure TestScrollViewPannedAwayFromContent;
     procedure TestYIsFlipped;
     procedure TestRoundTrip;
     procedure TestZoomKeepsAnchor;
@@ -294,6 +297,38 @@ begin
   AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(50, 50), Path, ErrorMessage));
   Result := FPattern.AddPiece('Front', Path, '10');
   FPattern.Evaluate;
+end;
+
+// 1000 pixels of content starting 300 before the view of 400
+procedure TTestCanvasModel.TestScrollContentLargerThanView;
+var
+  Axis: TScrollAxis;
+begin
+  Axis := ScrollAxisFor(-300, 700, 400);
+  AssertTrue('active', Axis.Active);
+  AssertEquals('extent', 1000, Axis.Extent);
+  AssertEquals('position', 300, Axis.Position);
+  AssertEquals('page', 400, Axis.Page);
+end;
+
+procedure TTestCanvasModel.TestScrollNothingToScroll;
+var
+  Axis: TScrollAxis;
+begin
+  Axis := ScrollAxisFor(50, 350, 400);
+  AssertFalse('all showing', Axis.Active);
+  AssertEquals('position', 0, Axis.Position);
+end;
+
+// The view off to the right of everything: the bar still reaches back
+procedure TTestCanvasModel.TestScrollViewPannedAwayFromContent;
+var
+  Axis: TScrollAxis;
+begin
+  Axis := ScrollAxisFor(-900, -500, 400);
+  AssertTrue('active', Axis.Active);
+  AssertEquals('from the content to the view', 1300, Axis.Extent);
+  AssertEquals('at the far end', 900, Axis.Position);
 end;
 
 function TTestCanvasModel.BuildSeam(out Piece: TPieceObject): TSeamObject;

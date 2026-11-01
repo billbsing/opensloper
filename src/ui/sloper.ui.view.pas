@@ -53,7 +53,18 @@ type
     procedure Reveal(const Bounds: TRect2; Width, Height, Margin: double);
   end;
 
+  // One scroll bar, in pixels. Extent covers the content and the view, so the
+  // bar still means something when the view is panned away from the content.
+  TScrollAxis = record
+    Extent, Position, Page: integer;
+    // False when all of the extent is showing
+    Active: boolean;
+  end;
+
 function DefaultView: TViewTransform;
+// A scroll bar for content running from ContentLow to ContentHigh on screen
+// (the view being 0 to ViewSize)
+function ScrollAxisFor(ContentLow, ContentHigh, ViewSize: double): TScrollAxis;
 // Pixels per mm for true size on a screen with this many pixels per inch
 function TrueScale(PixelsPerInch: double): double;
 
@@ -67,6 +78,18 @@ begin
   Result.Scale := 2;
   Result.OriginX := 40;
   Result.OriginY := 40;
+end;
+
+function ScrollAxisFor(ContentLow, ContentHigh, ViewSize: double): TScrollAxis;
+var
+  Low, High: double;
+begin
+  Low := Min(ContentLow, 0);
+  High := Max(ContentHigh, ViewSize);
+  Result.Extent := Round(High - Low);
+  Result.Position := Round(-Low);
+  Result.Page := Round(ViewSize);
+  Result.Active := Result.Extent > Result.Page;
 end;
 
 function TrueScale(PixelsPerInch: double): double;

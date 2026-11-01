@@ -25,7 +25,7 @@ unit Sloper.UI.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
+  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams;
@@ -87,6 +87,8 @@ type
     FLabelItems: array[TLabelMode] of TMenuItem;
     FSidePanel: TPageControl;
     FSideSplitter: TSplitter;
+    FCanvasPanel: TPanel;
+    FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FSideItem: TMenuItem;
     FObjects: TObjectsPanel;
     FVariables: TVariablesPanel;
@@ -283,9 +285,21 @@ begin
   FSplitter.Align := alRight;
   FSplitter.Left := FProperties.Left - FSplitter.Width;
   CreateSidePanel;
+  FCanvasPanel := TPanel.Create(Self);
+  FCanvasPanel.Parent := Self;
+  FCanvasPanel.Align := alClient;
+  FCanvasPanel.BevelOuter := bvNone;
+  FCanvasHorzBar := TScrollBar.Create(Self);
+  FCanvasHorzBar.Parent := FCanvasPanel;
+  FCanvasHorzBar.Align := alBottom;
+  FCanvasVertBar := TScrollBar.Create(Self);
+  FCanvasVertBar.Parent := FCanvasPanel;
+  FCanvasVertBar.Align := alRight;
   FCanvas := TPatternCanvas.Create(Self);
-  FCanvas.Parent := Self;
+  FCanvas.Parent := FCanvasPanel;
   FCanvas.Align := alClient;
+  FCanvas.HorzBar := FCanvasHorzBar;
+  FCanvas.VertBar := FCanvasVertBar;
   FCanvas.Document := FDocument;
   FCanvas.OnCursorMove := @CanvasCursorMove;
   FCanvas.OnMessage := @CanvasMessage;

@@ -65,6 +65,9 @@ const
   SeamDash = 2;
   OverlapDash = 1.5;
   DiamondSize = 3;
+  // Light enough that lines and text stay clear on it
+  TintGray = 0.93;
+  HalfCircleSteps = 16;
   CheckSquareTop = 27;
   TitleGap = 10;
   TitleTextSize = 9;
@@ -100,6 +103,8 @@ type
     procedure DrawTile(const Page: TTilePage);
     procedure DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
     procedure DrawDiamond(const Page: TTilePage; const Centre: TVec2);
+    procedure DrawHalfCircle(const Page: TTilePage; const Centre: TVec2; Inward: double);
+    procedure DrawMark(const Page: TTilePage; const Centre: TVec2; Inward: double);
     function PageValues: TFieldValues;
     procedure DrawTitle(Left, Top: double; Boxed: boolean);
     procedure MeasureTitle(out AWidth, AHeight: double);
@@ -361,6 +366,12 @@ var
   Mark: TLine2;
   Spot: TVec2;
 begin
+  if (FLayout.Output.Fill = lfTint) and (FLayout.Output.Kind <> okProjector) then
+  begin
+    FWriter.SetGray(TintGray);
+    FWriter.FillPolygon(PagePoints(Page, Shape.CutLine));
+    FWriter.SetGray(0);
+  end;
   FWriter.SetDash(0);
   FWriter.SetLineWidth(FCutWidth);
   FWriter.Polyline(PagePoints(Page, Shape.CutLine), True);
@@ -390,8 +401,32 @@ begin
   FWriter.Polyline(Points, True);
 end;
 
+// Each page prints the half on its own side of the overlap's middle, so that
+// with one sheet over the other the two halves make a circle
+procedure TLayoutPrinter.DrawHalfCircle(const Page: TTilePage; const Centre: TVec2; Inward: double);
+var
+  Spot: TVec2;
+  Points: TVec2Array;
+  Index: integer;
+begin
+  Spot := PagePoint(Page, Centre);
+  Points := nil;
+  SetLength(Points, HalfCircleSteps + 1);
+  for Index := 0 to HalfCircleSteps do
+    Points[Index] := PolarPoint(Spot, DiamondSize, Inward - 90 + 180 * Index / HalfCircleSteps);
+  FWriter.Polyline(Points, True);
+end;
+
+procedure TLayoutPrinter.DrawMark(const Page: TTilePage; const Centre: TVec2; Inward: double);
+begin
+  if FLayout.Output.Marks = lkHalfCircle then
+    DrawHalfCircle(Page, Centre, Inward)
+  else
+    DrawDiamond(Page, Centre);
+end;
+
 // In the middle of each overlap, so neighbouring pages print the same marks
-// and line up on them
+// and line up on them. Inward is the way into the page, y down.
 procedure TLayoutPrinter.DrawMarks(const Page: TTilePage);
 var
   Overlap, MiddleX, MiddleY: double;
@@ -404,13 +439,13 @@ begin
   FWriter.SetDash(0);
   FWriter.SetLineWidth(MarkLineWidth);
   if Page.Column > 0 then
-    DrawDiamond(Page, Vec2(Page.Area.MinX + Overlap / 2, MiddleY));
+    DrawMark(Page, Vec2(Page.Area.MinX + Overlap / 2, MiddleY), 0);
   if Page.Column < FColumnCount - 1 then
-    DrawDiamond(Page, Vec2(Page.Area.MaxX - Overlap / 2, MiddleY));
+    DrawMark(Page, Vec2(Page.Area.MaxX - Overlap / 2, MiddleY), 180);
   if Page.Row > 0 then
-    DrawDiamond(Page, Vec2(MiddleX, Page.Area.MinY + Overlap / 2));
+    DrawMark(Page, Vec2(MiddleX, Page.Area.MinY + Overlap / 2), 90);
   if Page.Row < FRowCount - 1 then
-    DrawDiamond(Page, Vec2(MiddleX, Page.Area.MaxY - Overlap / 2));
+    DrawMark(Page, Vec2(MiddleX, Page.Area.MaxY - Overlap / 2), 270);
 end;
 
 procedure TLayoutPrinter.DrawTile(const Page: TTilePage);

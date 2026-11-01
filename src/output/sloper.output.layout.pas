@@ -43,9 +43,14 @@ const
   LayoutFormat = 'layout';
   LayoutVersion = 1;
   LayoutExtension = '.slayout';
+  // The paper name for a size given by hand
+  CustomPaper = 'custom';
 
 type
-  TLayoutMarks = (lkDiamond, lkNone);
+  TLayoutMarks = (lkDiamond, lkNone, lkHalfCircle);
+  // lfTint fills pieces with a light tint in print; on projector output, which
+  // is dark, it does nothing
+  TLayoutFill = (lfNone, lfTint);
   // okTiled prints on pages of paper; okLarge on one sheet off a roll;
   // okProjector is one dark sheet with thick light lines, shown on the fabric
   TOutputKind = (okTiled, okLarge, okProjector);
@@ -59,6 +64,7 @@ type
     Paper: string;
     Tiles: TTileSettings;
     Marks: TLayoutMarks;
+    Fill: TLayoutFill;
     CalibrationX, CalibrationY: double;
   end;
 
@@ -177,6 +183,10 @@ type
     destructor Destroy; override;
     procedure Clear;
     function AddSource(const APatternFile, AMeasurementFile, ASize: string): TLayoutSource;
+    // Takes the source and its placements out
+    procedure RemoveSource(Source: TLayoutSource);
+    // A path as stored in the layout: relative to its folder when it has one
+    function StoredPath(const Path: string): string;
     // Reads and evaluates every source's files
     procedure LoadSources;
     function SaveToText: string;
@@ -284,10 +294,10 @@ const
   LineSpacing = 1.25;
   LetterWidth = 0.52;
   DefaultPaper = 'A4';
-  CustomPaper = 'custom';
   DefaultMargin = 6;
   DefaultOverlap = 10;
-  MarksNames: array[TLayoutMarks] of string = ('diamond', 'none');
+  MarksNames: array[TLayoutMarks] of string = ('diamond', 'none', 'halfCircle');
+  FillNames: array[TLayoutFill] of string = ('none', 'tint');
   KindNames: array[TOutputKind] of string = ('tiled', 'large', 'projector');
   // 36 inches, a common copy-shop width
   DefaultRollWidth = 914;
@@ -550,6 +560,27 @@ begin
   Result.Size := ASize;
 end;
 
+procedure TLayout.RemoveSource(Source: TLayoutSource);
+var
+  Index: integer;
+begin
+  for Index := High(Placements) downto 0 do
+    if Placements[Index].SourceId = Source.Id then
+      System.Delete(Placements, Index, 1);
+  FSources.Remove(Source);
+end;
+
+function TLayout.StoredPath(const Path: string): string;
+var
+  Folder: string;
+begin
+  Folder := ExtractFilePath(ExpandFileName(FileName));
+  if FileName = '' then
+    Result := Path
+  else
+    Result := ExtractRelativePath(Folder, ExpandFileName(Path));
+end;
+
 function TLayout.ResolvePath(const Stored: string): string;
 var
   Folder: string;
@@ -620,13 +651,14 @@ function SaveOutput(const Output: TLayoutOutput): TJSONObject;
 var
   Excluded: TJSONArray;
   Caption: string;
+  KnownWidth, KnownHeight: double;
 begin
   Result := TJSONObject.Create;
   try
     Result.Add('kind', KindNames[Output.Kind]);
     Result.Add('rollWidth', JSONFloat(Output.RollWidth));
     Result.Add('paper', Output.Paper);
-    if Output.Paper = CustomPaper then
+    if not PaperSize(Output.Paper, KnownWidth, KnownHeight) then
     begin
       Result.Add('paperWidth', JSONFloat(Output.Tiles.PaperWidth));
       Result.Add('paperHeight', JSONFloat(Output.Tiles.PaperHeight));
@@ -634,6 +666,8 @@ begin
     Result.Add('margin', JSONFloat(Output.Tiles.Margin));
     Result.Add('overlap', JSONFloat(Output.Tiles.Overlap));
     Result.Add('marks', MarksNames[Output.Marks]);
+    if Output.Fill <> lfNone then
+      Result.Add('fill', FillNames[Output.Fill]);
     Result.Add('calibrationX', JSONFloat(Output.CalibrationX));
     Result.Add('calibrationY', JSONFloat(Output.CalibrationY));
     if Output.ExcludedPages <> nil then
@@ -786,7 +820,7 @@ end;
 
 function ReadOutput(Item: TJSONObject; var Output: TLayoutOutput; out ErrorMessage: string): boolean;
 var
-  MarksText, KindText: string;
+  MarksText, FillText, KindText: string;
   Mark: TLayoutMarks;
   Kind: TOutputKind;
   Found: boolean;
@@ -842,6 +876,8 @@ begin
     if not Found then
       Output.Marks := lkNone;
   end;
+  if GetJSONString(Item, 'fill', FillText) and (FillText = FillNames[lfTint]) then
+    Output.Fill := lfTint;
   Result := True;
 end;
 

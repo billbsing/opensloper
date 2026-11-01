@@ -27,7 +27,7 @@ unit Sloper.UI.Canvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
+  Classes, SysUtils, Controls, StdCtrls, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
@@ -71,6 +71,9 @@ type
     FLabelMode: TLabelMode;
     // The hold-for-all-labels key is down
     FLabelsHeld: boolean;
+    FHorzBar, FVertBar: TScrollBar;
+    // A thumb is being dragged, so its bar is left alone until it lets go
+    FThumbHeld: boolean;
     FOnToolChange: TNotifyEvent;
     FOnCursorMove: TCursorMoveEvent;
     FOnMessage: TCanvasMessageEvent;
@@ -125,6 +128,11 @@ type
     procedure DrawHandles;
     procedure DrawLabels;
     procedure DrawSnap;
+    procedure SetHorzBar(Value: TScrollBar);
+    procedure SetVertBar(Value: TScrollBar);
+    procedure BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: integer);
+    procedure ShowOnBar(Bar: TScrollBar; const Axis: TScrollAxis);
+    procedure UpdateScrollBars;
   protected
     procedure Paint; override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer); override;
@@ -164,6 +172,9 @@ type
     property Tool: TCanvasTool read FTool write SetTool;
     property OnToolChange: TNotifyEvent read FOnToolChange write FOnToolChange;
     property LabelMode: TLabelMode read FLabelMode write SetLabelMode;
+    // Scroll bars to keep in step with the view
+    property HorzBar: TScrollBar read FHorzBar write SetHorzBar;
+    property VertBar: TScrollBar read FVertBar write SetVertBar;
   end;
 
 resourcestring
@@ -195,7 +206,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.Core.Pattern, Sloper.UI.Scene;
+  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.Core.Pattern, Sloper.UI.Scene;
 
 const
   // Screen pixels
@@ -1628,6 +1639,76 @@ begin
   end;
 end;
 
+procedure TPatternCanvas.SetHorzBar(Value: TScrollBar);
+begin
+  FHorzBar := Value;
+  FHorzBar.Kind := sbHorizontal;
+  FHorzBar.OnScroll := @BarScroll;
+  FHorzBar.SmallChange := WheelPanPixels;
+  FHorzBar.TabStop := False;
+end;
+
+procedure TPatternCanvas.SetVertBar(Value: TScrollBar);
+begin
+  FVertBar := Value;
+  FVertBar.Kind := sbVertical;
+  FVertBar.OnScroll := @BarScroll;
+  FVertBar.SmallChange := WheelPanPixels;
+  FVertBar.TabStop := False;
+end;
+
+// The bars are moved by hand only, so the view follows them, and the keys go
+// back to the canvas afterwards
+procedure TPatternCanvas.BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: integer);
+var
+  Moved: integer;
+begin
+  Moved := TScrollBar(Sender).Position - ScrollPos;
+  if Sender = FHorzBar then
+    FView.Pan(Moved, 0)
+  else
+    FView.Pan(0, Moved);
+  FThumbHeld := ScrollCode = scTrack;
+  TScrollBar(Sender).Position := ScrollPos;
+  if ScrollCode = scEndScroll then
+    SetFocus;
+  Invalidate;
+end;
+
+procedure TPatternCanvas.ShowOnBar(Bar: TScrollBar; const Axis: TScrollAxis);
+begin
+  Bar.Enabled := Axis.Active;
+  if not Axis.Active then
+    Exit;
+  Bar.Min := 0;
+  Bar.Max := Axis.Extent - 1;
+  Bar.PageSize := Axis.Page;
+  Bar.LargeChange := Axis.Page;
+  Bar.Position := Axis.Position;
+end;
+
+// The pattern and a margin round it, or just the view when it is empty
+procedure TPatternCanvas.UpdateScrollBars;
+var
+  Bounds: TRect2;
+  TopLeft, BottomRight: TVec2;
+begin
+  if (FHorzBar = nil) or (FVertBar = nil) or FThumbHeld then
+    Exit;
+  if (FDocument <> nil) and PatternBounds(FDocument.Pattern, Bounds) then
+  begin
+    TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MaxY));
+    BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MinY));
+    ShowOnBar(FHorzBar, ScrollAxisFor(TopLeft.X - FitMargin, BottomRight.X + FitMargin, ClientWidth));
+    ShowOnBar(FVertBar, ScrollAxisFor(TopLeft.Y - FitMargin, BottomRight.Y + FitMargin, ClientHeight));
+  end
+  else
+  begin
+    ShowOnBar(FHorzBar, ScrollAxisFor(0, ClientWidth, ClientWidth));
+    ShowOnBar(FVertBar, ScrollAxisFor(0, ClientHeight, ClientHeight));
+  end;
+end;
+
 procedure TPatternCanvas.Paint;
 begin
   if (FBitmap.Width <> ClientWidth) or (FBitmap.Height <> ClientHeight) then
@@ -1644,6 +1725,7 @@ begin
     DrawSnap;
   end;
   FBitmap.Draw(Canvas, 0, 0, True);
+  UpdateScrollBars;
 end;
 
 end.

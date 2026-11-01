@@ -45,8 +45,13 @@ type
     FNoteSizeEdit: TFloatSpinEdit;
     FDeleteNoteButton: TButton;
     FStatus: TStatusBar;
-    FKindBox, FPaperBox: TComboBox;
-    FRollEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit, FCalibrationYEdit: TFloatSpinEdit;
+    FPatternsSide: TWinControl;
+    FOutputScroll: TScrollBox;
+    FKindBox, FPaperBox, FMarksBox, FFillBox, FSizeBox: TComboBox;
+    FSourceBox: TListBox;
+    FSourceSetLabel: TLabel;
+    FRemoveSourceButton, FChooseSetButton, FPatternSetButton: TButton;
+    FPaperWidthEdit, FPaperHeightEdit, FRollEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit, FCalibrationYEdit: TFloatSpinEdit;
     FTray, FProblems: TListBox;
     // What each tray line stands for
     FTrayCopies: TUnplacedCopyArray;
@@ -59,6 +64,16 @@ type
     procedure PlaceRow(Row: TControl);
     procedure BuildMenu;
     procedure BuildPiecesTab;
+    procedure BuildPatternsTab;
+    function CurrentSource: TLayoutSource;
+    procedure RefreshPatternsTab;
+    procedure AddSourceClick(Sender: TObject);
+    procedure RemoveSourceClick(Sender: TObject);
+    procedure ChooseSetClick(Sender: TObject);
+    procedure PatternSetClick(Sender: TObject);
+    procedure SourceSelected(Sender: TObject);
+    procedure SizeChange(Sender: TObject);
+    procedure ChangeSource(const Description, AMeasurementFile, ASize: string);
     procedure BuildSide;
     function AddSpin(const ACaption: string; AMax, AIncrement: double; Decimals: integer): TFloatSpinEdit;
     function AddLabel(const ACaption: string): TLabel;
@@ -82,6 +97,7 @@ type
     procedure PreviewDragDrop(Sender, Source: TObject; X, Y: integer);
     procedure RemoveClick(Sender: TObject);
     procedure SettingChange(Sender: TObject);
+    procedure PaperEditExit(Sender: TObject);
     procedure OpenClick(Sender: TObject);
     procedure SaveClick(Sender: TObject);
     procedure SaveAsClick(Sender: TObject);
@@ -138,6 +154,31 @@ resourcestring
   rsRemove = 'Back to tray';
   rsTabPieces = 'Pieces';
   rsTabOutput = 'Output';
+  rsTabPatterns = 'Patterns';
+  rsPatternsLabel = 'Patterns in this layout';
+  rsAddPattern = 'Add pattern...';
+  rsRemovePattern = 'Remove pattern';
+  rsSourceSet = 'Measurements';
+  rsChooseSet = 'Choose measurements...';
+  rsPatternSet = 'Use the pattern''s own';
+  rsSourceSize = 'Size';
+  rsNoSet = 'None';
+  rsAddPatternChange = 'Add pattern';
+  rsRemovePatternChange = 'Remove pattern';
+  rsSetChange = 'Change measurements';
+  rsSizeChange = 'Change size';
+  rsSourceAdded = '%d new copies in the tray';
+  rsFilterMeasurements = 'Measurements (*.slm)|*.slm';
+  rsMarks = 'Alignment marks';
+  rsMarksDiamond = 'Diamonds';
+  rsMarksNone = 'None';
+  rsMarksHalfCircle = 'Half circles';
+  rsFill = 'Piece fill';
+  rsFillNone = 'None';
+  rsFillTint = 'Light tint';
+  rsPaperCustom = 'Custom';
+  rsPaperWidth = 'Paper width (mm)';
+  rsPaperHeight = 'Paper height (mm)';
   rsTabNotes = 'Notes';
   rsTitleBlock = 'Title block';
   rsEveryPage = 'On every page';
@@ -183,6 +224,7 @@ resourcestring
   rsExported = 'Wrote %s';
   rsFilterOpen = 'Layouts and patterns (*.slayout;*.sloper)|*.slayout;*.sloper';
   rsFilterLayout = 'Layouts (*.slayout)|*.slayout';
+  rsFilterPattern = 'Patterns (*.sloper)|*.sloper';
   rsFilterPDF = 'PDF (*.pdf)|*.pdf';
   rsFilterSVG = 'SVG (*.svg)|*.svg';
   rsFilterDXF = 'DXF-AAMA (*.dxf)|*.dxf';
@@ -193,7 +235,7 @@ uses
   LCLType, Math, Sloper.Core.Geometry, Sloper.Output.LayoutExport, Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
-  SideWidth = 280;
+  SideWidth = 340;
   NewNoteSize = 12;
   NewNoteGap = 10;
   MaxNoteSize = 200;
@@ -210,7 +252,10 @@ const
   MaxRollWidth = 2000;
   MaxCalibration = 2;
   PatternExtension = '.sloper';
-  PaperNames: array[0..2] of string = ('A4', 'A3', 'Letter');
+  // The last is the size typed in
+  PaperNames: array[0..3] of string = ('A4', 'A3', 'Letter', CustomPaper);
+  PatternListHeight = 120;
+  MaxPaperSide = 2000;
 
 constructor TPublishForm.Create(AOwner: TComponent);
 begin
@@ -241,6 +286,8 @@ begin
   FTabs.Align := alClient;
   FPiecesSide := FTabs.AddTabSheet;
   TTabSheet(FPiecesSide).Caption := rsTabPieces;
+  FPatternsSide := FTabs.AddTabSheet;
+  TTabSheet(FPatternsSide).Caption := rsTabPatterns;
   FSide := FTabs.AddTabSheet;
   TTabSheet(FSide).Caption := rsTabOutput;
   FNotesSide := FTabs.AddTabSheet;
@@ -254,7 +301,15 @@ begin
   FPreview.OnDragDrop := @PreviewDragDrop;
   FRowParent := FPiecesSide;
   BuildPiecesTab;
-  FRowParent := FSide;
+  FRowParent := FPatternsSide;
+  BuildPatternsTab;
+  // More rows than a small window has room for
+  FOutputScroll := TScrollBox.Create(Self);
+  FOutputScroll.Parent := FSide;
+  FOutputScroll.Align := alClient;
+  FOutputScroll.BorderStyle := bsNone;
+  FOutputScroll.HorzScrollBar.Visible := False;
+  FRowParent := FOutputScroll;
   BuildSide;
   FRowParent := FNotesSide;
   BuildNotesTab;
@@ -484,7 +539,17 @@ end;
 
 procedure TPublishForm.BuildSide;
 var
-  PaperName: string;
+  Index: integer;
+
+  function AddChoice(const ACaption: string): TComboBox;
+  begin
+    AddLabel(ACaption);
+    Result := TComboBox.Create(Self);
+    PlaceRow(Result);
+    Result.Style := csDropDownList;
+    Result.OnChange := @SettingChange;
+  end;
+
 begin
   AddLabel(rsOutput);
   FKindBox := TComboBox.Create(Self);
@@ -500,16 +565,181 @@ begin
   FPaperBox := TComboBox.Create(Self);
   PlaceRow(FPaperBox);
   FPaperBox.Style := csDropDownList;
-  for PaperName in PaperNames do
-    FPaperBox.Items.Add(PaperName);
+  for Index := 0 to High(PaperNames) - 1 do
+    FPaperBox.Items.Add(PaperNames[Index]);
+  FPaperBox.Items.Add(rsPaperCustom);
   FPaperBox.OnChange := @SettingChange;
+  FPaperWidthEdit := AddSpin(rsPaperWidth, MaxPaperSide, 1, SpinDecimals);
+  FPaperHeightEdit := AddSpin(rsPaperHeight, MaxPaperSide, 1, SpinDecimals);
+  FPaperWidthEdit.OnExit := @PaperEditExit;
+  FPaperHeightEdit.OnExit := @PaperEditExit;
   FMarginEdit := AddSpin(rsMargin, MaxMillimetres, 1, SpinDecimals);
   FOverlapEdit := AddSpin(rsOverlap, MaxMillimetres, 1, SpinDecimals);
   FCalibrationXEdit := AddSpin(rsCalibrationX, MaxCalibration, 0.001, CalibrationDecimals);
   FCalibrationYEdit := AddSpin(rsCalibrationY, MaxCalibration, 0.001, CalibrationDecimals);
+  FMarksBox := AddChoice(rsMarks);
+  // In the order of TLayoutMarks
+  FMarksBox.Items.Add(rsMarksDiamond);
+  FMarksBox.Items.Add(rsMarksNone);
+  FMarksBox.Items.Add(rsMarksHalfCircle);
+  FFillBox := AddChoice(rsFill);
+  // In the order of TLayoutFill
+  FFillBox.Items.Add(rsFillNone);
+  FFillBox.Items.Add(rsFillTint);
   AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
   AddButton(rsExportSVG, @ExportClick).Tag := Ord(efSVG);
   AddButton(rsExportDXF, @ExportClick).Tag := Ord(efDXF);
+end;
+
+procedure TPublishForm.BuildPatternsTab;
+begin
+  AddLabel(rsPatternsLabel);
+  FSourceBox := TListBox.Create(Self);
+  PlaceRow(FSourceBox);
+  FSourceBox.Height := PatternListHeight;
+  FSourceBox.OnClick := @SourceSelected;
+  AddButton(rsAddPattern, @AddSourceClick);
+  FRemoveSourceButton := AddButton(rsRemovePattern, @RemoveSourceClick);
+  AddLabel(rsSourceSet);
+  FSourceSetLabel := AddLabel('');
+  FChooseSetButton := AddButton(rsChooseSet, @ChooseSetClick);
+  FPatternSetButton := AddButton(rsPatternSet, @PatternSetClick);
+  AddLabel(rsSourceSize);
+  FSizeBox := TComboBox.Create(Self);
+  PlaceRow(FSizeBox);
+  FSizeBox.Style := csDropDownList;
+  FSizeBox.OnChange := @SizeChange;
+end;
+
+function TPublishForm.CurrentSource: TLayoutSource;
+begin
+  Result := nil;
+  if (FSourceBox.ItemIndex >= 0) and (FSourceBox.ItemIndex < FDocument.Layout.Sources.Count) then
+    Result := FDocument.Layout.Sources[FSourceBox.ItemIndex];
+end;
+
+procedure TPublishForm.RefreshPatternsTab;
+var
+  Keep, Index: integer;
+  Source: TLayoutSource;
+  Entry: string;
+begin
+  Keep := Max(FSourceBox.ItemIndex, 0);
+  FSourceBox.Items.BeginUpdate;
+  try
+    FSourceBox.Items.Clear;
+    for Source in FDocument.Layout.Sources do
+    begin
+      Entry := ExtractFileName(Source.PatternFile);
+      if (Source.Measurements <> nil) and (Source.Measurements.SizeName <> '') then
+        Entry := Format(rsLayoutSetAndSize, [Entry, Source.Measurements.SizeName]);
+      FSourceBox.Items.Add(Entry);
+    end;
+  finally
+    FSourceBox.Items.EndUpdate;
+  end;
+  FSourceBox.ItemIndex := Min(Keep, FSourceBox.Items.Count - 1);
+  Source := CurrentSource;
+  FRemoveSourceButton.Enabled := Source <> nil;
+  FChooseSetButton.Enabled := Source <> nil;
+  FPatternSetButton.Enabled := (Source <> nil) and (Source.MeasurementFile <> '');
+  FSourceSetLabel.Caption := rsNoSet;
+  if (Source <> nil) and (Source.MeasurementPath <> '') then
+    FSourceSetLabel.Caption := ExtractFileName(Source.MeasurementPath);
+  FSizeBox.Items.Clear;
+  if (Source <> nil) and (Source.Measurements <> nil) then
+  begin
+    for Index := 0 to Source.Measurements.SizeCount - 1 do
+      FSizeBox.Items.Add(Source.Measurements.Sizes[Index]);
+    FSizeBox.ItemIndex := FSizeBox.Items.IndexOf(Source.Measurements.SizeName);
+  end;
+  FSizeBox.Enabled := FSizeBox.Items.Count > 0;
+end;
+
+procedure TPublishForm.SourceSelected(Sender: TObject);
+begin
+  FRefreshing := True;
+  try
+    RefreshPatternsTab;
+  finally
+    FRefreshing := False;
+  end;
+end;
+
+procedure TPublishForm.AddSourceClick(Sender: TObject);
+var
+  Dialog: TOpenDialog;
+  Before: integer;
+begin
+  Dialog := TOpenDialog.Create(Self);
+  try
+    Dialog.Filter := rsFilterPattern;
+    Dialog.Options := Dialog.Options + [ofFileMustExist];
+    if not Dialog.Execute then
+      Exit;
+    Before := Length(FDocument.Layout.Unplaced);
+    FDocument.BeginChange(rsAddPatternChange);
+    FDocument.Layout.AddSource(FDocument.Layout.StoredPath(Dialog.FileName), '', '');
+    FDocument.Layout.LoadSources;
+    FDocument.EndChange;
+    FSourceBox.ItemIndex := FSourceBox.Items.Count - 1;
+    SourceSelected(Self);
+    ShowStatus(Format(rsSourceAdded, [Length(FDocument.Layout.Unplaced) - Before]));
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+procedure TPublishForm.RemoveSourceClick(Sender: TObject);
+begin
+  if CurrentSource = nil then
+    Exit;
+  FPreview.Selected := -1;
+  FDocument.BeginChange(rsRemovePatternChange);
+  FDocument.Layout.RemoveSource(CurrentSource);
+  FDocument.EndChange;
+end;
+
+procedure TPublishForm.ChangeSource(const Description, AMeasurementFile, ASize: string);
+var
+  Source: TLayoutSource;
+begin
+  Source := CurrentSource;
+  if Source = nil then
+    Exit;
+  FDocument.BeginChange(Description);
+  Source.MeasurementFile := AMeasurementFile;
+  Source.Size := ASize;
+  FDocument.Layout.LoadSources;
+  FDocument.EndChange;
+end;
+
+// A size belongs to its file, so a new file starts on its first
+procedure TPublishForm.ChooseSetClick(Sender: TObject);
+var
+  Dialog: TOpenDialog;
+begin
+  Dialog := TOpenDialog.Create(Self);
+  try
+    Dialog.Filter := rsFilterMeasurements;
+    Dialog.Options := Dialog.Options + [ofFileMustExist];
+    if Dialog.Execute then
+      ChangeSource(rsSetChange, FDocument.Layout.StoredPath(Dialog.FileName), '');
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+procedure TPublishForm.PatternSetClick(Sender: TObject);
+begin
+  ChangeSource(rsSetChange, '', '');
+end;
+
+procedure TPublishForm.SizeChange(Sender: TObject);
+begin
+  if FRefreshing or (CurrentSource = nil) or (FSizeBox.ItemIndex < 0) then
+    Exit;
+  ChangeSource(rsSizeChange, CurrentSource.MeasurementFile, FSizeBox.Text);
 end;
 
 procedure TPublishForm.BuildPiecesTab;
@@ -657,7 +887,7 @@ var
   Layout: TLayout;
   Pages: TTilePageArray;
   Page: TTilePage;
-  Rows, Columns, Blank, LeftOut: integer;
+  Rows, Columns, Blank, LeftOut, Index: integer;
 begin
   FRefreshing := True;
   try
@@ -667,7 +897,19 @@ begin
     FRollEdit.Enabled := Layout.Output.Kind = okLarge;
     FPaperBox.Enabled := Layout.Output.Kind = okTiled;
     FOverlapEdit.Enabled := Layout.Output.Kind = okTiled;
-    FPaperBox.ItemIndex := FPaperBox.Items.IndexOf(Layout.Output.Paper);
+    FPaperBox.ItemIndex := FPaperBox.Items.Count - 1;
+    for Index := 0 to High(PaperNames) do
+      if PaperNames[Index] = Layout.Output.Paper then
+        FPaperBox.ItemIndex := Index;
+    FPaperWidthEdit.Value := Layout.Output.Tiles.PaperWidth;
+    FPaperHeightEdit.Value := Layout.Output.Tiles.PaperHeight;
+    FPaperWidthEdit.Enabled := (Layout.Output.Kind = okTiled) and (FPaperBox.ItemIndex = High(PaperNames));
+    FPaperHeightEdit.Enabled := FPaperWidthEdit.Enabled;
+    FMarksBox.ItemIndex := Ord(Layout.Output.Marks);
+    FMarksBox.Enabled := Layout.Output.Kind = okTiled;
+    FFillBox.ItemIndex := Ord(Layout.Output.Fill);
+    FFillBox.Enabled := Layout.Output.Kind <> okProjector;
+    RefreshPatternsTab;
     FMarginEdit.Value := Layout.Output.Tiles.Margin;
     FOverlapEdit.Value := Layout.Output.Tiles.Overlap;
     FCalibrationXEdit.Value := Layout.Output.CalibrationX;
@@ -721,27 +963,44 @@ begin
   Before := Output;
   Output.Kind := TOutputKind(FKindBox.ItemIndex);
   Output.RollWidth := FRollEdit.Value;
-  Output.Paper := FPaperBox.Text;
-  PaperSize(Output.Paper, Output.Tiles.PaperWidth, Output.Tiles.PaperHeight);
+  Output.Paper := PaperNames[FPaperBox.ItemIndex];
+  if FPaperBox.ItemIndex = High(PaperNames) then
+  begin
+    Output.Tiles.PaperWidth := FPaperWidthEdit.Value;
+    Output.Tiles.PaperHeight := FPaperHeightEdit.Value;
+  end
+  else
+    PaperSize(Output.Paper, Output.Tiles.PaperWidth, Output.Tiles.PaperHeight);
+  Output.Marks := TLayoutMarks(FMarksBox.ItemIndex);
+  Output.Fill := TLayoutFill(FFillBox.ItemIndex);
   Output.Tiles.Margin := FMarginEdit.Value;
   Output.Tiles.Overlap := FOverlapEdit.Value;
   Output.CalibrationX := FCalibrationXEdit.Value;
   Output.CalibrationY := FCalibrationYEdit.Value;
   // Page names mean other sheets once the grid moves
-  if (Output.Paper <> Before.Paper) or (Output.Tiles.Margin <> Before.Tiles.Margin) or (Output.Tiles.Overlap <> Before.Tiles.Overlap) or
+  if (Output.Paper <> Before.Paper) or (Output.Tiles.PaperWidth <> Before.Tiles.PaperWidth) or
+    (Output.Tiles.PaperHeight <> Before.Tiles.PaperHeight) or (Output.Tiles.Margin <> Before.Tiles.Margin) or (Output.Tiles.Overlap <> Before.Tiles.Overlap) or
     (Output.Kind <> Before.Kind) then
     Output.ExcludedPages := nil;
   if not TilesAreUsable(Output.Tiles) or (Output.RollWidth <= 2 * Output.Tiles.Margin) or (Output.CalibrationX <= 0) or
     (Output.CalibrationY <= 0) then
   begin
     ShowStatus(rsLayoutNoPrintArea);
-    RefreshControls;
+    // "400" passes through "4" on the way, so a typed size is left to finish
+    if not FPaperWidthEdit.Focused and not FPaperHeightEdit.Focused then
+      RefreshControls;
     Exit;
   end;
   FDocument.BeginChange(rsChangeSettings);
   FDocument.Layout.Output := Output;
   FDocument.EndChange('paper');
   FPreview.ZoomToFit;
+end;
+
+// Left at a size that cannot print, it goes back to the last good one
+procedure TPublishForm.PaperEditExit(Sender: TObject);
+begin
+  RefreshControls;
 end;
 
 procedure TPublishForm.OpenPath(const Path: string);
