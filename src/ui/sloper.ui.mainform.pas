@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.GarmentWindow,
-  Sloper.UI.LayersPanel, Sloper.UI.DraftBar, Sloper.Core.Drafts, Sloper.Core.Transform;
+  Sloper.UI.LayersPanel, Sloper.UI.FabricsPanel, Sloper.UI.DraftBar, Sloper.Core.Drafts, Sloper.Core.Transform;
 
 type
 
@@ -91,6 +91,8 @@ type
     FCanvasPanel: TPanel;
     FGarment: TGarmentWindow;
     FLayers: TLayersPanel;
+    FFabrics: TFabricsPanel;
+    FPieceFillsItem: TMenuItem;
     FDraftBar: TDraftBar;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FSideItem: TMenuItem;
@@ -113,6 +115,7 @@ type
     procedure SetLabelMode(Mode: TLabelMode);
     procedure CreateLabelMenu;
     procedure LabelModeClick(Sender: TObject);
+    procedure PieceFillsClick(Sender: TObject);
     procedure CreateSidePanel;
     procedure SetSideShown(Shown: boolean);
     procedure SideItemClick(Sender: TObject);
@@ -197,12 +200,14 @@ resourcestring
   rsMenuViewTrueSize = '&True Size';
   rsMenuViewGarment = '&Garment View';
   rsTabLayers = 'Layers';
+  rsTabFabrics = 'Fabrics';
   rsMenuViewSidePanel = '&Side Panel';
   rsTabObjects = 'Objects';
   rsTabVariables = 'Variables';
   rsTabMeasurements = 'Measurements';
   rsTabAlign = 'Align';
   rsMenuViewLabels = '&Labels';
+  rsMenuViewPieceFills = 'Piece &Fills';
   rsLabelsContextual = '&Contextual';
   rsLabelsAll = '&All (hold N)';
   rsLabelsNone = '&None';
@@ -326,6 +331,8 @@ begin
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
   CreateLabelMenu;
   SetLabelMode(FSettings.LabelMode);
+  FPieceFillsItem.Checked := FSettings.ShowPieceFills;
+  FCanvas.ShowPieceFills := FSettings.ShowPieceFills;
   SetSideShown(FSettings.ShowSidePanel);
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
@@ -352,6 +359,7 @@ var
 begin
   FSettings.NameColumnShare := FProperties.NameShare;
   FSettings.LabelMode := FCanvas.LabelMode;
+  FSettings.ShowPieceFills := FCanvas.ShowPieceFills;
   FSettings.ShowSidePanel := FSidePanel.Visible;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
@@ -380,7 +388,7 @@ procedure TMainForm.CreateSidePanel;
   end;
 
 var
-  AlignSheet, LayersSheet: TTabSheet;
+  AlignSheet, LayersSheet, FabricsSheet: TTabSheet;
 begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
@@ -413,6 +421,13 @@ begin
   FLayers.Document := FDocument;
   FLayers.OnMessage := @ListPanelMessage;
   FLayers.OnMoveHere := @LayersMoveHere;
+  FabricsSheet := FSidePanel.AddTabSheet;
+  FabricsSheet.Caption := rsTabFabrics;
+  FFabrics := TFabricsPanel.Create(Self);
+  FFabrics.Parent := FabricsSheet;
+  FFabrics.Align := alClient;
+  FFabrics.Document := FDocument;
+  FFabrics.OnMessage := @ListPanelMessage;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
@@ -567,6 +582,16 @@ begin
     FLabelItems[Mode].OnClick := @LabelModeClick;
     MenuLabels.Add(FLabelItems[Mode]);
   end;
+  FPieceFillsItem := TMenuItem.Create(MainMenu);
+  FPieceFillsItem.Caption := rsMenuViewPieceFills;
+  FPieceFillsItem.OnClick := @PieceFillsClick;
+  MenuView.Add(FPieceFillsItem);
+end;
+
+procedure TMainForm.PieceFillsClick(Sender: TObject);
+begin
+  FPieceFillsItem.Checked := not FPieceFillsItem.Checked;
+  FCanvas.ShowPieceFills := FPieceFillsItem.Checked;
 end;
 
 procedure TMainForm.LabelModeClick(Sender: TObject);

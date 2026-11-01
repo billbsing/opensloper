@@ -39,7 +39,7 @@ type
     FPiecesSide, FSide, FNotesSide, FRowParent: TWinControl;
     FColumn: TPanel;
     FTitleBox, FEveryPageBox: TCheckBox;
-    FFieldBoxes: array[0..3] of TCheckBox;
+    FFieldBoxes: array[0..5] of TCheckBox;
     FCornerBox: TComboBox;
     FNoteMemo: TMemo;
     FNoteSizeEdit: TFloatSpinEdit;
@@ -61,6 +61,7 @@ type
     FRefreshing: boolean;
     // Rows stack in the order their Top says, so each takes the next one
     FNextRowTop: integer;
+    function ScrollingRows(Side: TWinControl): TScrollBox;
     procedure PlaceRow(Row: TControl);
     procedure BuildMenu;
     procedure BuildPiecesTab;
@@ -176,6 +177,7 @@ resourcestring
   rsFill = 'Piece fill';
   rsFillNone = 'None';
   rsFillTint = 'Light tint';
+  rsFillHatch = 'Hatching';
   rsPaperCustom = 'Custom';
   rsPaperWidth = 'Paper width (mm)';
   rsPaperHeight = 'Paper height (mm)';
@@ -189,12 +191,14 @@ resourcestring
   rsFieldPattern = 'Pattern';
   rsFieldMeasurements = 'Measurements';
   rsFieldLayout = 'Layout name';
+  rsFieldCutList = 'Cut list';
+  rsFieldFabrics = 'Fabrics';
   rsFieldDate = 'Date';
   rsSheetNote = 'Sheet note';
   rsNoteSize = 'Text size (pt)';
   rsAddNote = 'Add note';
   rsDeleteNote = 'Delete note';
-  rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages}';
+  rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages} {cutlist} {fabrics}';
   rsNewNote = 'New note';
   rsChangeTitle = 'Change title block';
   rsChangeNote = 'Change note';
@@ -241,7 +245,7 @@ const
   MaxNoteSize = 200;
   NoteMemoHeight = 110;
   // In the order of FFieldBoxes
-  TitleFields: array[0..3] of string = (FieldPatternName, FieldMeasurementsName, FieldLayoutName, FieldDate);
+  TitleFields: array[0..5] of string = (FieldPatternName, FieldMeasurementsName, FieldLayoutName, FieldDate, FieldCutList, FieldFabrics);
   SideGap = 6;
   SideRowStep = 100;
   ProblemsHeight = 110;
@@ -303,15 +307,10 @@ begin
   BuildPiecesTab;
   FRowParent := FPatternsSide;
   BuildPatternsTab;
-  // More rows than a small window has room for
-  FOutputScroll := TScrollBox.Create(Self);
-  FOutputScroll.Parent := FSide;
-  FOutputScroll.Align := alClient;
-  FOutputScroll.BorderStyle := bsNone;
-  FOutputScroll.HorzScrollBar.Visible := False;
+  FOutputScroll := ScrollingRows(FSide);
   FRowParent := FOutputScroll;
   BuildSide;
-  FRowParent := FNotesSide;
+  FRowParent := ScrollingRows(FNotesSide);
   BuildNotesTab;
   RefreshControls;
   FWatch := TTimer.Create(Self);
@@ -368,6 +367,16 @@ begin
   AddItem(Group, rsMenuReload, @ReloadClick, ShortCut(VK_R, [ssModifier]));
 end;
 
+// For a tab with more rows than a small window has room for
+function TPublishForm.ScrollingRows(Side: TWinControl): TScrollBox;
+begin
+  Result := TScrollBox.Create(Self);
+  Result.Parent := Side;
+  Result.Align := alClient;
+  Result.BorderStyle := bsNone;
+  Result.HorzScrollBar.Visible := False;
+end;
+
 procedure TPublishForm.PlaceRow(Row: TControl);
 begin
   Inc(FNextRowTop, SideRowStep);
@@ -388,7 +397,7 @@ end;
 
 procedure TPublishForm.BuildNotesTab;
 const
-  FieldCaptions: array[0..3] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate);
+  FieldCaptions: array[0..5] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldFabrics);
 var
   Index: integer;
 begin
@@ -586,6 +595,7 @@ begin
   // In the order of TLayoutFill
   FFillBox.Items.Add(rsFillNone);
   FFillBox.Items.Add(rsFillTint);
+  FFillBox.Items.Add(rsFillHatch);
   AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
   AddButton(rsExportSVG, @ExportClick).Tag := Ord(efSVG);
   AddButton(rsExportDXF, @ExportClick).Tag := Ord(efDXF);

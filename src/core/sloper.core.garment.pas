@@ -27,7 +27,7 @@ unit Sloper.Core.Garment;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Piece;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Pattern, Sloper.Core.Piece;
 
 type
   TGarmentSide = (gsFront, gsBack);
@@ -35,6 +35,7 @@ type
 
   TGarmentShape = record
     PieceName: string;
+    Look: TPieceLook;
     // The closed seam line, to fill
     Outline: TVec2Array;
     // Each edge to draw; a fold is not an edge of the finished piece
@@ -350,6 +351,7 @@ var
 begin
   Result := Default(TGarmentShape);
   Result.PieceName := Item.Piece.DisplayName;
+  Result.Look := Pattern.PieceLook(Item.Piece);
   Result.Outline := MovedAll(Map, Item.Piece.Outline);
   for Entry in Item.Piece.Path do
     if Entry.EdgeKey <> Item.Piece.FoldEdgeKey then

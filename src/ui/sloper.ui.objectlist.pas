@@ -31,7 +31,8 @@ uses
   Sloper.Core.Pattern, Sloper.Core.Seam, Sloper.Core.SeamSuggest;
 
 type
-  // ofPieces: pieces and seams; ofProblems: anything not valid, and seams out of tolerance
+  // ofPieces: pieces and seams; ofProblems: anything not valid, seams out of
+  // tolerance and pieces with no fabric
   TObjectFilter = (ofAll, ofPoints, ofEdges, ofPieces, ofProblems);
 
   TObjectRow = record
@@ -350,13 +351,14 @@ begin
   Result.StateText := StateCaption(DraftObject.State);
 end;
 
-function PassesFilter(DraftObject: TDraftObject; Filter: TObjectFilter): boolean;
+function PassesFilter(Pattern: TPattern; DraftObject: TDraftObject; Filter: TObjectFilter): boolean;
 begin
   case Filter of
     ofPoints: Result := (DraftObject is TPointObject) or (DraftObject is TRepeatObject);
     ofEdges: Result := DraftObject is TEdgeObject;
     ofPieces: Result := (DraftObject is TPieceObject) or (DraftObject is TSeamObject);
-    ofProblems: Result := (DraftObject.State <> esValid) or ((DraftObject is TSeamObject) and TSeamObject(DraftObject).OutOfTolerance);
+    ofProblems: Result := (DraftObject.State <> esValid) or ((DraftObject is TSeamObject) and TSeamObject(DraftObject).OutOfTolerance) or
+        ((DraftObject is TPieceObject) and (Pattern.FabricOf(TPieceObject(DraftObject)) = nil));
     else
       Result := True;
   end;
@@ -394,7 +396,7 @@ begin
   LowerSearch := LowerCase(Trim(Search));
   Count := 0;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if not PassesFilter(Pattern.Objects[Index], Filter) or ((DraftName <> '') and (Pattern.DraftOf(Pattern.Objects[Index]).Name <> DraftName)) then
+    if not PassesFilter(Pattern, Pattern.Objects[Index], Filter) or ((DraftName <> '') and (Pattern.DraftOf(Pattern.Objects[Index]).Name <> DraftName)) then
       Continue
     else if (Pattern.Objects[Index] is TRepeatObject) and (TRepeatObject(Pattern.Objects[Index]).Count > 0) then
       // A repeat is listed as its points, and the first stands for it

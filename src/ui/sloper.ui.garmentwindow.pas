@@ -66,9 +66,10 @@ resourcestring
 implementation
 
 uses
-  Math, Graphics, Sloper.Core.Geometry, Sloper.UI.GarmentNotes;
+  Math, Graphics, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.UI.GarmentNotes;
 
 const
+  HatchPixels = 8;
   WindowWidth = 800;
   WindowHeight = 620;
   PaneMargin = 24;
@@ -85,9 +86,12 @@ begin
   Result := BGRA(34, 36, 40);
 end;
 
-function Tint: TBGRAPixel;
+function Tint(const Color: TFabricColor): TBGRAPixel;
+var
+  Light: TFabricColor;
 begin
-  Result := BGRA(243, 239, 230);
+  Light := FabricTint(Color);
+  Result := BGRA(Light.R, Light.G, Light.B);
 end;
 
 constructor TGarmentPane.Create(AOwner: TComponent);
@@ -104,6 +108,7 @@ end;
 
 procedure TGarmentPane.Paint;
 var
+  Stroke: TLine2;
   Drawings: array[TGarmentSide] of TGarmentDrawing;
   Names: array[TGarmentSide] of string;
   Side: TGarmentSide;
@@ -119,6 +124,16 @@ var
     SetLength(Result, Length(Points));
     for Index := 0 to High(Points) do
       Result[Index] := PointF(OffsetX + Points[Index].X * Scale, OffsetY - Points[Index].Y * Scale);
+  end;
+
+  function ScreenVectors(const Points: TVec2Array): TVec2Array;
+  var
+    Index: integer;
+  begin
+    Result := nil;
+    SetLength(Result, Length(Points));
+    for Index := 0 to High(Points) do
+      Result[Index] := Vec2(OffsetX + Points[Index].X * Scale, OffsetY - Points[Index].Y * Scale);
   end;
 
   function FitScale(const Drawing: TGarmentDrawing): double;
@@ -164,8 +179,16 @@ begin
     // A thin line in the tint closes the hairline where two halves meet
     for Shape in Drawings[Side].Shapes do
     begin
-      FBitmap.FillPolyAntialias(ScreenPoints(Shape.Outline), Tint);
-      FBitmap.DrawPolygonAntialias(ScreenPoints(Shape.Outline), Tint, 1);
+      if not Shape.Look.Filled then
+        Continue;
+      if Shape.Look.Fill = ffHatch then
+      begin
+        for Stroke in HatchLines(ScreenVectors(Shape.Outline), HatchPixels, Shape.Look.HatchAngle) do
+          FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Shape.Look.Color.R, Shape.Look.Color.G, Shape.Look.Color.B), 1);
+        Continue;
+      end;
+      FBitmap.FillPolyAntialias(ScreenPoints(Shape.Outline), Tint(Shape.Look.Color));
+      FBitmap.DrawPolygonAntialias(ScreenPoints(Shape.Outline), Tint(Shape.Look.Color), 1);
     end;
     for Shape in Drawings[Side].Shapes do
       for Line in Shape.Lines do

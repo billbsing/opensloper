@@ -60,6 +60,12 @@ type
     procedure TestHalfCircleMarks;
     procedure TestTintFill;
     procedure TestNoTintOnProjector;
+    procedure TestTintUsesFabricColour;
+    procedure TestHatchFill;
+    procedure TestNoHatchOnProjector;
+    procedure TestNoFabricStaysUnfilled;
+    procedure TestCutListField;
+    procedure TestCaptionNamesFabric;
     procedure TestMissingOutputMembersKeepDefaults;
     procedure TestPlaceNewPieces;
     procedure TestCopiesAndMirror;
@@ -518,6 +524,90 @@ begin
   FLayout.Output.Kind := okProjector;
   FLayout.Output.Fill := lfTint;
   AssertEquals('stays dark', 0, Pos('h f', LayoutToPDF(FLayout)));
+end;
+
+procedure TTestLayout.TestTintUsesFabricColour;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.Output.Fill := lfTint;
+  AssertTrue(FLayout.Sources[0].Pattern.SetFabricColor(FLayout.Sources[0].Pattern.Fabrics[0], '#000000'));
+  AssertTrue('tint in colour', Pos(' rg', LayoutToPDF(FLayout)) > 0);
+end;
+
+procedure TTestLayout.TestHatchFill;
+var
+  Reason, Plain: string;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.PrintDate := '2026-11-01';
+  Plain := LayoutToPDF(FLayout);
+  FLayout.Output.Fill := lfHatch;
+  AssertTrue('more lines', Length(LayoutToPDF(FLayout)) > Length(Plain));
+  AssertEquals('no solid fill', 0, Pos('h f', LayoutToPDF(FLayout)));
+  AssertTrue(Reason, FLayout.LoadFromText(FLayout.SaveToText, Reason));
+  AssertTrue('saved', FLayout.Output.Fill = lfHatch);
+end;
+
+procedure TTestLayout.TestNoHatchOnProjector;
+var
+  Plain: string;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.PrintDate := '2026-11-01';
+  FLayout.Output.Kind := okProjector;
+  Plain := LayoutToPDF(FLayout);
+  FLayout.Output.Fill := lfHatch;
+  AssertEquals('stays as it was', Plain, LayoutToPDF(FLayout));
+end;
+
+procedure TTestLayout.TestNoFabricStaysUnfilled;
+var
+  Index: integer;
+  Pattern: TPattern;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Pattern := FLayout.Sources[0].Pattern;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if Pattern.Objects[Index] is TPieceObject then
+      Pattern.SetPieceFabric(TPieceObject(Pattern.Objects[Index]), nil);
+  FLayout.Output.Fill := lfTint;
+  AssertEquals('no fill', 0, Pos('h f', LayoutToPDF(FLayout)));
+end;
+
+procedure TTestLayout.TestCutListField;
+var
+  Values: TFieldValues;
+begin
+  WritePattern;
+  Prepare;
+  Values := FLayout.FieldValues('', '');
+  AssertEquals(FLayout.Sources[0].Pattern.CutList, Values.CutList);
+  AssertEquals('Main', Values.Fabrics);
+  AssertEquals(Values.CutList + ' / Main', ExpandFields('{cutlist} / {fabrics}', Values));
+  FLayout.Title.Fields := nil;
+  Insert(FieldCutList, FLayout.Title.Fields, 0);
+  AssertEquals(Format(rsTitleCutList, [Values.CutList]), FLayout.TitleLines(Values)[0]);
+end;
+
+procedure TTestLayout.TestCaptionNamesFabric;
+var
+  Pattern: TPattern;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Pattern := FLayout.Sources[0].Pattern;
+  AssertEquals('none yet', 0, Pos('Denim', FLayout.PlacedPieces[0].Caption));
+  AssertTrue(Pattern.RenameFabric(Pattern.Fabrics[0], 'Denim'));
+  AssertTrue(FLayout.PlacedPieces[0].Caption, Pos('Denim', FLayout.PlacedPieces[0].Caption) > 0);
 end;
 
 procedure TTestLayout.TestCustomPaper;

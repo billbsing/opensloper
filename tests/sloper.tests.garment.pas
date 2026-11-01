@@ -26,7 +26,7 @@ interface
 
 uses
   SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Piece,
-  Sloper.Core.Seam, Sloper.Core.Garment;
+  Sloper.Core.Seam, Sloper.Core.Fabrics, Sloper.Core.Garment;
 
 type
   TTestGarment = class(TOSTestCase)
@@ -42,6 +42,7 @@ type
     procedure TearDown; override;
   published
     procedure TestViewChoosesPieces;
+    procedure TestShapeTakesItsFabricLook;
     procedure TestBothShowsInEach;
     procedure TestNoViewIsCounted;
     procedure TestFailingPieceIsLeftOut;
@@ -171,6 +172,19 @@ begin
   for Shape in Drawing.Shapes do
     if Shape.PieceName = AName then
       Exit(ExtentOf(Shape));
+end;
+
+procedure TTestGarment.TestShapeTakesItsFabricLook;
+var
+  Drawing: TGarmentDrawing;
+begin
+  Panel('Front', 0, 0, 100, 200, pvFront);
+  AssertTrue(FPattern.SetFabricColor(FPattern.Fabrics[0], '#102030'));
+  FPattern.SetFabricFill(FPattern.Fabrics[0], ffHatch);
+  Drawing := BuildGarment(FPattern, gsFront);
+  AssertTrue(Drawing.Shapes[0].Look.Filled);
+  AssertEquals('#102030', FabricColorText(Drawing.Shapes[0].Look.Color));
+  AssertTrue(Drawing.Shapes[0].Look.Fill = ffHatch);
 end;
 
 procedure TTestGarment.TestViewChoosesPieces;

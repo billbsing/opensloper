@@ -43,8 +43,8 @@ function ReportFloat(Value: double): TJSONData;
 // The state as written in reports; not translated
 function StateName(State: TEvalState): string;
 // One line per measurement, variable or object in error or invalid, as
-// "Name (error): message", then one per seam out of tolerance. Blocked ones
-// fail because of these, so they are only counted.
+// "Name (error): message", then one per seam out of tolerance and one per piece
+// with no fabric. Blocked ones fail because of these, so they are only counted.
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
 // Every variable's value and every object's position (points), length (edges)
 // areas and perimeter (pieces), or side lengths (seams), with its state; failing ones have a message instead of values.
@@ -55,6 +55,7 @@ resourcestring
   rsCheckProblem = '%s (%s): %s';
   rsCheckError = 'error';
   rsCheckInvalid = 'invalid';
+  rsCheckNoFabric = '%s has no fabric';
   rsCheckSeam = '%s: side A is %s mm and side B %s mm, %s mm from the expected %s mm';
 
 implementation
@@ -145,6 +146,12 @@ begin
       SetLength(Result, Length(Result) + 1);
       Result[High(Result)] := Format(rsCheckSeam, [Seam.DisplayName, FormatFloat(SeamFormat, Seam.LengthA), FormatFloat(SeamFormat, Seam.LengthB),
         FormatFloat(SeamFormat, Seam.Mismatch), FormatFloat(SeamFormat, Seam.Ease)]);
+    end;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if (Pattern.Objects[Index] is TPieceObject) and (Pattern.FabricOf(TPieceObject(Pattern.Objects[Index])) = nil) then
+    begin
+      SetLength(Result, Length(Result) + 1);
+      Result[High(Result)] := Format(rsCheckNoFabric, [Pattern.Objects[Index].DisplayName]);
     end;
 end;
 

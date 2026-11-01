@@ -70,6 +70,7 @@ type
     FSeamA, FSeamB: TSeamSide;
     FSeamOnB: boolean;
     FLabelMode: TLabelMode;
+    FShowPieceFills: boolean;
     // The hold-for-all-labels key is down
     FLabelsHeld: boolean;
     FHorzBar, FVertBar: TScrollBar;
@@ -127,11 +128,13 @@ type
     function UsesSnap: boolean;
     procedure CancelStart;
     procedure SetLabelMode(Value: TLabelMode);
+    procedure SetShowPieceFills(Value: boolean);
     procedure SetLabelsHeld(Value: boolean);
     function ShownLabelMode: TLabelMode;
     function ToolLabelKeys: TStringArray;
     procedure DrawGrid;
     procedure DrawPiece(Piece: TPieceObject);
+    procedure DrawPieceFill(Piece: TPieceObject; const Points: TVec2Array; const Screen: array of TPointF);
     procedure DrawChevron(const Position: TVec2; Angle: double; const AColor: TBGRAPixel);
     procedure DrawChevrons(Piece: TPieceObject);
     procedure DrawSeamSide(const Side: TSeamSide; const AColor: TBGRAPixel);
@@ -196,6 +199,7 @@ type
     property Tool: TCanvasTool read FTool write SetTool;
     property OnToolChange: TNotifyEvent read FOnToolChange write FOnToolChange;
     property LabelMode: TLabelMode read FLabelMode write SetLabelMode;
+    property ShowPieceFills: boolean read FShowPieceFills write SetShowPieceFills;
     // Scroll bars to keep in step with the view
     property HorzBar: TScrollBar read FHorzBar write SetHorzBar;
     property VertBar: TScrollBar read FVertBar write SetVertBar;
@@ -239,9 +243,13 @@ resourcestring
 implementation
 
 uses
-  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.UI.Scene;
+  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect, Sloper.UI.Scene;
 
 const
+  // How strongly a fabric's colour shows under the lines
+  FabricTintAlpha = 60;
+  FabricHatchAlpha = 130;
+  FabricHatchPixels = 8;
   // Screen pixels
   PointRadius = 3.5;
   SmallPointRadius = 2.5;
@@ -311,11 +319,6 @@ begin
   Result := BGRA(196, 48, 140);
 end;
 
-function PieceTint: TBGRAPixel;
-begin
-  Result := BGRA(214, 190, 140, 45);
-end;
-
 function PieceHoverTint: TBGRAPixel;
 begin
   Result := BGRA(37, 116, 214, 30);
@@ -355,6 +358,7 @@ constructor TPatternCanvas.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FView := DefaultView;
+  FShowPieceFills := True;
   FBitmap := TBGRABitmap.Create(1, 1);
   TabStop := True;
   DoubleBuffered := False;
@@ -1033,6 +1037,12 @@ begin
   Invalidate;
 end;
 
+procedure TPatternCanvas.SetShowPieceFills(Value: boolean);
+begin
+  FShowPieceFills := Value;
+  Invalidate;
+end;
+
 procedure TPatternCanvas.SetLabelsHeld(Value: boolean);
 begin
   if Value = FLabelsHeld then
@@ -1636,10 +1646,28 @@ begin
   end;
 end;
 
-// The cutting line, tinted; the seam line is the edges drawn over it
+// Under every line, so seams and labels stay readable. Hatching keeps its
+// spacing on screen at any zoom.
+procedure TPatternCanvas.DrawPieceFill(Piece: TPieceObject; const Points: TVec2Array; const Screen: array of TPointF);
+var
+  Look: TPieceLook;
+  Stroke: TLine2;
+begin
+  Look := FDocument.Pattern.PieceLook(Piece);
+  if not FShowPieceFills or not Look.Filled then
+    Exit;
+  if Look.Fill = ffTint then
+    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.R, Look.Color.G, Look.Color.B, FabricTintAlpha))
+  else
+    for Stroke in HatchLines(Points, FabricHatchPixels, Look.HatchAngle) do
+      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.R, Look.Color.G, Look.Color.B, FabricHatchAlpha), 1);
+end;
+
+// The cutting line, filled with its fabric; the seam line is the edges drawn over it
 procedure TPatternCanvas.DrawPiece(Piece: TPieceObject);
 var
   Screen: array of TPointF;
+  Points: TVec2Array;
   Index: integer;
   LineColor: TBGRAPixel;
   LineWidth: single;
@@ -1647,10 +1675,15 @@ begin
   if Piece.CutLine = nil then
     Exit;
   Screen := nil;
+  Points := nil;
   SetLength(Screen, Length(Piece.CutLine));
+  SetLength(Points, Length(Piece.CutLine));
   for Index := 0 to High(Screen) do
-    Screen[Index] := ScreenPoint(FView.ToScreen(Piece.CutLine[Index]));
-  FBitmap.FillPolyAntialias(Screen, PieceTint);
+  begin
+    Points[Index] := FView.ToScreen(Piece.CutLine[Index]);
+    Screen[Index] := ScreenPoint(Points[Index]);
+  end;
+  DrawPieceFill(Piece, Points, Screen);
   if Piece.Key = FHoverKey then
     FBitmap.FillPolyAntialias(Screen, PieceHoverTint);
   LineColor := Faded(StateInk(Piece.State, ConstructionInk), Piece.State);
@@ -1902,7 +1935,7 @@ begin
     else
       InkColor := Faded(StateInk(Node.State, Ink), Node.State);
     if Node is TPieceObject then
-      FBitmap.TextOut(Screen.X, Screen.Y, TPieceObject(Node).CutCaption, InkColor)
+      FBitmap.TextOut(Screen.X, Screen.Y, FDocument.Pattern.PieceCaption(TPieceObject(Node)), InkColor)
     else
       FBitmap.TextOut(Screen.X, Screen.Y, Node.DisplayName, InkColor);
   end;

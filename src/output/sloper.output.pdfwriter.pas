@@ -45,6 +45,8 @@ type
     procedure SetDash(Millimetres: double);
     // Lines and text from here on, from 0 for black to 1 for white
     procedure SetGray(Level: double);
+    // The same in colour, each part from 0 to 1
+    procedure SetColor(Red, Green, Blue: double);
     procedure FillRectangle(const Area: TRect2);
     procedure FillPolygon(const Points: TVec2Array);
     procedure Polyline(const Points: TVec2Array; Closed: boolean);
@@ -123,6 +125,14 @@ end;
 procedure TPDFWriter.SetGray(Level: double);
 begin
   Add(PointsText(Level) + ' G ' + PointsText(Level) + ' g');
+end;
+
+procedure TPDFWriter.SetColor(Red, Green, Blue: double);
+var
+  Parts: string;
+begin
+  Parts := PointsText(Red) + ' ' + PointsText(Green) + ' ' + PointsText(Blue);
+  Add(Parts + ' RG ' + Parts + ' rg');
 end;
 
 procedure TPDFWriter.FillRectangle(const Area: TRect2);

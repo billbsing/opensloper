@@ -53,6 +53,7 @@ type
     procedure TestDXFUsesPieceCoordinates;
     procedure TestDXFIsR12;
     procedure TestDXFQuantityIsCutCount;
+    procedure TestDXFNamesFabric;
     procedure TestDXFFoldIsMirrorLine;
     procedure TestDXFNotch;
     procedure TestDXFOnlyPlacedPieces;
@@ -302,6 +303,19 @@ begin
   AssertEquals('ends', 'EOF', Trim(Copy(Text, Length(Text) - 4, 5)));
   AssertTrue('units', Pos(rsDXFUnits, Text) > 0);
   AssertTrue('date', Pos(Format(rsDXFCreationDate, ['2026-11-01']), Text) > 0);
+end;
+
+procedure TTestLayoutExports.TestDXFNamesFabric;
+var
+  Pattern: TPattern;
+begin
+  UseA4;
+  AddPattern('fabric.sloper', [100], [100], 1, False);
+  FLayout.PlaceNewPieces;
+  AssertEquals('none while Main is implicit', 0, Pos('Material', LayoutToDXF(FLayout)));
+  Pattern := FLayout.Sources[0].Pattern;
+  AssertTrue(Pattern.RenameFabric(Pattern.Fabrics[0], 'Denim'));
+  AssertTrue(Pos(Format(rsDXFMaterial, ['Denim']), LayoutToDXF(FLayout)) > 0);
 end;
 
 procedure TTestLayoutExports.TestDXFQuantityIsCutCount;

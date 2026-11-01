@@ -31,14 +31,14 @@ function GarmentToSVG(const Drawing: TGarmentDrawing): string;
 implementation
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Output.DraftSVG;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Output.DraftSVG;
 
 const
   SheetMargin = 10;
   EmptySize = 100;
   LineWidth = 0.6;
   InkColor = '#202020';
-  TintColor = '#f3efe6';
+  HatchSpacing = 8;
 
 function PointText(const P: TVec2): string;
 begin
@@ -62,8 +62,17 @@ end;
 function ShapeElement(const Shape: TGarmentShape): string;
 var
   Line: TVec2Array;
+  Stroke: TLine2;
+  FillText: string;
 begin
-  Result := Format('<g data-name="%s"><path d="%s" fill="%s" stroke="none"/>', [EscapeXML(Shape.PieceName), PathText(Shape.Outline, True), TintColor]) + #10;
+  FillText := 'none';
+  if Shape.Look.Filled and (Shape.Look.Fill = ffTint) then
+    FillText := LowerCase(FabricColorText(FabricTint(Shape.Look.Color)));
+  Result := Format('<g data-name="%s"><path d="%s" fill="%s" stroke="none"/>', [EscapeXML(Shape.PieceName), PathText(Shape.Outline, True), FillText]) + #10;
+  if Shape.Look.Filled and (Shape.Look.Fill = ffHatch) then
+    for Stroke in HatchLines(Shape.Outline, HatchSpacing, Shape.Look.HatchAngle) do
+      Result := Result + Format('<path d="M %s L %s" fill="none" stroke="%s" stroke-width="%s"/>',
+        [PointText(Stroke.P1), PointText(Stroke.P2), LowerCase(FabricColorText(Shape.Look.Color)), SVGNumber(LineWidth / 2)]) + #10;
   for Line in Shape.Lines do
     Result := Result + Format('<path d="%s" fill="none" stroke="%s" stroke-width="%s"/>', [PathText(Line, False), InkColor, SVGNumber(LineWidth)]) + #10;
   Result := Result + '</g>' + #10;

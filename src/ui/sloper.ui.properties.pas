@@ -28,7 +28,7 @@ unit Sloper.UI.Properties;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Seam,
+  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
   Sloper.Core.Drafts, Sloper.Core.Transform, Sloper.Core.Pattern, Sloper.Core.Evaluator,
   Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
@@ -81,6 +81,11 @@ type
     // The edge of each fold choice; '' for none
     FFoldKeys: TStringArray;
     FViewBox: TComboBox;
+    // One choice per fabric, then none
+    FFabricBox: TComboBox;
+    FFillStyleBox: TComboBox;
+    // From the fabric, the piece's own colour if it has one, then choosing one
+    FFillColorBox: TComboBox;
     FLayerBox: TComboBox;
     FLayerKeys: TStringArray;
     FMadeByText: TGridLabel;
@@ -143,6 +148,11 @@ type
     procedure CutChange(Sender: TObject);
     procedure FoldChange(Sender: TObject);
     procedure ViewChange(Sender: TObject);
+    procedure FabricChange(Sender: TObject);
+    procedure FillStyleChange(Sender: TObject);
+    procedure FillColorChange(Sender: TObject);
+    procedure ChangePieceFill(const AColor: string; Style: TPieceFillStyle);
+    procedure RefreshFabricRows(Piece: TPieceObject);
     procedure LayerChange(Sender: TObject);
     procedure RefreshTransformRows(Node: TEvalNode);
     procedure CommitEdit(Edit: TEdit);
@@ -190,6 +200,16 @@ resourcestring
   rsPropMirrored = 'Mirrored';
   rsPropFold = 'Fold';
   rsPropView = 'View';
+  rsPropFabric = 'Fabric';
+  rsPropNoFabric = 'None';
+  rsPropChangeFabric = 'Change fabric';
+  rsPropFillStyle = 'Fill';
+  rsPropFillColor = 'Colour';
+  rsPropFromFabric = 'From fabric';
+  rsPropFillTint = 'Tint';
+  rsPropFillHatch = 'Hatching';
+  rsPropChooseColor = 'Choose…';
+  rsPropChangeFill = 'Change fill';
   rsPropMadeBy = 'Made by';
   rsPropLayer = 'Layer';
   rsPropLayerOfDraft = '%s: %s';
@@ -213,7 +233,7 @@ implementation
 
 uses
   Sloper.Core.EvalTypes, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
-  Sloper.UI.GridColumns, Sloper.UI.ObjectList;
+  Sloper.UI.FabricsPanel, Sloper.UI.GridColumns, Sloper.UI.ObjectList;
 
 const
   Gap = 6;
@@ -425,6 +445,9 @@ begin
   FFoldBox := nil;
   FFoldKeys := nil;
   FViewBox := nil;
+  FFabricBox := nil;
+  FFillStyleBox := nil;
+  FFillColorBox := nil;
   FLayerBox := nil;
   FLayerKeys := nil;
   FMadeByText := nil;
@@ -976,6 +999,22 @@ begin
   FViewBox.Items.Add(rsPropViewBoth);
   FViewBox.OnChange := @ViewChange;
   AddRow(rsPropView, FViewBox, RowGap);
+  FFabricBox := TComboBox.Create(Self);
+  FFabricBox.Style := csDropDownList;
+  FFabricBox.OnChange := @FabricChange;
+  AddRow(rsPropFabric, FFabricBox, RowGap);
+  FFillStyleBox := TComboBox.Create(Self);
+  FFillStyleBox.Style := csDropDownList;
+  // In the order of TPieceFillStyle
+  FFillStyleBox.Items.Add(rsPropFromFabric);
+  FFillStyleBox.Items.Add(rsPropFillTint);
+  FFillStyleBox.Items.Add(rsPropFillHatch);
+  FFillStyleBox.OnChange := @FillStyleChange;
+  AddRow(rsPropFillStyle, FFillStyleBox, RowGap);
+  FFillColorBox := TComboBox.Create(Self);
+  FFillColorBox.Style := csDropDownList;
+  FFillColorBox.OnChange := @FillColorChange;
+  AddRow(rsPropFillColor, FFillColorBox, RowGap);
 end;
 
 procedure TPropertiesPanel.RefreshPieceRows(Piece: TPieceObject);
@@ -988,12 +1027,110 @@ begin
     FCutEdit.Value := Piece.CutCount;
     FMirrorBox.Checked := Piece.Mirrored;
     FViewBox.ItemIndex := Ord(Piece.View);
+    RefreshFabricRows(Piece);
   finally
     FFillingPieceRows := False;
   end;
   for Index := 0 to High(FFoldKeys) do
     if FFoldKeys[Index] = Piece.FoldEdgeKey then
       FFoldBox.ItemIndex := Index;
+end;
+
+// The fabrics can change while the piece stays selected
+procedure TPropertiesPanel.RefreshFabricRows(Piece: TPieceObject);
+var
+  Pattern: TPattern;
+  Index: integer;
+begin
+  Pattern := FDocument.Pattern;
+  FFabricBox.Items.Clear;
+  for Index := 0 to Pattern.FabricCount - 1 do
+    FFabricBox.Items.Add(Pattern.Fabrics[Index].Name);
+  FFabricBox.Items.Add(rsPropNoFabric);
+  FFabricBox.ItemIndex := Pattern.FabricCount;
+  for Index := 0 to Pattern.FabricCount - 1 do
+    if Pattern.FabricOf(Piece) = Pattern.Fabrics[Index] then
+      FFabricBox.ItemIndex := Index;
+  FFillStyleBox.ItemIndex := Ord(Piece.FillStyle);
+  FFillColorBox.Items.Clear;
+  FFillColorBox.Items.Add(rsPropFromFabric);
+  if Piece.FillColor <> '' then
+    FFillColorBox.Items.Add(Piece.FillColor);
+  FFillColorBox.Items.Add(rsPropChooseColor);
+  FFillColorBox.ItemIndex := Ord(Piece.FillColor <> '');
+end;
+
+procedure TPropertiesPanel.FabricChange(Sender: TObject);
+var
+  Node: TEvalNode;
+  Fabric: TPatternFabric;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if FFillingPieceRows or not (Node is TPieceObject) or (FFabricBox.ItemIndex < 0) then
+    Exit;
+  Fabric := nil;
+  if FFabricBox.ItemIndex < FDocument.Pattern.FabricCount then
+    Fabric := FDocument.Pattern.Fabrics[FFabricBox.ItemIndex];
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeFabric);
+    FDocument.Pattern.SetPieceFabric(TPieceObject(Node), Fabric);
+    FDocument.EndChange;
+  finally
+    FCommitting := False;
+  end;
+  RefreshPieceRows(TPieceObject(FDocument.Pattern.FindNode(FKey)));
+end;
+
+procedure TPropertiesPanel.ChangePieceFill(const AColor: string; Style: TPieceFillStyle);
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TPieceObject) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeFill);
+    FDocument.Commit(FDocument.Pattern.SetPieceFill(TPieceObject(Node), AColor, Style));
+  finally
+    FCommitting := False;
+  end;
+  RefreshPieceRows(TPieceObject(FDocument.Pattern.FindNode(FKey)));
+end;
+
+procedure TPropertiesPanel.FillStyleChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if FFillingPieceRows or not (Node is TPieceObject) or (FFillStyleBox.ItemIndex < 0) then
+    Exit;
+  ChangePieceFill(TPieceObject(Node).FillColor, TPieceFillStyle(FFillStyleBox.ItemIndex));
+end;
+
+procedure TPropertiesPanel.FillColorChange(Sender: TObject);
+var
+  Node: TEvalNode;
+  Piece: TPieceObject;
+  Chosen: string;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if FFillingPieceRows or not (Node is TPieceObject) then
+    Exit;
+  Piece := TPieceObject(Node);
+  if FFillColorBox.ItemIndex = 0 then
+    ChangePieceFill('', Piece.FillStyle)
+  else if FFillColorBox.ItemIndex = FFillColorBox.Items.Count - 1 then
+  begin
+    Chosen := Piece.FillColor;
+    if Chosen = '' then
+      Chosen := FDocument.Pattern.Fabrics[0].Color;
+    if ChooseFabricColor(Self, Chosen) then
+      ChangePieceFill(Chosen, Piece.FillStyle)
+    else
+      RefreshPieceRows(Piece);
+  end;
 end;
 
 // Runs of spin clicks merge into one undo step

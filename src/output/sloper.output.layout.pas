@@ -29,7 +29,7 @@ unit Sloper.Output.Layout;
 interface
 
 uses
-  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.Piece,
+  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.Piece,
   Sloper.Output.Tiling;
 
 const
@@ -40,6 +40,8 @@ const
   FieldDate = 'date';
   FieldPage = 'page';
   FieldPages = 'pages';
+  FieldCutList = 'cutlist';
+  FieldFabrics = 'fabrics';
   LayoutFormat = 'layout';
   LayoutVersion = 1;
   LayoutExtension = '.slayout';
@@ -48,9 +50,10 @@ const
 
 type
   TLayoutMarks = (lkDiamond, lkNone, lkHalfCircle);
+  // lfHatch hatches them, which suits black-and-white printers.
   // lfTint fills pieces with a light tint in print; on projector output, which
   // is dark, it does nothing
-  TLayoutFill = (lfNone, lfTint);
+  TLayoutFill = (lfNone, lfTint, lfHatch);
   // okTiled prints on pages of paper; okLarge on one sheet off a roll;
   // okProjector is one dark sheet with thick light lines, shown on the fabric
   TOutputKind = (okTiled, okLarge, okProjector);
@@ -102,6 +105,7 @@ type
   TPlacedPiece = record
     Placement: integer;
     Caption: string;
+    Look: TPieceLook;
     CutLine, SeamLine: TVec2Array;
     // Grainline, fold bracket and notches
     Marks: array of TLine2;
@@ -135,7 +139,7 @@ type
 
   // What fields stand for in text; an empty value leaves the field as typed
   TFieldValues = record
-    PatternName, MeasurementsName, LayoutName, Date, Page, Pages: string;
+    PatternName, MeasurementsName, LayoutName, Date, Page, Pages, CutList, Fabrics: string;
   end;
 
   // Blocking problems stop export; the others are only warnings
@@ -276,6 +280,8 @@ resourcestring
   rsTitleMeasurements = 'Measurements: %s';
   rsTitleLayout = 'Layout: %s';
   rsTitleDate = 'Date: %s';
+  rsTitleCutList = 'Cut list: %s';
+  rsTitleFabrics = 'Fabrics: %s';
   rsLayoutOffSheet = '%s runs off the sheet';
   rsLayoutProjectedAcross = '%s: %s lies across the fabric''s grain here. Projected as it is, it would be cut that way';
   rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
@@ -297,7 +303,7 @@ const
   DefaultMargin = 6;
   DefaultOverlap = 10;
   MarksNames: array[TLayoutMarks] of string = ('diamond', 'none', 'halfCircle');
-  FillNames: array[TLayoutFill] of string = ('none', 'tint');
+  FillNames: array[TLayoutFill] of string = ('none', 'tint', 'hatch');
   KindNames: array[TOutputKind] of string = ('tiled', 'large', 'projector');
   // 36 inches, a common copy-shop width
   DefaultRollWidth = 914;
@@ -359,6 +365,8 @@ begin
   Fill(FieldDate, Values.Date);
   Fill(FieldPage, Values.Page);
   Fill(FieldPages, Values.Pages);
+  Fill(FieldCutList, Values.CutList);
+  Fill(FieldFabrics, Values.Fabrics);
 end;
 
 function TextLines(const Text: string): TStringArray;
@@ -512,6 +520,17 @@ begin
         Result.MeasurementsName := Result.MeasurementsName + ', ';
       Result.MeasurementsName := Result.MeasurementsName + SetName;
     end;
+    if Source.Pattern = nil then
+      Continue;
+    if (Result.CutList <> '') and (Source.Pattern.CutList <> '') then
+      Result.CutList := Result.CutList + ' · ';
+    Result.CutList := Result.CutList + Source.Pattern.CutList;
+    if Pos(Source.Pattern.FabricNames, Result.Fabrics) = 0 then
+    begin
+      if Result.Fabrics <> '' then
+        Result.Fabrics := Result.Fabrics + ', ';
+      Result.Fabrics := Result.Fabrics + Source.Pattern.FabricNames;
+    end;
   end;
 end;
 
@@ -527,6 +546,8 @@ begin
       FieldMeasurementsName: Line := Format(rsTitleMeasurements, [Values.MeasurementsName]);
       FieldLayoutName: Line := Format(rsTitleLayout, [Values.LayoutName]);
       FieldDate: Line := Format(rsTitleDate, [Values.Date]);
+      FieldCutList: Line := Format(rsTitleCutList, [Values.CutList]);
+      FieldFabrics: Line := Format(rsTitleFabrics, [Values.Fabrics]);
       else
         Continue;
     end;
@@ -821,6 +842,7 @@ end;
 function ReadOutput(Item: TJSONObject; var Output: TLayoutOutput; out ErrorMessage: string): boolean;
 var
   MarksText, FillText, KindText: string;
+  Fill: TLayoutFill;
   Mark: TLayoutMarks;
   Kind: TOutputKind;
   Found: boolean;
@@ -876,8 +898,10 @@ begin
     if not Found then
       Output.Marks := lkNone;
   end;
-  if GetJSONString(Item, 'fill', FillText) and (FillText = FillNames[lfTint]) then
-    Output.Fill := lfTint;
+  if GetJSONString(Item, 'fill', FillText) then
+    for Fill := Low(TLayoutFill) to High(TLayoutFill) do
+      if FillText = FillNames[Fill] then
+        Output.Fill := Fill;
   Result := True;
 end;
 
@@ -1124,7 +1148,6 @@ begin
   for Mark in Piece.NotchMarks do
     AddMark(Line2(Mark.Cut, Mark.Tip));
   Result.LabelAt := Moved(Piece.Middle);
-  Result.Caption := Piece.CutCaption;
 end;
 
 // Even copies are the other side of a mirrored pair
@@ -1217,6 +1240,8 @@ begin
     begin
       Result[Count] := PlaceShape(Piece, Placements[Index]);
       Result[Count].Placement := Index;
+      Result[Count].Caption := Source.Pattern.PieceCaption(Piece);
+      Result[Count].Look := Source.Pattern.PieceLook(Piece);
       Inc(Count);
     end;
   SetLength(Result, Count);

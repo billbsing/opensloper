@@ -79,6 +79,8 @@ type
     function ClosestPoint(const P: TVec2; Extend: boolean): TVec2;
   end;
 
+  TLine2Array = array of TLine2;
+
 function AffineIdentity: TAffine2;
 function AffineShift(const Offset: TVec2): TAffine2;
 // About the origin, anticlockwise

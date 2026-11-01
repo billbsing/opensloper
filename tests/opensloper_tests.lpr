@@ -56,6 +56,7 @@ uses
   Sloper.Tests.Seam,
   Sloper.Tests.Garment,
   Sloper.Tests.Layers,
+  Sloper.Tests.Fabrics,
   Sloper.Tests.Transform,
   Sloper.Tests.Layout,
   Sloper.Tests.LayoutExports,

@@ -30,7 +30,7 @@ unit Sloper.API.Server;
 interface
 
 uses
-  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Drafts, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Document.PatternDocument;
+  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Drafts, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Document.PatternDocument;
 
 const
   // JSON-RPC 2.0's own codes
@@ -94,6 +94,14 @@ type
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
     function DoSetView(Params: TJSONObject): TJSONData;
+    function FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
+    function FabricsToJSON: TJSONData;
+    function DoAddFabric(Params: TJSONObject): TJSONData;
+    function DoRenameFabric(Params: TJSONObject): TJSONData;
+    function DoSetFabric(Params: TJSONObject): TJSONData;
+    function DoDeleteFabric(Params: TJSONObject): TJSONData;
+    function DoSetPieceFabric(Params: TJSONObject): TJSONData;
+    function DoSetPieceFill(Params: TJSONObject): TJSONData;
     function FindDraftParam(Params: TJSONObject; const AName: string): TPatternDraft;
     function FindLayerParam(Params: TJSONObject; const AName: string; out Draft: TPatternDraft): TPatternLayer;
     procedure UseLayerParam(Params: TJSONObject);
@@ -156,6 +164,11 @@ resourcestring
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
   rsApiView = 'Change garment view';
+  rsApiFabrics = 'Change fabrics';
+  rsApiPieceFabric = 'Change fabric';
+  rsApiPieceFill = 'Change fill';
+  rsApiNoFabric = 'There is no fabric "%s"';
+  rsApiFabricOrNone = 'Give a "fabric", or "none": true';
   rsApiNoDraft = 'There is no draft "%s"';
   rsApiNoLayer = 'There is no layer "%s"';
   rsApiDrafts = 'Change drafts';
@@ -346,6 +359,10 @@ begin
         Result.Add('mirrored', TPieceObject(Node).Mirrored);
         Result.Add('onFold', TPieceObject(Node).OnFold);
         Result.Add('view', PieceViewNames[Ord(TPieceObject(Node).View)]);
+        if Document.Pattern.FabricOf(TPieceObject(Node)) <> nil then
+          Result.Add('fabric', Document.Pattern.FabricOf(TPieceObject(Node)).Name);
+        Result.Add('fillColor', TPieceObject(Node).FillColor);
+        Result.Add('fillStyle', PieceFillNames[Ord(TPieceObject(Node).FillStyle)]);
       end
       else if Node is TSeamObject then
       begin
@@ -1221,6 +1238,142 @@ begin
 end;
 
 // By ID or name
+// By ID or by name
+function TApiServer.FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
+var
+  Id: integer;
+  Text: string;
+begin
+  if GetJSONInteger(Params, AName, Id) then
+  begin
+    Text := IntToStr(Id);
+    Result := FDocument.Pattern.FindFabric(Text);
+  end
+  else
+  begin
+    Text := RequireString(Params, AName);
+    Result := FDocument.Pattern.FindFabricNamed(Text);
+  end;
+  if Result = nil then
+    raise EApiError.Create(RpcRefused, Format(rsApiNoFabric, [Text]));
+end;
+
+function TApiServer.FabricsToJSON: TJSONData;
+var
+  Reply, Item: TJSONObject;
+  List: TJSONArray;
+  Index: integer;
+  Fabric: TPatternFabric;
+begin
+  Reply := TJSONObject.Create;
+  try
+    List := TJSONArray.Create;
+    Reply.Add('fabrics', List);
+    for Index := 0 to FDocument.Pattern.FabricCount - 1 do
+    begin
+      Fabric := FDocument.Pattern.Fabrics[Index];
+      Item := TJSONObject.Create;
+      List.Add(Item);
+      Item.Add('id', StrToIntDef(Fabric.Key, 0));
+      Item.Add('name', Fabric.Name);
+      Item.Add('color', Fabric.Color);
+      Item.Add('fill', FabricFillNames[Ord(Fabric.Fill)]);
+    end;
+    Reply.Add('cutList', FDocument.Pattern.CutList);
+  except
+    FreeAndNil(Reply);
+    raise;
+  end;
+  Result := Reply;
+end;
+
+function TApiServer.DoAddFabric(Params: TJSONObject): TJSONData;
+var
+  Fill: TFabricFill;
+begin
+  FDocument.BeginChange(rsApiFabrics);
+  Fill := ffTint;
+  if Params <> nil then
+    Fill := TFabricFill(ChoiceParam(Params, 'fill', FabricFillNames));
+  if FDocument.Pattern.AddFabric(OptionalString(Params, 'name'), OptionalString(Params, 'color'), Fill) = nil then
+    RefuseChange;
+  FDocument.EndChange;
+  Result := FabricsToJSON;
+end;
+
+function TApiServer.DoRenameFabric(Params: TJSONObject): TJSONData;
+var
+  Fabric: TPatternFabric;
+begin
+  Fabric := FindFabricParam(Params, 'fabric');
+  FDocument.BeginChange(rsApiFabrics);
+  if not FDocument.Pattern.RenameFabric(Fabric, RequireString(Params, 'name')) then
+    RefuseChange;
+  FDocument.EndChange;
+  Result := FabricsToJSON;
+end;
+
+function TApiServer.DoSetFabric(Params: TJSONObject): TJSONData;
+var
+  Fabric: TPatternFabric;
+begin
+  Fabric := FindFabricParam(Params, 'fabric');
+  FDocument.BeginChange(rsApiFabrics);
+  if (Params.Find('color') <> nil) and not FDocument.Pattern.SetFabricColor(Fabric, RequireString(Params, 'color')) then
+    RefuseChange;
+  if Params.Find('fill') <> nil then
+    FDocument.Pattern.SetFabricFill(Fabric, TFabricFill(ChoiceParam(Params, 'fill', FabricFillNames)));
+  FDocument.EndChange;
+  Result := FabricsToJSON;
+end;
+
+function TApiServer.DoDeleteFabric(Params: TJSONObject): TJSONData;
+var
+  Fabric: TPatternFabric;
+begin
+  Fabric := FindFabricParam(Params, 'fabric');
+  FDocument.BeginChange(rsApiFabrics);
+  if not FDocument.Pattern.DeleteFabric(Fabric) then
+    RefuseChange;
+  FDocument.EndChange;
+  Result := FabricsToJSON;
+end;
+
+function TApiServer.DoSetPieceFabric(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Fabric: TPatternFabric;
+begin
+  Piece := TargetPiece(Params);
+  Fabric := nil;
+  if Params.Find('fabric') <> nil then
+    Fabric := FindFabricParam(Params, 'fabric')
+  else if not ((Params.Find('none') <> nil) and BooleanParam(Params, 'none')) then
+    raise EApiError.Create(RpcInvalidParams, rsApiFabricOrNone);
+  FDocument.BeginChange(rsApiPieceFabric);
+  FDocument.Pattern.SetPieceFabric(Piece, Fabric);
+  Result := AddedNode(Piece);
+end;
+
+function TApiServer.DoSetPieceFill(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Color: string;
+  Style: TPieceFillStyle;
+begin
+  Piece := TargetPiece(Params);
+  Color := Piece.FillColor;
+  Style := Piece.FillStyle;
+  if Params.Find('color') <> nil then
+    Color := RequireString(Params, 'color');
+  if Params.Find('style') <> nil then
+    Style := TPieceFillStyle(ChoiceParam(Params, 'style', PieceFillNames));
+  FDocument.BeginChange(rsApiPieceFill);
+  if not FDocument.Pattern.SetPieceFill(Piece, Color, Style) then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
 function TApiServer.FindDraftParam(Params: TJSONObject; const AName: string): TPatternDraft;
 var
   Id: integer;
@@ -1706,6 +1859,13 @@ begin
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
     'set_view': Result := DoSetView(Params);
+    'list_fabrics': Result := FabricsToJSON;
+    'add_fabric': Result := DoAddFabric(Params);
+    'rename_fabric': Result := DoRenameFabric(Params);
+    'set_fabric': Result := DoSetFabric(Params);
+    'delete_fabric': Result := DoDeleteFabric(Params);
+    'set_piece_fabric': Result := DoSetPieceFabric(Params);
+    'set_piece_fill': Result := DoSetPieceFill(Params);
     'list_drafts': Result := DraftsToJSON;
     'add_draft': Result := DoAddDraft(Params);
     'add_layer': Result := DoAddLayer(Params);

@@ -48,7 +48,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Output.PDFWriter, Sloper.Output.Tiling;
+  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Output.PDFWriter, Sloper.Output.Tiling;
 
 const
   CoverMargin = 15;
@@ -66,7 +66,8 @@ const
   OverlapDash = 1.5;
   DiamondSize = 3;
   // Light enough that lines and text stay clear on it
-  TintGray = 0.93;
+  HatchSpacing = 6;
+  HatchGray = 0.6;
   HalfCircleSteps = 16;
   CheckSquareTop = 27;
   TitleGap = 10;
@@ -101,6 +102,7 @@ type
     function DrawCheckBlock(Left, Top: double): double;
     procedure DrawOneSheet;
     procedure DrawTile(const Page: TTilePage);
+    procedure DrawFill(const Page: TTilePage; const Shape: TPlacedPiece);
     procedure DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
     procedure DrawDiamond(const Page: TTilePage; const Centre: TVec2);
     procedure DrawHalfCircle(const Page: TTilePage; const Centre: TVec2; Inward: double);
@@ -361,17 +363,41 @@ begin
   end;
 end;
 
+// Under the lines. A piece with no fabric stays unfilled, and on a projector
+// nothing is filled, as its output is dark.
+procedure TLayoutPrinter.DrawFill(const Page: TTilePage; const Shape: TPlacedPiece);
+var
+  Tint: TFabricColor;
+  Stroke: TLine2;
+begin
+  if (FLayout.Output.Kind = okProjector) or not Shape.Look.Filled then
+    Exit;
+  case FLayout.Output.Fill of
+    lfTint:
+    begin
+      Tint := FabricTint(Shape.Look.Color);
+      FWriter.SetColor(Tint.R / 255, Tint.G / 255, Tint.B / 255);
+      FWriter.FillPolygon(PagePoints(Page, Shape.CutLine));
+      FWriter.SetGray(0);
+    end;
+    lfHatch:
+    begin
+      FWriter.SetDash(0);
+      FWriter.SetLineWidth(FMarkWidth);
+      FWriter.SetGray(HatchGray);
+      for Stroke in HatchLines(Shape.CutLine, HatchSpacing, Shape.Look.HatchAngle) do
+        FWriter.Line(PagePoint(Page, Stroke.P1), PagePoint(Page, Stroke.P2));
+      FWriter.SetGray(0);
+    end;
+  end;
+end;
+
 procedure TLayoutPrinter.DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
 var
   Mark: TLine2;
   Spot: TVec2;
 begin
-  if (FLayout.Output.Fill = lfTint) and (FLayout.Output.Kind <> okProjector) then
-  begin
-    FWriter.SetGray(TintGray);
-    FWriter.FillPolygon(PagePoints(Page, Shape.CutLine));
-    FWriter.SetGray(0);
-  end;
+  DrawFill(Page, Shape);
   FWriter.SetDash(0);
   FWriter.SetLineWidth(FCutWidth);
   FWriter.Polyline(PagePoints(Page, Shape.CutLine), True);

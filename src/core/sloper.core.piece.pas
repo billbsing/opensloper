@@ -26,7 +26,8 @@ unit Sloper.Core.Piece;
 interface
 
 uses
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.SeamAllowance;
+  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.SeamAllowance,
+  Sloper.Core.Fabrics;
 
 const
   // The formula field of the seam allowance, and its member in pattern files
@@ -71,7 +72,6 @@ type
   end;
 
   TNotchMarkArray = array of TNotchMark;
-  TLine2Array = array of TLine2;
 
   // The default seam allowance is the field "allowance"; an edge with its own
   // has a field such as "edge2.allowance", which exists only while it does
@@ -91,6 +91,9 @@ type
     FFoldLine: TLine2;
     FFoldInwards: double;
     FView: TPieceView;
+    FFabricKey: string;
+    FFillColor: string;
+    FFillStyle: TPieceFillStyle;
     function BuildOutline(Context: TEvalContext; DefaultWidth: double; out Outline: TVec2Array; out Widths, EdgeWidths: TDoubleArray): TEvalState;
     function ComputeGrainline(Context: TEvalContext; const Points: TVec2Array; out Line: TLine2): TEvalState;
     function ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray; Anticlockwise: boolean;
@@ -153,6 +156,12 @@ type
     property FoldLine: TLine2 read FFoldLine;
     function OnFold: boolean;
     property View: TPieceView read FView write FView;
+    // The fabric it is cut from. While the pattern's first fabric has no ID,
+    // '' is that fabric; once it has, '' is no fabric.
+    property FabricKey: string read FFabricKey write FFabricKey;
+    // Its own colour, or '' for the fabric's
+    property FillColor: string read FFillColor write FFillColor;
+    property FillStyle: TPieceFillStyle read FFillStyle write FFillStyle;
   end;
 
 resourcestring

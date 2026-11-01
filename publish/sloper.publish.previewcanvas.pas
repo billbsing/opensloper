@@ -26,7 +26,7 @@ unit Sloper.Publish.PreviewCanvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry, Sloper.Output.Layout,
+  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.Output.Layout,
   Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 type
@@ -138,9 +138,9 @@ begin
   Result := BGRA(37, 116, 214);
 end;
 
-function PieceTint: TBGRAPixel;
+function PieceTint(const Look: TPieceLook): TBGRAPixel;
 begin
-  Result := BGRA(214, 190, 140, 50);
+  Result := BGRA(Look.Color.R, Look.Color.G, Look.Color.B, 50);
 end;
 
 constructor TPreviewCanvas.Create(AOwner: TComponent);
@@ -427,7 +427,8 @@ begin
     Ink := SelectedInk;
     LineWidth := 2.5;
   end;
-  FBitmap.FillPolyAntialias(ScreenPoints(Shape.CutLine), PieceTint);
+  if Shape.Look.Filled then
+    FBitmap.FillPolyAntialias(ScreenPoints(Shape.CutLine), PieceTint(Shape.Look));
   FBitmap.DrawPolygonAntialias(ScreenPoints(Shape.CutLine), Ink, LineWidth);
   FBitmap.PenStyle := psDash;
   FBitmap.DrawPolygonAntialias(ScreenPoints(Shape.SeamLine), Ink, 1);

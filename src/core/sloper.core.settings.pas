@@ -43,6 +43,8 @@ type
     NameColumnShare: double;
     LabelMode: TLabelMode;
     ShowSidePanel: boolean;
+    // Whether the drafting canvas fills pieces with their fabric
+    ShowPieceFills: boolean;
     // How the measurements app shows values
     MeasureUnit: TMeasureUnit;
     constructor Create;
@@ -79,6 +81,7 @@ begin
   NameColumnShare := DefaultNameColumnShare;
   LabelMode := DefaultLabelMode;
   ShowSidePanel := True;
+  ShowPieceFills := True;
   MeasureUnit := muMillimetre;
 end;
 
@@ -93,6 +96,7 @@ begin
     Obj.Add('nameColumnShare', JSONFloat(NameColumnShare));
     Obj.Add('labelMode', LabelModeNames[LabelMode]);
     Obj.Add('showSidePanel', ShowSidePanel);
+    Obj.Add('showPieceFills', ShowPieceFills);
     Obj.Add('measureUnit', MeasureUnitNames[MeasureUnit]);
     Result := JSONToText(Obj);
   finally
@@ -132,6 +136,8 @@ begin
           LabelMode := Mode;
     if GetJSONBoolean(Obj, 'showSidePanel', Shown) then
       ShowSidePanel := Shown;
+    if GetJSONBoolean(Obj, 'showPieceFills', Shown) then
+      ShowPieceFills := Shown;
     if GetJSONString(Obj, 'measureUnit', TextValue) then
       for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
         if TextValue = MeasureUnitNames[AUnit] then

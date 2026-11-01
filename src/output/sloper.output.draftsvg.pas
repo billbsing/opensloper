@@ -45,7 +45,7 @@ function EscapeXML(const Text: string): string;
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Piece;
+  SysUtils, Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece;
 
 const
   CoordinateDecimals = 3;
@@ -61,7 +61,8 @@ const
   ConstructionColor = '#808080';
   ErrorColor = '#c02020';
   BlockedColor = '#e08000';
-  PieceFill = '#f3efe6';
+  // Share of the view's size between hatching lines
+  HatchShare = 0.012;
 
 type
   TDraftView = record
@@ -185,11 +186,17 @@ begin
 end;
 
 // The cutting line, filled, so the edges drawn over it show the seam line
-function PieceElement(Piece: TPieceObject; Extent: double): string;
+function PieceElement(Pattern: TPattern; Piece: TPieceObject; Extent: double): string;
 var
   Index: integer;
-  PathText: string;
+  PathText, FillText, HatchText: string;
+  Look: TPieceLook;
+  Stroke: TLine2;
 begin
+  Look := Pattern.PieceLook(Piece);
+  FillText := 'none';
+  if Look.Filled and (Look.Fill = ffTint) then
+    FillText := LowerCase(FabricColorText(FabricTint(Look.Color)));
   PathText := '';
   for Index := 0 to High(Piece.CutLine) do
     if Index = 0 then
@@ -197,7 +204,15 @@ begin
     else
       PathText := PathText + ' L ' + Coord(Piece.CutLine[Index]);
   Result := Format('<path data-id="%s" data-name="%s" d="%s Z" fill="%s" stroke="%s" stroke-width="%s"/>',
-    [Piece.Key, EscapeXML(Piece.DisplayName), PathText, PieceFill, StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
+    [Piece.Key, EscapeXML(Piece.DisplayName), PathText, FillText, StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
+  if not Look.Filled or (Look.Fill <> ffHatch) then
+    Exit;
+  HatchText := '';
+  for Stroke in HatchLines(Piece.CutLine, Extent * HatchShare, Look.HatchAngle) do
+    HatchText := HatchText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
+  if HatchText <> '' then
+    Result := Result + Format('<path data-id="%s" data-hatch="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
+      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(HatchText), LowerCase(FabricColorText(Look.Color)), Num(Extent * LineShare)]) + #10;
 end;
 
 // The grainline and notches, over the edges
@@ -218,13 +233,13 @@ begin
       [Piece.Key, EscapeXML(Piece.DisplayName), Trim(PathText), StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
 end;
 
-function PieceLabelElement(Piece: TPieceObject; Extent: double): string;
+function PieceLabelElement(Pattern: TPattern; Piece: TPieceObject; Extent: double): string;
 var
   Middle: TVec2;
 begin
   Middle := Piece.Middle;
   Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
-    [Num(Middle.X), Num(-Middle.Y), Num(Extent * FontShare), StateColor(Piece.State, InkColor), EscapeXML(Piece.CutCaption)]) + #10;
+    [Num(Middle.X), Num(-Middle.Y), Num(Extent * FontShare), StateColor(Piece.State, InkColor), EscapeXML(Pattern.PieceCaption(Piece))]) + #10;
 end;
 
 function PointElement(Point: TPointObject; Extent: double; Labels: boolean): string;
@@ -256,7 +271,7 @@ begin
   begin
     DraftObject := Pattern.Objects[Index];
     if (DraftObject is TPieceObject) and DraftObject.HasResult and Pattern.InActiveDraft(DraftObject) then
-      Result := Result + PieceElement(TPieceObject(DraftObject), View.Extent);
+      Result := Result + PieceElement(Pattern, TPieceObject(DraftObject), View.Extent);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
@@ -271,7 +286,7 @@ begin
     begin
       Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
       if Options.Labels then
-        Result := Result + PieceLabelElement(TPieceObject(DraftObject), View.Extent);
+        Result := Result + PieceLabelElement(Pattern, TPieceObject(DraftObject), View.Extent);
     end;
   end;
   for Point in Pattern.AllPoints do

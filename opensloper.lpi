@@ -287,6 +287,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.MeasurementsPanel"/>
       </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.fabrics.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Fabrics"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.fabricspanel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.FabricsPanel"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

@@ -236,6 +236,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.DraftSVG"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.fabrics.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Fabrics"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

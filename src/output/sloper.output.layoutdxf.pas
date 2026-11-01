@@ -49,11 +49,12 @@ resourcestring
   rsDXFPieceName = 'Piece Name: %s';
   rsDXFSize = 'Size: %s';
   rsDXFQuantity = 'Quantity: %d';
+  rsDXFMaterial = 'Material: %s';
 
 implementation
 
 uses
-  SysUtils, Classes, Math, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Drag, Sloper.Core.Piece;
+  SysUtils, Classes, Math, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Fabrics, Sloper.Core.Pattern;
 
 const
   NumberDecimals = 3;
@@ -307,10 +308,11 @@ begin
   AddLine(rsDXFUnits);
 end;
 
-procedure WritePieceBlock(Writer: TDXFWriter; Piece: TPieceObject; const BlockName, SizeName: string);
+procedure WritePieceBlock(Writer: TDXFWriter; Pattern: TPattern; Piece: TPieceObject; const BlockName, SizeName: string);
 var
   At: TVec2;
   Mark: TNotchMark;
+  Fabric: TPatternFabric;
 
   procedure AddText(const AText: string);
   begin
@@ -333,6 +335,9 @@ begin
   if SizeName <> '' then
     AddText(Format(rsDXFSize, [SizeName]));
   AddText(Format(rsDXFQuantity, [Piece.CutCount]));
+  Fabric := Pattern.FabricOf(Piece);
+  if (Fabric <> nil) and (Fabric.Key <> '') then
+    AddText(Format(rsDXFMaterial, [Fabric.Name]));
   Writer.EndBlock;
 end;
 
@@ -368,7 +373,7 @@ begin
       if (Layout.Sources.Count > 1) and (SizeName <> '') then
         BlockName := BlockName + '_' + BlockNameFrom(SizeName);
       BlockName := FreeBlockName(BlockName, Names);
-      WritePieceBlock(Writer, Piece, BlockName, SizeName);
+      WritePieceBlock(Writer, Source.Pattern, Piece, BlockName, SizeName);
       System.Insert(BlockName, Blocks, Length(Blocks));
     end;
     Writer.EndSection;
