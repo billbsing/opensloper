@@ -806,7 +806,7 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
 
 - The publish app reads saved pattern files and watches them; when one is saved it re-evaluates and redraws, with a status message. Unsaved edits in the drafting app do not appear.
 - Placements refer to pieces by source and piece ID, so they survive measurement changes and edits. A new piece appears in an "unplaced" tray; a deleted piece's placement is flagged in the problems list, never silently dropped.
-- When pieces grow after a measurement change, overlaps between pieces and pieces running off the sheet are flagged; automatic packing can come later.
+- When pieces grow after a measurement change, overlaps between pieces and pieces running off the sheet are flagged, and Pack Pieces can rearrange them (see Other exports and packing).
 - A missing pattern or measurement file, or a piece that fails to evaluate, is shown as a problem. Export refuses while any placed piece is invalid and lists them.
 
 **Moving between the apps.** The drafting app has a Publish… command that opens the publish app with the current pattern, creating a layout for it if there is none, as KiCad's project manager connects its tools.
@@ -846,7 +846,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 
 - **Commands.** `opensloper-cli layout PATTERN` starts a layout beside the pattern with every copy placed; `opensloper-cli export LAYOUT` writes the PDF, refusing with the list of blocking problems. `-o` names the file written.
 - **Layout space** is millimetres from the top left, y down. A placement gives the top left of the piece's cutting line after any rotation and flip (flip first), so it stays put when the piece grows.
-- **New pieces** are placed in plain rows up to 1 m wide, 10 mm apart. This is a starting point, not packing. Even-numbered copies of a mirrored piece start flipped.
+- **New pieces** are placed in plain rows up to 1 m wide, 10 mm apart. This is a starting point; Pack Pieces does the packing. Even-numbered copies of a mirrored piece start flipped.
 - **Problems.** A missing or unreadable file, a deleted piece, a failing piece and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, a pattern with no pieces, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. A source's `size` must be in its measurement file; with none given, a size table uses its first size. The title block names the size.
 - **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration scales everything drawn at true size, including the test square.
 - **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Opening it out to a whole piece can be an output option later.
@@ -862,6 +862,34 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Title block.** `titleBlock` holds `corner` (`bottomRight`, `bottomLeft` or `topRight`), `fields` and `everyPage`. It prints once, on the cover or beside the test square of a one-sheet output, with an optional copy in that corner of every tile, on a white box. The fields so far are `pattern.name`, `measurements.name`, `layout.name` and `date`; `pattern.version` and author wait for the pattern to hold them. A new layout starts with pattern, measurements and date. The layout file is left without it when it is off.
 - **Sheet notes.** `sheetNotes` lists `text`, `x`, `y` and `size` (points): plain text in layout space, one or more lines, with `{pattern.name}`, `{measurements.name}`, `{layout.name}`, `{date}`, `{page}` and `{pages}` filled in when printed (the cover counts as page 1). A note makes the page it is on print, even with no piece there, and extends the page grid. It prints on every tile it reaches. In the window a note is selected and dragged like a piece, and lies over them; the Notes tab holds the note's text and size and the title block. A note over a piece is a warning. Text width is an estimate, since the PDF uses Helvetica unembedded, so these checks are approximate.
 - Not done yet: bold, italic, alignment and boxes in notes, and `{=Line_A_B.length}` fields, which come with pattern-space annotations.
+
+### Other exports and packing
+
+Step 12. SVG and DXF do different jobs, so only SVG uses the arrangement: SVG shows pieces where they were placed, for plotters, laser cutters and Inkscape, while DXF-AAMA carries pieces into a CAD or cutting system, which arranges them itself. Packing only writes placements, so the layout file does not change.
+
+**SVG** (`Sloper.Output.LayoutSVG`, built on `TPlacedPiece`). One true-scale file in millimetres at the layout's positions, with each piece's rotation and flip. There is one group per piece copy, with separate cut, seam, marks and label groups inside it, so a cutter can leave out the seam line. Pages, overlap marks, calibration, the title block and sheet notes are left out: calibration corrects one printer, and the rest belong to paper.
+
+**DXF-AAMA** (`Sloper.Output.LayoutDXF`). One block per piece, not per copy, in the piece's own coordinates, unrotated and with y up. The quantity is the piece's cut count. Only placed pieces are written, so the layout still chooses what goes out. A layout with several sizes gets separate blocks for each source, named with the size; grading rules are out of scope. The file is ASCII DXF R12 from our own small writer, like `TPDFWriter`, so the same layout gives the same bytes. Curves are polylines. A piece on a fold is exported as the half drawn, with the fold as a mirror line.
+
+| Layer | Content |
+| --- | --- |
+| 1 | Cut line and piece text: name, size, quantity, and fabric once fabrics exist |
+| 14 | Seam line |
+| 4 | Notches, as points with angle and length |
+| 7 | Grainline |
+| 6 | Fold (mirror line) |
+
+The layers are kept in one table so ASTM can be added later. ASTM D6673 is paywalled and listed as withdrawn, so these numbers follow Valentina's GPL exporter, with layer 6 taken from its ASTM export because its AAMA export draws mirror lines on layer 8. The exporter has not been tried on a real cutting system and is assumed to work; a test against one should check the layers and the file-level text.
+
+**Pack Pieces**, on the Pieces tab, and `opensloper-cli pack LAYOUT`, which rewrites the file. It is one undo step and writes ordinary placements that can still be dragged. Every copy is packed, including those in the tray; failing pieces stay there.
+
+- **Method.** Bounding boxes, tallest first, each placed as low and as far left as it fits, at 0° and at a quarter turn from where it stands, with flips kept and a 10 mm gap. The same input gives the same result. True-shape nesting is left for later.
+- **Tiled.** Each column count is tried, pages are counted with the tiling code, and the fewest pages win.
+- **Large format.** Packs to the roll's printable width, for the shortest sheet. A piece too wide either way round is left where it was, with the usual warning.
+- **Projector.** Not offered: the layout has no fabric width to pack against. A `fabricWidth` setting could add it later.
+- Packing clears `excludedPages`, since the page captions change. Sheet notes stay where they are.
+
+**Commands.** Export SVG and Export DXF sit beside Export PDF on the Output tab. `opensloper-cli export` takes `--format=pdf|svg|dxf`, or goes by the extension of `-o`, and `export` in the Automation API takes a layout path. The problems that block a PDF block these too.
 
 ## Fabrics
 
@@ -903,14 +931,14 @@ The publish app (see Publish app) prints patterns directly at true scale, with n
 **Layout before printing:**
 
 - Choose what to print: selected pieces or all pieces, from one or more patterns, for the current measurement set
-- Arrange pieces to minimise pages: manual drag first, simple automatic packing later
+- Arrange pieces to minimise pages: manual drag, or Pack Pieces (see Other exports and packing)
 - Preview with the page grid over the pieces and a live page count
 
 **Other outputs:**
 
 - Single large-format PDF (A0 or copy-shop width)
 - Projector mode: dark background, thick light lines, no tiling, for projecting onto fabric
-- SVG and DXF exports, as in the Output layer
+- SVG and DXF exports (see Other exports and packing)
 - Piece fills: off by default; optional light tint or hatching (for black-and-white printers), set per print
 
 **Print screen (the main gap in existing software).** Seamly2D lacked a friendly interface for multi-page printing, so the publish app's main window is one interactive screen rather than a dialog of settings:
@@ -1034,6 +1062,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
 | Undo/redo | Execute then undo restores the exact previous state, including random command sequences |
 | Printing | Tile layout maths: page count, overlaps, blank-page skipping |
+| Exports and packing | SVG and DXF bytes against stored files, DXF layers and blocks, packing never overlaps, repeats exactly and does not add pages |
 
 **Regression patterns.** A few sample patterns (skirt block, bodice block) with two or three measurement sets each, and their expected computed coordinates stored as JSON. Each test evaluates a pattern and compares results, so any change that silently alters a draft fails.
 
@@ -1105,7 +1134,8 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 **Command-line tools** (using the LCL-free core and ConsoleTools):
 
-- `opensloper-cli export LAYOUT`: regenerate the PDFs for a layout file after patterns or measurements change
+- `opensloper-cli export LAYOUT [--format=pdf|svg|dxf] [-o FILE]`: regenerate a layout's output after patterns or measurements change; only PDF so far
+- `opensloper-cli pack LAYOUT`: pack a layout's pieces and rewrite the file (not built yet)
 - `opensloper-cli check PATTERN [-m FILE] [-s SIZE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors, invalid objects and seam mismatches, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile` and `size`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
 - `opensloper-cli measurements list FILE` and `measurements set FILE KEY VALUE [--size SIZE] [--description TEXT]`: read and edit measurement files from scripts, through `Sloper.Core.Measurements` (see Measurements app)
 
@@ -1149,7 +1179,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
 | `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
-| `export` | PDF, SVG or DXF to a given path |
+| `export` | A layout file as PDF, SVG or DXF to a given path |
 | `ui_state` (GUI only) | Selection, label mode, viewport, canvas snapshot |
 
 `render` lets Claude look at the result, not only check numbers, so a wrong curve or misplaced dart is caught visually.
@@ -1209,7 +1239,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
 10. Measurements app (done, with 72 measurements in the catalogue so far): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files
 11. Seams and seam-length checks (done, see Seams; the Check pattern overlay itself is not built yet, so a mismatch shows in the status bar, the Problems filter and `check`): seam object, Seam tool, Suggest seams, split command on the canvas
-12. SVG piece export and DXF-AAMA export, automatic packing in the publish app
+12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (designed, see Other exports and packing)
 13. Blender export for 3D preview
 
 Open questions:
@@ -1221,5 +1251,6 @@ Open questions:
 - [x] Undo granularity: settled, see Key design decisions item 7
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
 - [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
+- [x] SVG, DXF and packing: settled, SVG follows the arrangement, DXF-AAMA writes one block per piece, packing works on bounding boxes; see Other exports and packing. DXF is untried on a real cutting system
 - [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
 - [x] Draft tabs and layers: settled, drafts as tabs within one pattern file, global names, ordered layers per draft; see Draft tabs and layers
