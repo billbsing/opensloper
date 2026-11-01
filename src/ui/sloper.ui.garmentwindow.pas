@@ -26,7 +26,7 @@ unit Sloper.UI.GarmentWindow;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, BGRABitmap, BGRABitmapTypes, Sloper.Core.Garment, Sloper.Document.PatternDocument;
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Dialogs, BGRABitmap, BGRABitmapTypes, Sloper.Core.Garment, Sloper.Document.PatternDocument;
 
 type
   TGarmentPane = class(TCustomControl)
@@ -46,6 +46,11 @@ type
     FDocument: TPatternDocument;
     FPane: TGarmentPane;
     FNotes: TLabel;
+    FBar: TPanel;
+    FExportButton: TButton;
+    FExported: TLabel;
+    procedure ExportClick(Sender: TObject);
+    function SuggestedFileName: string;
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure SetDocument(ADocument: TPatternDocument);
     procedure RefreshNotes;
@@ -61,12 +66,19 @@ resourcestring
   rsGarmentFront = 'Front';
   rsGarmentBack = 'Back';
   rsGarmentEmpty = 'Nothing in this view';
+  rsGarmentExport = 'Export SVG...';
+  rsGarmentExportHint = 'Save the front and back side by side, at true scale';
+  rsGarmentExportFilter = 'SVG (*.svg)|*.svg';
+  rsGarmentExportName = '%s-garment.svg';
+  rsGarmentExportUnnamed = 'garment.svg';
+  rsGarmentExported = 'Wrote %s';
+  rsGarmentExportFailed = 'Could not write %s: %s';
   rsGarmentNoView = 'Pieces in neither view: %d. Set View in a piece''s properties.';
 
 implementation
 
 uses
-  Math, Graphics, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.UI.GarmentNotes;
+  Math, Graphics, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.Core.JSON, Sloper.Output.GarmentSVG, Sloper.UI.GarmentNotes;
 
 const
   HatchPixels = 8;
@@ -75,6 +87,8 @@ const
   PaneMargin = 24;
   TitleHeight = 28;
   NotePadding = 6;
+  BarHeight = 40;
+  BarButtonWidth = 130;
 
 function Paper: TBGRAPixel;
 begin
@@ -212,6 +226,25 @@ begin
   FNotes.Align := alBottom;
   FNotes.WordWrap := True;
   FNotes.BorderSpacing.Around := NotePadding;
+  FBar := TPanel.Create(Self);
+  FBar.Parent := Self;
+  FBar.Align := alBottom;
+  FBar.Height := BarHeight;
+  FBar.BevelOuter := bvNone;
+  FExportButton := TButton.Create(Self);
+  FExportButton.Parent := FBar;
+  FExportButton.Align := alRight;
+  FExportButton.Width := BarButtonWidth;
+  FExportButton.BorderSpacing.Around := NotePadding;
+  FExportButton.Caption := rsGarmentExport;
+  FExportButton.Hint := rsGarmentExportHint;
+  FExportButton.ShowHint := True;
+  FExportButton.OnClick := @ExportClick;
+  FExported := TLabel.Create(Self);
+  FExported.Parent := FBar;
+  FExported.Align := alClient;
+  FExported.Layout := tlCenter;
+  FExported.BorderSpacing.Around := NotePadding;
   FPane := TGarmentPane.Create(Self);
   FPane.Parent := Self;
   FPane.Align := alClient;
@@ -233,14 +266,50 @@ begin
     FDocument.AddListener(@DocumentChanged);
 end;
 
+function TGarmentWindow.SuggestedFileName: string;
+begin
+  if FDocument.FileName = '' then
+    Result := rsGarmentExportUnnamed
+  else
+    Result := Format(rsGarmentExportName, [ChangeFileExt(ExtractFileName(FDocument.FileName), '')]);
+end;
+
+procedure TGarmentWindow.ExportClick(Sender: TObject);
+var
+  Dialog: TSaveDialog;
+  Reason: string;
+begin
+  Dialog := TSaveDialog.Create(Self);
+  try
+    Dialog.Filter := rsGarmentExportFilter;
+    Dialog.DefaultExt := 'svg';
+    Dialog.Options := Dialog.Options + [ofOverwritePrompt];
+    Dialog.FileName := SuggestedFileName;
+    if FDocument.FileName <> '' then
+      Dialog.InitialDir := ExtractFileDir(FDocument.FileName);
+    if not Dialog.Execute then
+      Exit;
+    if WriteTextFile(Dialog.FileName, GarmentSheetToSVG(BuildGarment(FDocument.Pattern, gsFront), BuildGarment(FDocument.Pattern, gsBack),
+      rsGarmentFront, rsGarmentBack), Reason) then
+      FExported.Caption := Format(rsGarmentExported, [ExtractFileName(Dialog.FileName)])
+    else
+      MessageDlg(Format(rsGarmentExportFailed, [Dialog.FileName, Reason]), mtError, [mbOK], 0);
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
 procedure TGarmentWindow.RefreshNotes;
 var
   Lines: TStringArray;
   Line: string;
   Missing: integer;
+  FrontDrawing, BackDrawing: TGarmentDrawing;
 begin
-  Lines := Concat(GarmentNotes(BuildGarment(FDocument.Pattern, gsFront), rsGarmentFront),
-    GarmentNotes(BuildGarment(FDocument.Pattern, gsBack), rsGarmentBack));
+  FrontDrawing := BuildGarment(FDocument.Pattern, gsFront);
+  BackDrawing := BuildGarment(FDocument.Pattern, gsBack);
+  FExportButton.Enabled := (FrontDrawing.Shapes <> nil) or (BackDrawing.Shapes <> nil);
+  Lines := Concat(GarmentNotes(FrontDrawing, rsGarmentFront), GarmentNotes(BackDrawing, rsGarmentBack));
   Missing := PiecesWithoutView(FDocument.Pattern);
   if Missing > 0 then
     Insert(Format(rsGarmentNoView, [Missing]), Lines, Length(Lines));

@@ -67,6 +67,11 @@ type
     procedure TestViewSurvivesSaving;
     procedure TestNotes;
     procedure TestSVG;
+    procedure TestSheetIsTrueScaleSideBySide;
+    procedure TestSheetPlacesBackAfterFront;
+    procedure TestSheetLeavesOutEmptySide;
+    procedure TestSheetEscapesTitles;
+    procedure TestSheetWithNothingStillDraws;
   end;
 
 implementation
@@ -531,6 +536,61 @@ begin
   Text := GarmentToSVG(BuildGarment(FPattern, gsFront));
   AssertTrue(Text, Pos('data-name="Front"', Text) > 0);
   AssertTrue(Text, Pos('width="120mm" height="220mm"', Text) > 0);
+end;
+
+procedure TTestGarment.TestSheetIsTrueScaleSideBySide;
+var
+  Text: string;
+begin
+  Panel('Front', 0, 0, 100, 200, pvFront);
+  Panel('Back', 300, 0, 150, 300, pvBack);
+  Text := GarmentSheetToSVG(BuildGarment(FPattern, gsFront), BuildGarment(FPattern, gsBack), 'Front', 'Back');
+  // 10 margin, 100, 60 gap, 150, 10 margin across; 10, 24 title, 300, 10 down
+  AssertTrue(Text, Pos('width="330mm" height="344mm" viewBox="0 0 330 344"', Text) > 0);
+  AssertTrue(Text, Pos('data-side="front"', Text) > 0);
+  AssertTrue(Text, Pos('data-side="back"', Text) > 0);
+  AssertTrue(Text, Pos('>Front</text>', Text) > 0);
+  AssertTrue(Text, Pos('>Back</text>', Text) > 0);
+end;
+
+procedure TTestGarment.TestSheetPlacesBackAfterFront;
+var
+  Text: string;
+begin
+  Panel('Front', 50, 20, 100, 200, pvFront);
+  Panel('Back', 300, 0, 150, 300, pvBack);
+  Text := GarmentSheetToSVG(BuildGarment(FPattern, gsFront), BuildGarment(FPattern, gsBack), 'Front', 'Back');
+  // Each side's top left lands at its place on the sheet, whatever its model position
+  AssertTrue(Text, Pos('data-side="front" transform="translate(-40 254)"', Text) > 0);
+  AssertTrue(Text, Pos('data-side="back" transform="translate(-130 334)"', Text) > 0);
+end;
+
+procedure TTestGarment.TestSheetLeavesOutEmptySide;
+var
+  Text: string;
+begin
+  Panel('Front', 0, 0, 100, 200, pvFront);
+  Text := GarmentSheetToSVG(BuildGarment(FPattern, gsFront), BuildGarment(FPattern, gsBack), 'Front', 'Back');
+  AssertEquals('no back', 0, Pos('data-side="back"', Text));
+  AssertTrue(Text, Pos('width="120mm" height="244mm"', Text) > 0);
+end;
+
+procedure TTestGarment.TestSheetEscapesTitles;
+var
+  Text: string;
+begin
+  Panel('Front', 0, 0, 100, 200, pvFront);
+  Text := GarmentSheetToSVG(BuildGarment(FPattern, gsFront), BuildGarment(FPattern, gsBack), 'A & B', 'Back');
+  AssertTrue(Text, Pos('>A &amp; B</text>', Text) > 0);
+end;
+
+procedure TTestGarment.TestSheetWithNothingStillDraws;
+var
+  Text: string;
+begin
+  Text := GarmentSheetToSVG(BuildGarment(FPattern, gsFront), BuildGarment(FPattern, gsBack), 'Front', 'Back');
+  AssertTrue(Text, Pos('<svg', Text) > 0);
+  AssertTrue(Text, Pos('</svg>', Text) > 0);
 end;
 
 initialization

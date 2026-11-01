@@ -1267,7 +1267,9 @@ Everything is computed from the pattern (`Sloper.Core.Garment`, no LCL dependenc
 
 **Limits.** Pieces only move and rotate; they never bend. So curved seams that differ show gaps or overlaps (a princess seam, a sleeve cap eased into an armhole), a flared skirt fans out with overlapping panels, and gathers do not show. A garment with no seams shows its pieces apart.
 
-**Automation API.** `set_view` sets a piece's view, and `render` takes `garment` (`front` or `back`) for the same drawing as SVG.
+**Export.** Export SVG in the window writes one true-scale file in millimetres with front and back side by side, top edges level, each under its title, in `data-side` groups. A view with nothing in it is left out, and the button is disabled when both are empty. It is drawn by `GarmentSheetToSVG` in `Sloper.Output.GarmentSVG`, and the file name starts as the pattern's with `-garment.svg`. It is a read-only output, so it is no undo step and does not modify the pattern.
+
+**Automation API.** `set_view` sets a piece's view, and `render` takes `garment` (`front` or `back`) for one view as SVG.
 
 ## 3D preview (later phase)
 
