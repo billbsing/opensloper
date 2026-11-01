@@ -286,14 +286,15 @@ type
     // For loaders: replaces the first fabric, unless a fabric was inserted already
     procedure InsertFabric(Fabric: TPatternFabric);
     function FindDraft(const Key: string): TPatternDraft;
+    function FindDraftNamed(const AName: string): TPatternDraft;
     function FindLayer(const Key: string; out Draft: TPatternDraft): TPatternLayer;
     // Where a variable, a measurement or a virtual repeat point has no layer of
     // its own these give the first draft's first layer
     function LayerOf(Node: TEvalNode): TPatternLayer;
     function DraftOf(Node: TEvalNode): TPatternDraft;
     function InActiveDraft(Node: TEvalNode): boolean;
-    // On the active draft, on a layer that shows. Only the canvas goes by this:
-    // hiding a layer never changes output.
+    // On the active draft, on a layer that shows. The canvas goes by this, and
+    // the draft's SVG export, a picture of it: hiding a layer changes no other output.
     function IsShown(Node: TEvalNode): boolean;
     // Shown, and not on a locked layer
     function IsPickable(Node: TEvalNode): boolean;
@@ -754,6 +755,14 @@ function TPattern.FindFabric(const Key: string): TPatternFabric;
 begin
   for Result in FFabrics do
     if Result.Key = Key then
+      Exit;
+  Result := nil;
+end;
+
+function TPattern.FindDraftNamed(const AName: string): TPatternDraft;
+begin
+  for Result in FDrafts do
+    if SameName(Result.Name, AName) then
       Exit;
   Result := nil;
 end;

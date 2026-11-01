@@ -63,6 +63,10 @@ object MainForm: TMainForm
         Caption = '&Publish...'
         OnClick = MenuFilePublishClick
       end
+      object MenuFileExportDraft: TMenuItem
+        Caption = 'E&xport Draft SVG...'
+        OnClick = MenuFileExportDraftClick
+      end
       object MenuFileSep2: TMenuItem
         Caption = '-'
       end

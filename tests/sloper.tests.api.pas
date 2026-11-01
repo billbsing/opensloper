@@ -48,6 +48,7 @@ type
     procedure SetUp; override;
     procedure TearDown; override;
   published
+    procedure TestRenderShownLeavesOutHidden;
     procedure TestFabricMethods;
     procedure TestFabricRefusals;
     procedure TestPieceFabricAndFill;
@@ -280,6 +281,19 @@ begin
   AssertEquals('variables', 1, Answer.Get('variables', 0));
   AssertEquals('measurements found beside it', FSetPath, Answer.Get('measurements', ''));
   AssertFalse('not modified', Answer.Get('modified', True));
+end;
+
+procedure TTestAPI.TestRenderShownLeavesOutHidden;
+begin
+  AddSquare;
+  Call('add_layer', '{"name": "Far"}');
+  Call('add_point', '{"type": "freePoint", "name": "Far1", "x": 500, "y": 500, "layer": "Far"}');
+  Call('set_active', '{"layer": "Far", "hidden": true}');
+  Call('render');
+  AssertTrue('all by default', Pos('data-name="Far1"', Answer.Get('svg', '')) > 0);
+  Call('render', '{"shown": true}');
+  AssertEquals('as on screen', 0, Pos('data-name="Far1"', Answer.Get('svg', '')));
+  AssertTrue('the rest stays', Pos('data-name="A"', Answer.Get('svg', '')) > 0);
 end;
 
 procedure TTestAPI.TestFabricMethods;

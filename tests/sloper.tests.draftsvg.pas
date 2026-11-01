@@ -33,6 +33,9 @@ type
     function Render(Labels: boolean = False): string;
     procedure AssertHas(const Msg, Part, Text: string);
     procedure AssertLacks(const Msg, Part, Text: string);
+    procedure BuildTwoLayers;
+    function RenderShown: string;
+    procedure BuildPiece;
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -51,12 +54,23 @@ type
     procedure TestEmptyPattern;
     procedure TestSizesFollowTheDrawing;
     procedure TestPieceIsDrawnUnderItsEdges;
+    procedure TestHiddenLayerStaysByDefault;
+    procedure TestShownOnlyLeavesOutHiddenLayer;
+    procedure TestShownOnlyFitsWhatShows;
+    procedure TestShownOnlyFollowsSolo;
+    procedure TestShownOnlyWithNothingShowing;
+    procedure TestNoFillsLeavesPieceUnfilled;
+    procedure TestNoFillsLeavesOutHatching;
+    procedure TestFileNameForOneDraft;
+    procedure TestFileNameNamesTheDraft;
+    procedure TestFileNameKeepsToOneFolder;
+    procedure TestFindDraftNamed;
   end;
 
 implementation
 
 uses
-  Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
+  Sloper.Core.Draft, Sloper.Core.Drafts, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
 
 procedure TTestDraftSVG.SetUp;
 begin
@@ -238,6 +252,136 @@ begin
   AssertTrue('under the edges', Pos('data-name="Front"', Text) < Pos('data-name="Line_P_Q"', Text));
   AssertTrue('grainline over the edges', Pos('data-name="Line_P_Q"', Text) < Pos('data-marks="Front"', Text));
   AssertHas('its label', 'Front, cut 1', Render(True));
+end;
+
+// P at the origin on the first layer, and Q at (500, 300) on a second
+procedure TTestDraftSVG.BuildTwoLayers;
+begin
+  FPattern.AddFreePoint('P', '0', '0');
+  FPattern.SelectLayer(FPattern.AddLayer(FPattern.ActiveDraft, 'Far'));
+  FPattern.AddFreePoint('Q', '500', '300');
+  FPattern.Evaluate;
+end;
+
+function TTestDraftSVG.RenderShown: string;
+var
+  Options: TDraftSVGOptions;
+begin
+  Options := DefaultDraftSVGOptions;
+  Options.ShownOnly := True;
+  Result := DraftToSVG(FPattern, Options);
+end;
+
+procedure TTestDraftSVG.TestHiddenLayerStaysByDefault;
+begin
+  BuildTwoLayers;
+  FPattern.ActiveLayer.Hidden := True;
+  AssertHas('still there', 'data-name="Q"', Render);
+end;
+
+procedure TTestDraftSVG.TestShownOnlyLeavesOutHiddenLayer;
+var
+  Text: string;
+begin
+  BuildTwoLayers;
+  FPattern.ActiveLayer.Hidden := True;
+  Text := RenderShown;
+  AssertLacks('hidden', 'data-name="Q"', Text);
+  AssertHas('shown', 'data-name="P"', Text);
+end;
+
+procedure TTestDraftSVG.TestShownOnlyFitsWhatShows;
+begin
+  BuildTwoLayers;
+  FPattern.ActiveLayer.Hidden := True;
+  // Nothing wide is left, so the sheet is the smallest there is, with its margin
+  AssertLacks('no room for the hidden point', 'width="550mm"', RenderShown);
+  AssertHas('fits P alone', 'width="1mm" height="1mm"', RenderShown);
+end;
+
+procedure TTestDraftSVG.TestShownOnlyFollowsSolo;
+var
+  Text: string;
+begin
+  BuildTwoLayers;
+  FPattern.SoloLayer := FPattern.ActiveLayer;
+  Text := RenderShown;
+  AssertHas('the solo layer', 'data-name="Q"', Text);
+  AssertLacks('the others', 'data-name="P"', Text);
+end;
+
+procedure TTestDraftSVG.TestShownOnlyWithNothingShowing;
+begin
+  BuildTwoLayers;
+  FPattern.ActiveDraft.Layers[0].Hidden := True;
+  FPattern.ActiveDraft.Layers[1].Hidden := True;
+  AssertHas('still a drawing', '</svg>', RenderShown);
+  AssertLacks('empty', 'data-name', RenderShown);
+end;
+
+procedure TTestDraftSVG.BuildPiece;
+var
+  A, B, C: string;
+  Path: TPiecePath;
+  ErrorMessage: string;
+begin
+  A := FPattern.AddFreePoint('P', '0', '0').Key;
+  B := FPattern.AddFreePoint('Q', '100', '0').Key;
+  C := FPattern.AddFreePoint('R', '0', '100').Key;
+  FPattern.AddLine(A, B, erOutline);
+  FPattern.AddLine(B, C, erOutline);
+  FPattern.AddLine(C, A, erOutline);
+  FPattern.Evaluate;
+  AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(10, 10), Path, ErrorMessage));
+  FPattern.AddPiece('Front', Path, '10');
+  FPattern.Evaluate;
+end;
+
+procedure TTestDraftSVG.TestNoFillsLeavesPieceUnfilled;
+var
+  Options: TDraftSVGOptions;
+begin
+  BuildPiece;
+  Options := DefaultDraftSVGOptions;
+  AssertLacks('tinted to begin with', 'data-name="Front" d="M 0 0 Z" fill="none"', DraftToSVG(FPattern, Options));
+  Options.NoFills := True;
+  AssertTrue('no fill', Pos('Z" fill="none"', DraftToSVG(FPattern, Options)) > 0);
+end;
+
+procedure TTestDraftSVG.TestNoFillsLeavesOutHatching;
+var
+  Options: TDraftSVGOptions;
+begin
+  BuildPiece;
+  FPattern.SetFabricFill(FPattern.Fabrics[0], ffHatch);
+  Options := DefaultDraftSVGOptions;
+  AssertHas('hatched', 'data-hatch', DraftToSVG(FPattern, Options));
+  Options.NoFills := True;
+  AssertLacks('not when fills are off', 'data-hatch', DraftToSVG(FPattern, Options));
+end;
+
+procedure TTestDraftSVG.TestFileNameForOneDraft;
+begin
+  AssertEquals('skirt.svg', DraftSVGFileName('skirt', 'Draft', 1));
+end;
+
+procedure TTestDraftSVG.TestFileNameNamesTheDraft;
+begin
+  AssertEquals('dress-Sleeve.svg', DraftSVGFileName('dress', 'Sleeve', 2));
+end;
+
+procedure TTestDraftSVG.TestFileNameKeepsToOneFolder;
+begin
+  AssertEquals('dress-Left_Right.svg', DraftSVGFileName('dress', 'Left/Right', 2));
+end;
+
+procedure TTestDraftSVG.TestFindDraftNamed;
+var
+  Sleeve: TPatternDraft;
+begin
+  Sleeve := FPattern.AddDraft('Sleeve');
+  AssertTrue('any case', FPattern.FindDraftNamed('SLEEVE') = Sleeve);
+  AssertTrue('none', FPattern.FindDraftNamed('Collar') = nil);
 end;
 
 initialization

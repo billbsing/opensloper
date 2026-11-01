@@ -45,6 +45,7 @@ type
     MenuFileSep1: TMenuItem;
     MenuFileMeasurements: TMenuItem;
     MenuFilePublish: TMenuItem;
+    MenuFileExportDraft: TMenuItem;
     MenuFileSep2: TMenuItem;
     MenuFileQuit: TMenuItem;
     MenuEdit: TMenuItem;
@@ -73,6 +74,7 @@ type
     procedure MenuFileSaveAsClick(Sender: TObject);
     procedure MenuFileMeasurementsClick(Sender: TObject);
     procedure MenuFilePublishClick(Sender: TObject);
+    procedure MenuFileExportDraftClick(Sender: TObject);
     procedure MenuFileQuitClick(Sender: TObject);
     procedure MenuEditUndoClick(Sender: TObject);
     procedure MenuEditRedoClick(Sender: TObject);
@@ -160,7 +162,8 @@ var
 implementation
 
 uses
-  Math, process, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.Core.AppPaths, Sloper.Core.Measurements,
+  Math, process, Sloper.Core.JSON, Sloper.Output.DraftSVG, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
+  Sloper.Core.AppPaths, Sloper.Core.Measurements,
   Sloper.Core.PatternCheck, Sloper.Output.Layout;
 
   {$R *.lfm}
@@ -180,6 +183,11 @@ resourcestring
   rsMenuFileSaveAs = 'Save &As...';
   rsMenuFileMeasurements = '&Measurements...';
   rsMenuFilePublish = '&Publish...';
+  rsMenuFileExportDraft = 'E&xport Draft SVG...';
+  rsExportDraftFilter = 'SVG (*.svg)|*.svg';
+  rsExportDraftUnnamed = 'draft';
+  rsExportDraftDone = 'Wrote %s';
+  rsExportDraftFailed = 'Could not write %s: %s';
   rsPublishSaveFirst = 'The publish app reads the saved file. Save your changes first?';
   rsPublishMissing = 'The publish app (opensloper-publish) was not found beside this program.';
   rsMeasurementsAppMissing = 'The measurements app (opensloper-measurements) was not found beside this program.';
@@ -263,6 +271,7 @@ begin
   MenuFileMeasurements.ShortCut := ShortCut(VK_M, [ssModifier]);
   MenuFilePublish.Caption := rsMenuFilePublish;
   MenuFilePublish.ShortCut := ShortCut(VK_P, [ssModifier]);
+  MenuFileExportDraft.Caption := rsMenuFileExportDraft;
   MenuFileQuit.Caption := rsMenuFileQuit;
   MenuFileQuit.ShortCut := ShortCut(VK_Q, [ssModifier]);
   MenuEdit.Caption := rsMenuEdit;
@@ -960,6 +969,39 @@ end;
 
 // The publish app reads saved files, so an unsaved pattern has to be saved,
 // and a modified one is offered the choice
+// The draft as it stands on screen, saved or not: its hidden layers, fills and labels
+procedure TMainForm.MenuFileExportDraftClick(Sender: TObject);
+var
+  Dialog: TSaveDialog;
+  Options: TDraftSVGOptions;
+  PatternName, Reason: string;
+begin
+  PatternName := rsExportDraftUnnamed;
+  if FDocument.FileName <> '' then
+    PatternName := ChangeFileExt(ExtractFileName(FDocument.FileName), '');
+  Dialog := TSaveDialog.Create(Self);
+  try
+    Dialog.Filter := rsExportDraftFilter;
+    Dialog.DefaultExt := 'svg';
+    Dialog.Options := Dialog.Options + [ofOverwritePrompt];
+    Dialog.FileName := DraftSVGFileName(PatternName, FDocument.Pattern.ActiveDraft.Name, FDocument.Pattern.DraftCount);
+    if FDocument.FileName <> '' then
+      Dialog.InitialDir := ExtractFileDir(FDocument.FileName);
+    if not Dialog.Execute then
+      Exit;
+    Options := DefaultDraftSVGOptions;
+    Options.ShownOnly := True;
+    Options.NoFills := not FCanvas.ShowPieceFills;
+    Options.Labels := FCanvas.LabelMode <> lmNone;
+    if WriteTextFile(Dialog.FileName, DraftToSVG(FDocument.Pattern, Options), Reason) then
+      StatusBar.Panels[PanelMessage].Text := Format(rsExportDraftDone, [ExtractFileName(Dialog.FileName)])
+    else
+      MessageDlg(Format(rsExportDraftFailed, [Dialog.FileName, Reason]), mtError, [mbOK], 0);
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
 procedure TMainForm.MenuFilePublishClick(Sender: TObject);
 var
   ProgramFile: string;

@@ -26,11 +26,17 @@ unit Sloper.Output.DraftSVG;
 interface
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Pattern;
+  Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Pattern;
 
 type
   TDraftSVGOptions = record
     Labels: boolean;
+    // As the canvas shows it: hidden layers and everything outside a solo layer
+    // are left out. Hiding never changes output otherwise, but this is a
+    // picture of the working view.
+    ShownOnly: boolean;
+    // Pieces are left unfilled, as with View -> Piece Fills off
+    NoFills: boolean;
     // Show only this part of the draft, in model millimetres
     HasRegion: boolean;
     Region: TRect2;
@@ -38,6 +44,8 @@ type
 
 function DefaultDraftSVGOptions: TDraftSVGOptions;
 function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
+// A file name for one draft: the pattern's alone when it has only that draft
+function DraftSVGFileName(const PatternName, DraftName: string; DraftCount: integer): string;
 // A number as written in SVG
 function SVGNumber(Value: double): string;
 function EscapeXML(const Text: string): string;
@@ -63,6 +71,7 @@ const
   BlockedColor = '#e08000';
   // Share of the view's size between hatching lines
   HatchShare = 0.012;
+  SVGFileExtension = '.svg';
 
 type
   TDraftView = record
@@ -72,6 +81,24 @@ type
 function DefaultDraftSVGOptions: TDraftSVGOptions;
 begin
   Result := Default(TDraftSVGOptions);
+end;
+
+function DraftSVGFileName(const PatternName, DraftName: string; DraftCount: integer): string;
+const
+  SlashChars = ['/', '\'];
+var
+  Index: integer;
+  Safe: string;
+begin
+  Result := PatternName + SVGFileExtension;
+  if DraftCount < 2 then
+    Exit;
+  // A draft's name may hold anything, and must not start another folder
+  Safe := DraftName;
+  for Index := 1 to Length(Safe) do
+    if Safe[Index] in SlashChars then
+      Safe[Index] := '_';
+  Result := PatternName + '-' + Safe + SVGFileExtension;
 end;
 
 function SVGNumber(Value: double): string;
@@ -132,16 +159,43 @@ begin
     end;
 end;
 
+function IsDrawn(Pattern: TPattern; Node: TEvalNode; const Options: TDraftSVGOptions): boolean;
+begin
+  if Options.ShownOnly then
+    Result := Pattern.IsShown(Node)
+  else
+    Result := Pattern.InActiveDraft(Node);
+end;
+
+function ShownBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
+var
+  Index: integer;
+  Empty: boolean;
+begin
+  Bounds := Default(TRect2);
+  Empty := True;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if Pattern.IsShown(Pattern.Objects[Index]) then
+      IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
+  Result := not Empty;
+end;
+
 // The part of the drawing shown, in SVG's y-down millimetres. Extent is the
 // longer side, which line widths and text sizes are shares of.
 function DraftView(Pattern: TPattern; const Options: TDraftSVGOptions): TDraftView;
 var
   Bounds: TRect2;
   Margin: double;
+  Found: boolean;
 begin
+  Found := True;
   if Options.HasRegion then
     Bounds := Options.Region
-  else if not PatternBounds(Pattern, Bounds) then
+  else if Options.ShownOnly then
+    Found := ShownBounds(Pattern, Bounds)
+  else
+    Found := PatternBounds(Pattern, Bounds);
+  if not Found then
   begin
     Bounds := Default(TRect2);
     Bounds.MaxX := EmptyExtent;
@@ -186,7 +240,7 @@ begin
 end;
 
 // The cutting line, filled, so the edges drawn over it show the seam line
-function PieceElement(Pattern: TPattern; Piece: TPieceObject; Extent: double): string;
+function PieceElement(Pattern: TPattern; Piece: TPieceObject; Extent: double; NoFills: boolean): string;
 var
   Index: integer;
   PathText, FillText, HatchText: string;
@@ -194,6 +248,8 @@ var
   Stroke: TLine2;
 begin
   Look := Pattern.PieceLook(Piece);
+  if NoFills then
+    Look.Filled := False;
   FillText := 'none';
   if Look.Filled and (Look.Fill = ffTint) then
     FillText := LowerCase(FabricColorText(FabricTint(Look.Color)));
@@ -270,19 +326,19 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult and Pattern.InActiveDraft(DraftObject) then
-      Result := Result + PieceElement(Pattern, TPieceObject(DraftObject), View.Extent);
+    if (DraftObject is TPieceObject) and DraftObject.HasResult and IsDrawn(Pattern, DraftObject, Options) then
+      Result := Result + PieceElement(Pattern, TPieceObject(DraftObject), View.Extent, Options.NoFills);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) and Pattern.InActiveDraft(DraftObject) then
+    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) and IsDrawn(Pattern, DraftObject, Options) then
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult and Pattern.InActiveDraft(DraftObject) then
+    if (DraftObject is TPieceObject) and DraftObject.HasResult and IsDrawn(Pattern, DraftObject, Options) then
     begin
       Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
       if Options.Labels then
@@ -290,7 +346,7 @@ begin
     end;
   end;
   for Point in Pattern.AllPoints do
-    if Point.HasResult and Pattern.InActiveDraft(Point) then
+    if Point.HasResult and IsDrawn(Pattern, Point, Options) then
       Result := Result + PointElement(Point, View.Extent, Options.Labels);
   Result := Result + '</svg>' + #10;
 end;

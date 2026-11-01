@@ -33,9 +33,11 @@ uses
   Sloper.Core.Version,
   Sloper.Core.JSON,
   Sloper.Core.Measurements,
+  Sloper.Core.Drafts,
   Sloper.Core.Pattern,
   Sloper.Core.PatternFile,
   Sloper.Core.PatternCheck,
+  Sloper.Output.DraftSVG,
   Sloper.Output.Layout,
   Sloper.Output.LayoutExport,
   Sloper.Output.Packing,
@@ -53,7 +55,9 @@ resourcestring
   rsOptSize = 'check, layout: the size to use from a size table, default the first; measurements: the size to list or set';
   rsOptDescription = 'measurements set: the description; default: keep the one it has';
   rsOptJSON = 'check: print every computed value as JSON; measurements list: print the file';
-  rsOptOutput = 'layout, export: the file to write';
+  rsOptOutput = 'layout, export, export-draft: the file to write';
+  rsOptDraft = 'export-draft: the draft to export; default: the one the pattern was left on';
+  rsOptLabels = 'export-draft: name the points and pieces';
   rsOptFormat = 'export: pdf, svg or dxf; default: the extension of --output, or pdf';
   rsArgCommand = 'Command to run';
   rsArgPattern = 'Pattern file (.sloper), layout file (.slayout) to export, or for measurements: list, set or missing';
@@ -62,6 +66,8 @@ resourcestring
   rsArgValue = 'measurements set: the value in mm';
   rsCmdCheck = 'Evaluate a pattern and report problems';
   rsCmdExport = 'Export a layout file as PDF, SVG or DXF';
+  rsCmdExportDraft = 'Export a pattern''s draft as SVG, as the drafting window shows it';
+  rsNoDraft = 'There is no draft called %s';
   rsCmdPack = 'Pack a layout''s pieces and rewrite the layout file';
   rsPacked = 'Packed %d copies in %s';
   rsPackedPages = 'Packed %d copies on %d pages in %s';
@@ -99,6 +105,35 @@ resourcestring
       WriteLn(StdErr, Format(rsFileNotFound, [FileName]));
   end;
 
+  // Reads the measurement file given, or else the one the pattern names, into
+  // Measurements for the pattern. With neither, MeasurementPath is ''.
+  function UseMeasurements(Pattern: TPattern; Measurements: TMeasurementSet; const PatternFile, MeasurementOption, SizeOption: string;
+    out MeasurementPath: string): boolean;
+  var
+    Err: string;
+  begin
+    Result := False;
+    MeasurementPath := MeasurementOption;
+    if MeasurementPath = '' then
+      MeasurementPath := MeasurementFilePath(Pattern, PatternFile);
+    if MeasurementPath = '' then
+      Exit(True);
+    if not CheckFileExists(MeasurementPath) then
+      Exit;
+    if not Measurements.LoadFromFile(MeasurementPath, Err) then
+    begin
+      WriteLn(StdErr, Format(rsLoadFailed, [MeasurementPath, Err]));
+      Exit;
+    end;
+    if (SizeOption <> '') and not Measurements.SelectSize(SizeOption) then
+    begin
+      WriteLn(StdErr, Format(rsMeasurementUnknownSize, [SizeOption]));
+      Exit;
+    end;
+    Pattern.Measurements := Measurements;
+    Result := True;
+  end;
+
   // Loads and evaluates the pattern, then prints its problems, or its report
   // as JSON. Returns the exit code.
   function RunCheck(const PatternFile, MeasurementOption, SizeOption: string; AsJSON: boolean): integer;
@@ -122,24 +157,10 @@ resourcestring
         WriteLn(StdErr, Format(rsLoadFailed, [PatternFile, Err]));
         Exit(ExitFailure);
       end;
-      MeasurementPath := MeasurementOption;
-      if MeasurementPath = '' then
-        MeasurementPath := MeasurementFilePath(Pattern, PatternFile);
+      if not UseMeasurements(Pattern, Measurements, PatternFile, MeasurementOption, SizeOption, MeasurementPath) then
+        Exit(ExitFailure);
       if MeasurementPath <> '' then
       begin
-        if not CheckFileExists(MeasurementPath) then
-          Exit(ExitFailure);
-        if not Measurements.LoadFromFile(MeasurementPath, Err) then
-        begin
-          WriteLn(StdErr, Format(rsLoadFailed, [MeasurementPath, Err]));
-          Exit(ExitFailure);
-        end;
-        if (SizeOption <> '') and not Measurements.SelectSize(SizeOption) then
-        begin
-          WriteLn(StdErr, Format(rsMeasurementUnknownSize, [SizeOption]));
-          Exit(ExitFailure);
-        end;
-        Pattern.Measurements := Measurements;
         Title := Format(rsCheckWith, [ExtractFileName(PatternFile), ExtractFileName(MeasurementPath)]);
       end
       else
@@ -178,6 +199,66 @@ resourcestring
   end;
 
   // Starts a layout beside the pattern, with every piece placed in rows
+  // One draft as SVG. Layers hidden in the saved view stay hidden, so a file
+  // comes out as it looks in the drafting window.
+  function RunExportDraft(const PatternFile, MeasurementOption, SizeOption, DraftOption, OutputOption: string; WithLabels: boolean): integer;
+  var
+    Pattern: TPattern;
+    Measurements: TMeasurementSet;
+    Draft: TPatternDraft;
+    Options: TDraftSVGOptions;
+    MeasurementPath, Target, Err, Problem: string;
+    BlockedCount: integer;
+  begin
+    Measurements := nil;
+    Pattern := nil;
+    try
+      Measurements := TMeasurementSet.Create;
+      Pattern := TPattern.Create;
+      if not CheckFileExists(PatternFile) then
+        Exit(ExitFailure);
+      if not LoadPatternFromFile(Pattern, PatternFile, Err) then
+      begin
+        WriteLn(StdErr, Format(rsLoadFailed, [PatternFile, Err]));
+        Exit(ExitFailure);
+      end;
+      if not UseMeasurements(Pattern, Measurements, PatternFile, MeasurementOption, SizeOption, MeasurementPath) then
+        Exit(ExitFailure);
+      if DraftOption <> '' then
+      begin
+        Draft := Pattern.FindDraftNamed(DraftOption);
+        if Draft = nil then
+        begin
+          WriteLn(StdErr, Format(rsNoDraft, [DraftOption]));
+          Exit(ExitFailure);
+        end;
+        Pattern.ActiveDraft := Draft;
+      end;
+      Pattern.Evaluate;
+      Options := DefaultDraftSVGOptions;
+      Options.ShownOnly := True;
+      Options.Labels := WithLabels;
+      Target := OutputOption;
+      if Target = '' then
+        // ExtractFilePath keeps its separator, and is empty for a file in this folder
+        Target := ExtractFilePath(PatternFile) + DraftSVGFileName(ChangeFileExt(ExtractFileName(PatternFile), ''), Pattern.ActiveDraft.Name,
+          Pattern.DraftCount);
+      if not WriteTextFile(Target, DraftToSVG(Pattern, Options), Err) then
+      begin
+        WriteLn(StdErr, Err);
+        Exit(ExitFailure);
+      end;
+      WriteLn(Format(rsWroteFile, [Target]));
+      for Problem in PatternProblems(Pattern, BlockedCount) do
+        WriteLn(StdErr, Format(rsWarning, [Problem]));
+      Result := 0;
+    finally
+      // The pattern reads the measurement set, so it goes first
+      FreeAndNil(Pattern);
+      FreeAndNil(Measurements);
+    end;
+  end;
+
   function RunLayout(const PatternFile, MeasurementOption, SizeOption, OutputOption: string): integer;
   var
     Layout: TLayout;
@@ -433,9 +514,12 @@ begin
     Parser.AddOption('json', '', '--json', rsOptJSON, '', avSwitch);
     Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
     Parser.AddOption('format', '', '--format', rsOptFormat, 'format');
+    Parser.AddOption('draft', '', '--draft', rsOptDraft, 'name');
+    Parser.AddOption('labels', '', '--labels', rsOptLabels, '', avSwitch);
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
     Command.AddChoice('check', rsCmdCheck);
     Command.AddChoice('export', rsCmdExport);
+    Command.AddChoice('export-draft', rsCmdExportDraft);
     Command.AddChoice('layout', rsCmdLayout);
     Command.AddChoice('measurements', rsCmdMeasurements);
     Command.AddChoice('pack', rsCmdPack);
@@ -508,6 +592,9 @@ begin
         Parser.GetOptionValueAsString('output'))
     else if CommandName = 'pack' then
       ExitCode := RunPack(PatternFile)
+    else if CommandName = 'export-draft' then
+      ExitCode := RunExportDraft(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
+        Parser.GetOptionValueAsString('draft'), Parser.GetOptionValueAsString('output'), Parser.IsOption('labels'))
     else
       ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('format'));
   finally

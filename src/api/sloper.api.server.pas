@@ -868,6 +868,7 @@ begin
   if Params <> nil then
   begin
     GetJSONBoolean(Params, 'labels', Options.Labels);
+    GetJSONBoolean(Params, 'shown', Options.ShownOnly);
     Region := Params.Find('region');
     if Region <> nil then
     begin
