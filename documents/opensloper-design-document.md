@@ -311,21 +311,23 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 
 ## Transforms
 
-A transform is one operation that produces parametric copies of a set of objects, so rotated, mirrored or moved copies update when measurements change.
+Step 15; not built yet. A transform is one operation that produces parametric copies of a set of objects, so rotated, mirrored or moved copies update when measurements change.
 
 Uses: dart rotation, slash and spread, mirroring a half piece, and moving a traced section aside to develop it (facings, yokes, pockets).
 
 | Transform | Fields | Notes |
 | --- | --- | --- |
 | Rotate | `sources[]`, `pivot`, `angle`, `suffix` | Angle is a formula, e.g. dart angle `{5}.angle - {6}.angle` |
-| Mirror | `sources[]`, `axis` (edge, two points, or point + angle), `suffix` | Curves mirror exactly, with orientation reversed |
+| Mirror | `sources[]`, `axis` (straight edge, two points, or point + angle), `suffix` | Curves mirror exactly, with orientation reversed |
 | Move | `sources[]`, `mode` (polar/cartesian), `length` + `angle` or `dx` + `dy`, optional `rotate` + `pivot`, `suffix` | Move-and-rotate repositions a section in one step |
 
-**Copies are real objects.** Each has its own ID and name (source name + suffix, e.g. `A_r1`) and records its source and transform. Its geometry is always computed from the source, so it can't be dragged, but it can be an input to any operation.
+**Copies are real objects.** Each has its own ID and name (source name + suffix, e.g. `A_r1`) and records its source and transform. Its geometry is always computed from the source, so it can't be dragged, but it can be an input to any operation. A copied edge starts with its source's role, which can be changed, as the dart example needs.
 
-**Edges follow their points.** Selecting an edge pulls in its endpoints automatically; copied edges connect copied points. Béziers transform exactly via their control points.
+**What can be copied.** Points and edges, including split parts and repeat points already in use. Pieces are not: clicking inside the copied outline makes a new piece.
 
-**In the graph:** the transform node depends on its pivot or axis and all sources; every copy depends on the transform node. No special evaluator handling is needed.
+**Edges follow their points.** Selecting an edge pulls in its endpoints automatically; copied edges connect copied points. Every edge keeps its shape as line and Bézier segments, so a copy transforms those segments, which is exact and needs no case for each kind of edge.
+
+**In the graph:** the transform node depends on its pivot or axis and its formulas, and works out one movement. Each copy depends on the transform and on its own source, so a failing source blocks only its own copy. No special evaluator handling is needed.
 
 **Example: shoulder dart to side seam.**
 
@@ -339,9 +341,11 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 **Behaviour:**
 
 - Creating a transform and all copies is one undoable command
-- Deleting a source prompts to delete its dependents, as for any object
-- Copies can go to a chosen or new layer, keeping the original draft usable; a Move can also put its copies on another draft (see Draft tabs and layers)
-- Interactive: pick the pivot, drag with a live ghost preview, snap to angles of existing lines
+- Deleting a source is refused while a copy uses it, as for any object. Deleting a transform takes its copies with it, unless something else uses them; a copy cannot be deleted alone, as with a repeat's points
+- Copies go on a new layer named after the transform, so hiding the original layer leaves the outline to click inside, and the layer can be deleted when it is not wanted
+- A transform and its copies live on the destination layer. Its properties offer the layer, and changing it moves them all. Only Move offers another draft, since rotate and mirror need to be seen against their originals; a transform may read sources on any draft, an exception to the rule on direct inputs, as for seams
+- From the app: select objects and choose Rotate, Mirror or Move on the Tools menu. Rotate then asks for a pivot and Mirror for two points or an edge. The transform starts with no movement and is selected, ready for the angle or distance to be typed as a formula. Copies are selected as a group through their transform
+- A live ghost preview while dragging, and snapping to angles of existing lines, are left for later
 - Rotate and move preserve lengths, giving a free check that seams are unchanged
 - Cut on fold is a piece property applied at output; Mirror is for geometry needed in the draft itself
 
@@ -349,7 +353,12 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 { "id": 15, "type": "rotate", "name": "Dart to side",
   "sources": [7, 3, 9], "pivot": 14,
   "angle": "{5}.angle - {6}.angle", "suffix": "_r1", "layer": 2 }
+{ "id": 16, "type": "pointCopy", "name": "A_r1", "transform": 15, "source": 7, "layer": 2 }
+{ "id": 18, "type": "edgeCopy", "transform": 15, "source": 9, "start": 16, "end": 17,
+  "role": "outline", "layer": 2 }
 ```
+
+A file lists a transform before its copies.
 
 ## Drafting experience
 
@@ -485,7 +494,7 @@ A pattern file holds one or more drafts, shown as tabs along the bottom of the c
 **References between drafts:**
 
 - Formulas may refer to objects on any draft, so a sleeve cap can use the bodice armhole's `.length`.
-- Direct inputs (a base point, an edge to intersect or split, a curve's end points) must be on the same draft, so every line on a canvas starts from something visible on it. A seam is the exception, since it joins pieces that are often drafted apart.
+- Direct inputs (a base point, an edge to intersect or split, a curve's end points) must be on the same draft, so every line on a canvas starts from something visible on it. Seams and transforms are the exceptions: a seam joins pieces that are often drafted apart, and a Move can copy from another draft.
 - To bring geometry to another draft, such as tracing a facing or yoke off the bodice, a Move transform takes a destination draft and makes parametric copies there. Transforms come after this step, so until then a second draft can read lengths from the first through formulas but cannot reuse its shapes.
 - Piece detection works within one draft.
 
@@ -1073,6 +1082,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
+| Transforms | Each transform against hand-checked positions, curves and split parts exact, lengths kept by rotate and move, a failing source blocking only its copy, deleting as a group, copies across drafts, files |
 | Drafts and layers | Files without drafts load into one draft, view state stays out of undo and the modified flag, drawing order, hidden and locked layers in picking, snapping and piece detection, hiding leaves output alone, refused deletes, undo switching drafts |
 | Garment view | Joining along seams with direction and flips, which seams join, mirroring across the centre line, unjoined pieces, no centre line |
 | Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces and drafts, invalid and blocked states, suggestions |
@@ -1187,6 +1197,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `list_objects`, `get_object` | Names, IDs, operations, formulas (display form), computed values and state |
 | `add_point`, `add_edge`, `split_edge`, `add_variable`, `add_repeat` | Create objects with an operation and formula fields; a repeat's points are named like `Btn[3]` wherever a point is wanted |
 | `set_formula`, `rename`, `delete` | Edit existing objects |
+| `add_transform` | Rotate, mirror or move `sources` as copies, on a new layer unless `layer` is given |
 | `arrange` | Align or distribute points; points a formula drives are left and listed unless named in `replace` |
 | `create_piece` | Detect and create a piece from a position inside a region (`x`, `y`, optional `name` and `allowance`, default 10 mm) |
 | `set_edge_allowance` | Give one edge of a piece its own seam allowance, or clear it |
@@ -1282,7 +1293,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (done, see Other exports and packing; DXF untried on a real cutting system)
 13. Garment view: a flat front and back of the finished garment in the drafting app (done, see Garment view; fabric colours wait for fabrics)
 14. Layers and draft tabs (done, see Draft tabs and layers)
-15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (see Transforms)
+15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (designed, see Transforms)
 16. Blender export for 3D preview
 
 Open questions:
@@ -1294,6 +1305,7 @@ Open questions:
 - [x] Undo granularity: settled, see Key design decisions item 7
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
 - [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
+- [x] Transforms: settled, copies of points and edges that follow one movement, on a new layer by default, with the ghost preview left for later; see Transforms
 - [x] Seeing the finished garment: settled, a flat Garment view comes first and Blender stays as a later step; see Garment view
 - [x] SVG, DXF and packing: settled, SVG follows the arrangement, DXF-AAMA writes one block per piece, packing works on bounding boxes; see Other exports and packing. DXF is untried on a real cutting system
 - [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
