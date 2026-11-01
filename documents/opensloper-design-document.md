@@ -50,7 +50,7 @@ A pattern is a graph of draft objects whose positions come from measurements, va
 | Role | Each edge is *construction* (guide, dashed) or *outline* | Only outline edges form piece boundaries |
 | Piece | Closed path: ordered edge references, each with a reversed flag | Seam allowance (default + per edge), grainline, notches, labels, cut count, fold line |
 | Fabric | A named fabric in the pattern (Main, Lining, Contrast, Interfacing) with a colour and fill style | Pieces are assigned a fabric; drives piece fills, the cut list, and later layout and 3D textures |
-| Seam | Pairing of edges on two pieces that are sewn together, with direction | Drives seam-length checks and 3D export |
+| Seam | Pairing of the edges that are sewn together, with direction and expected ease | Made by the user, with suggestions from the app; drives seam-length checks and 3D export |
 | Draft | A drafting area within a pattern file, shown as a tab | E.g. bodice, sleeve, collar; drafts share measurements, variables and names |
 | Layer | Ordered group within a draft, for drawing order and visibility | E.g. original draft vs rotated dart; can be hidden or locked |
 | Layout | Pieces arranged on sheets for printing or plotting | Works on computed geometry only |
@@ -292,7 +292,7 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 | Object | Fields |
 | --- | --- |
 | Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `fabric` (fabric ID); `fill` (optional per-piece override) |
-| Seam | `pieceA`, `edgesA[]`, `pieceB`, `edgesB[]`, `reversed`, `tolerance` |
+| Seam | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` (see Seams) |
 
 **Deferred to phase two:** bisector; circle × circle; arcs (approximated by curve paths at first); tangent from a point to a curve.
 
@@ -395,7 +395,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Dragging points:** only fields that are plain numbers change (free x/y, offset length/angle or dx/dy, along-edge value), rounded to 0.1 mm, 0.1° or 0.0001. A point placed by a formula or by other objects is refused, with the reason shown until the mouse button is released. One drag is one undo step; Escape cancels it.
 - **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
-- **Tools:** Select (S), Point (P), Line (L), Curve (C), Piece (K) and Notch (T), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
+- **Tools:** Select (S), Point (P), Line (L), Curve (C), Piece (K), Notch (T) and Seam (E), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
 - **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
   1. An existing point is reused.
   2. A crossing of two nearby edges becomes an intersect point, with its `pick`. An edge and its own split parts are not treated as crossing.
@@ -442,8 +442,30 @@ Handling the edge cases:
 - **Notches.** A notch sits on a point on the seam line (within 0.05 mm) or at `notchN.position`, millimetres from an edge's own start, whichever way the path runs along it. It is computed as a 6 mm mark from the cutting line inwards, square to the edge at that place, using that edge's allowance. A point off the seam line or a position off the edge makes the piece invalid. Fields go by place in the list, so removing a notch renumbers the later ones.
 - **Cut and fold.** A piece has a cut count (at least 1) and a mirrored flag: copies after the first are cut mirrored. Being on the fold is one setting, `foldEdge`, not a separate `onFold` flag, so the two cannot disagree. The fold edge is a straight edge of the piece, has no seam allowance whatever its own allowance says, and shows a bracket with arrows pointing at it. The shape stays half a piece in the draft; opening it out is for output (see Transforms). The label reads "Front, cut 2 mirrored" or "Front, cut 1 on fold".
 - **Object order.** A file lists inputs first, and a point can be newer than the piece that comes to use it, so taking on a point moves the piece to the end of the object list. Nothing uses a piece, so this is safe; object order is otherwise creation order.
-- `TPieceObject` is an evaluator node whose inputs are its edges, so edges cannot be deleted while a piece uses them. A gap of more than 0.01 mm between neighbouring edges makes it invalid, and it keeps its last good outline. Nothing reads a piece's properties yet, so nothing depends on a piece.
+- `TPieceObject` is an evaluator node whose inputs are its edges, so edges cannot be deleted while a piece uses them. A gap of more than 0.01 mm between neighbouring edges makes it invalid, and it keeps its last good outline. Seams will be the first objects to depend on a piece (see Seams).
 - **Seam allowance.** The field `allowance` is the piece's width; `SetEdgeAllowance` gives one edge its own, in a field such as `edge2.allowance` that exists only while it does. Zero suits an edge on a fold; a negative width is invalid. Clipper2's offset takes one width per path, so `OffsetOutline` builds the raw offset itself, the way Clipper2 does (mitres on convex corners, through the vertex on concave ones), with a width per segment, and Clipper2's union with a positive fill removes the loops. Corners with a mitre over four times the allowance are bevelled. A dart's allowance follows the dart as drawn; shaping it for a closed dart comes with notches.
+
+## Seams
+
+A seam records that edges are sewn together. It is its own object, not a property of an edge: line or curve says nothing about what an edge joins to, nearly every outline edge is sewn, and a role could not name the partner. The role stays construction or outline, and no edge type changes.
+
+The app cannot work seams out for itself. Equal lengths do not show that two edges belong together, a sleeve cap is meant to be longer than its armhole, and an edge shared by two pieces need not be sewn (a hem drawn once under a front and a back). So the user makes seams, and the app only suggests them.
+
+**The object.** `sideA[]` and `sideB[]` each list `piece` and `edge`, in order along the seam. A side can span pieces, so a sleeve cap can sew to a front and a back armhole, and a waistband to a front and a back. It can have gaps, so a waist can run either side of a dart. Both sides may use the same piece (dart legs, a sleeve's underarm), and the same edge (a centre back on a mirrored piece, where the lengths match by definition but 3D export still needs the pairing). Sides may be on different drafts, an exception to the rule on direct inputs; the seam lives on the draft of its side A. Several seams may use one edge, because a neckline can sew to both a collar and a facing.
+
+- **Whole edges only**, as for pieces. A seam covering part of an edge needs the edge split first, so step 11 adds a split command to the canvas: select an edge and a point on it. `split_edge` already does this in the Automation API.
+- **Direction.** Each edge runs the way its piece's clockwise path runs, and because of that, sewn edges normally run in opposite directions. So side B is paired against side A from its far end by default, and the user never chooses a direction. `reversed` flips this, for the cases the default gets wrong, mirrored pieces most likely.
+- **Length check.** Lengths are the sum of each side's edges, measured on the seam line, which is what a piece's path is. `ease` is the length side B should have over side A, a formula defaulting to 0, and `tolerance` is the allowed error, a formula defaulting to 1 mm. So a cap on side B with `ease` 25 and `tolerance` 2 passes at 23 to 27 mm longer than the armhole. Formulas let gathers follow the pattern, as in `ease = @waist * 0.5`.
+- **A mismatch is a problem, not a state.** The seam stays valid and the pattern draws as normal. `opensloper-cli check`, `check` in the Automation API and the Check pattern overlay report it, with both lengths and the difference, and `opensloper-cli check` exits with 1.
+- **Unsewn edges are not reported.** Without marking each edge, the check cannot tell a hem or an opening from a forgotten seam. Marking edges that way is left out for now.
+
+**In the evaluator.** `TSeamObject` is a node whose inputs are its pieces, so it is blocked while one fails, and it follows a piece that moves to the end of the object list. Deleting a piece a seam uses is refused, as for an edge a piece uses. An edge that is not on the piece named beside it, or is that piece's fold edge, makes the seam invalid. The seam's fields are `ease` and `tolerance`. Seams are named `Seam1`, `Seam2` and so on, and can be renamed.
+
+**The Seam tool** (E). A click near a piece's edge adds that edge to the current side, and another click removes it; on an edge two pieces share, the side of the edge clicked picks the piece. Tab moves to side B, so a side can take in edges from several pieces, and Shift-Tab moves back. Each side keeps its colour and shows its running length, with the difference in the status bar. Enter makes the seam as one undo step, and it keeps the tool on for the next; Escape clears the sides, then returns to Select. Clicks work across draft tabs, so the sides can be built on two drafts.
+
+Selecting a seam highlights both sides in their colours with chevrons for direction. The properties show `ease`, `tolerance`, both lengths, the difference and a Flip button, which is one undo step. Hovering a seam in the objects list highlights it the same way.
+
+**Suggest seams** lists likely pairs for the user to tick, with none ticked to begin with: edges shared by two pieces first, then edges on different pieces whose lengths are within 1 mm of each other. Fold edges and edges already in a seam are left out. Accepting the list is one undo step, and nothing is stored until then.
 
 ## Draft tabs and layers
 
@@ -460,7 +482,7 @@ A pattern file holds one or more drafts, shown as tabs along the bottom of the c
 **References between drafts:**
 
 - Formulas may refer to objects on any draft, so a sleeve cap can use the bodice armhole's `.length`.
-- Direct inputs (a base point, an edge to intersect or split, a curve's end points) must be on the same draft, so every line on a canvas starts from something visible on it.
+- Direct inputs (a base point, an edge to intersect or split, a curve's end points) must be on the same draft, so every line on a canvas starts from something visible on it. A seam is the exception, since it joins pieces that are often drafted apart.
 - To bring geometry to another draft, such as tracing a facing or yoke off the bodice, a Move transform takes a destination draft and makes parametric copies there.
 - Piece detection works within one draft.
 
@@ -699,8 +721,9 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 | `curvePath` | `nodes[]` of `point`, `angle`, `lengthIn` (not on the first), `lengthOut` (not on the last); `role` |
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
 | `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional) |
+| `seam` | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` |
 
-Seams are added to the file when they exist in the model. Labels, `fabric` and `fill` join `piece` when they are built, and `fabrics` joins the file with them (see Fabrics).
+Labels, `fabric` and `fill` join `piece` when they are built, and `fabrics` joins the file with them (see Fabrics).
 
 ## Measurements app
 
@@ -1006,6 +1029,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
+| Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces and drafts, invalid and blocked states, suggestions |
 | Storage | Save → load → save produces identical JSON |
 | Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
 | Undo/redo | Execute then undo restores the exact previous state, including random command sequences |
@@ -1121,6 +1145,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `set_grainline` | Set a piece's grainline: `angle`, `start` and `end` points, or `none` |
 | `set_cut`, `set_fold` | Set a piece's cut `count` and `mirrored`; set its fold `edge`, or `none` |
 | `add_notch`, `remove_notch` | Add a notch on a `point` or at an `edge` and `position`; remove one by number from 1 |
+| `add_seam`, `flip_seam`, `suggest_seams` | Add a seam from `sideA` and `sideB`, with optional `ease` and `tolerance`; flip its direction; list likely pairs without storing them |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
 | `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
@@ -1183,7 +1208,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 8. Pieces: automatic detection, seam allowance via Clipper2, grainlines, notches, fabric assignment and fills (done for now; Shift-click merging, the start-edge fallback, custom piece labels and fabrics remain)
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
 10. Measurements app (done, with 72 measurements in the catalogue so far): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files
-11. Seams and seam-length checks
+11. Seams and seam-length checks (designed, see Seams): seam object, Seam tool, Suggest seams, split command on the canvas
 12. SVG piece export and DXF-AAMA export, automatic packing in the publish app
 13. Blender export for 3D preview
 
@@ -1196,4 +1221,5 @@ Open questions:
 - [x] Undo granularity: settled, see Key design decisions item 7
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
 - [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
+- [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
 - [x] Draft tabs and layers: settled, drafts as tabs within one pattern file, global names, ordered layers per draft; see Draft tabs and layers
