@@ -291,7 +291,7 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 
 | Object | Fields |
 | --- | --- |
-| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `fabric` (fabric ID); `fill` (optional per-piece override) |
+| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `view` (`none`, `front`, `back` or `both`; see Garment view); `fabric` (fabric ID); `fill` (optional per-piece override) |
 | Seam | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` (see Seams) |
 
 **Deferred to phase two:** bisector; circle × circle; arcs (approximated by curve paths at first); tangent from a point to a curve.
@@ -720,7 +720,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 | `curve` | `start`, `end`, `angle1`, `length1`, `angle2`, `length2`, `role` |
 | `curvePath` | `nodes[]` of `point`, `angle`, `lengthIn` (not on the first), `lengthOut` (not on the last); `role` |
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
-| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional) |
+| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional); `view` (optional: `none` by default) |
 | `seam` | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` |
 
 Labels, `fabric` and `fill` join `piece` when they are built, and `fabrics` joins the file with them (see Fabrics).
@@ -1058,6 +1058,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
+| Garment view | Joining along seams with direction and flips, which seams join, mirroring across the centre line, unjoined pieces, no centre line |
 | Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces and drafts, invalid and blocked states, suggestions |
 | Storage | Save → load → save produces identical JSON |
 | Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
@@ -1175,11 +1176,12 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `set_edge_allowance` | Give one edge of a piece its own seam allowance, or clear it |
 | `set_grainline` | Set a piece's grainline: `angle`, `start` and `end` points, or `none` |
 | `set_cut`, `set_fold` | Set a piece's cut `count` and `mirrored`; set its fold `edge`, or `none` |
+| `set_view` | Set which garment view a piece shows in: `none`, `front`, `back` or `both` |
 | `add_notch`, `remove_notch` | Add a notch on a `point` or at an `edge` and `position`; remove one by number from 1 |
 | `add_seam`, `flip_seam`, `suggest_seams` | Add a seam from `sideA` and `sideB`, with optional `ease` and `tolerance`; flip its direction; list likely pairs without storing them |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
-| `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
+| `render` | PNG or SVG of the draft or a piece, with options for labels and a region, or of a garment view with `garment` |
 | `export` | A layout file as PDF, SVG or DXF to a given path |
 | `ui_state` (GUI only) | Selection, label mode, viewport, canvas snapshot |
 
@@ -1198,6 +1200,27 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 - Automation is off by default in the GUI, listens only locally (a Unix domain socket, or 127.0.0.1 on platforms without one) and requires a token printed at startup.
 - The API works on the open document. File access is limited to `open`, `save` and `export` with paths the caller supplies.
 - The API layer lives beside the CLI and the UI and depends only on the document and core layers, keeping both usable without it.
+
+## Garment view
+
+A read-only window in the drafting app (View → Garment View) showing the finished garment flat, like a technical flat sketch, with a front and a back side by side. It updates as measurements and formulas change. It shows proportions and how the pieces go together, not fit or drape, and it comes before Blender because it needs no outside tools and no simulation.
+
+Everything is computed from the pattern (`Sloper.Core.Garment`, no LCL dependency, reading computed geometry). The only stored addition is `view` on a piece.
+
+**Which view.** The app cannot tell a front from a back, so each piece has a `view`, set in the properties and with `set_view`: `none` by default, `front`, `back` or `both`. A piece with no view is left out, and the window lists how many.
+
+**Building a view:**
+
+1. **Start.** The largest piece in the view stays where it was drafted.
+2. **Join.** Seams are followed outwards from it, longest first. Each new piece is moved and rotated so that the ends of its side of the seam meet the ends of the side already placed, using the seam's direction. It is flipped across the seam when it would otherwise lie over the piece it joins. A piece reached by two seams keeps the first; a mismatch at the second shows as a gap, which is useful.
+3. **Which seams.** A seam joins only when every piece on both its sides is in this view. So front and back are not joined to each other, and a sleeve whose one seam runs round a front and a back armhole does not join. Splitting the cap at the shoulder into two seams joins it in both views. A piece that joins nothing is drawn beside the others, and the window says so.
+4. **Complete it.** The joined pieces are a half garment when the view has a centre line: a piece's fold, or an edge seamed to itself (a centre back). The half is mirrored across that line, opening fold pieces and showing a left and a right, and the view is turned so the line is upright, keeping the side that was up. With no centre line, pieces cut once show once and the window says a mirrored piece shows one side only.
+
+**Drawing.** Outlines are the seam lines, not the cutting lines, since a finished garment has no allowance. Pieces are filled with a tint (their fabric colour once fabrics exist), with seams as lines. Darts stay open and are drawn as they are on the piece.
+
+**Limits.** Pieces only move and rotate; they never bend. So curved seams that differ show gaps or overlaps (a princess seam, a sleeve cap eased into an armhole), a flared skirt fans out with overlapping panels, and gathers do not show. A garment with no seams shows its pieces apart.
+
+**Automation API.** `set_view` sets a piece's view, and `render` takes `garment` (`front` or `back`) for the same drawing as SVG.
 
 ## 3D preview (later phase)
 
@@ -1241,7 +1264,8 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 10. Measurements app (done, with 72 measurements in the catalogue so far): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files
 11. Seams and seam-length checks (done, see Seams; the Check pattern overlay itself is not built yet, so a mismatch shows in the status bar, the Problems filter and `check`): seam object, Seam tool, Suggest seams, split command on the canvas
 12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (done, see Other exports and packing; DXF untried on a real cutting system)
-13. Blender export for 3D preview
+13. Garment view: a flat front and back of the finished garment in the drafting app (designed, see Garment view)
+14. Blender export for 3D preview
 
 Open questions:
 
@@ -1252,6 +1276,7 @@ Open questions:
 - [x] Undo granularity: settled, see Key design decisions item 7
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
 - [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
+- [x] Seeing the finished garment: settled, a flat Garment view comes first and Blender stays as a later step; see Garment view
 - [x] SVG, DXF and packing: settled, SVG follows the arrangement, DXF-AAMA writes one block per piece, packing works on bounding boxes; see Other exports and packing. DXF is untried on a real cutting system
 - [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
 - [x] Draft tabs and layers: settled, drafts as tabs within one pattern file, global names, ordered layers per draft; see Draft tabs and layers
