@@ -865,7 +865,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 
 ### Other exports and packing
 
-Step 12. SVG and DXF do different jobs, so only SVG uses the arrangement: SVG shows pieces where they were placed, for plotters, laser cutters and Inkscape, while DXF-AAMA carries pieces into a CAD or cutting system, which arranges them itself. Packing only writes placements, so the layout file does not change.
+SVG and DXF do different jobs, so only SVG uses the arrangement: SVG shows pieces where they were placed, for plotters, laser cutters and Inkscape, while DXF-AAMA carries pieces into a CAD or cutting system, which arranges them itself. Packing only writes placements, so the layout file does not change.
 
 **SVG** (`Sloper.Output.LayoutSVG`, built on `TPlacedPiece`). One true-scale file in millimetres at the layout's positions, with each piece's rotation and flip. There is one group per piece copy, with separate cut, seam, marks and label groups inside it, so a cutter can leave out the seam line. Pages, overlap marks, calibration, the title block and sheet notes are left out: calibration corrects one printer, and the rest belong to paper.
 
@@ -879,7 +879,7 @@ Step 12. SVG and DXF do different jobs, so only SVG uses the arrangement: SVG sh
 | 7 | Grainline |
 | 6 | Fold (mirror line) |
 
-The layers are kept in one table so ASTM can be added later. ASTM D6673 is paywalled and listed as withdrawn, so these numbers follow Valentina's GPL exporter, with layer 6 taken from its ASTM export because its AAMA export draws mirror lines on layer 8. The exporter has not been tried on a real cutting system and is assumed to work; a test against one should check the layers and the file-level text.
+The layers are kept in one table so ASTM can be added later. ASTM D6673 is paywalled and listed as withdrawn, so these numbers follow Valentina's GPL exporter, with layer 6 taken from its ASTM export because its AAMA export draws mirror lines on layer 8. The file-level text gives the style name, creation date and `Units: METRIC`. The output reads cleanly in `ezdxf`, but the exporter has not been tried on a real cutting system and is assumed to work; a test against one should check the layers and the file-level text. Names outside ASCII are written as they are, since R12 has no way to say UTF-8, and become underscores in block names.
 
 **Pack Pieces**, on the Pieces tab, and `opensloper-cli pack LAYOUT`, which rewrites the file. It is one undo step and writes ordinary placements that can still be dragged. Every copy is packed, including those in the tray; failing pieces stay there.
 
@@ -887,9 +887,10 @@ The layers are kept in one table so ASTM can be added later. ASTM D6673 is paywa
 - **Tiled.** Each column count is tried, pages are counted with the tiling code, and the fewest pages win.
 - **Large format.** Packs to the roll's printable width, for the shortest sheet. A piece too wide either way round is left where it was, with the usual warning.
 - **Projector.** Not offered: the layout has no fabric width to pack against. A `fabricWidth` setting could add it later.
-- Packing clears `excludedPages`, since the page captions change. Sheet notes stay where they are.
+- **Only if it helps.** Packing keeps the arrangement it found when that uses fewer pages or a shorter sheet, and says so, since a hand arrangement can beat bounding boxes. New copies stay placed. An arrangement that runs off the roll never counts as better.
+- Packing clears `excludedPages`, since the page captions change, and only when pieces moved. Sheet notes stay where they are.
 
-**Commands.** Export SVG and Export DXF sit beside Export PDF on the Output tab. `opensloper-cli export` takes `--format=pdf|svg|dxf`, or goes by the extension of `-o`, and `export` in the Automation API takes a layout path. The problems that block a PDF block these too.
+**Commands.** Export SVG and Export DXF sit beside Export PDF on the Output tab and in the File menu. `opensloper-cli export` takes `--format=pdf|svg|dxf`, or goes by the extension of `-o`, and `export` in the Automation API takes a layout path. The problems that block a PDF block these too.
 
 ## Fabrics
 
@@ -1134,8 +1135,8 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 **Command-line tools** (using the LCL-free core and ConsoleTools):
 
-- `opensloper-cli export LAYOUT [--format=pdf|svg|dxf] [-o FILE]`: regenerate a layout's output after patterns or measurements change; only PDF so far
-- `opensloper-cli pack LAYOUT`: pack a layout's pieces and rewrite the file (not built yet)
+- `opensloper-cli export LAYOUT [--format=pdf|svg|dxf] [-o FILE]`: regenerate a layout's output after patterns or measurements change
+- `opensloper-cli pack LAYOUT`: pack a layout's pieces and rewrite the file; exits with 1 when it refuses or nothing improves
 - `opensloper-cli check PATTERN [-m FILE] [-s SIZE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors, invalid objects and seam mismatches, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile` and `size`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
 - `opensloper-cli measurements list FILE` and `measurements set FILE KEY VALUE [--size SIZE] [--description TEXT]`: read and edit measurement files from scripts, through `Sloper.Core.Measurements` (see Measurements app)
 
@@ -1157,7 +1158,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `set_cut`, `set_fold`, `add_seam`, `flip_seam` and `suggest_seams`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode; `create_piece` and `export` wait for pieces and the output layer.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `set_cut`, `set_fold`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -1239,7 +1240,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 9. Publish app: layout files with one or more patterns, true-scale tiled PDF printing (under way: layout files, tiling, PDF, `opensloper-cli layout` and `export`, and the `opensloper-publish` window with preview, dragging and paper settings are done; see Publish app for what remains)
 10. Measurements app (done, with 72 measurements in the catalogue so far): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files
 11. Seams and seam-length checks (done, see Seams; the Check pattern overlay itself is not built yet, so a mismatch shows in the status bar, the Problems filter and `check`): seam object, Seam tool, Suggest seams, split command on the canvas
-12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (designed, see Other exports and packing)
+12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (done, see Other exports and packing; DXF untried on a real cutting system)
 13. Blender export for 3D preview
 
 Open questions:

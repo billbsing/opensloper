@@ -97,6 +97,7 @@ type
     function DoAddSeam(Params: TJSONObject): TJSONData;
     function DoFlipSeam(Params: TJSONObject): TJSONData;
     function DoSuggestSeams: TJSONData;
+    function DoExport(Params: TJSONObject): TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -148,7 +149,8 @@ implementation
 
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
-  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Output.DraftSVG;
+  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Output.DraftSVG, Sloper.Output.Layout,
+  Sloper.Output.LayoutExport;
 
 const
   VariableType = 'variable';
@@ -1275,6 +1277,33 @@ begin
   Result := Reply;
 end;
 
+// From the saved files, as the publish app works, not the pattern being edited
+function TApiServer.DoExport(Params: TJSONObject): TJSONData;
+var
+  LayoutFile, Target, Err: string;
+  Chosen: TExportFormat;
+  Layout: TLayout;
+  Reply: TJSONObject;
+begin
+  LayoutFile := RequireString(Params, 'layout');
+  Target := RequireString(Params, 'path');
+  if not ExportFormatFor(OptionalString(Params, 'format'), Target, Chosen) then
+    raise EApiError.Create(RpcInvalidParams, rsExportBadFormat);
+  Layout := TLayout.Create;
+  try
+    if not Layout.LoadFromFile(LayoutFile, Err) then
+      raise EApiError.Create(RpcRefused, Err);
+    Layout.LoadSources;
+    if not ExportLayout(Layout, Chosen, Target, Err) then
+      raise EApiError.Create(RpcRefused, Err);
+  finally
+    FreeAndNil(Layout);
+  end;
+  Reply := TJSONObject.Create;
+  Reply.Add('path', Target);
+  Result := Reply;
+end;
+
 // An empty or missing allowance puts the edge back on the piece's own
 function TApiServer.DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
 var
@@ -1328,6 +1357,7 @@ begin
     'add_seam': Result := DoAddSeam(Params);
     'flip_seam': Result := DoFlipSeam(Params);
     'suggest_seams': Result := DoSuggestSeams;
+    'export': Result := DoExport(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;

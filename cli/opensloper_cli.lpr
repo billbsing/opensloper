@@ -37,7 +37,8 @@ uses
   Sloper.Core.PatternFile,
   Sloper.Core.PatternCheck,
   Sloper.Output.Layout,
-  Sloper.Output.LayoutPDF,
+  Sloper.Output.LayoutExport,
+  Sloper.Output.Packing,
   Sloper.API.Server;
 
 const
@@ -53,13 +54,18 @@ resourcestring
   rsOptDescription = 'measurements set: the description; default: keep the one it has';
   rsOptJSON = 'check: print every computed value as JSON; measurements list: print the file';
   rsOptOutput = 'layout, export: the file to write';
+  rsOptFormat = 'export: pdf, svg or dxf; default: the extension of --output, or pdf';
   rsArgCommand = 'Command to run';
   rsArgPattern = 'Pattern file (.sloper), layout file (.slayout) to export, or for measurements: list, set or missing';
   rsArgFile = 'measurements: the measurement file (.slm)';
   rsArgKey = 'measurements set: the key; measurements missing: the pattern file';
   rsArgValue = 'measurements set: the value in mm';
   rsCmdCheck = 'Evaluate a pattern and report problems';
-  rsCmdExport = 'Export a layout file as a tiled PDF';
+  rsCmdExport = 'Export a layout file as PDF, SVG or DXF';
+  rsCmdPack = 'Pack a layout''s pieces and rewrite the layout file';
+  rsPacked = 'Packed %d copies in %s';
+  rsPackedPages = 'Packed %d copies on %d pages in %s';
+  rsPackLeftOut = 'Warning: %d pieces are too wide for the roll, so they stayed where they were';
   rsCmdMeasurements = 'List a measurement file, set a value, or see what a pattern needs that it lacks';
   rsMeasurementsUsage = 'Use: measurements list FILE, measurements set FILE KEY VALUE or measurements missing FILE PATTERN';
   rsMeasurementBadNumber = 'The value must be a number of millimetres, such as 820 or 41.5';
@@ -203,11 +209,11 @@ resourcestring
     end;
   end;
 
-  function RunExport(const LayoutFile, OutputOption: string): integer;
+  function RunPack(const LayoutFile: string): integer;
   var
     Layout: TLayout;
-    Target, Err: string;
-    Problem: TLayoutProblem;
+    Outcome: TPackResult;
+    Err: string;
   begin
     if ExtractFileExt(LayoutFile) <> LayoutExtension then
     begin
@@ -216,9 +222,6 @@ resourcestring
     end;
     if not CheckFileExists(LayoutFile) then
       Exit(ExitFailure);
-    Target := OutputOption;
-    if Target = '' then
-      Target := ChangeFileExt(LayoutFile, '.pdf');
     Layout := TLayout.Create;
     try
       if not Layout.LoadFromFile(LayoutFile, Err) then
@@ -227,7 +230,60 @@ resourcestring
         Exit(ExitFailure);
       end;
       Layout.LoadSources;
-      if not ExportLayoutPDF(Layout, Target, Err) then
+      Outcome := PackLayout(Layout);
+      if not Outcome.Done then
+      begin
+        WriteLn(StdErr, Outcome.Reason);
+        Exit(ExitProblems);
+      end;
+      if not Layout.SaveToFile(LayoutFile, Err) then
+      begin
+        WriteLn(StdErr, Err);
+        Exit(ExitFailure);
+      end;
+      if Layout.Output.Kind = okTiled then
+        WriteLn(Format(rsPackedPages, [Outcome.Count, Outcome.Pages, LayoutFile]))
+      else
+        WriteLn(Format(rsPacked, [Outcome.Count, LayoutFile]));
+      if Outcome.LeftOut > 0 then
+        WriteLn(StdErr, Format(rsPackLeftOut, [Outcome.LeftOut]));
+      Result := 0;
+    finally
+      FreeAndNil(Layout);
+    end;
+  end;
+
+  function RunExport(const LayoutFile, OutputOption, FormatOption: string): integer;
+  var
+    Layout: TLayout;
+    Target, Err: string;
+    Problem: TLayoutProblem;
+    Chosen: TExportFormat;
+  begin
+    if ExtractFileExt(LayoutFile) <> LayoutExtension then
+    begin
+      WriteLn(StdErr, Format(rsExportNeedsLayout, [LayoutExtension]));
+      Exit(ExitFailure);
+    end;
+    if not CheckFileExists(LayoutFile) then
+      Exit(ExitFailure);
+    if not ExportFormatFor(FormatOption, OutputOption, Chosen) then
+    begin
+      WriteLn(StdErr, rsExportBadFormat);
+      Exit(ExitFailure);
+    end;
+    Target := OutputOption;
+    if Target = '' then
+      Target := ChangeFileExt(LayoutFile, ExportExtensions[Chosen]);
+    Layout := TLayout.Create;
+    try
+      if not Layout.LoadFromFile(LayoutFile, Err) then
+      begin
+        WriteLn(StdErr, Format(rsLoadFailed, [LayoutFile, Err]));
+        Exit(ExitFailure);
+      end;
+      Layout.LoadSources;
+      if not ExportLayout(Layout, Chosen, Target, Err) then
       begin
         WriteLn(StdErr, Err);
         Exit(ExitProblems);
@@ -376,11 +432,13 @@ begin
     Parser.AddOption('description', '-d', '--description', rsOptDescription, 'text');
     Parser.AddOption('json', '', '--json', rsOptJSON, '', avSwitch);
     Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
+    Parser.AddOption('format', '', '--format', rsOptFormat, 'format');
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
     Command.AddChoice('check', rsCmdCheck);
     Command.AddChoice('export', rsCmdExport);
     Command.AddChoice('layout', rsCmdLayout);
     Command.AddChoice('measurements', rsCmdMeasurements);
+    Command.AddChoice('pack', rsCmdPack);
     Command.AddChoice('serve', rsCmdServe);
     Parser.AddArgument('pattern', rsArgPattern, 'pattern', asOptional);
     Parser.AddArgument('file', rsArgFile, 'file', asOptional);
@@ -448,8 +506,10 @@ begin
     else if CommandName = 'layout' then
       ExitCode := RunLayout(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
         Parser.GetOptionValueAsString('output'))
+    else if CommandName = 'pack' then
+      ExitCode := RunPack(PatternFile)
     else
-      ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'));
+      ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('format'));
   finally
     FreeAndNil(Parser);
   end;

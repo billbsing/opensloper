@@ -42,7 +42,6 @@ resourcestring
   rsPDFPrintFullSize = 'Print at 100% / actual size. Do not "fit to page".';
   rsPDFCheckSquare = 'This square must measure %s. If it does not, set the calibration factors.';
   rsPDFPages = '%d pages to print, %d blank, %d left out';
-  rsPDFRefused = 'The layout cannot be exported:';
   rsPDFProjectorFit = 'Set the projector so that this square measures %s on the fabric.';
   rsPDFProjectorZoom = 'Show at 100%, then adjust the projector, not the viewer.';
 
@@ -511,36 +510,9 @@ begin
 end;
 
 function ExportLayoutPDF(Layout: TLayout; const FileName: string; out ErrorMessage: string): boolean;
-var
-  Problem: TLayoutProblem;
-  Bytes: rawbytestring;
-  Stream: TFileStream;
 begin
-  ErrorMessage := '';
-  for Problem in Layout.Problems do
-    if Problem.Blocking then
-      ErrorMessage := ErrorMessage + LineEnding + '  ' + Problem.Text;
-  if ErrorMessage <> '' then
-  begin
-    ErrorMessage := rsPDFRefused + ErrorMessage;
-    Exit(False);
-  end;
-  Bytes := LayoutToPDF(Layout);
-  try
-    Stream := TFileStream.Create(FileName, fmCreate);
-    try
-      Stream.WriteBuffer(Bytes[1], Length(Bytes));
-    finally
-      FreeAndNil(Stream);
-    end;
-    Result := True;
-  except
-    on Failure: EStreamError do
-    begin
-      ErrorMessage := Failure.Message;
-      Result := False;
-    end;
-  end;
+  ErrorMessage := Layout.Refusal;
+  Result := (ErrorMessage = '') and WriteBytesToFile(FileName, LayoutToPDF(Layout), ErrorMessage);
 end;
 
 end.

@@ -143,6 +143,8 @@ type
     // The edge the piece is cut on the fold along, or '' when none. It has no
     // seam allowance, whatever its allowance says.
     property FoldEdgeKey: string read FFoldEdgeKey write FFoldEdgeKey;
+    // Last good line of the fold, along its edge
+    property FoldLine: TLine2 read FFoldLine;
     function OnFold: boolean;
   end;
 
@@ -506,7 +508,7 @@ var
   Line: TLine2;
   Marks: TNotchMarkArray;
   Index: integer;
-  FoldLine: TLine2;
+  NewFold: TLine2;
   FoldInwards: double;
 begin
   if not EvalField(Context, PieceAllowanceField, Width) then
@@ -531,12 +533,12 @@ begin
     if Result <> esValid then
       Exit;
   end;
-  ComputeFold(Context, SignedArea(Points) > 0, FoldLine, FoldInwards);
+  ComputeFold(Context, SignedArea(Points) > 0, NewFold, FoldInwards);
   FOutline := Points;
   FCutLine := Cut;
   FGrainline := Line;
   FNotchMarks := Marks;
-  FFoldLine := FoldLine;
+  FFoldLine := NewFold;
   FFoldInwards := FoldInwards;
 end;
 

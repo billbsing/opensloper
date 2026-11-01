@@ -50,7 +50,7 @@ type
     FTray, FProblems: TListBox;
     // What each tray line stands for
     FTrayCopies: TUnplacedCopyArray;
-    FTurnButton, FFlipButton, FRemoveButton: TButton;
+    FTurnButton, FFlipButton, FRemoveButton, FPackButton: TButton;
     FUndoItem, FRedoItem: TMenuItem;
     FWatch: TTimer;
     FRefreshing: boolean;
@@ -93,6 +93,7 @@ type
     procedure PlaceClick(Sender: TObject);
     procedure ReloadClick(Sender: TObject);
     procedure TurnClick(Sender: TObject);
+    procedure PackClick(Sender: TObject);
     procedure FlipClick(Sender: TObject);
     procedure CloseAsked(Sender: TObject; var CanClose: boolean);
     function ConfirmDiscard: boolean;
@@ -111,6 +112,8 @@ resourcestring
   rsMenuSave = '&Save';
   rsMenuSaveAs = 'Save &As...';
   rsMenuExport = '&Export PDF...';
+  rsMenuExportSVG = 'Export S&VG...';
+  rsMenuExportDXF = 'Export &DXF...';
   rsMenuQuit = '&Quit';
   rsMenuEdit = '&Edit';
   rsMenuUndo = '&Undo';
@@ -161,6 +164,13 @@ resourcestring
   rsTurn = 'Turn 90°';
   rsFlip = 'Flip';
   rsExportPDF = 'Export PDF...';
+  rsExportSVG = 'Export SVG...';
+  rsExportDXF = 'Export DXF...';
+  rsPackPieces = 'Pack pieces';
+  rsPackChange = 'Pack pieces';
+  rsPackedPages = 'Packed %d copies on %d pages';
+  rsPacked = 'Packed %d copies';
+  rsPackLeftOut = '%s; %d too wide for the roll stayed where they were';
   rsChangeSettings = 'Change paper';
   rsPlaceChange = 'Place new pieces';
   rsPlaceOne = 'Place piece';
@@ -174,11 +184,13 @@ resourcestring
   rsFilterOpen = 'Layouts and patterns (*.slayout;*.sloper)|*.slayout;*.sloper';
   rsFilterLayout = 'Layouts (*.slayout)|*.slayout';
   rsFilterPDF = 'PDF (*.pdf)|*.pdf';
+  rsFilterSVG = 'SVG (*.svg)|*.svg';
+  rsFilterDXF = 'DXF-AAMA (*.dxf)|*.dxf';
 
 implementation
 
 uses
-  LCLType, Math, Sloper.Core.Geometry, Sloper.Output.LayoutPDF, Sloper.Output.Preview, Sloper.Output.Tiling;
+  LCLType, Math, Sloper.Core.Geometry, Sloper.Output.LayoutExport, Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
   SideWidth = 280;
@@ -289,7 +301,9 @@ begin
   AddItem(Group, rsMenuOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
   AddItem(Group, rsMenuSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
   AddItem(Group, rsMenuSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
-  AddItem(Group, rsMenuExport, @ExportClick, ShortCut(VK_E, [ssModifier]));
+  AddItem(Group, rsMenuExport, @ExportClick, ShortCut(VK_E, [ssModifier])).Tag := Ord(efPDF);
+  AddItem(Group, rsMenuExportSVG, @ExportClick).Tag := Ord(efSVG);
+  AddItem(Group, rsMenuExportDXF, @ExportClick).Tag := Ord(efDXF);
   AddItem(Group, rsMenuQuit, @QuitClick, ShortCut(VK_Q, [ssModifier]));
   Group := AddMenu(rsMenuEdit);
   FUndoItem := AddItem(Group, rsMenuUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
@@ -493,7 +507,9 @@ begin
   FOverlapEdit := AddSpin(rsOverlap, MaxMillimetres, 1, SpinDecimals);
   FCalibrationXEdit := AddSpin(rsCalibrationX, MaxCalibration, 0.001, CalibrationDecimals);
   FCalibrationYEdit := AddSpin(rsCalibrationY, MaxCalibration, 0.001, CalibrationDecimals);
-  AddButton(rsExportPDF, @ExportClick);
+  AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
+  AddButton(rsExportSVG, @ExportClick).Tag := Ord(efSVG);
+  AddButton(rsExportDXF, @ExportClick).Tag := Ord(efDXF);
 end;
 
 procedure TPublishForm.BuildPiecesTab;
@@ -502,6 +518,7 @@ begin
   FFlipButton := AddButton(rsFlip, @FlipClick);
   FRemoveButton := AddButton(rsRemove, @RemoveClick);
   AddButton(rsPlaceNew, @PlaceClick);
+  FPackButton := AddButton(rsPackPieces, @PackClick);
   AddLabel(rsTray);
   FTray := TListBox.Create(Self);
   FTray.Parent := FPiecesSide;
@@ -662,6 +679,7 @@ begin
   FTurnButton.Enabled := FPreview.Selected >= 0;
   FFlipButton.Enabled := FPreview.Selected >= 0;
   FRemoveButton.Enabled := FPreview.Selected >= 0;
+  FPackButton.Enabled := FDocument.Layout.Output.Kind <> okProjector;
   FUndoItem.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
     FUndoItem.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
@@ -798,15 +816,21 @@ procedure TPublishForm.ExportClick(Sender: TObject);
 var
   Dialog: TSaveDialog;
   Reason: string;
+  Chosen: TExportFormat;
+  Filters: array[TExportFormat] of string;
 begin
+  Chosen := TExportFormat(TComponent(Sender).Tag);
+  Filters[efPDF] := rsFilterPDF;
+  Filters[efSVG] := rsFilterSVG;
+  Filters[efDXF] := rsFilterDXF;
   Dialog := TSaveDialog.Create(Self);
   try
-    Dialog.Filter := rsFilterPDF;
-    Dialog.DefaultExt := '.pdf';
-    Dialog.FileName := ChangeFileExt(FDocument.Layout.FileName, '.pdf');
+    Dialog.Filter := Filters[Chosen];
+    Dialog.DefaultExt := ExportExtensions[Chosen];
+    Dialog.FileName := ChangeFileExt(FDocument.Layout.FileName, ExportExtensions[Chosen]);
     if not Dialog.Execute then
       Exit;
-    if ExportLayoutPDF(FDocument.Layout, Dialog.FileName, Reason) then
+    if ExportLayout(FDocument.Layout, Chosen, Dialog.FileName, Reason) then
       ShowStatus(Format(rsExported, [Dialog.FileName]))
     else
       MessageDlg(Reason, mtError, [mbOK], 0);
@@ -845,6 +869,27 @@ begin
   FDocument.BeginChange(rsPlaceChange);
   FDocument.Layout.PlaceNewPieces;
   FDocument.EndChange;
+end;
+
+procedure TPublishForm.PackClick(Sender: TObject);
+var
+  Outcome: TPackResult;
+  Summary: string;
+begin
+  FDocument.BeginChange(rsPackChange);
+  Outcome := PackLayout(FDocument.Layout);
+  FDocument.EndChange;
+  if Outcome.Done then
+    FPreview.ZoomToFit;
+  if not Outcome.Done then
+    Summary := Outcome.Reason
+  else if FDocument.Layout.Output.Kind = okTiled then
+    Summary := Format(rsPackedPages, [Outcome.Count, Outcome.Pages])
+  else
+    Summary := Format(rsPacked, [Outcome.Count]);
+  if Outcome.LeftOut > 0 then
+    Summary := Format(rsPackLeftOut, [Summary, Outcome.LeftOut]);
+  ShowStatus(Summary);
 end;
 
 procedure TPublishForm.TurnClick(Sender: TObject);

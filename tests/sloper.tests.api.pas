@@ -98,6 +98,7 @@ type
     procedure TestEveryPointType;
     procedure TestCurves;
     procedure TestSeams;
+    procedure TestExport;
     procedure TestSplitEdge;
     procedure TestCreatePiece;
     procedure TestCreatePieceRefusals;
@@ -116,6 +117,7 @@ type
 implementation
 
 uses
+  Sloper.Output.Layout,
   Sloper.Core.Arrange, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables,
   Sloper.Core.Draft, Sloper.Core.PieceDetect;
 
@@ -203,6 +205,36 @@ begin
   if FReply.Find('result') = nil then
     Fail('Expected a result: ' + FReply.AsJSON);
   Result := TJSONObject(FReply.Find('result'));
+end;
+
+function AsJSONString(const Text: string): string;
+var
+  Value: TJSONString;
+begin
+  Value := TJSONString.Create(Text);
+  try
+    Result := Value.AsJSON;
+  finally
+    FreeAndNil(Value);
+  end;
+end;
+
+procedure WriteLayoutFor(const PatternFile, LayoutFile: string);
+var
+  Layout: TLayout;
+  Reason: string;
+begin
+  Layout := TLayout.Create;
+  try
+    Layout.FileName := LayoutFile;
+    Layout.AddSource(ExtractFileName(PatternFile), '', '');
+    Layout.LoadSources;
+    Layout.PlaceNewPieces;
+    if not Layout.SaveToFile(LayoutFile, Reason) then
+      raise Exception.Create(Reason);
+  finally
+    FreeAndNil(Layout);
+  end;
 end;
 
 function TTestAPI.ErrorCode: integer;
@@ -837,6 +869,34 @@ begin
   AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
   Call('set_fold', '{"name": "Front", "none": true}');
   AssertFalse(Answer.Get('onFold', True));
+end;
+
+procedure TTestAPI.TestExport;
+var
+  Pattern, Layout, Target: string;
+begin
+  AddSquare;
+  Call('create_piece', '{"name": "Front", "x": 50, "y": 50}');
+  Pattern := GetTempFileName(GetTempDir, 'sloper') + '.sloper';
+  Layout := ChangeFileExt(Pattern, '.slayout');
+  Target := ChangeFileExt(Pattern, '.dxf');
+  try
+    Call('save', Format('{"path": %s}', [AsJSONString(Pattern)]));
+    Answer;
+    AssertEquals('layout refused', True, FileExists(Pattern));
+    Call('export', Format('{"layout": %s, "path": %s}', [AsJSONString(Layout), AsJSONString(Target)]));
+    AssertEquals('no layout yet', RpcRefused, ErrorCode);
+    Call('export', Format('{"layout": %s, "path": "a.png"}', [AsJSONString(Layout)]));
+    AssertEquals('unknown format', RpcInvalidParams, ErrorCode);
+    WriteLayoutFor(Pattern, Layout);
+    Call('export', Format('{"layout": %s, "path": %s}', [AsJSONString(Layout), AsJSONString(Target)]));
+    AssertEquals('path', Target, Answer.Get('path', ''));
+    AssertTrue('written', FileExists(Target));
+  finally
+    DeleteFile(Pattern);
+    DeleteFile(Layout);
+    DeleteFile(Target);
+  end;
 end;
 
 procedure TTestAPI.TestSeams;

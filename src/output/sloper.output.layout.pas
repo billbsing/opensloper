@@ -160,7 +160,6 @@ type
     function ResolvePath(const Stored: string): string;
     procedure LoadSource(Source: TLayoutSource);
     function NewPlacement(const Item: TUnplacedCopy; out Piece: TPieceObject): TPlacement;
-    function FindPlacedPiece(const Placement: TPlacement; out Source: TLayoutSource; out Piece: TPieceObject): boolean;
     function IsPlaced(SourceId: integer; const PieceKey: string; Copy: integer): boolean;
     procedure AddOverlapProblems(var Problems: TLayoutProblemArray);
     function PageIsExcluded(const Caption: string): boolean;
@@ -197,6 +196,8 @@ type
     // Puts a placed copy back among the unplaced
     procedure RemovePlacement(Index: integer);
     function PlacedPieces: TPlacedPieceArray;
+    // The source and piece a placement stands for; False when either has gone
+    function FindPiece(const Placement: TPlacement; out Source: TLayoutSource; out Piece: TPieceObject): boolean;
     // The pages Shapes need, with the empty ones marked Blank
     function Pages(const Shapes: TPlacedPieceArray; out RowCount, ColumnCount: integer): TTilePageArray;
     // Turns on the usual title block, for a new layout
@@ -211,6 +212,8 @@ type
     // Leaves the page out of the print, or puts it back
     procedure TogglePage(const Caption: string);
     function Problems: TLayoutProblemArray;
+    // The blocking problems as one message, or empty when export can go ahead
+    function Refusal: string;
     property Sources: TLayoutSourceList read FSources;
   end;
 
@@ -230,8 +233,11 @@ function NoteBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
 function PublishTargetFor(const PatternFile: string): string;
 // The width and height of a named paper; False when the name is unknown
 function PaperSize(const AName: string; out AWidth, AHeight: double): boolean;
+// False with the reason when the file cannot be written
+function WriteBytesToFile(const FileName: string; const Bytes: rawbytestring; out ErrorMessage: string): boolean;
 
 resourcestring
+  rsLayoutRefused = 'The layout cannot be exported:';
   rsLayoutWrongFormat = 'This is not a layout file';
   rsLayoutNewerVersion = 'This file was made by a newer version of OpenSloper (file version %d)';
   rsLayoutUnits = 'Units "%s" are not supported; use mm';
@@ -268,7 +274,7 @@ resourcestring
 implementation
 
 uses
-  Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
+  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
 
 const
   CornerNames: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
@@ -997,7 +1003,7 @@ begin
         end;
 end;
 
-function TLayout.FindPlacedPiece(const Placement: TPlacement; out Source: TLayoutSource; out Piece: TPieceObject): boolean;
+function TLayout.FindPiece(const Placement: TPlacement; out Source: TLayoutSource; out Piece: TPieceObject): boolean;
 var
   Node: TObject;
 begin
@@ -1094,7 +1100,7 @@ begin
   Result.SourceId := Item.SourceId;
   Result.PieceKey := Item.PieceKey;
   Result.Copy := Item.Copy;
-  FindPlacedPiece(Result, Source, Piece);
+  FindPiece(Result, Source, Piece);
   Result.Flipped := Piece.Mirrored and not Piece.OnFold and not Odd(Item.Copy);
 end;
 
@@ -1171,13 +1177,47 @@ begin
   SetLength(Result, Length(Placements));
   Count := 0;
   for Index := 0 to High(Placements) do
-    if FindPlacedPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Piece.CutLine <> nil) then
+    if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Piece.CutLine <> nil) then
     begin
       Result[Count] := PlaceShape(Piece, Placements[Index]);
       Result[Count].Placement := Index;
       Inc(Count);
     end;
   SetLength(Result, Count);
+end;
+
+function TLayout.Refusal: string;
+var
+  Problem: TLayoutProblem;
+begin
+  Result := '';
+  for Problem in Problems do
+    if Problem.Blocking then
+      Result := Result + LineEnding + '  ' + Problem.Text;
+  if Result <> '' then
+    Result := rsLayoutRefused + Result;
+end;
+
+function WriteBytesToFile(const FileName: string; const Bytes: rawbytestring; out ErrorMessage: string): boolean;
+var
+  Stream: TFileStream;
+begin
+  ErrorMessage := '';
+  try
+    Stream := TFileStream.Create(FileName, fmCreate);
+    try
+      Stream.WriteBuffer(Bytes[1], Length(Bytes));
+    finally
+      FreeAndNil(Stream);
+    end;
+    Result := True;
+  except
+    on Failure: EStreamError do
+    begin
+      ErrorMessage := Failure.Message;
+      Result := False;
+    end;
+  end;
 end;
 
 function TLayout.PageIsExcluded(const Caption: string): boolean;
@@ -1356,7 +1396,7 @@ begin
     Source := FindSourceById(FSources, Placement.SourceId);
     if (Source = nil) or (Source.Pattern = nil) or (Source.LoadError <> '') then
       Continue;
-    if not FindPlacedPiece(Placement, Source, Piece) then
+    if not FindPiece(Placement, Source, Piece) then
     begin
       Add(Format(rsLayoutPieceGone, [ExtractFileName(Source.PatternFile), Placement.PieceKey]), True);
       Continue;
@@ -1375,7 +1415,7 @@ begin
     Probe := Default(TPlacement);
     Probe.SourceId := Item.SourceId;
     Probe.PieceKey := Item.PieceKey;
-    FindPlacedPiece(Probe, Found, Node);
+    FindPiece(Probe, Found, Node);
     Add(Format(rsLayoutUnplaced, [ExtractFileName(Found.PatternFile), Node.DisplayName, Item.Copy, Node.CutCount]), False);
     Result[High(Result)].Unplaced := True;
   end;

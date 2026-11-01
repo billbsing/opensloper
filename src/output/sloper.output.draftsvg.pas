@@ -38,6 +38,9 @@ type
 
 function DefaultDraftSVGOptions: TDraftSVGOptions;
 function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
+// A number as written in SVG
+function SVGNumber(Value: double): string;
+function EscapeXML(const Text: string): string;
 
 implementation
 
@@ -70,9 +73,14 @@ begin
   Result := Default(TDraftSVGOptions);
 end;
 
-function Num(Value: double): string;
+function SVGNumber(Value: double): string;
 begin
   Result := RoundedText(Value, CoordinateDecimals);
+end;
+
+function Num(Value: double): string;
+begin
+  Result := SVGNumber(Value);
 end;
 
 // Model y points up, SVG y points down
