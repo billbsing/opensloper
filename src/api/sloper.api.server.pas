@@ -30,7 +30,7 @@ unit Sloper.API.Server;
 interface
 
 uses
-  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Piece, Sloper.Document.PatternDocument;
+  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Document.PatternDocument;
 
 const
   // JSON-RPC 2.0's own codes
@@ -93,6 +93,10 @@ type
     function DoRemoveNotch(Params: TJSONObject): TJSONData;
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
+    function SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
+    function DoAddSeam(Params: TJSONObject): TJSONData;
+    function DoFlipSeam(Params: TJSONObject): TJSONData;
+    function DoSuggestSeams: TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -124,6 +128,9 @@ resourcestring
   rsApiPieceExists = '%s already covers this region';
   rsApiNotAPiece = '%s is not a piece';
   rsApiNotInPiece = '%s is not part of %s';
+  rsApiNotASeam = '%s is not a seam';
+  rsApiBadSeamSide = 'Parameter "%s" must be a list of objects with a "piece" and an "edge"';
+  rsApiFlipSeam = 'Flip seam';
   rsApiEdgeAllowance = 'Change seam allowance';
   rsApiGrainline = 'Change grainline';
   rsApiAddNotch = 'Add notch';
@@ -141,11 +148,12 @@ implementation
 
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
-  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
+  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Output.DraftSVG;
 
 const
   VariableType = 'variable';
   PieceType = 'piece';
+  SeamType = 'seam';
   RenderFormatSVG = 'svg';
 
 constructor EApiError.Create(ACode: integer; const AMessage: string; const AFieldName: string; APosition: integer);
@@ -221,6 +229,32 @@ begin
 end;
 
 // Name, type, state and what it computes to, then its formulas with names
+function SeamEntryToJSON(Pattern: TPattern; const Entry: TSeamEntry): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  try
+    Result.Add('piece', Pattern.FindNode(Entry.PieceKey).DisplayName);
+    Result.Add('edge', Pattern.FindNode(Entry.EdgeKey).DisplayName);
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+function SeamSideToJSON(Pattern: TPattern; const Side: TSeamSide): TJSONArray;
+var
+  Entry: TSeamEntry;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Entry in Side do
+      Result.Add(SeamEntryToJSON(Pattern, Entry));
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
 function PiecePathToJSON(Piece: TPieceObject): TJSONArray;
 var
   Entry: TPieceEdge;
@@ -286,6 +320,16 @@ begin
         Result.Add('cutCount', TPieceObject(Node).CutCount);
         Result.Add('mirrored', TPieceObject(Node).Mirrored);
         Result.Add('onFold', TPieceObject(Node).OnFold);
+      end
+      else if Node is TSeamObject then
+      begin
+        Result.Add('sideA', SeamSideToJSON(Document.Pattern, TSeamObject(Node).SideA));
+        Result.Add('sideB', SeamSideToJSON(Document.Pattern, TSeamObject(Node).SideB));
+        Result.Add('reversed', TSeamObject(Node).Reversed);
+        Result.Add('lengthA', ReportFloat(TSeamObject(Node).LengthA));
+        Result.Add('lengthB', ReportFloat(TSeamObject(Node).LengthB));
+        Result.Add('difference', ReportFloat(TSeamObject(Node).Difference));
+        Result.Add('outOfTolerance', TSeamObject(Node).OutOfTolerance);
       end;
     Formulas := TJSONObject.Create;
     Result.Add('formulas', Formulas);
@@ -1151,6 +1195,86 @@ begin
   Result := AddedNode(Piece);
 end;
 
+function TApiServer.SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
+var
+  List: TJSONData;
+  Index: integer;
+begin
+  Result := nil;
+  List := Params.Find(AName);
+  if (List = nil) or (List.JSONType <> jtArray) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiBadSeamSide, [AName]));
+  SetLength(Result, List.Count);
+  for Index := 0 to List.Count - 1 do
+  begin
+    if List.Items[Index].JSONType <> jtObject then
+      raise EApiError.Create(RpcInvalidParams, Format(rsApiBadSeamSide, [AName]));
+    Result[Index].PieceKey := Reference(TJSONObject(List.Items[Index]), 'piece');
+    Result[Index].EdgeKey := Reference(TJSONObject(List.Items[Index]), 'edge');
+  end;
+end;
+
+function TApiServer.DoAddSeam(Params: TJSONObject): TJSONData;
+var
+  SideA, SideB: TSeamSide;
+  Ease, Tolerance: string;
+begin
+  SideA := SeamSideParam(Params, 'sideA');
+  SideB := SeamSideParam(Params, 'sideB');
+  Ease := OptionalFormula(Params, SeamEaseField);
+  if Ease = '' then
+    Ease := DefaultSeamEase;
+  Tolerance := OptionalFormula(Params, SeamToleranceField);
+  if Tolerance = '' then
+    Tolerance := DefaultSeamTolerance;
+  FDocument.BeginChange(Format(rsApiAdd, [SeamType]));
+  Result := AddedNode(FDocument.Pattern.AddSeam(OptionalString(Params, 'name'), SideA, SideB, Ease, Tolerance));
+end;
+
+function TApiServer.DoFlipSeam(Params: TJSONObject): TJSONData;
+var
+  Target: TEvalNode;
+begin
+  Target := FindTarget(Params);
+  if not (Target is TSeamObject) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotASeam, [Target.DisplayName]));
+  FDocument.BeginChange(rsApiFlipSeam);
+  TSeamObject(Target).Reversed := not TSeamObject(Target).Reversed;
+  Result := AddedNode(Target);
+end;
+
+// Names, so that a suggestion can go straight back to add_seam
+function TApiServer.DoSuggestSeams: TJSONData;
+var
+  Reply, Item: TJSONObject;
+  List, Side: TJSONArray;
+  Suggestion: TSeamSuggestion;
+begin
+  FDocument.LiveUpdate;
+  Reply := TJSONObject.Create;
+  try
+    List := TJSONArray.Create;
+    Reply.Add('suggestions', List);
+    for Suggestion in SuggestSeams(FDocument.Pattern) do
+    begin
+      Item := TJSONObject.Create;
+      List.Add(Item);
+      Side := TJSONArray.Create;
+      Item.Add('sideA', Side);
+      Side.Add(SeamEntryToJSON(FDocument.Pattern, Suggestion.First));
+      Side := TJSONArray.Create;
+      Item.Add('sideB', Side);
+      Side.Add(SeamEntryToJSON(FDocument.Pattern, Suggestion.Second));
+      Item.Add('shared', Suggestion.Shared);
+      Item.Add('difference', ReportFloat(Suggestion.Difference));
+    end;
+  except
+    FreeAndNil(Reply);
+    raise;
+  end;
+  Result := Reply;
+end;
+
 // An empty or missing allowance puts the edge back on the piece's own
 function TApiServer.DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
 var
@@ -1201,6 +1325,9 @@ begin
     'remove_notch': Result := DoRemoveNotch(Params);
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
+    'add_seam': Result := DoAddSeam(Params);
+    'flip_seam': Result := DoFlipSeam(Params);
+    'suggest_seams': Result := DoSuggestSeams;
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;

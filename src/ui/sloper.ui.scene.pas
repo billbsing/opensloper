@@ -29,7 +29,7 @@ interface
 
 uses
   SysUtils, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Piece,
-  Sloper.Core.Settings;
+  Sloper.Core.Seam, Sloper.Core.Settings;
 
 const
   MinFocusSize = 60;
@@ -64,6 +64,19 @@ function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
 function PieceMiddle(Piece: TPieceObject): TVec2;
 // One chevron at the middle of each edge of the piece, pointing along the path
 function PieceChevrons(Pattern: TPattern; Piece: TPieceObject): TPieceChevronArray;
+// The chevrons of one side of a seam, pointing the way it runs
+function SeamChevrons(Pattern: TPattern; Seam: TSeamObject; OnSideB: boolean): TPieceChevronArray;
+// The piece's edge within Radius mm of At, nearest first. An edge on two pieces
+// goes with the piece At is inside.
+function SeamEntryAt(Pattern: TPattern; const At: TVec2; Radius: double; out Entry: TSeamEntry): boolean;
+// Adds the entry to the side, or takes it off when it is already there
+procedure ToggleSeamEntry(var Side: TSeamSide; const Entry: TSeamEntry);
+function SeamSideLength(Pattern: TPattern; const Side: TSeamSide): double;
+// The side without entries whose piece or edge no longer exists
+function ExistingSeamEntries(Pattern: TPattern; const Side: TSeamSide): TSeamSide;
+// The edge and point of a selection of one edge and one point on it, not at an
+// end. False with the reason otherwise.
+function SplitFromSelection(Pattern: TPattern; const Selection: TStringArray; out EdgeKey, PointKey, Reason: string): boolean;
 // The nearest place on a piece's seam line within Radius mm of At
 function NotchTargetAt(Pattern: TPattern; const At: TVec2; Radius: double; out Target: TNotchTarget): boolean;
 // The handles of the selected curves
@@ -78,6 +91,11 @@ function PolylineMiddle(const Line: TVec2Array): TVec2;
 function LabelKeys(Pattern: TPattern; Mode: TLabelMode; const Selection: TStringArray; const HoverKey: string;
   const ToolKeys: TStringArray): TStringArray;
 
+resourcestring
+  rsSceneSplitSelect = 'Select an edge and a point on it to split the edge';
+  rsSceneSplitOff = '%s is not on %s';
+  rsSceneSplitAtEnd = '%s is at an end of %s, so there is nothing to split off';
+
 implementation
 
 uses
@@ -90,6 +108,7 @@ function ObjectsBounds(Pattern: TPattern; const Keys: TStringArray; out Bounds: 
 var
   Key: string;
   Node: TEvalNode;
+  Entry: TSeamEntry;
   Empty: boolean;
   Grow: double;
 begin
@@ -98,7 +117,10 @@ begin
   for Key in Keys do
   begin
     Node := Pattern.FindNode(Key);
-    if Node is TDraftObject then
+    if Node is TSeamObject then
+      for Entry in Concat(TSeamObject(Node).SideA, TSeamObject(Node).SideB) do
+        IncludeObject(Bounds, Empty, TDraftObject(Pattern.FindNode(Entry.EdgeKey)))
+    else if Node is TDraftObject then
       IncludeObject(Bounds, Empty, TDraftObject(Node));
   end;
   Result := not Empty;
@@ -234,6 +256,151 @@ begin
   end;
 end;
 
+function SeamChevrons(Pattern: TPattern; Seam: TSeamObject; OnSideB: boolean): TPieceChevronArray;
+var
+  Side: TSeamSide;
+  Entry: TSeamEntry;
+  Piece: TPieceObject;
+  Edge: TEdgeObject;
+  Item: TPieceChevron;
+begin
+  Result := nil;
+  if OnSideB then
+    Side := Seam.SideB
+  else
+    Side := Seam.SideA;
+  for Entry in Side do
+  begin
+    Piece := TPieceObject(Pattern.FindNode(Entry.PieceKey));
+    if Piece.PathIndexOf(Entry.EdgeKey) < 0 then
+      Continue;
+    Edge := TEdgeObject(Pattern.FindNode(Entry.EdgeKey));
+    Item.Position := Edge.PointAtLength(Edge.Length / 2);
+    Item.Angle := Edge.DirectionAt(Edge.Length / 2);
+    if not Seam.RunsForward(Piece, Entry, OnSideB) then
+      Item.Angle := NormalizeAngle(Item.Angle + 180);
+    Insert(Item, Result, Length(Result));
+  end;
+end;
+
+function SeamEntryAt(Pattern: TPattern; const At: TVec2; Radius: double; out Entry: TSeamEntry): boolean;
+var
+  Index: integer;
+  Piece: TPieceObject;
+  PathEntry: TPieceEdge;
+  Position, Gap, Best: double;
+  Inside: boolean;
+begin
+  Entry := Default(TSeamEntry);
+  Result := False;
+  Best := Radius;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    if not (Pattern.Objects[Index] is TPieceObject) or not Pattern.Objects[Index].HasResult then
+      Continue;
+    Piece := TPieceObject(Pattern.Objects[Index]);
+    for PathEntry in Piece.Path do
+    begin
+      TEdgeObject(Pattern.FindNode(PathEntry.EdgeKey)).Locate(At, Position, Gap);
+      if (Gap < Best) or (not Result and (Gap <= Best)) then
+      begin
+        Best := Gap;
+        Entry.EdgeKey := PathEntry.EdgeKey;
+        Entry.PieceKey := Piece.Key;
+        Result := True;
+      end;
+    end;
+  end;
+  if not Result then
+    Exit;
+  Inside := PointInPolygon(At, TPieceObject(Pattern.FindNode(Entry.PieceKey)).Outline);
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if not Inside and (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult then
+    begin
+      Piece := TPieceObject(Pattern.Objects[Index]);
+      if (Piece.PathIndexOf(Entry.EdgeKey) >= 0) and PointInPolygon(At, Piece.Outline) then
+      begin
+        Entry.PieceKey := Piece.Key;
+        Inside := True;
+      end;
+    end;
+end;
+
+procedure ToggleSeamEntry(var Side: TSeamSide; const Entry: TSeamEntry);
+var
+  Index: integer;
+begin
+  for Index := 0 to High(Side) do
+    if (Side[Index].PieceKey = Entry.PieceKey) and (Side[Index].EdgeKey = Entry.EdgeKey) then
+    begin
+      Delete(Side, Index, 1);
+      Exit;
+    end;
+  Insert(Entry, Side, Length(Side));
+end;
+
+function SeamSideLength(Pattern: TPattern; const Side: TSeamSide): double;
+var
+  Entry: TSeamEntry;
+begin
+  Result := 0;
+  for Entry in Side do
+    Result := Result + TEdgeObject(Pattern.FindNode(Entry.EdgeKey)).Length;
+end;
+
+function ExistingSeamEntries(Pattern: TPattern; const Side: TSeamSide): TSeamSide;
+var
+  Entry: TSeamEntry;
+begin
+  Result := nil;
+  for Entry in Side do
+    if (Pattern.FindNode(Entry.PieceKey) is TPieceObject) and (Pattern.FindNode(Entry.EdgeKey) is TEdgeObject) then
+      Insert(Entry, Result, Length(Result));
+end;
+
+function SplitFromSelection(Pattern: TPattern; const Selection: TStringArray; out EdgeKey, PointKey, Reason: string): boolean;
+var
+  Key: string;
+  Node: TEvalNode;
+  Edge: TEdgeObject;
+  Point: TPointObject;
+  Position, Gap: double;
+begin
+  Result := False;
+  EdgeKey := '';
+  PointKey := '';
+  Reason := rsSceneSplitSelect;
+  Edge := nil;
+  Point := nil;
+  if Length(Selection) <> 2 then
+    Exit;
+  for Key in Selection do
+  begin
+    Node := Pattern.FindNode(Key);
+    if Node is TEdgeObject then
+      Edge := TEdgeObject(Node)
+    else if Node is TPointObject then
+      Point := TPointObject(Node);
+  end;
+  if (Edge = nil) or (Point = nil) or not Edge.HasResult or not Point.HasResult then
+    Exit;
+  Edge.Locate(Point.Position, Position, Gap);
+  if Gap > NotchPointTolerance then
+  begin
+    Reason := Format(rsSceneSplitOff, [Point.DisplayName, Edge.DisplayName]);
+    Exit;
+  end;
+  if (Position <= NotchPointTolerance) or (Position >= Edge.Length - NotchPointTolerance) then
+  begin
+    Reason := Format(rsSceneSplitAtEnd, [Point.DisplayName, Edge.DisplayName]);
+    Exit;
+  end;
+  EdgeKey := Edge.Key;
+  PointKey := Point.Key;
+  Reason := '';
+  Result := True;
+end;
+
 function NotchTargetAt(Pattern: TPattern; const At: TVec2; Radius: double; out Target: TNotchTarget): boolean;
 var
   Index, Entry: integer;
@@ -361,7 +528,8 @@ begin
     for Index := 0 to Pattern.ObjectCount - 1 do
     begin
       DraftObject := Pattern.Objects[Index];
-      if DraftObject.HasResult and ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) then
+      // A seam has no place of its own to put a label
+      if DraftObject.HasResult and not (DraftObject is TSeamObject) and ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) then
       begin
         Result[Count] := DraftObject.Key;
         Inc(Count);

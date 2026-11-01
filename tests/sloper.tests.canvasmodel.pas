@@ -25,7 +25,7 @@ unit Sloper.Tests.CanvasModel;
 interface
 
 uses
-  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Pattern, Sloper.Core.Piece;
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Seam;
 
 type
   TTestCanvasModel = class(TOSTestCase)
@@ -33,11 +33,21 @@ type
     FPattern: TPattern;
     procedure Build;
     function BuildPiece: TPieceObject;
+    function BuildSeam(out Piece: TPieceObject): TSeamObject;
     procedure AssertLabels(const Msg, Expected: string; const Keys: TStringArray);
   protected
     procedure SetUp; override;
     procedure TearDown; override;
   published
+    procedure TestSeamEntryAt;
+    procedure TestSeamEntryPicksSideClicked;
+    procedure TestToggleSeamEntry;
+    procedure TestSeamSideLength;
+    procedure TestSeamChevronsFollowDirection;
+    procedure TestExistingSeamEntries;
+    procedure TestSeamHasNoLabel;
+    procedure TestSeamBounds;
+    procedure TestSplitFromSelection;
     procedure TestYIsFlipped;
     procedure TestRoundTrip;
     procedure TestZoomKeepsAnchor;
@@ -284,6 +294,165 @@ begin
   AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(50, 50), Path, ErrorMessage));
   Result := FPattern.AddPiece('Front', Path, '10');
   FPattern.Evaluate;
+end;
+
+function TTestCanvasModel.BuildSeam(out Piece: TPieceObject): TSeamObject;
+var
+  SideA, SideB: TSeamSide;
+begin
+  Piece := BuildPiece;
+  SideA := nil;
+  SideB := nil;
+  SetLength(SideA, 1);
+  SetLength(SideB, 1);
+  SideA[0].PieceKey := Piece.Key;
+  SideA[0].EdgeKey := FPattern.FindObject('Line_A_B').Key;
+  SideB[0].PieceKey := Piece.Key;
+  SideB[0].EdgeKey := FPattern.FindObject('Line_C_D').Key;
+  Result := FPattern.AddSeam('Hem', SideA, SideB);
+  AssertNotNull(FPattern.LastError, Result);
+  FPattern.Evaluate;
+end;
+
+procedure TTestCanvasModel.TestSeamEntryAt;
+var
+  Piece: TPieceObject;
+  Entry: TSeamEntry;
+begin
+  Piece := BuildPiece;
+  AssertFalse('nothing here', SeamEntryAt(FPattern, Vec2(50, 50), 2, Entry));
+  AssertTrue('on the bottom', SeamEntryAt(FPattern, Vec2(30, 1), 2, Entry));
+  AssertEquals('edge', FPattern.FindObject('Line_A_B').Key, Entry.EdgeKey);
+  AssertEquals('piece', Piece.Key, Entry.PieceKey);
+end;
+
+// One edge between two pieces: the click's side says which piece is meant
+procedure TTestCanvasModel.TestSeamEntryPicksSideClicked;
+var
+  Left: TPieceObject;
+  E, F, Reason: string;
+  Path: TPiecePath;
+  Right: TPieceObject;
+  Entry: TSeamEntry;
+begin
+  Left := BuildPiece;
+  E := FPattern.AddFreePoint('E', '200', '0').Key;
+  F := FPattern.AddFreePoint('F', '200', '100').Key;
+  FPattern.AddLine(FPattern.FindObject('B').Key, E, erOutline);
+  FPattern.AddLine(E, F, erOutline);
+  FPattern.AddLine(F, FPattern.FindObject('C').Key, erOutline);
+  FPattern.Evaluate;
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(150, 50), Path, Reason));
+  Right := FPattern.AddPiece('Right', Path, '10');
+  FPattern.Evaluate;
+  AssertTrue('left of it', SeamEntryAt(FPattern, Vec2(99, 50), 2, Entry));
+  AssertEquals('the shared edge', FPattern.FindObject('Line_B_C').Key, Entry.EdgeKey);
+  AssertEquals('left piece', Left.Key, Entry.PieceKey);
+  AssertTrue('right of it', SeamEntryAt(FPattern, Vec2(101, 50), 2, Entry));
+  AssertEquals('right piece', Right.Key, Entry.PieceKey);
+end;
+
+procedure TTestCanvasModel.TestToggleSeamEntry;
+var
+  Side: TSeamSide;
+  Entry: TSeamEntry;
+begin
+  Side := nil;
+  Entry.PieceKey := '1';
+  Entry.EdgeKey := '2';
+  ToggleSeamEntry(Side, Entry);
+  AssertEquals('added', 1, Length(Side));
+  Entry.EdgeKey := '3';
+  ToggleSeamEntry(Side, Entry);
+  AssertEquals('another', 2, Length(Side));
+  Entry.EdgeKey := '2';
+  ToggleSeamEntry(Side, Entry);
+  AssertEquals('removed', 1, Length(Side));
+  AssertEquals('the other stays', '3', Side[0].EdgeKey);
+end;
+
+procedure TTestCanvasModel.TestSeamSideLength;
+var
+  Piece: TPieceObject;
+  Seam: TSeamObject;
+begin
+  Seam := BuildSeam(Piece);
+  AssertNear('one edge', 100, SeamSideLength(FPattern, Seam.SideA));
+  AssertNear('none', 0, SeamSideLength(FPattern, nil));
+end;
+
+procedure TTestCanvasModel.TestSeamChevronsFollowDirection;
+var
+  Piece: TPieceObject;
+  Seam: TSeamObject;
+  Before: double;
+begin
+  Seam := BuildSeam(Piece);
+  AssertEquals('one on side A', 1, Length(SeamChevrons(FPattern, Seam, False)));
+  Before := SeamChevrons(FPattern, Seam, True)[0].Angle;
+  Seam.Reversed := True;
+  AssertNear('flip turns side B', 180, Abs(NormalizeAngle(SeamChevrons(FPattern, Seam, True)[0].Angle - Before)));
+end;
+
+procedure TTestCanvasModel.TestExistingSeamEntries;
+var
+  Piece: TPieceObject;
+  Seam: TSeamObject;
+  Side: TSeamSide;
+begin
+  Seam := BuildSeam(Piece);
+  Side := Copy(Seam.SideA);
+  AssertEquals('kept', 1, Length(ExistingSeamEntries(FPattern, Side)));
+  Side[0].PieceKey := '9999';
+  AssertEquals('dropped', 0, Length(ExistingSeamEntries(FPattern, Side)));
+end;
+
+// Drawing labels treats what is left as an edge, so a seam must not reach it
+procedure TTestCanvasModel.TestSeamHasNoLabel;
+var
+  Piece: TPieceObject;
+  Seam: TSeamObject;
+  Key: string;
+begin
+  Seam := BuildSeam(Piece);
+  for Key in LabelKeys(FPattern, lmAll, nil, '', nil) do
+    AssertTrue('all labels', Key <> Seam.Key);
+  for Key in LabelKeys(FPattern, lmContextual, [Seam.Key], '', nil) do
+    AssertTrue('selected', Key <> Seam.Key);
+end;
+
+procedure TTestCanvasModel.TestSeamBounds;
+var
+  Piece: TPieceObject;
+  Seam: TSeamObject;
+  Bounds: TRect2;
+begin
+  Seam := BuildSeam(Piece);
+  AssertTrue('shown', ObjectsBounds(FPattern, [Seam.Key], Bounds));
+  AssertNear('both sides', 100, Bounds.MaxY - Bounds.MinY);
+end;
+
+procedure TTestCanvasModel.TestSplitFromSelection;
+var
+  Edge, Middle, Off, A, Reason, EdgeKey, PointKey: string;
+begin
+  BuildPiece;
+  Edge := FPattern.FindObject('Line_A_B').Key;
+  A := FPattern.FindObject('A').Key;
+  Middle := FPattern.AddFreePoint('M', '30', '0').Key;
+  Off := FPattern.AddFreePoint('Off', '30', '5').Key;
+  FPattern.Evaluate;
+  AssertFalse('nothing', SplitFromSelection(FPattern, nil, EdgeKey, PointKey, Reason));
+  AssertEquals(rsSceneSplitSelect, Reason);
+  AssertFalse('two points', SplitFromSelection(FPattern, [A, Middle], EdgeKey, PointKey, Reason));
+  AssertEquals(rsSceneSplitSelect, Reason);
+  AssertFalse('off it', SplitFromSelection(FPattern, [Edge, Off], EdgeKey, PointKey, Reason));
+  AssertEquals(Format(rsSceneSplitOff, ['Off', 'Line_A_B']), Reason);
+  AssertFalse('an end', SplitFromSelection(FPattern, [Edge, A], EdgeKey, PointKey, Reason));
+  AssertEquals(Format(rsSceneSplitAtEnd, ['A', 'Line_A_B']), Reason);
+  AssertTrue(Reason, SplitFromSelection(FPattern, [Middle, Edge], EdgeKey, PointKey, Reason));
+  AssertEquals('edge', Edge, EdgeKey);
+  AssertEquals('point', Middle, PointKey);
 end;
 
 procedure TTestCanvasModel.TestNotchTarget;

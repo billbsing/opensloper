@@ -53,6 +53,7 @@ uses
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper,
   Sloper.Tests.Piece,
+  Sloper.Tests.Seam,
   Sloper.Tests.Layout,
   Sloper.Tests.MeasurementDocument,
   Sloper.Tests.Catalogue,

@@ -28,7 +28,7 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel;
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams;
 
 type
 
@@ -122,6 +122,8 @@ type
     procedure MeasurementWatchTick(Sender: TObject);
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
+    procedure SplitClick(Sender: TObject);
+    procedure SuggestSeamsClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
     procedure CanvasSelectionChange(Sender: TObject);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
@@ -145,7 +147,8 @@ var
 implementation
 
 uses
-  Math, process, Sloper.Core.Version, Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Output.Layout;
+  Math, process, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.Core.AppPaths, Sloper.Core.Measurements,
+  Sloper.Core.PatternCheck, Sloper.Output.Layout;
 
   {$R *.lfm}
 
@@ -198,6 +201,11 @@ resourcestring
   rsToolCurve = 'Curve';
   rsToolPiece = 'Piece';
   rsToolNotch = 'Notch';
+  rsToolSeam = 'Seam';
+  rsMenuToolsSplit = 'Sp&lit Edge';
+  rsMenuToolsSuggest = 'Suggest Sea&ms...';
+  rsNoSuggestions = 'No more seams to suggest';
+  rsAddSuggestedSeams = 'Add seams';
   rsToolKey = '%s (%s)';
   rsMenuHelp = '&Help';
   rsMenuHelpAbout = '&About OpenSloper';
@@ -523,9 +531,9 @@ end;
 // The toolbar and Tools menu; each item's Tag is its TCanvasTool
 procedure TMainForm.CreateTools;
 const
-  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'K', 'T');
+  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'K', 'T', 'E');
 var
-  MenuTools: TMenuItem;
+  MenuTools, Item: TMenuItem;
   Tool: TCanvasTool;
   Captions: array[TCanvasTool] of string;
 begin
@@ -535,6 +543,7 @@ begin
   Captions[ctCurve] := rsToolCurve;
   Captions[ctPiece] := rsToolPiece;
   Captions[ctNotch] := rsToolNotch;
+  Captions[ctSeam] := rsToolSeam;
   FToolBar := TToolBar.Create(Self);
   FToolBar.Parent := Self;
   FToolBar.Align := alTop;
@@ -566,6 +575,50 @@ begin
     FToolItems[Tool].OnClick := @ToolClick;
     MenuTools.Add(FToolItems[Tool]);
   end;
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := '-';
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsSplit;
+  Item.OnClick := @SplitClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsSuggest;
+  Item.OnClick := @SuggestSeamsClick;
+  MenuTools.Add(Item);
+end;
+
+procedure TMainForm.SplitClick(Sender: TObject);
+begin
+  FCanvas.SplitSelection;
+end;
+
+// All the seams ticked are one undo step
+procedure TMainForm.SuggestSeamsClick(Sender: TObject);
+var
+  Suggestions, Chosen: TSeamSuggestionArray;
+  Item: TSeamSuggestion;
+  Done: boolean;
+  SideA, SideB: TSeamSide;
+begin
+  Suggestions := SuggestSeams(FDocument.Pattern);
+  if Suggestions = nil then
+  begin
+    CanvasMessage(Self, rsNoSuggestions);
+    Exit;
+  end;
+  Chosen := ChooseSeams(Self, FDocument.Pattern, Suggestions);
+  if Chosen = nil then
+    Exit;
+  FDocument.BeginChange(rsAddSuggestedSeams);
+  Done := True;
+  for Item in Chosen do
+  begin
+    SideA := [Item.First];
+    SideB := [Item.Second];
+    Done := Done and (FDocument.Pattern.AddSeam('', SideA, SideB) <> nil);
+  end;
+  FDocument.Commit(Done);
 end;
 
 procedure TMainForm.ToolClick(Sender: TObject);

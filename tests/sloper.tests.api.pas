@@ -97,6 +97,7 @@ type
     procedure TestBuildFromNothing;
     procedure TestEveryPointType;
     procedure TestCurves;
+    procedure TestSeams;
     procedure TestSplitEdge;
     procedure TestCreatePiece;
     procedure TestCreatePieceRefusals;
@@ -836,6 +837,32 @@ begin
   AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
   Call('set_fold', '{"name": "Front", "none": true}');
   AssertFalse(Answer.Get('onFold', True));
+end;
+
+procedure TTestAPI.TestSeams;
+begin
+  AddSquare;
+  Call('create_piece', '{"name": "Front", "x": 50, "y": 50}');
+  Call('add_seam', '{"sideA": [{"piece": "Front", "edge": "Line_A_B"}], "sideB": [{"piece": "Front", "edge": "Line_C_D"}], "name": "Hem", "ease": 5}');
+  AssertEquals('type', 'seam', Answer.Get('type', ''));
+  AssertEquals('lengths', Answer.Get('lengthA', 0.0), Answer.Get('lengthB', -1.0), 0.001);
+  AssertTrue('5 mm of ease is out of tolerance', Answer.Get('outOfTolerance', False));
+  AssertEquals('ease formula', '5', FormulaOf(Answer, 'ease'));
+  Call('flip_seam', '{"name": "Hem"}');
+  AssertTrue('flipped', Answer.Get('reversed', False));
+  Call('undo');
+  Call('get_object', '{"name": "Hem"}');
+  AssertFalse('undone', Answer.Get('reversed', True));
+  Call('flip_seam', '{"name": "Front"}');
+  AssertEquals('not a seam', RpcRefused, ErrorCode);
+  Call('add_seam', '{"sideA": [{"piece": "Front", "edge": "Line_A_B"}], "sideB": []}');
+  AssertEquals('empty side', RpcRefused, ErrorCode);
+  Call('add_seam', '{"sideA": [{"piece": "Front", "edge": "Line_A_B"}]}');
+  AssertEquals('no side', RpcInvalidParams, ErrorCode);
+  Call('delete', '{"name": "Front"}');
+  AssertEquals('piece in use', RpcRefused, ErrorCode);
+  Call('suggest_seams');
+  AssertEquals('one piece has no pairs', 0, Answer.Arrays['suggestions'].Count);
 end;
 
 procedure TTestAPI.TestSplitEdge;

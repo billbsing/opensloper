@@ -29,7 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
-  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Piece;
+  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Seam;
 
 type
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
@@ -60,6 +60,7 @@ type
     procedure AddVariableNode(Variable: TVariable);
     procedure AddObjectNode(DraftObject: TDraftObject);
     procedure KeepInputsBefore(Piece: TPieceObject);
+    function CheckSeamEntry(const Entry: TSeamEntry): boolean;
     // Files list each object after its inputs. A changed point may now read
     // objects further down, so they move up; the rest stay in their order.
     procedure OrderObjectsByInputs;
@@ -167,6 +168,13 @@ type
     // Cuts the piece on the fold along a straight edge of it; an empty EdgeId
     // clears the fold
     function SetFoldEdge(Piece: TPieceObject; const EdgeId: string): boolean;
+    // A seam between two sides. An empty name takes the next free one: Seam,
+    // Seam2 and so on. Nil with LastError set when refused.
+    function AddSeam(const AName: string; const SideA, SideB: TSeamSide; const Ease: string = DefaultSeamEase;
+      const Tolerance: string = DefaultSeamTolerance): TSeamObject;
+    // Whether Side has edges, each once and each on the piece beside it. For
+    // loaders too: a fold set after the seam is made only makes it invalid.
+    function CheckSeamSide(const Side: TSeamSide): boolean;
 
     // Editing returns False when refused, with the reason in LastError
     function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
@@ -236,6 +244,8 @@ resourcestring
   rsPatternPieceTooShort = 'A piece needs at least two edges';
   rsPatternPieceRepeats = 'A piece cannot use %s twice';
   rsPatternNotInPiece = '%s is not part of %s';
+  rsPatternSeamEmptySide = 'Each side of a seam needs at least one edge';
+  rsPatternSeamRepeats = 'A side of a seam cannot use %s of %s twice';
   rsPatternGrainSamePoint = 'The grainline needs two different points';
   rsPatternNoNotch = 'There is no notch %d';
   rsPatternBadCutCount = 'A piece must be cut at least once';
@@ -250,6 +260,7 @@ const
   // Not translated: a name has to keep to the name rules
   NewVariableBaseName = 'variable';
   NewPieceBaseName = 'Piece';
+  NewSeamBaseName = 'Seam';
 
 type
   TPatternResolver = class(TNameResolver)
@@ -1050,8 +1061,6 @@ begin
   SetGrainAngle(Result, DefaultGrainAngle);
 end;
 
-// A file lists an object's inputs before it. Nothing uses a piece, so a piece
-// that takes on a newer point can simply move to the end.
 procedure TPattern.OrderObjectsByInputs;
 var
   Ordered: array of TDraftObject;
@@ -1098,9 +1107,16 @@ begin
   end;
 end;
 
+// A file lists an object's inputs before it. Only seams use a piece, so a piece
+// that takes on a newer point can simply move to the end, with its seams after it.
 procedure TPattern.KeepInputsBefore(Piece: TPieceObject);
+var
+  Index: integer;
 begin
   FObjects.Move(FObjects.IndexOf(Piece), FObjects.Count - 1);
+  for Index := FObjects.Count - 2 downto 0 do
+    if (Objects[Index] is TSeamObject) and TSeamObject(Objects[Index]).UsesPiece(Piece.Key) then
+      FObjects.Move(Index, FObjects.Count - 1);
 end;
 
 function TPattern.SetGrainAngle(Piece: TPieceObject; const Text: string): boolean;
@@ -1205,6 +1221,79 @@ begin
   end;
   Piece.FoldEdgeKey := EdgeId;
   Result := True;
+end;
+
+function TPattern.CheckSeamEntry(const Entry: TSeamEntry): boolean;
+var
+  Node: TEvalNode;
+begin
+  Node := FindNode(Entry.PieceKey);
+  if Node = nil then
+    Exit(SetError(Format(rsPatternUnknownObject, [Entry.PieceKey])));
+  if not (Node is TPieceObject) then
+    Exit(SetError(Format(rsSeamNotAPiece, [Node.DisplayName])));
+  if not CheckEdgeTarget(Entry.EdgeKey) then
+    Exit(False);
+  if TPieceObject(Node).PathIndexOf(Entry.EdgeKey) < 0 then
+    Exit(SetError(Format(rsPatternNotInPiece, [FindNode(Entry.EdgeKey).DisplayName, Node.DisplayName])));
+  Result := True;
+end;
+
+function TPattern.CheckSeamSide(const Side: TSeamSide): boolean;
+var
+  Index, Other: integer;
+begin
+  if Side = nil then
+    Exit(SetError(rsPatternSeamEmptySide));
+  for Index := 0 to High(Side) do
+  begin
+    if not CheckSeamEntry(Side[Index]) then
+      Exit(False);
+    for Other := 0 to Index - 1 do
+      if (Side[Other].PieceKey = Side[Index].PieceKey) and (Side[Other].EdgeKey = Side[Index].EdgeKey) then
+        Exit(SetError(Format(rsPatternSeamRepeats, [FindNode(Side[Index].EdgeKey).DisplayName, FindNode(Side[Index].PieceKey).DisplayName])));
+  end;
+  Result := True;
+end;
+
+function TPattern.AddSeam(const AName: string; const SideA, SideB: TSeamSide; const Ease, Tolerance: string): TSeamObject;
+var
+  Msg, SeamName: string;
+  Entry: TSeamEntry;
+  Piece: TPieceObject;
+begin
+  Result := nil;
+  if not CheckSeamSide(SideA) or not CheckSeamSide(SideB) then
+    Exit;
+  for Entry in Concat(SideA, SideB) do
+  begin
+    Piece := TPieceObject(FindNode(Entry.PieceKey));
+    if Piece.FoldEdgeKey = Entry.EdgeKey then
+    begin
+      SetError(Format(rsSeamOnFold, [FindNode(Entry.EdgeKey).DisplayName, Piece.DisplayName]));
+      Exit;
+    end;
+  end;
+  SeamName := AName;
+  if SeamName = '' then
+  begin
+    FNameExclude := nil;
+    SeamName := NextFreeName(NewSeamBaseName, @ObjectNameTaken);
+  end
+  else if not CheckObjectName(SeamName, nil, Msg) then
+  begin
+    SetError(Msg);
+    Exit;
+  end;
+  Result := TSeamObject.Create(IntToStr(FNextId), SideA, SideB);
+  if not ParseFields(Result, [SeamEaseField, SeamToleranceField], [Ease, Tolerance]) then
+  begin
+    FreeAndNil(Result);
+    Exit;
+  end;
+  Inc(FNextId);
+  Result.Name := SeamName;
+  AddObjectNode(Result);
 end;
 
 function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boolean;

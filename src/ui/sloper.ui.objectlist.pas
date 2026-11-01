@@ -28,10 +28,10 @@ interface
 
 uses
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.Variables, Sloper.Core.Draft,
-  Sloper.Core.Pattern;
+  Sloper.Core.Pattern, Sloper.Core.Seam, Sloper.Core.SeamSuggest;
 
 type
-  // ofProblems: anything not valid
+  // ofPieces: pieces and seams; ofProblems: anything not valid, and seams out of tolerance
   TObjectFilter = (ofAll, ofPoints, ofEdges, ofPieces, ofProblems);
 
   TObjectRow = record
@@ -72,6 +72,12 @@ function TypeCaption(Node: TEvalNode): string;
 function StateCaption(State: TEvalState): string;
 // What the object computes to: a position or a length. Empty before it is computed.
 function ResultText(DraftObject: TDraftObject): string;
+// Each entry of a seam's side, as "Front: Line_A_B"
+function SeamSideText(Pattern: TPattern; const Side: TSeamSide): string;
+// The difference between a seam's sides, with what is expected
+function SeamDifferenceText(Seam: TSeamObject): string;
+// One row of the Suggest Seams list
+function SuggestionCaption(Pattern: TPattern; const Item: TSeamSuggestion): string;
 function ObjectRow(Pattern: TPattern; DraftObject: TDraftObject): TObjectRow;
 // The objects passing Filter whose name, operation or formulas contain Search,
 // ignoring case, in pattern order
@@ -94,6 +100,12 @@ resourcestring
   rsObjectPosition = '%s, %s mm';
   rsObjectLength = '%s mm';
   rsObjectPerimeter = '%s mm';
+  rsObjectSeamLengths = 'A %s mm, B %s mm';
+  rsObjectSeamDifference = '%s mm, expected %s mm';
+  rsObjectSeamEntry = '%s: %s';
+  rsObjectSeamEntryGap = ', ';
+  rsSuggestShared = '%s and %s, shared edge';
+  rsSuggestLengths = '%s and %s, %s mm apart';
   rsObjectFormula = '%s = %s';
   rsObjectFormulaGap = '; ';
   rsMeasurementChanged = '@%s %s → %s mm saved to %s';
@@ -120,6 +132,8 @@ resourcestring
   rsFieldAngle2 = 'End angle';
   rsFieldLength2 = 'End handle';
   rsFieldFormula = 'Formula';
+  rsFieldEase = 'Ease';
+  rsFieldTolerance = 'Tolerance';
   rsFieldNodeAngle = 'Point %s angle';
   rsFieldNodeIn = 'Point %s handle in';
   rsFieldNodeOut = 'Point %s handle out';
@@ -137,6 +151,7 @@ resourcestring
   rsTypePath = 'Curve path';
   rsTypePart = 'Part of a split edge';
   rsTypePiece = 'Piece';
+  rsTypeSeam = 'Seam';
   rsTypeVariable = 'Variable';
 
 implementation
@@ -168,6 +183,8 @@ begin
     Exit(Format(rsFieldNodeOut, [NodeNumber]));
   end;
   case FieldName of
+    'ease': Result := rsFieldEase;
+    'tolerance': Result := rsFieldTolerance;
     'x': Result := rsFieldX;
     'y': Result := rsFieldY;
     'length': Result := rsFieldLength;
@@ -219,6 +236,8 @@ begin
     Result := rsTypePart
   else if Node is TPieceObject then
     Result := rsTypePiece
+  else if Node is TSeamObject then
+    Result := rsTypeSeam
   else if Node is TVariable then
     Result := rsTypeVariable
   else
@@ -247,7 +266,40 @@ begin
   else if DraftObject is TEdgeObject then
     Result := Format(rsObjectLength, [RoundedText(TEdgeObject(DraftObject).Length, 1)])
   else if DraftObject is TPieceObject then
-    Result := Format(rsObjectPerimeter, [RoundedText(TPieceObject(DraftObject).Perimeter, 1)]);
+    Result := Format(rsObjectPerimeter, [RoundedText(TPieceObject(DraftObject).Perimeter, 1)])
+  else if DraftObject is TSeamObject then
+    Result := Format(rsObjectSeamLengths, [RoundedText(TSeamObject(DraftObject).LengthA, 1), RoundedText(TSeamObject(DraftObject).LengthB, 1)]);
+end;
+
+function SeamEntryText(Pattern: TPattern; const Entry: TSeamEntry): string;
+begin
+  Result := Format(rsObjectSeamEntry, [Pattern.FindNode(Entry.PieceKey).DisplayName, Pattern.FindNode(Entry.EdgeKey).DisplayName]);
+end;
+
+function SeamSideText(Pattern: TPattern; const Side: TSeamSide): string;
+var
+  Entry: TSeamEntry;
+begin
+  Result := '';
+  for Entry in Side do
+  begin
+    if Result <> '' then
+      Result := Result + rsObjectSeamEntryGap;
+    Result := Result + SeamEntryText(Pattern, Entry);
+  end;
+end;
+
+function SeamDifferenceText(Seam: TSeamObject): string;
+begin
+  Result := Format(rsObjectSeamDifference, [RoundedText(Seam.Difference, 1), RoundedText(Seam.Ease, 1)]);
+end;
+
+function SuggestionCaption(Pattern: TPattern; const Item: TSeamSuggestion): string;
+begin
+  if Item.Shared then
+    Result := Format(rsSuggestShared, [SeamEntryText(Pattern, Item.First), SeamEntryText(Pattern, Item.Second)])
+  else
+    Result := Format(rsSuggestLengths, [SeamEntryText(Pattern, Item.First), SeamEntryText(Pattern, Item.Second), RoundedText(Item.Difference, 1)]);
 end;
 
 function FormulasText(Pattern: TPattern; DraftObject: TDraftObject): string;
@@ -283,8 +335,8 @@ begin
   case Filter of
     ofPoints: Result := (DraftObject is TPointObject) or (DraftObject is TRepeatObject);
     ofEdges: Result := DraftObject is TEdgeObject;
-    ofPieces: Result := DraftObject is TPieceObject;
-    ofProblems: Result := DraftObject.State <> esValid;
+    ofPieces: Result := (DraftObject is TPieceObject) or (DraftObject is TSeamObject);
+    ofProblems: Result := (DraftObject.State <> esValid) or ((DraftObject is TSeamObject) and TSeamObject(DraftObject).OutOfTolerance);
     else
       Result := True;
   end;

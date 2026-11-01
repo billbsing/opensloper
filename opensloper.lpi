@@ -138,6 +138,21 @@
         <UnitName Value="Sloper.Core.Piece"/>
       </Unit>
       <Unit>
+        <Filename Value="src/core/sloper.core.seam.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Seam"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.seamsuggest.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.SeamSuggest"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.suggestseams.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.SuggestSeams"/>
+      </Unit>
+      <Unit>
         <Filename Value="src/core/sloper.core.piecedetect.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.PieceDetect"/>

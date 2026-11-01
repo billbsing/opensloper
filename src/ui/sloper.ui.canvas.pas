@@ -27,16 +27,17 @@ unit Sloper.UI.Canvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
+  Classes, SysUtils, Controls, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
+  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
   // cmRefused: a drag was refused; the reason stays up until the button is released
   TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging, cmRefused);
   // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
   // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
-  // or removes a notch on a piece's seam line
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctPiece, ctNotch);
+  // or removes a notch on a piece's seam line; ctSeam picks the edges of the
+  // two sides of a seam
+  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctPiece, ctNotch, ctSeam);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -64,6 +65,9 @@ type
     // The first click of a line or curve
     FStartSnap: TSnap;
     FHasStart: boolean;
+    // The seam being picked, and whether clicks go to side B
+    FSeamA, FSeamB: TSeamSide;
+    FSeamOnB: boolean;
     FLabelMode: TLabelMode;
     // The hold-for-all-labels key is down
     FLabelsHeld: boolean;
@@ -95,6 +99,13 @@ type
     procedure ToggleNotchHere(X, Y: integer);
     function RemoveNotchesAt(const At: TVec2; Radius: double): boolean;
     function AddNotchesAt(const At: TVec2; Radius: double): boolean;
+    procedure ToggleSeamEdgeHere(X, Y: integer);
+    procedure ShowSeamProgress;
+    procedure ChangeSeamSide(ToSideB: boolean);
+    procedure MakeSeam;
+    function PickingSeam: boolean;
+    procedure ClearSeamSides;
+    procedure CMWantSpecialKey(var Message: TCMWantSpecialKey); message CM_WANTSPECIALKEY;
     function UsesSnap: boolean;
     procedure CancelStart;
     procedure SetLabelMode(Value: TLabelMode);
@@ -103,7 +114,10 @@ type
     function ToolLabelKeys: TStringArray;
     procedure DrawGrid;
     procedure DrawPiece(Piece: TPieceObject);
+    procedure DrawChevron(const Position: TVec2; Angle: double; const AColor: TBGRAPixel);
     procedure DrawChevrons(Piece: TPieceObject);
+    procedure DrawSeamSide(const Side: TSeamSide; const AColor: TBGRAPixel);
+    procedure DrawSeams;
     procedure DrawPieceMarks(Piece: TPieceObject);
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
@@ -138,6 +152,8 @@ type
     procedure ZoomToSelection;
     // Deletes the selected objects, the dependents first; nothing when any is in use
     procedure DeleteSelection;
+    // Splits the selected edge at the selected point; says why not otherwise
+    procedure SplitSelection;
     property Document: TPatternDocument read FDocument write SetDocument;
     // Keys of the selected objects
     property Selection: TStringArray read FSelection;
@@ -170,11 +186,16 @@ resourcestring
   rsCanvasPieceExists = '%s already covers this region';
   rsCanvasToolNotch = 'Notch: click a piece''s edge to add a notch, or a notch to remove it';
   rsCanvasNoSeam = 'There is no piece''s edge here';
+  rsCanvasToolSeam = 'Seam: click edges for side A, Tab moves to side B, Enter makes the seam';
+  rsCanvasSeamProgress = 'Side %s: A %s mm, B %s mm, difference %s mm. Tab changes side, Enter makes the seam';
+  rsCanvasSeamSides = 'Pick edges for both sides first';
+  rsCanvasAddSeam = 'Add seam';
+  rsCanvasSplit = 'Split edge';
 
 implementation
 
 uses
-  Math, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.UI.Scene;
+  Math, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.Core.Pattern, Sloper.UI.Scene;
 
 const
   // Screen pixels
@@ -192,6 +213,7 @@ const
   SnapMarkerSize = 6;
   ChevronSize = 7;
   ChevronSpread = 150;
+  SeamLineWidth = 4;
   // A line or curve shorter than this (mm) is ignored
   MinEdgeLength = 0.05;
   // Curve handles start this fraction of the way along the chord
@@ -228,6 +250,16 @@ end;
 function SelectedInk: TBGRAPixel;
 begin
   Result := BGRA(37, 116, 214);
+end;
+
+function SeamInkA: TBGRAPixel;
+begin
+  Result := BGRA(214, 96, 37);
+end;
+
+function SeamInkB: TBGRAPixel;
+begin
+  Result := BGRA(20, 140, 120);
 end;
 
 function SnapInk: TBGRAPixel;
@@ -436,6 +468,8 @@ begin
     SetSelection(Kept);
   if (FHoverKey <> '') and (FDocument.Pattern.FindNode(FHoverKey) = nil) then
     FHoverKey := '';
+  FSeamA := ExistingSeamEntries(FDocument.Pattern, FSeamA);
+  FSeamB := ExistingSeamEntries(FDocument.Pattern, FSeamB);
 end;
 
 procedure TPatternCanvas.ZoomIn;
@@ -599,10 +633,38 @@ begin
   SetSelection(nil);
 end;
 
+procedure TPatternCanvas.SplitSelection;
+var
+  EdgeKey, PointKey, Reason, FirstKey, SecondKey: string;
+  First, Second: TSplitPart;
+  Done: boolean;
+begin
+  if FDocument = nil then
+    Exit;
+  if not SplitFromSelection(FDocument.Pattern, FSelection, EdgeKey, PointKey, Reason) then
+  begin
+    ShowMessageText(Reason);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasSplit);
+  Done := FDocument.Pattern.SplitEdge(EdgeKey, FDocument.Pattern.UsePoint(PointKey), First, Second);
+  if Done then
+  begin
+    FirstKey := First.Key;
+    SecondKey := Second.Key;
+  end;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Done) then
+    SetSelection([FirstKey, SecondKey])
+  else
+    ShowMessageText(Reason);
+end;
+
 { Drawing tools }
 
 procedure TPatternCanvas.SetTool(Value: TCanvasTool);
 begin
+  ClearSeamSides;
   FHasStart := False;
   FSnapShown := False;
   if FMode = cmDragging then
@@ -621,6 +683,7 @@ begin
     ctCurve: ShowMessageText(rsCanvasToolCurve);
     ctPiece: ShowMessageText(rsCanvasToolPiece);
     ctNotch: ShowMessageText(rsCanvasToolNotch);
+    ctSeam: ShowMessageText(rsCanvasToolSeam);
   end;
   Invalidate;
   if Assigned(FOnToolChange) then
@@ -836,6 +899,95 @@ begin
     ShowMessageText(rsCanvasNoSeam);
 end;
 
+function TPatternCanvas.PickingSeam: boolean;
+begin
+  Result := (FSeamA <> nil) or (FSeamB <> nil) or FSeamOnB;
+end;
+
+procedure TPatternCanvas.ClearSeamSides;
+begin
+  FSeamA := nil;
+  FSeamB := nil;
+  FSeamOnB := False;
+end;
+
+procedure TPatternCanvas.ShowSeamProgress;
+const
+  SideNames: array[boolean] of string = ('A', 'B');
+var
+  LengthA, LengthB: double;
+begin
+  LengthA := SeamSideLength(FDocument.Pattern, FSeamA);
+  LengthB := SeamSideLength(FDocument.Pattern, FSeamB);
+  ShowMessageText(Format(rsCanvasSeamProgress, [SideNames[FSeamOnB], RoundedText(LengthA, 1), RoundedText(LengthB, 1), RoundedText(LengthB - LengthA, 1)]));
+end;
+
+procedure TPatternCanvas.ToggleSeamEdgeHere(X, Y: integer);
+var
+  Entry: TSeamEntry;
+  Piece: TPieceObject;
+begin
+  if not SeamEntryAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius), Entry) then
+  begin
+    ShowMessageText(rsCanvasNoSeam);
+    Exit;
+  end;
+  Piece := TPieceObject(FDocument.Pattern.FindNode(Entry.PieceKey));
+  if Piece.FoldEdgeKey = Entry.EdgeKey then
+  begin
+    ShowMessageText(Format(rsSeamOnFold, [FDocument.Pattern.FindNode(Entry.EdgeKey).DisplayName, Piece.DisplayName]));
+    Exit;
+  end;
+  if FSeamOnB then
+    ToggleSeamEntry(FSeamB, Entry)
+  else
+    ToggleSeamEntry(FSeamA, Entry);
+  ShowSeamProgress;
+  Invalidate;
+end;
+
+procedure TPatternCanvas.ChangeSeamSide(ToSideB: boolean);
+begin
+  FSeamOnB := ToSideB;
+  ShowSeamProgress;
+end;
+
+procedure TPatternCanvas.MakeSeam;
+var
+  Seam: TSeamObject;
+  Key, Reason: string;
+begin
+  if (FSeamA = nil) or (FSeamB = nil) then
+  begin
+    ShowMessageText(rsCanvasSeamSides);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddSeam);
+  Seam := FDocument.Pattern.AddSeam('', FSeamA, FSeamB);
+  Key := '';
+  if Seam <> nil then
+    Key := Seam.Key;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Seam <> nil) then
+  begin
+    ClearSeamSides;
+    SetSelection([Key]);
+    ShowMessageText(rsCanvasToolSeam);
+  end
+  else
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+// Tab would otherwise move the focus to the next control
+procedure TPatternCanvas.CMWantSpecialKey(var Message: TCMWantSpecialKey);
+begin
+  if (Message.CharCode = VK_TAB) and (FTool = ctSeam) then
+    Message.Result := 1
+  else
+    inherited;
+end;
+
 procedure TPatternCanvas.ClickTool;
 begin
   case FTool of
@@ -878,6 +1030,12 @@ begin
   begin
     if Button = mbLeft then
       ToggleNotchHere(X, Y);
+    Exit;
+  end;
+  if FTool = ctSeam then
+  begin
+    if Button = mbLeft then
+      ToggleSeamEdgeHere(X, Y);
     Exit;
   end;
   if FTool <> ctSelect then
@@ -1015,13 +1173,31 @@ begin
         CancelDrag
       else if FHasStart then
         CancelStart
+      else if PickingSeam then
+      begin
+        ClearSeamSides;
+        ShowMessageText(rsCanvasToolSeam);
+        Invalidate;
+      end
       else if FTool <> ctSelect then
         SetTool(ctSelect)
       else
         SelectNone;
     VK_DELETE, VK_BACK:
       DeleteSelection;
-    VK_S, VK_P, VK_L, VK_C, VK_K, VK_T:
+    VK_TAB:
+    begin
+      if FTool <> ctSeam then
+        Exit;
+      ChangeSeamSide(not (ssShift in Shift));
+    end;
+    VK_RETURN:
+    begin
+      if FTool <> ctSeam then
+        Exit;
+      MakeSeam;
+    end;
+    VK_S, VK_P, VK_L, VK_C, VK_K, VK_T, VK_E:
     begin
       if Shift <> [] then
         Exit;
@@ -1032,6 +1208,7 @@ begin
         VK_C: SetTool(ctCurve);
         VK_K: SetTool(ctPiece);
         VK_T: SetTool(ctNotch);
+        VK_E: SetTool(ctSeam);
       end;
     end;
     VK_N:
@@ -1154,21 +1331,66 @@ begin
   FBitmap.DrawPolygonAntialias(Screen, LineColor, LineWidth);
 end;
 
-// Shown over the edges while a piece is hovered or selected
-procedure TPatternCanvas.DrawChevrons(Piece: TPieceObject);
+procedure TPatternCanvas.DrawChevron(const Position: TVec2; Angle: double; const AColor: TBGRAPixel);
 var
-  Item: TPieceChevron;
   Tip, WingA, WingB: TVec2;
   Size: double;
 begin
   Size := FView.PixelsToMM(ChevronSize);
+  Tip := FView.ToScreen(Position);
+  WingA := FView.ToScreen(PolarPoint(Position, Size, Angle + ChevronSpread));
+  WingB := FView.ToScreen(PolarPoint(Position, Size, Angle - ChevronSpread));
+  FBitmap.DrawPolyLineAntialias([PointF(WingA.X, WingA.Y), PointF(Tip.X, Tip.Y), PointF(WingB.X, WingB.Y)], AColor, 2);
+end;
+
+// Shown over the edges while a piece is hovered or selected
+procedure TPatternCanvas.DrawChevrons(Piece: TPieceObject);
+var
+  Item: TPieceChevron;
+begin
   for Item in PieceChevrons(FDocument.Pattern, Piece) do
+    DrawChevron(Item.Position, Item.Angle, SelectedInk);
+end;
+
+procedure TPatternCanvas.DrawSeamSide(const Side: TSeamSide; const AColor: TBGRAPixel);
+var
+  Entry: TSeamEntry;
+  Model: TVec2Array;
+  Screen: array of TPointF;
+  Index: integer;
+begin
+  for Entry in Side do
   begin
-    Tip := FView.ToScreen(Item.Position);
-    WingA := FView.ToScreen(PolarPoint(Item.Position, Size, Item.Angle + ChevronSpread));
-    WingB := FView.ToScreen(PolarPoint(Item.Position, Size, Item.Angle - ChevronSpread));
-    FBitmap.DrawPolyLineAntialias([PointF(WingA.X, WingA.Y), PointF(Tip.X, Tip.Y), PointF(WingB.X, WingB.Y)], SelectedInk, 2);
+    Model := EdgePolyline(TEdgeObject(FDocument.Pattern.FindNode(Entry.EdgeKey)), FView.PixelsToMM(FlattenPixels));
+    Screen := nil;
+    SetLength(Screen, Length(Model));
+    for Index := 0 to High(Model) do
+      Screen[Index] := ScreenPoint(FView.ToScreen(Model[Index]));
+    FBitmap.DrawPolyLineAntialias(Screen, AColor, SeamLineWidth);
   end;
+end;
+
+// The selected seams, with the way they run, and the one being picked
+procedure TPatternCanvas.DrawSeams;
+var
+  Key: string;
+  Node: TEvalNode;
+  Item: TPieceChevron;
+begin
+  for Key in FSelection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if not (Node is TSeamObject) then
+      Continue;
+    DrawSeamSide(TSeamObject(Node).SideA, SeamInkA);
+    DrawSeamSide(TSeamObject(Node).SideB, SeamInkB);
+    for Item in SeamChevrons(FDocument.Pattern, TSeamObject(Node), False) do
+      DrawChevron(Item.Position, Item.Angle, SeamInkA);
+    for Item in SeamChevrons(FDocument.Pattern, TSeamObject(Node), True) do
+      DrawChevron(Item.Position, Item.Angle, SeamInkB);
+  end;
+  DrawSeamSide(FSeamA, SeamInkA);
+  DrawSeamSide(FSeamB, SeamInkB);
 end;
 
 // The grainline and notches, over the edges
@@ -1286,6 +1508,7 @@ begin
     if IsSelected(DraftObject.Key) or (DraftObject.Key = FHoverKey) then
       DrawChevrons(TPieceObject(DraftObject));
   end;
+  DrawSeams;
   for Point in FDocument.Pattern.AllPoints do
     if Point.HasResult then
       DrawPoint(Point);

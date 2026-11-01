@@ -43,11 +43,11 @@ function ReportFloat(Value: double): TJSONData;
 // The state as written in reports; not translated
 function StateName(State: TEvalState): string;
 // One line per measurement, variable or object in error or invalid, as
-// "Name (error): message". Blocked ones fail because of these, so they are
-// only counted.
+// "Name (error): message", then one per seam out of tolerance. Blocked ones
+// fail because of these, so they are only counted.
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
 // Every variable's value and every object's position (points), length (edges)
-// or areas and perimeter (pieces), with its state; failing ones have a message instead of values.
+// areas and perimeter (pieces), or side lengths (seams), with its state; failing ones have a message instead of values.
 // PatternName and MeasurementName are written as given. The caller frees it.
 function PatternReport(Pattern: TPattern; const PatternName, MeasurementName: string): TJSONObject;
 
@@ -55,12 +55,13 @@ resourcestring
   rsCheckProblem = '%s (%s): %s';
   rsCheckError = 'error';
   rsCheckInvalid = 'invalid';
+  rsCheckSeam = '%s: side A is %s mm and side B %s mm, %s mm from the expected %s mm';
 
 implementation
 
 uses
   Classes, Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry,
-  Sloper.Core.Piece;
+  Sloper.Core.Piece, Sloper.Core.Seam;
 
 function StateName(State: TEvalState): string;
 begin
@@ -109,9 +110,13 @@ begin
 end;
 
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
+const
+  SeamFormat = '0.#';
 var
   Node: TEvalNode;
   StateText: string;
+  Index: integer;
+  Seam: TSeamObject;
 begin
   Result := nil;
   BlockedCount := 0;
@@ -131,6 +136,16 @@ begin
     SetLength(Result, Length(Result) + 1);
     Result[High(Result)] := Format(rsCheckProblem, [Node.DisplayName, StateText, Node.Message]);
   end;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if (Pattern.Objects[Index] is TSeamObject) and (Pattern.Objects[Index].State = esValid) then
+    begin
+      Seam := TSeamObject(Pattern.Objects[Index]);
+      if not Seam.OutOfTolerance then
+        Continue;
+      SetLength(Result, Length(Result) + 1);
+      Result[High(Result)] := Format(rsCheckSeam, [Seam.DisplayName, FormatFloat(SeamFormat, Seam.LengthA), FormatFloat(SeamFormat, Seam.LengthB),
+        FormatFloat(SeamFormat, Seam.Mismatch), FormatFloat(SeamFormat, Seam.Ease)]);
+    end;
 end;
 
 function ReportFloat(Value: double): TJSONData;
@@ -202,6 +217,13 @@ begin
           Item.Add('area', ReportFloat(TPieceObject(DraftObject).Area));
           Item.Add('perimeter', ReportFloat(TPieceObject(DraftObject).Perimeter));
           Item.Add('cutArea', ReportFloat(Abs(SignedArea(TPieceObject(DraftObject).CutLine))));
+        end
+        else if DraftObject is TSeamObject then
+        begin
+          Item.Add('lengthA', ReportFloat(TSeamObject(DraftObject).LengthA));
+          Item.Add('lengthB', ReportFloat(TSeamObject(DraftObject).LengthB));
+          Item.Add('ease', ReportFloat(TSeamObject(DraftObject).Ease));
+          Item.Add('tolerance', ReportFloat(TSeamObject(DraftObject).Tolerance));
         end;
     end;
   except

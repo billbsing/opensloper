@@ -28,7 +28,7 @@ unit Sloper.UI.Properties;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Piece,
+  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Seam,
   Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
 type
@@ -79,6 +79,7 @@ type
     FFoldBox: TComboBox;
     // The edge of each fold choice; '' for none
     FFoldKeys: TStringArray;
+    FSideAText, FSideBText, FDifferenceText: TGridLabel;
     FEdits: array of TEdit;
     // Each field's row for a refused entry, hidden until needed; see RefusalRow
     FRefusals: array of TLabel;
@@ -125,6 +126,9 @@ type
     function KeepsText(Edit: TEdit): boolean;
     procedure RoleChange(Sender: TObject);
     procedure AddPieceRows(Piece: TPieceObject);
+    procedure AddSeamRows;
+    procedure RefreshSeamRows(Seam: TSeamObject);
+    procedure FlipClick(Sender: TObject);
     procedure AddRepeatRows(ARepeat: TRepeatObject);
     procedure EndsChange(Sender: TObject);
     function EditableKey(const Key: string): string;
@@ -165,6 +169,13 @@ resourcestring
   rsPropPosition = 'Position';
   rsPropLength = 'Length';
   rsPropPerimeter = 'Perimeter';
+  rsPropSideA = 'Side A';
+  rsPropSideB = 'Side B';
+  rsPropSeamLengths = 'Lengths';
+  rsPropSeamDifference = 'Difference';
+  rsPropDirection = 'Direction';
+  rsPropFlip = 'Flip';
+  rsPropFlipSeam = 'Flip seam';
   rsPropCut = 'Cut';
   rsPropMirrored = 'Mirrored';
   rsPropFold = 'Fold';
@@ -393,6 +404,9 @@ begin
   FMirrorBox := nil;
   FFoldBox := nil;
   FFoldKeys := nil;
+  FSideAText := nil;
+  FSideBText := nil;
+  FDifferenceText := nil;
   FEdits := nil;
   FRefusals := nil;
   FResult := nil;
@@ -601,14 +615,20 @@ begin
       AddRepeatRows(TRepeatObject(Node));
     if Node is TPieceObject then
       AddPieceRows(TPieceObject(Node));
+    if Node is TSeamObject then
+      AddSeamRows;
     if Node is TPointObject then
       FResult := AddTextRow(rsPropPosition, '', Gap)
     else if Node is TEdgeObject then
       FResult := AddTextRow(rsPropLength, '', Gap)
     else if Node is TPieceObject then
       FResult := AddTextRow(rsPropPerimeter, '', Gap)
+    else if Node is TSeamObject then
+      FResult := AddTextRow(rsPropSeamLengths, '', Gap)
     else if Node is TVariable then
       FResult := AddTextRow(rsPropValue, '', Gap);
+    if Node is TSeamObject then
+      FDifferenceText := AddTextRow(rsPropSeamDifference, '', RowGap);
     FProblem := AddLabel('', Gap);
     FProblem.Font.Color := clRed;
     FDivider.Anchors := [akLeft, akTop, akBottom];
@@ -675,6 +695,8 @@ begin
     FEndsBox.ItemIndex := Ord(not TRepeatObject(Node).IncludeEnds);
   if Node is TPieceObject then
     RefreshPieceRows(TPieceObject(Node));
+  if Node is TSeamObject then
+    RefreshSeamRows(TSeamObject(Node));
   if FResult <> nil then
     if Node is TDraftObject then
       FResult.Caption := ResultText(TDraftObject(Node))
@@ -842,6 +864,45 @@ procedure TPropertiesPanel.EditClick(Sender: TObject);
 begin
   if FCompleter <> nil then
     FCompleter.Hide;
+end;
+
+procedure TPropertiesPanel.AddSeamRows;
+var
+  Flip: TButton;
+begin
+  FSideAText := AddTextRow(rsPropSideA, '', RowGap);
+  FSideBText := AddTextRow(rsPropSideB, '', RowGap);
+  Flip := TButton.Create(Self);
+  Flip.Caption := rsPropFlip;
+  Flip.OnClick := @FlipClick;
+  AddRow(rsPropDirection, Flip, RowGap);
+end;
+
+procedure TPropertiesPanel.RefreshSeamRows(Seam: TSeamObject);
+begin
+  FSideAText.Caption := SeamSideText(FDocument.Pattern, Seam.SideA);
+  FSideBText.Caption := SeamSideText(FDocument.Pattern, Seam.SideB);
+  if Seam.HasResult then
+    FDifferenceText.Caption := SeamDifferenceText(Seam)
+  else
+    FDifferenceText.Caption := '';
+end;
+
+procedure TPropertiesPanel.FlipClick(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TSeamObject) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropFlipSeam);
+    TSeamObject(Node).Reversed := not TSeamObject(Node).Reversed;
+    FDocument.EndChange;
+  finally
+    FCommitting := False;
+  end;
 end;
 
 // Only straight edges can be a fold, so only those are offered

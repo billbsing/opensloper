@@ -14,7 +14,7 @@ These could not be tested properly during development.
 
 ## Known limits
 
-- Pieces cannot use an edge that needs splitting. Detection names the edge, but the canvas has no split command, so the skirt's hem and side seam were split through the Automation API.
+- A piece keeps the edges it was made from, so splitting an edge after making its piece does nothing for it: the piece has to be deleted and made again before a seam can use the parts.
 - An edge's own seam allowance, and a grainline between two points, can only be set through the Automation API.
 - Each Publish… opens another window, rather than finding one already open.
 

@@ -67,7 +67,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Piece;
+  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam;
 
 const
   TypeFreePoint = 'freePoint';
@@ -86,6 +86,7 @@ const
   TypeCurvePath = 'curvePath';
   TypeSplitPart = 'splitPart';
   TypePiece = 'piece';
+  TypeSeam = 'seam';
 
   RoleNames: array[TEdgeRole] of string = ('construction', 'outline');
   OffsetModeNames: array[TOffsetMode] of string = ('polar', 'cartesian');
@@ -113,6 +114,8 @@ type
     function ReadRepeatPoints(Item: TJSONObject; ARepeat: TRepeatObject): boolean;
     function CreateCurvePath(Item: TJSONObject): TDraftObject;
     function CreatePiece(Item: TJSONObject): TDraftObject;
+    function ReadSeamSide(Item: TJSONObject; const AName: string; out Side: TSeamSide): boolean;
+    function CreateSeam(Item: TJSONObject): TDraftObject;
     function ReadGrainline(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
@@ -154,6 +157,8 @@ begin
     Result := TypeSplitPart
   else if DraftObject is TPieceObject then
     Result := TypePiece
+  else if DraftObject is TSeamObject then
+    Result := TypeSeam
   else
     raise Exception.CreateFmt('No file type for %s', [DraftObject.ClassName]);
 end;
@@ -221,6 +226,26 @@ begin
       Item.Add('reversed', Piece.Path[Index].Reversed);
       if Piece.HasOverride(Index) then
         Item.Add(PieceAllowanceField, Piece.Field(Piece.OverrideField(Index)).StoredText);
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+function SaveSeamSide(const Side: TSeamSide): TJSONArray;
+var
+  Entry: TSeamEntry;
+  Item: TJSONObject;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Entry in Side do
+    begin
+      Item := TJSONObject.Create;
+      Result.Add(Item);
+      Item.Add('piece', JSONId(Entry.PieceKey));
+      Item.Add('edge', JSONId(Entry.EdgeKey));
     end;
   except
     FreeAndNil(Result);
@@ -386,6 +411,12 @@ begin
       Result.Add('edge', JSONId(Part.Source));
       Result.Add('point', JSONId(Part.Point));
       Result.Add('part', Part.Part);
+    end
+    else if DraftObject is TSeamObject then
+    begin
+      Result.Add('sideA', SaveSeamSide(TSeamObject(DraftObject).SideA));
+      Result.Add('sideB', SaveSeamSide(TSeamObject(DraftObject).SideB));
+      Result.Add('reversed', TSeamObject(DraftObject).Reversed);
     end
     else if (DraftObject is TLineObject) or (DraftObject is TCurveObject) then
     begin
@@ -824,6 +855,44 @@ begin
     FreeAndNil(Result);
 end;
 
+function TPatternLoader.ReadSeamSide(Item: TJSONObject; const AName: string; out Side: TSeamSide): boolean;
+var
+  Entries: TJSONData;
+  Entry: TJSONObject;
+  Index, PieceId, EdgeId: integer;
+begin
+  Side := nil;
+  Entries := Item.Find(AName);
+  if (Entries = nil) or (Entries.JSONType <> jtArray) then
+    Exit(Missing(AName));
+  SetLength(Side, Entries.Count);
+  for Index := 0 to Entries.Count - 1 do
+  begin
+    if Entries.Items[Index].JSONType <> jtObject then
+      Exit(Missing(AName));
+    Entry := TJSONObject(Entries.Items[Index]);
+    if not GetJSONInteger(Entry, 'piece', PieceId) or not GetJSONInteger(Entry, 'edge', EdgeId) then
+      Exit(Missing(AName));
+    Side[Index].PieceKey := IntToStr(PieceId);
+    Side[Index].EdgeKey := IntToStr(EdgeId);
+  end;
+  if not FPattern.CheckSeamSide(Side) then
+    Exit(Problem(FPattern.LastError));
+  Result := True;
+end;
+
+function TPatternLoader.CreateSeam(Item: TJSONObject): TDraftObject;
+var
+  SideA, SideB: TSeamSide;
+  Flipped: boolean;
+begin
+  Result := nil;
+  if not ReadSeamSide(Item, 'sideA', SideA) or not ReadSeamSide(Item, 'sideB', SideB) or not ReadBoolean(Item, 'reversed', Flipped) then
+    Exit;
+  Result := TSeamObject.Create(FId, SideA, SideB);
+  TSeamObject(Result).Reversed := Flipped;
+end;
+
 // The object with its inputs and options; formulas come later. nil on failure.
 function TPatternLoader.CreateObject(Item: TJSONObject; const TypeText: string): TDraftObject;
 var
@@ -897,6 +966,8 @@ begin
     Result := CreateCurvePath(Item)
   else if TypeText = TypePiece then
     Result := CreatePiece(Item)
+  else if TypeText = TypeSeam then
+    Result := CreateSeam(Item)
   else if TypeText = TypeSplitPart then
   begin
     if ReadInput(Item, 'edge', True, First) and ReadInput(Item, 'point', False, Second) then
@@ -949,10 +1020,10 @@ begin
   if DraftObject = nil then
     Exit(False);
   try
-    // Points and pieces need a name; an edge without one is named after its ends
+    // Points, pieces and seams need a name; an edge without one is named after its ends
     ObjectName := '';
     HasName := Item.Find('name') <> nil;
-    if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) or (DraftObject is TRepeatObject) then
+    if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) or (DraftObject is TSeamObject) or (DraftObject is TRepeatObject) then
     begin
       if not GetJSONString(Item, 'name', ObjectName) then
         Exit(Missing('name'));
