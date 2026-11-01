@@ -191,7 +191,7 @@ implementation
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Garment, Sloper.Core.Transform,
-  Sloper.Output.DraftSVG, Sloper.Output.GarmentSVG, Sloper.Output.Layout,
+  Sloper.Core.Settings, Sloper.Output.DraftSVG, Sloper.Output.GarmentSVG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport;
 
 const
@@ -1941,6 +1941,9 @@ begin
     if not Layout.LoadFromFile(LayoutFile, Err) then
       raise EApiError.Create(RpcRefused, Err);
     Layout.LoadSources;
+    Layout.MachineProfiles := UserMachineProfiles;
+    if OptionalString(Params, 'profile') <> '' then
+      Layout.Output.Profile := OptionalString(Params, 'profile');
     if not ExportLayout(Layout, Chosen, Target, Err) then
       raise EApiError.Create(RpcRefused, Err);
   finally

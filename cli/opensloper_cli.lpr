@@ -37,6 +37,7 @@ uses
   Sloper.Core.Pattern,
   Sloper.Core.PatternFile,
   Sloper.Core.PatternCheck,
+  Sloper.Core.Settings,
   Sloper.Output.DraftSVG,
   Sloper.Output.Layout,
   Sloper.Output.LayoutExport,
@@ -58,7 +59,8 @@ resourcestring
   rsOptOutput = 'layout, export, export-draft: the file to write';
   rsOptDraft = 'export-draft: the draft to export; default: the one the pattern was left on';
   rsOptLabels = 'export-draft: name the points and pieces';
-  rsOptFormat = 'export: pdf, svg or dxf; default: the extension of --output, or pdf';
+  rsOptFormat = 'export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf';
+  rsOptProfile = 'export: a machine profile from the settings, in place of the layout''s';
   rsArgCommand = 'Command to run';
   rsArgPattern = 'Pattern file (.sloper), layout file (.slayout) to export, or for measurements: list, set or missing';
   rsArgFile = 'measurements: the measurement file (.slm)';
@@ -334,7 +336,7 @@ resourcestring
     end;
   end;
 
-  function RunExport(const LayoutFile, OutputOption, FormatOption: string): integer;
+  function RunExport(const LayoutFile, OutputOption, FormatOption, ProfileOption: string): integer;
   var
     Layout: TLayout;
     Target, Err: string;
@@ -364,6 +366,9 @@ resourcestring
         Exit(ExitFailure);
       end;
       Layout.LoadSources;
+      Layout.MachineProfiles := UserMachineProfiles;
+      if ProfileOption <> '' then
+        Layout.Output.Profile := ProfileOption;
       if not ExportLayout(Layout, Chosen, Target, Err) then
       begin
         WriteLn(StdErr, Err);
@@ -372,6 +377,8 @@ resourcestring
       for Problem in Layout.Problems do
         WriteLn(StdErr, Format(rsWarning, [Problem.Text]));
       WriteLn(Format(rsWroteFile, [Target]));
+      if Layout.MaterialUse <> '' then
+        WriteLn(Layout.MaterialUse);
       Result := 0;
     finally
       FreeAndNil(Layout);
@@ -514,6 +521,7 @@ begin
     Parser.AddOption('json', '', '--json', rsOptJSON, '', avSwitch);
     Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
     Parser.AddOption('format', '', '--format', rsOptFormat, 'format');
+    Parser.AddOption('profile', '', '--profile', rsOptProfile, 'name');
     Parser.AddOption('draft', '', '--draft', rsOptDraft, 'name');
     Parser.AddOption('labels', '', '--labels', rsOptLabels, '', avSwitch);
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
@@ -596,7 +604,8 @@ begin
       ExitCode := RunExportDraft(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
         Parser.GetOptionValueAsString('draft'), Parser.GetOptionValueAsString('output'), Parser.IsOption('labels'))
     else
-      ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('format'));
+      ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('format'),
+        Parser.GetOptionValueAsString('profile'));
   finally
     FreeAndNil(Parser);
   end;

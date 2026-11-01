@@ -29,7 +29,8 @@ unit Sloper.Output.Layout;
 interface
 
 uses
-  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.Piece,
+  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.Measurements,
+  Sloper.Core.Pattern, Sloper.Core.Piece,
   Sloper.Output.Tiling;
 
 const
@@ -55,8 +56,9 @@ type
   // is dark, it does nothing
   TLayoutFill = (lfNone, lfTint, lfHatch);
   // okTiled prints on pages of paper; okLarge on one sheet off a roll;
-  // okProjector is one dark sheet with thick light lines, shown on the fabric
-  TOutputKind = (okTiled, okLarge, okProjector);
+  // okProjector is one dark sheet with thick light lines, shown on the fabric;
+  // okMaterial is the fabric or board itself, cut as the pieces lie
+  TOutputKind = (okTiled, okLarge, okProjector, okMaterial);
 
   TLayoutOutput = record
     Kind: TOutputKind;
@@ -69,6 +71,14 @@ type
     Marks: TLayoutMarks;
     Fill: TLayoutFill;
     CalibrationX, CalibrationY: double;
+    // A machine profile's name; empty for plain output
+    Profile: string;
+    // okMaterial's sheet; MaterialLength is 0 for a roll
+    MaterialWidth, MaterialLength: double;
+    // Whether packing may turn pieces across a material with no grain
+    AllowTurns: boolean;
+    // Limits the layout to this fabric, by name; empty for all
+    Fabric: string;
   end;
 
   // A pattern file with its measurement set. The stored paths are as written
@@ -101,14 +111,25 @@ type
 
   TPlacementArray = array of TPlacement;
 
+  // A hole in layout space. Machines cut it as one true circle
+  TPlacedHole = record
+    Centre: TVec2;
+    Diameter: double;
+  end;
+
+  TPlacedHoleArray = array of TPlacedHole;
+
   // A placed piece in layout space, ready to draw
   TPlacedPiece = record
     Placement: integer;
     Caption: string;
     Look: TPieceLook;
     CutLine, SeamLine: TVec2Array;
-    // Grainline, fold bracket and notches
-    Marks: array of TLine2;
+    // Everything marked on the piece as plain strokes, for paper
+    Marks: TLine2Array;
+    // The same marks apart by line type, for machines; see the design document
+    MarkLines, ScoreLines: TLine2Array;
+    Holes: TPlacedHoleArray;
     LabelAt: TVec2;
     Bounds: TRect2;
   end;
@@ -183,6 +204,8 @@ type
     Notes: TSheetNoteArray;
     // The date to print, as text; empty for today. Not saved.
     PrintDate: string;
+    // Known to this user, from the settings. Not saved.
+    MachineProfiles: TMachineProfileArray;
     constructor Create;
     destructor Destroy; override;
     procedure Clear;
@@ -226,6 +249,17 @@ type
     // Leaves the page out of the print, or puts it back
     procedure TogglePage(const Caption: string);
     function Problems: TLayoutProblemArray;
+    // The layout's machine profile, or Standard if it has none. False when it
+    // names one not known, which only stops the exports that need it.
+    function ChosenProfile(out Profile: TMachineProfile): boolean;
+    // Whether pieces are cut as they lie, so fold pieces open out to whole ones
+    function OpensFolds: boolean;
+    // Whether the piece is on the fabric the layout is limited to, if any
+    function InFabric(Source: TLayoutSource; Piece: TPieceObject): boolean;
+    // How wide a sheet pieces can be laid across; large format and material only
+    function UsableWidth: double;
+    // For a material sheet, how much of it the pieces take; '' for other kinds
+    function MaterialUse: string;
     // The blocking problems as one message, or empty when export can go ahead
     function Refusal: string;
     property Sources: TLayoutSourceList read FSources;
@@ -283,6 +317,14 @@ resourcestring
   rsTitleCutList = 'Cut list: %s';
   rsTitleFabrics = 'Fabrics: %s';
   rsLayoutOffSheet = '%s runs off the sheet';
+  rsLayoutPastSheet = '%s runs past the %s by %s mm sheet';
+  rsLayoutPastWidth = '%s is wider than the %s mm material';
+  rsLayoutNoFabric = 'No pattern here has a fabric named %s';
+  rsLayoutBadMaterial = 'A material sheet needs a width above 0 and a length of 0 or more';
+  rsLayoutRollUsed = 'Uses %s mm of the %s mm wide material';
+  rsLayoutSheetUsed = 'Pieces take %s%% of the %s by %s mm sheet';
+  rsLayoutUnknownProfile = 'The machine profile %s is not in the settings';
+  rsLayoutCutAcross = '%s: %s lies across the fabric''s grain here, and a machine would cut it that way';
   rsLayoutProjectedAcross = '%s: %s lies across the fabric''s grain here. Projected as it is, it would be cut that way';
   rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
   rsLayoutBadRoll = 'The roll is too narrow for its margins';
@@ -290,7 +332,7 @@ resourcestring
 implementation
 
 uses
-  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
+  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
 
 const
   CornerNames: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
@@ -304,9 +346,10 @@ const
   DefaultOverlap = 10;
   MarksNames: array[TLayoutMarks] of string = ('diamond', 'none', 'halfCircle');
   FillNames: array[TLayoutFill] of string = ('none', 'tint', 'hatch');
-  KindNames: array[TOutputKind] of string = ('tiled', 'large', 'projector');
+  KindNames: array[TOutputKind] of string = ('tiled', 'large', 'projector', 'material');
   // 36 inches, a common copy-shop width
   DefaultRollWidth = 914;
+  DefaultMaterialWidth = 1500;
   // New rows are this wide before wrapping, and this far apart
   ShelfWidth = 1000;
   ShelfGap = 10;
@@ -421,6 +464,7 @@ begin
   Result.Tiles.Margin := DefaultMargin;
   Result.Tiles.Overlap := DefaultOverlap;
   Result.Marks := lkDiamond;
+  Result.MaterialWidth := DefaultMaterialWidth;
   Result.CalibrationX := 1;
   Result.CalibrationY := 1;
 end;
@@ -691,6 +735,16 @@ begin
       Result.Add('fill', FillNames[Output.Fill]);
     Result.Add('calibrationX', JSONFloat(Output.CalibrationX));
     Result.Add('calibrationY', JSONFloat(Output.CalibrationY));
+    if Output.Profile <> '' then
+      Result.Add('profile', Output.Profile);
+    if Output.MaterialWidth <> DefaultMaterialWidth then
+      Result.Add('materialWidth', JSONFloat(Output.MaterialWidth));
+    if Output.MaterialLength > 0 then
+      Result.Add('materialLength', JSONFloat(Output.MaterialLength));
+    if Output.AllowTurns then
+      Result.Add('allowTurns', True);
+    if Output.Fabric <> '' then
+      Result.Add('fabric', Output.Fabric);
     if Output.ExcludedPages <> nil then
     begin
       Excluded := TJSONArray.Create;
@@ -855,6 +909,19 @@ begin
       if KindText = KindNames[Kind] then
         Output.Kind := Kind;
   ReadOptionalNumber(Item, 'rollWidth', Output.RollWidth);
+  if not GetJSONString(Item, 'profile', Output.Profile) then
+    Output.Profile := '';
+  if not GetJSONString(Item, 'fabric', Output.Fabric) then
+    Output.Fabric := '';
+  ReadOptionalNumber(Item, 'materialWidth', Output.MaterialWidth);
+  ReadOptionalNumber(Item, 'materialLength', Output.MaterialLength);
+  if not GetJSONBoolean(Item, 'allowTurns', Output.AllowTurns) then
+    Output.AllowTurns := False;
+  if (Output.MaterialWidth <= 0) or (Output.MaterialLength < 0) then
+  begin
+    ErrorMessage := rsLayoutBadMaterial;
+    Exit(False);
+  end;
   Excluded := Item.Find('excludedPages');
   if (Excluded <> nil) and (Excluded.JSONType = jtArray) then
     for Index := 0 to Excluded.Count - 1 do
@@ -1048,6 +1115,8 @@ begin
         if Source.Pattern.Objects[Index] is TPieceObject then
         begin
           Piece := TPieceObject(Source.Pattern.Objects[Index]);
+          if not InFabric(Source, Piece) then
+            Continue;
           for Copy := 1 to Piece.CutCount do
             if not IsPlaced(Source.Id, Piece.Key, Copy) then
             begin
@@ -1079,9 +1148,49 @@ end;
 
 // Model space (y up) to layout space (y down) with the top left of the
 // cutting line at (X, Y). A flip mirrors left to right before the rotation.
-function PlaceShape(Piece: TPieceObject; const Placement: TPlacement): TPlacedPiece;
+function ClipperPaths(const Points: TVec2Array): TPathsD;
+var
+  Index: integer;
+begin
+  Result := nil;
+  SetLength(Result, 1);
+  SetLength(Result[0], Length(Points));
+  for Index := 0 to High(Points) do
+  begin
+    Result[0][Index].X := Points[Index].X;
+    Result[0][Index].Y := Points[Index].Y;
+  end;
+end;
+
+// A half piece with its mirror image across the fold, joined into one outline
+function WholeOutline(const Points: TVec2Array; const Fold: TLine2): TVec2Array;
+const
+  // Clipper rounds to this many decimals, and a cut line deserves better than 0.01 mm
+  KeptDecimals = 4;
+var
+  Mirrored: TVec2Array;
+  Joined: TPathsD;
+  Index, Best: integer;
+begin
+  Mirrored := nil;
+  SetLength(Mirrored, Length(Points));
+  for Index := 0 to High(Points) do
+    Mirrored[Index] := MirrorPoint(Points[Index], Fold.P1, Fold.P2);
+  Joined := Union(ClipperPaths(Points), ClipperPaths(Mirrored), frNonZero, KeptDecimals);
+  Best := 0;
+  for Index := 1 to High(Joined) do
+    if Abs(Area(Joined[Index])) > Abs(Area(Joined[Best])) then
+      Best := Index;
+  Result := nil;
+  SetLength(Result, Length(Joined[Best]));
+  for Index := 0 to High(Result) do
+    Result[Index] := Vec2(Joined[Best][Index].X, Joined[Best][Index].Y);
+end;
+
+function PlaceShape(Piece: TPieceObject; const Placement: TPlacement; Whole: boolean): TPlacedPiece;
 var
   Offset: TVec2;
+  Opened, Mirroring: boolean;
 
   function Turned(const P: TVec2): TVec2;
   begin
@@ -1107,21 +1216,84 @@ var
       Result[Index] := Moved(Points[Index]);
   end;
 
+  function Mirror(const P: TVec2): TVec2;
+  begin
+    Result := MirrorPoint(P, Piece.FoldLine.P1, Piece.FoldLine.P2);
+  end;
+
+  function OnTheFold(const P: TVec2): boolean;
+  begin
+    Result := Distance(P, Mirror(P)) < DefaultTolerance;
+  end;
+
+  // An opened piece has each mark on both halves, unless it lies on the fold
+  procedure AddTo(var Lines: TLine2Array; const Stroke: TLine2);
+  begin
+    SetLength(Lines, Length(Lines) + 1);
+    Lines[High(Lines)] := Line2(Moved(Stroke.P1), Moved(Stroke.P2));
+    if Mirroring and not (OnTheFold(Stroke.P1) and OnTheFold(Stroke.P2)) then
+    begin
+      SetLength(Lines, Length(Lines) + 1);
+      Lines[High(Lines)] := Line2(Moved(Mirror(Stroke.P1)), Moved(Mirror(Stroke.P2)));
+    end;
+  end;
+
+  procedure AddHole(const Centre: TVec2; Diameter: double);
+  begin
+    SetLength(Result.Holes, Length(Result.Holes) + 1);
+    Result.Holes[High(Result.Holes)].Centre := Moved(Centre);
+    Result.Holes[High(Result.Holes)].Diameter := Diameter;
+  end;
+
   procedure AddMark(const Stroke: TLine2);
   begin
-    SetLength(Result.Marks, Length(Result.Marks) + 1);
-    Result.Marks[High(Result.Marks)] := Line2(Moved(Stroke.P1), Moved(Stroke.P2));
+    AddTo(Result.Marks, Stroke);
+    AddTo(Result.MarkLines, Stroke);
+  end;
+
+  procedure AddMarkingTypes(const Marking: TMarkingMark);
+  var
+    Index: integer;
+    Stroke: TLine2;
+    Hole: TVec2;
+  begin
+    for Index := 1 to High(Marking.Line) do
+    begin
+      Stroke := Line2(Marking.Line[Index - 1], Marking.Line[Index]);
+      if Marking.Kind = mkFoldLine then
+        AddTo(Result.ScoreLines, Stroke)
+      else
+        AddTo(Result.MarkLines, Stroke);
+    end;
+    for Hole in Marking.Holes do
+    begin
+      AddHole(Hole, Marking.HoleSize);
+      // Stitch holes can run along the fold, and must not be cut twice
+      if Mirroring and not OnTheFold(Hole) then
+        AddHole(Mirror(Hole), Marking.HoleSize);
+    end;
   end;
 
 var
   P: TVec2;
   Stroke: TLine2;
   Mark: TNotchMark;
+  Marking: TMarkingMark;
+  Cut, Seam: TVec2Array;
 begin
   Result := Default(TPlacedPiece);
+  Opened := Whole and Piece.OnFold;
+  Mirroring := False;
+  Cut := Piece.CutLine;
+  Seam := Piece.Outline;
+  if Opened then
+  begin
+    Cut := WholeOutline(Cut, Piece.FoldLine);
+    Seam := WholeOutline(Seam, Piece.FoldLine);
+  end;
   Result.Bounds.MinX := Infinity;
   Result.Bounds.MinY := Infinity;
-  for P in Piece.CutLine do
+  for P in Cut do
   begin
     Result.Bounds.MinX := Min(Result.Bounds.MinX, Turned(P).X);
     Result.Bounds.MinY := Min(Result.Bounds.MinY, Turned(P).Y);
@@ -1132,8 +1304,8 @@ begin
   Result.Bounds.MinY := Infinity;
   Result.Bounds.MaxX := -Infinity;
   Result.Bounds.MaxY := -Infinity;
-  Result.CutLine := MovedAll(Piece.CutLine);
-  Result.SeamLine := MovedAll(Piece.Outline);
+  Result.CutLine := MovedAll(Cut);
+  Result.SeamLine := MovedAll(Seam);
   for P in Result.CutLine do
   begin
     Result.Bounds.MinX := Min(Result.Bounds.MinX, P.X);
@@ -1141,15 +1313,24 @@ begin
     Result.Bounds.MaxX := Max(Result.Bounds.MaxX, P.X);
     Result.Bounds.MaxY := Max(Result.Bounds.MaxY, P.Y);
   end;
+  // One piece has one grainline, even opened out
   for Stroke in Piece.GrainArrow do
     AddMark(Stroke);
-  for Stroke in Piece.FoldArrow do
-    AddMark(Stroke);
+  Mirroring := Opened;
+  if Opened then
+    AddMark(Piece.FoldLine)
+  else
+    for Stroke in Piece.FoldArrow do
+      AddMark(Stroke);
   for Stroke in Piece.MarkingStrokes do
-    AddMark(Stroke);
+    AddTo(Result.Marks, Stroke);
+  for Marking in Piece.MarkingMarks do
+    AddMarkingTypes(Marking);
   for Mark in Piece.NotchMarks do
     AddMark(Line2(Mark.Cut, Mark.Tip));
   Result.LabelAt := Moved(Piece.Middle);
+  if Opened then
+    Result.LabelAt := Moved(Lerp(Piece.Middle, Mirror(Piece.Middle), 0.5));
 end;
 
 // Even copies are the other side of a mirrored pair
@@ -1184,7 +1365,7 @@ begin
     if not Item.CanPlace then
       Continue;
     Placement := NewPlacement(Item, Piece);
-    Shape := PlaceShape(Piece, Placement);
+    Shape := PlaceShape(Piece, Placement, OpensFolds);
     if (RowX > 0) and (RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX > ShelfWidth) then
     begin
       RowX := 0;
@@ -1215,7 +1396,7 @@ begin
   if not Item.CanPlace then
     Exit(-1);
   Placement := NewPlacement(Item, Piece);
-  Shape := PlaceShape(Piece, Placement);
+  Shape := PlaceShape(Piece, Placement, OpensFolds);
   Placement.X := Max(0, Round((At.X - (Shape.Bounds.MaxX - Shape.Bounds.MinX) / 2) / Step) * Step);
   Placement.Y := Max(0, Round((At.Y - (Shape.Bounds.MaxY - Shape.Bounds.MinY) / 2) / Step) * Step);
   SetLength(Placements, Length(Placements) + 1);
@@ -1238,15 +1419,67 @@ begin
   SetLength(Result, Length(Placements));
   Count := 0;
   for Index := 0 to High(Placements) do
-    if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Piece.CutLine <> nil) then
+    if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Piece.CutLine <> nil) and InFabric(Source, Piece) then
     begin
-      Result[Count] := PlaceShape(Piece, Placements[Index]);
+      Result[Count] := PlaceShape(Piece, Placements[Index], OpensFolds);
       Result[Count].Placement := Index;
-      Result[Count].Caption := Source.Pattern.PieceCaption(Piece);
+      Result[Count].Caption := Source.Pattern.PieceCaption(Piece, OpensFolds);
       Result[Count].Look := Source.Pattern.PieceLook(Piece);
       Inc(Count);
     end;
   SetLength(Result, Count);
+end;
+
+function TLayout.OpensFolds: boolean;
+begin
+  Result := (Output.Kind = okMaterial) or (Output.Profile <> '');
+end;
+
+function TLayout.InFabric(Source: TLayoutSource; Piece: TPieceObject): boolean;
+var
+  Fabric: TPatternFabric;
+begin
+  if Output.Fabric = '' then
+    Exit(True);
+  Fabric := Source.Pattern.FabricOf(Piece);
+  Result := (Fabric <> nil) and SameName(Fabric.Name, Output.Fabric);
+end;
+
+function TLayout.UsableWidth: double;
+begin
+  if Output.Kind = okMaterial then
+    Result := Output.MaterialWidth
+  else
+    Result := Output.RollWidth - 2 * Output.Tiles.Margin;
+end;
+
+function TLayout.MaterialUse: string;
+var
+  Shape: TPlacedPiece;
+  Used, Bottom: double;
+begin
+  if Output.Kind <> okMaterial then
+    Exit('');
+  Used := 0;
+  Bottom := 0;
+  for Shape in PlacedPieces do
+  begin
+    Used := Used + Abs(SignedArea(Shape.CutLine));
+    Bottom := Max(Bottom, Shape.Bounds.MaxY);
+  end;
+  if Output.MaterialLength > 0 then
+    Result := Format(rsLayoutSheetUsed, [FormatFloat('0.#', 100 * Used / (Output.MaterialWidth * Output.MaterialLength)),
+      FormatFloat('0.#', Output.MaterialWidth), FormatFloat('0.#', Output.MaterialLength)])
+  else
+    Result := Format(rsLayoutRollUsed, [FormatFloat('0.#', Bottom), FormatFloat('0.#', Output.MaterialWidth)]);
+end;
+
+function TLayout.ChosenProfile(out Profile: TMachineProfile): boolean;
+begin
+  if Output.Profile = '' then
+    Result := FindMachineProfile(MachineProfiles, StandardProfileName, Profile)
+  else
+    Result := FindMachineProfile(MachineProfiles, Output.Profile, Profile);
 end;
 
 function TLayout.Refusal: string;
@@ -1338,11 +1571,13 @@ begin
     ColumnCount := 1;
     SetLength(Result, 1);
     Result[0] := Default(TTilePage);
-    if Output.Kind = okLarge then
-      Result[0].Area.MaxX := Output.RollWidth - 2 * Output.Tiles.Margin
+    if Output.Kind in [okLarge, okMaterial] then
+      Result[0].Area.MaxX := UsableWidth
     else
       Result[0].Area.MaxX := Extent.X;
     Result[0].Area.MaxY := Extent.Y;
+    if Output.Kind = okMaterial then
+      Result[0].Area.MaxY := Max(Extent.Y, Output.MaterialLength);
     Result[0].Blank := (Shapes = nil) and (Notes = nil);
     Exit;
   end;
@@ -1364,20 +1599,6 @@ begin
         (Spread.MaxY > Result[Index].Area.MinY) and (Spread.MinY < Result[Index].Area.MaxY) then
         Result[Index].Blank := False;
     end;
-  end;
-end;
-
-function ClipperPaths(const Points: TVec2Array): TPathsD;
-var
-  Index: integer;
-begin
-  Result := nil;
-  SetLength(Result, 1);
-  SetLength(Result[0], Length(Points));
-  for Index := 0 to High(Points) do
-  begin
-    Result[0][Index].X := Points[Index].X;
-    Result[0][Index].Y := Points[Index].Y;
   end;
 end;
 
@@ -1408,6 +1629,11 @@ begin
       Add(Format(rsLayoutOffSheet, [Shapes[First].Caption]));
     if (Output.Kind = okLarge) and (Shapes[First].Bounds.MaxX > Output.RollWidth - 2 * Output.Tiles.Margin + DefaultTolerance) then
       Add(Format(rsLayoutWiderThanRoll, [Shapes[First].Caption, FormatFloat('0.#', Output.RollWidth)]));
+    if (Output.Kind = okMaterial) and (Output.MaterialLength > 0) and ((Shapes[First].Bounds.MaxX > Output.MaterialWidth + DefaultTolerance) or
+      (Shapes[First].Bounds.MaxY > Output.MaterialLength + DefaultTolerance)) then
+      Add(Format(rsLayoutPastSheet, [Shapes[First].Caption, FormatFloat('0.#', Output.MaterialWidth), FormatFloat('0.#', Output.MaterialLength)]))
+    else if (Output.Kind = okMaterial) and (Shapes[First].Bounds.MaxX > Output.MaterialWidth + DefaultTolerance) then
+      Add(Format(rsLayoutPastWidth, [Shapes[First].Caption, FormatFloat('0.#', Output.MaterialWidth)]));
     for Second := First + 1 to High(Shapes) do
       if (Shapes[First].Bounds.MaxX > Shapes[Second].Bounds.MinX) and (Shapes[Second].Bounds.MaxX > Shapes[First].Bounds.MinX) and
         (Shapes[First].Bounds.MaxY > Shapes[Second].Bounds.MinY) and (Shapes[Second].Bounds.MaxY > Shapes[First].Bounds.MinY) and
@@ -1436,6 +1662,7 @@ var
   Found: TLayoutSource;
   Probe: TPlacement;
   AllRead: boolean;
+  Profile: TMachineProfile;
 
   procedure Add(const Text: string; Blocking: boolean);
   begin
@@ -1445,9 +1672,21 @@ var
     Result[High(Result)].Unplaced := False;
   end;
 
+  function FabricExists: boolean;
+  var
+    Named: TLayoutSource;
+  begin
+    for Named in FSources do
+      if (Named.Pattern <> nil) and (Named.Pattern.FindFabricNamed(Output.Fabric) <> nil) then
+        Exit(True);
+    Result := False;
+  end;
+
 begin
   Result := nil;
   AllRead := True;
+  if (Output.Profile <> '') and not ChosenProfile(Profile) then
+    Add(Format(rsLayoutUnknownProfile, [Output.Profile]), False);
   for Source in FSources do
     if Source.LoadError <> '' then
     begin
@@ -1468,8 +1707,12 @@ begin
       Add(Format(rsLayoutPieceFailing, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.Message]), True);
     if (Placement.Rotation mod 90) <> 0 then
       Add(Format(rsLayoutOffGrain, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Placement.Rotation]), False);
+    if not InFabric(Source, Piece) then
+      Continue;
     if (Output.Kind = okProjector) and ((Placement.Rotation mod 180) <> 0) then
-      Add(Format(rsLayoutProjectedAcross, [ExtractFileName(Source.PatternFile), Piece.DisplayName]), False);
+      Add(Format(rsLayoutProjectedAcross, [ExtractFileName(Source.PatternFile), Piece.DisplayName]), False)
+    else if OpensFolds and ((Placement.Rotation mod 180) <> 0) then
+      Add(Format(rsLayoutCutAcross, [ExtractFileName(Source.PatternFile), Piece.DisplayName]), False);
     if Placement.Copy > Piece.CutCount then
       Add(Format(rsLayoutExtraCopy, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.CutCount, Placement.Copy]), False);
   end;
@@ -1486,8 +1729,10 @@ begin
     if (Source.Pattern <> nil) and (Source.LoadError = '') and not HasPieces(Source) then
       Add(Format(rsLayoutNoPieces, [ExtractFileName(Source.PatternFile)]), False);
   // A source that failed already says why; this is for a sheet that would print blank
-  if AllRead and (Placements = nil) then
+  if AllRead and ((Placements = nil) or ((Output.Fabric <> '') and (PlacedPieces = nil))) then
     Add(rsLayoutNothingPlaced, True);
+  if AllRead and (Output.Fabric <> '') and not FabricExists then
+    Add(Format(rsLayoutNoFabric, [Output.Fabric]), False);
   AddOverlapProblems(Result);
 end;
 

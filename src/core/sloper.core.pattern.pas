@@ -302,7 +302,8 @@ type
     function SetPieceFill(Piece: TPieceObject; const AColor: string; Style: TPieceFillStyle): boolean;
     function PieceLook(Piece: TPieceObject): TPieceLook;
     // CutCaption, with the fabric's name once the pattern has named its fabrics
-    function PieceCaption(Piece: TPieceObject): string;
+    // Whole is for a piece opened out to cut flat
+    function PieceCaption(Piece: TPieceObject; Whole: boolean = False): string;
     // "Main: Front ×1 on fold, Back ×2 · Lining: Front ×1 on fold"
     function CutList: string;
     function FabricNames: string;
@@ -870,11 +871,11 @@ begin
   end;
 end;
 
-function TPattern.PieceCaption(Piece: TPieceObject): string;
+function TPattern.PieceCaption(Piece: TPieceObject; Whole: boolean): string;
 var
   Fabric: TPatternFabric;
 begin
-  Result := Piece.CutCaption;
+  Result := Piece.CutCaption(Whole);
   Fabric := FabricOf(Piece);
   if (Fabric <> nil) and (Fabric.Key <> '') then
     Result := Format(rsPatternPieceCaptionFabric, [Result, Fabric.Name]);

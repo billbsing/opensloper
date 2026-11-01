@@ -27,19 +27,24 @@ unit Sloper.Output.LayoutDXF;
 interface
 
 uses
-  Sloper.Output.Layout;
+  Sloper.Core.MachineProfiles, Sloper.Output.Layout;
 
 const
   LayerCut = '1';
   LayerNotch = '4';
   LayerFold = '6';
   LayerGrain = '7';
+  LayerInternal = '8';
+  LayerHole = '13';
   LayerSeam = '14';
   // The default layer has to be in the table too
-  DXFLayers: array[0..5] of string = ('0', LayerCut, LayerNotch, LayerFold, LayerGrain, LayerSeam);
+  DXFLayers: array[0..7] of string = ('0', LayerCut, LayerNotch, LayerFold, LayerGrain, LayerInternal, LayerHole, LayerSeam);
 
 // The DXF, whatever problems the layout has; callers check first
 function LayoutToDXF(Layout: TLayout): string;
+// Every copy where it was placed, by the profile's line types, for a machine.
+// Layout space with y up, from the bottom of the lowest piece.
+function LayoutToMachineDXF(Layout: TLayout; const Profile: TMachineProfile): string;
 
 resourcestring
   // Not translated by the formats that read them, but kept with the other text
@@ -62,9 +67,18 @@ const
   TextSpacing = 1.5;
   ClosedPolyline = '1';
   ReferencedBlock = '64';
+  // AutoCAD's colour for lines that show against the background
+  DXFInk = 7;
 
 type
   TKeySet = specialize THashSet<string>;
+
+  TDXFLayer = record
+    Name: string;
+    Color: integer;
+  end;
+
+  TDXFLayerArray = array of TDXFLayer;
 
   TDXFWriter = class
   private
@@ -72,11 +86,11 @@ type
     procedure Pair(Code: integer; const Value: string);
     procedure Number(Code: integer; Value: double);
     procedure Place(const P: TVec2; Z: double = 0);
-    procedure Tables;
+    procedure Tables(const Layers: TDXFLayerArray);
   public
     constructor Create;
     destructor Destroy; override;
-    procedure StartFile;
+    procedure StartFile(const Layers: TDXFLayerArray; const Current: string);
     procedure StartSection(const AName: string);
     procedure EndSection;
     procedure StartBlock(const AName: string);
@@ -85,6 +99,8 @@ type
     procedure ClosedPath(const Layer: string; const Points: TVec2Array);
     procedure Line(const Layer: string; const Stroke: TLine2);
     procedure Notch(const Mark: TNotchMark);
+    procedure PointAt(const Layer: string; const At: TVec2);
+    procedure Circle(const Layer: string; const Centre: TVec2; Radius: double);
     procedure TextAt(const Layer: string; const At: TVec2; const AText: string);
     function Finish: string;
   end;
@@ -131,9 +147,9 @@ begin
   Pair(0, 'ENDSEC');
 end;
 
-procedure TDXFWriter.Tables;
+procedure TDXFWriter.Tables(const Layers: TDXFLayerArray);
 var
-  Layer: string;
+  Layer: TDXFLayer;
 begin
   StartSection('TABLES');
   Pair(0, 'TABLE');
@@ -149,13 +165,13 @@ begin
   Pair(0, 'ENDTAB');
   Pair(0, 'TABLE');
   Pair(2, 'LAYER');
-  Pair(70, IntToStr(Length(DXFLayers)));
-  for Layer in DXFLayers do
+  Pair(70, IntToStr(Length(Layers)));
+  for Layer in Layers do
   begin
     Pair(0, 'LAYER');
-    Pair(2, Layer);
+    Pair(2, Layer.Name);
     Pair(70, '0');
-    Pair(62, '7');
+    Pair(62, IntToStr(Layer.Color));
     Pair(6, 'CONTINUOUS');
   end;
   Pair(0, 'ENDTAB');
@@ -176,15 +192,15 @@ begin
   EndSection;
 end;
 
-procedure TDXFWriter.StartFile;
+procedure TDXFWriter.StartFile(const Layers: TDXFLayerArray; const Current: string);
 begin
   StartSection('HEADER');
   Pair(9, '$ACADVER');
   Pair(1, 'AC1009');
   Pair(9, '$CLAYER');
-  Pair(8, LayerCut);
+  Pair(8, Current);
   EndSection;
-  Tables;
+  Tables(Layers);
 end;
 
 procedure TDXFWriter.StartBlock(const AName: string);
@@ -247,6 +263,21 @@ begin
   Pair(8, LayerNotch);
   Place(Mark.Cut, Distance(Mark.Cut, Mark.Tip));
   Number(50, Line2(Mark.Cut, Mark.Tip).Angle);
+end;
+
+procedure TDXFWriter.PointAt(const Layer: string; const At: TVec2);
+begin
+  Pair(0, 'POINT');
+  Pair(8, Layer);
+  Place(At);
+end;
+
+procedure TDXFWriter.Circle(const Layer: string; const Centre: TVec2; Radius: double);
+begin
+  Pair(0, 'CIRCLE');
+  Pair(8, Layer);
+  Place(Centre);
+  Number(40, Radius);
 end;
 
 procedure TDXFWriter.TextAt(const Layer: string; const At: TVec2; const AText: string);
@@ -312,6 +343,9 @@ procedure WritePieceBlock(Writer: TDXFWriter; Pattern: TPattern; Piece: TPieceOb
 var
   At: TVec2;
   Mark: TNotchMark;
+  Marking: TMarkingMark;
+  Hole: TVec2;
+  Index: integer;
   Fabric: TPatternFabric;
 
   procedure AddText(const AText: string);
@@ -330,6 +364,13 @@ begin
     Writer.Line(LayerFold, Piece.FoldLine);
   for Mark in Piece.NotchMarks do
     Writer.Notch(Mark);
+  for Marking in Piece.MarkingMarks do
+  begin
+    for Index := 1 to High(Marking.Line) do
+      Writer.Line(LayerInternal, Line2(Marking.Line[Index - 1], Marking.Line[Index]));
+    for Hole in Marking.Holes do
+      Writer.PointAt(LayerHole, Hole);
+  end;
   At := Piece.Middle;
   AddText(Format(rsDXFPieceName, [Piece.DisplayName]));
   if SizeName <> '' then
@@ -339,6 +380,19 @@ begin
   if (Fabric <> nil) and (Fabric.Key <> '') then
     AddText(Format(rsDXFMaterial, [Fabric.Name]));
   Writer.EndBlock;
+end;
+
+function AAMALayers: TDXFLayerArray;
+var
+  Index: integer;
+begin
+  Result := nil;
+  SetLength(Result, Length(DXFLayers));
+  for Index := 0 to High(DXFLayers) do
+  begin
+    Result[Index].Name := DXFLayers[Index];
+    Result[Index].Color := DXFInk;
+  end;
 end;
 
 function LayoutToDXF(Layout: TLayout): string;
@@ -358,12 +412,12 @@ begin
   try
     Seen := TKeySet.Create;
     Names := TKeySet.Create;
-    Writer.StartFile;
+    Writer.StartFile(AAMALayers, LayerCut);
     Writer.StartSection('BLOCKS');
     for Placement in Layout.Placements do
     begin
       Key := IntToStr(Placement.SourceId) + ':' + Placement.PieceKey;
-      if Seen.Contains(Key) or not Layout.FindPiece(Placement, Source, Piece) or not Piece.HasResult then
+      if Seen.Contains(Key) or not Layout.FindPiece(Placement, Source, Piece) or not Piece.HasResult or not Layout.InFabric(Source, Piece) then
         Continue;
       Seen.Add(Key);
       SizeName := '';
@@ -386,6 +440,134 @@ begin
   finally
     FreeAndNil(Names);
     FreeAndNil(Seen);
+    FreeAndNil(Writer);
+  end;
+end;
+
+// The nearest of the seven plain DXF colours; black and white are both ink
+function NearestDXFColor(const Color: string): integer;
+const
+  Plain: array[0..7, 0..3] of integer = ((255, 0, 0, 1), (255, 255, 0, 2), (0, 255, 0, 3), (0, 255, 255, 4), (0, 0, 255, 5),
+    (255, 0, 255, 6), (0, 0, 0, DXFInk), (255, 255, 255, DXFInk));
+var
+  Red, Green, Blue, Index, Gap, Best: integer;
+begin
+  Red := StrToInt('$' + Copy(Color, 2, 2));
+  Green := StrToInt('$' + Copy(Color, 4, 2));
+  Blue := StrToInt('$' + Copy(Color, 6, 2));
+  Result := DXFInk;
+  Best := MaxInt;
+  for Index := Low(Plain) to High(Plain) do
+  begin
+    Gap := Sqr(Red - Plain[Index, 0]) + Sqr(Green - Plain[Index, 1]) + Sqr(Blue - Plain[Index, 2]);
+    if Gap < Best then
+    begin
+      Best := Gap;
+      Result := Plain[Index, 3];
+    end;
+  end;
+end;
+
+// Layers in use, once each: two line types may share one
+function MachineLayers(const Profile: TMachineProfile): TDXFLayerArray;
+var
+  Kind: TLineType;
+  Seen: TKeySet;
+  Layer: TDXFLayer;
+begin
+  Result := nil;
+  Seen := TKeySet.Create;
+  try
+    Layer.Name := '0';
+    Layer.Color := DXFInk;
+    Seen.Add(Layer.Name);
+    Insert(Layer, Result, 0);
+    for Kind := Low(TLineType) to High(TLineType) do
+    begin
+      Layer.Name := BlockNameFrom(Profile.Lines[Kind].Layer);
+      Layer.Color := NearestDXFColor(Profile.Lines[Kind].Color);
+      if Profile.Lines[Kind].Enabled and not Seen.Contains(LowerCase(Layer.Name)) then
+      begin
+        Seen.Add(LowerCase(Layer.Name));
+        Insert(Layer, Result, Length(Result));
+      end;
+    end;
+  finally
+    FreeAndNil(Seen);
+  end;
+end;
+
+procedure WriteMachinePiece(Writer: TDXFWriter; const Shape: TPlacedPiece; const Profile: TMachineProfile; Top: double);
+
+  function Up(const P: TVec2): TVec2;
+  begin
+    Result := Vec2(P.X, Top - P.Y);
+  end;
+
+  function UpAll(const Points: TVec2Array): TVec2Array;
+  var
+    Index: integer;
+  begin
+    Result := nil;
+    SetLength(Result, Length(Points));
+    for Index := 0 to High(Points) do
+      Result[Index] := Up(Points[Index]);
+  end;
+
+  procedure Strokes(const Layer: string; const Lines: TLine2Array);
+  var
+    Stroke: TLine2;
+  begin
+    for Stroke in Lines do
+      Writer.Line(Layer, Line2(Up(Stroke.P1), Up(Stroke.P2)));
+  end;
+
+var
+  Kind: TLineType;
+  Layer: string;
+  Hole: TPlacedHole;
+begin
+  for Kind in MachineOrder do
+  begin
+    if not Profile.Lines[Kind].Enabled then
+      Continue;
+    Layer := BlockNameFrom(Profile.Lines[Kind].Layer);
+    case Kind of
+      ltCut: Writer.ClosedPath(Layer, UpAll(Shape.CutLine));
+      ltScore: Strokes(Layer, Shape.ScoreLines);
+      ltMark:
+      begin
+        Writer.ClosedPath(Layer, UpAll(Shape.SeamLine));
+        Strokes(Layer, Shape.MarkLines);
+      end;
+      ltEngrave: Writer.TextAt(Layer, Up(Shape.LabelAt), Shape.Caption);
+      ltHole:
+        for Hole in Shape.Holes do
+          Writer.Circle(Layer, Up(Hole.Centre), Hole.Diameter / 2);
+    end;
+  end;
+end;
+
+function LayoutToMachineDXF(Layout: TLayout; const Profile: TMachineProfile): string;
+var
+  Writer: TDXFWriter;
+  Shapes: TPlacedPieceArray;
+  Shape: TPlacedPiece;
+  Top: double;
+begin
+  Shapes := Layout.PlacedPieces;
+  Top := 0;
+  for Shape in Shapes do
+    Top := Max(Top, Shape.Bounds.MaxY);
+  Writer := TDXFWriter.Create;
+  try
+    Writer.StartFile(MachineLayers(Profile), '0');
+    Writer.StartSection('ENTITIES');
+    for Shape in Shapes do
+      WriteMachinePiece(Writer, Shape, Profile, Top);
+    Writer.EndSection;
+    Result := Writer.Finish;
+  finally
     FreeAndNil(Writer);
   end;
 end;

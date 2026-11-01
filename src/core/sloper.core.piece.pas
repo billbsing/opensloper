@@ -128,7 +128,7 @@ type
     function ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray; Anticlockwise: boolean;
       out Mark: TNotchMark): TEvalState;
     procedure ComputeFold(Context: TEvalContext; Anticlockwise: boolean; out Line: TLine2; out Inwards: double);
-    function ComputeMarking(Context: TEvalContext; Index: integer; const Cut: TVec2Array; out Mark: TMarkingMark): TEvalState;
+    function ComputeMarking(Context: TEvalContext; Index: integer; const Cut: TVec2Array; const Fold: TLine2; out Mark: TMarkingMark): TEvalState;
     function OutwardAngle(Edge: TEdgeObject; PathIndex: integer; Position: double; Anticlockwise: boolean): double;
     function LocateNotch(Context: TEvalContext; Index: integer; out PathIndex: integer; out Position: double): TEvalState;
   public
@@ -167,7 +167,8 @@ type
     // it at each end. Empty when the piece is not cut on a fold.
     function FoldArrow: TLine2Array;
     // The name with how to cut it: "Front, cut 2 mirrored"
-    function CutCaption: string;
+    // Whole leaves out "on fold", for a piece opened out to cut flat
+    function CutCaption(Whole: boolean = False): string;
     property Path: TPiecePath read FPath;
     // Last good seam line, closed without repeating its first point
     property Outline: TVec2Array read FOutline;
@@ -210,6 +211,7 @@ resourcestring
   rsPieceNoCutLine = 'No cutting line could be worked out';
   rsPieceGrainSamePlace = 'The grainline starts and ends at the same place';
   rsPieceHoleOutside = 'The hole at %s is outside the piece';
+  rsPieceHoleOnFold = 'The hole at %s is on the fold';
   rsPieceHoleSize = 'A hole needs a size above 0';
   rsPieceStitchSpacing = 'Stitch holes need a spacing above 0';
   rsPieceNotchOffPiece = 'The notch at %s is not on the seam line';
@@ -386,7 +388,7 @@ begin
     System.Delete(FMarkingMarks, Index, 1);
 end;
 
-function TPieceObject.ComputeMarking(Context: TEvalContext; Index: integer; const Cut: TVec2Array; out Mark: TMarkingMark): TEvalState;
+function TPieceObject.ComputeMarking(Context: TEvalContext; Index: integer; const Cut: TVec2Array; const Fold: TLine2; out Mark: TMarkingMark): TEvalState;
 var
   Marking: TPieceMarking;
   Node: TEvalNode;
@@ -406,6 +408,10 @@ begin
       Exit(esError);
     if Diameter <= 0 then
       Exit(Fail(esInvalid, rsPieceHoleSize));
+    // Checked first: a point on the outline can pass the test below or not,
+    // and a hole here would have no other half when the piece opens out
+    if OnFold and (Distance(TPointObject(Node).Position, MirrorPoint(TPointObject(Node).Position, Fold.P1, Fold.P2)) < DefaultTolerance) then
+      Exit(Fail(esInvalid, Format(rsPieceHoleOnFold, [Node.DisplayName])));
     if not PointInPolygon(TPointObject(Node).Position, Cut) then
       Exit(Fail(esInvalid, Format(rsPieceHoleOutside, [Node.DisplayName])));
     SetLength(Mark.Holes, 1);
@@ -735,15 +741,15 @@ begin
     if Result <> esValid then
       Exit;
   end;
+  ComputeFold(Context, SignedArea(Points) > 0, NewFold, FoldInwards);
   NewMarkings := nil;
   SetLength(NewMarkings, Length(FMarkings));
   for Index := 0 to High(FMarkings) do
   begin
-    Result := ComputeMarking(Context, Index, Cut, NewMarkings[Index]);
+    Result := ComputeMarking(Context, Index, Cut, NewFold, NewMarkings[Index]);
     if Result <> esValid then
       Exit;
   end;
-  ComputeFold(Context, SignedArea(Points) > 0, NewFold, FoldInwards);
   FMarkingMarks := NewMarkings;
   FOutline := Points;
   FCutLine := Cut;
@@ -775,9 +781,9 @@ begin
   Result := FFoldEdgeKey <> '';
 end;
 
-function TPieceObject.CutCaption: string;
+function TPieceObject.CutCaption(Whole: boolean): string;
 begin
-  if OnFold then
+  if OnFold and not Whole then
     Result := Format(rsPieceCaptionFold, [DisplayName, FCutCount])
   else if FMirrored and (FCutCount > 1) then
     Result := Format(rsPieceCaptionMirrored, [DisplayName, FCutCount])

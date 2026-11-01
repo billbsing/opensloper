@@ -148,7 +148,7 @@ end;
 
 // Keeps Best when this size has no better spot, judged by how far down the
 // bottom edge comes, then how far left
-procedure TrySize(const Boxes: TPackBoxArray; const Xs, Ys: TDoubleArray; Width, Height, Limit: double; Turned: boolean;
+procedure TrySize(const Boxes: TPackBoxArray; const Xs, Ys: TDoubleArray; Width, Height, Limit, Depth: double; Turned: boolean;
   var Found: boolean; var Best: TPackSpot; var BestBottom: double);
 var
   X, Y, Bottom: double;
@@ -158,6 +158,8 @@ begin
   for Y in Ys do
   begin
     Bottom := Y + Height;
+    if Bottom > Depth + CloseEnough then
+      Continue;
     if Found and (Bottom > BestBottom + CloseEnough) then
       Continue;
     for X in Xs do
@@ -178,8 +180,9 @@ begin
   end;
 end;
 
-// Items that fit, in Spots; returns how many did not
-function PackInto(const Items: TPackItemArray; Limit: double; out Spots: TPackSpotArray): integer;
+// Items that fit, in Spots; returns how many did not. Depth is how far down
+// pieces can go, and Turns says whether a quarter turn may be tried.
+function PackInto(const Items: TPackItemArray; Limit: double; out Spots: TPackSpotArray; Depth: double = Infinity; Turns: boolean = True): integer;
 var
   Item: TPackItem;
   Boxes: TPackBoxArray;
@@ -199,8 +202,9 @@ begin
     Best := Default(TPackSpot);
     Best.Placement := Item.Placement;
     BestBottom := 0;
-    TrySize(Boxes, Xs, Ys, Item.Width, Item.Height, Limit, False, Found, Best, BestBottom);
-    TrySize(Boxes, Xs, Ys, Item.Height, Item.Width, Limit, True, Found, Best, BestBottom);
+    TrySize(Boxes, Xs, Ys, Item.Width, Item.Height, Limit, Depth, False, Found, Best, BestBottom);
+    if Turns then
+      TrySize(Boxes, Xs, Ys, Item.Height, Item.Width, Limit, Depth, True, Found, Best, BestBottom);
     if not Found then
     begin
       Inc(Result);
@@ -306,12 +310,19 @@ begin
   end;
 end;
 
+function SheetDepth(Layout: TLayout): double;
+begin
+  Result := Infinity;
+  if (Layout.Output.Kind = okMaterial) and (Layout.Output.MaterialLength > 0) then
+    Result := Layout.Output.MaterialLength;
+end;
+
 function FitsRoll(Layout: TLayout): boolean;
 var
   Shape: TPlacedPiece;
 begin
   for Shape in Layout.PlacedPieces do
-    if Shape.Bounds.MaxX > Layout.Output.RollWidth - 2 * Layout.Output.Tiles.Margin + CloseEnough then
+    if (Shape.Bounds.MaxX > Layout.UsableWidth + CloseEnough) or (Shape.Bounds.MaxY > SheetDepth(Layout) + CloseEnough) then
       Exit(False);
   Result := True;
 end;
@@ -351,7 +362,7 @@ begin
   if Layout.Output.Kind = okTiled then
     Spots := BestTiledSpots(Layout, Items)
   else
-    Result.LeftOut := PackInto(Items, Layout.Output.RollWidth - 2 * Layout.Output.Tiles.Margin, Spots);
+    Result.LeftOut := PackInto(Items, Layout.UsableWidth, Spots, SheetDepth(Layout), (Layout.Output.Kind <> okMaterial) or Layout.Output.AllowTurns);
   ApplySpots(Layout, Spots);
   Result.Pages := PagesInUse(Layout);
   if CanKeep and LessThan(PagesBefore, LengthBefore, Result.Pages, SheetLength(Layout)) then

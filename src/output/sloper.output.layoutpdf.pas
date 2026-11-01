@@ -543,6 +543,8 @@ function OneSheetWidth(Layout: TLayout; const PageWidth: double): double;
 begin
   if Layout.Output.Kind = okLarge then
     Result := Layout.Output.RollWidth
+  else if Layout.Output.Kind = okMaterial then
+    Result := Layout.Output.MaterialWidth + 2 * Layout.Output.Tiles.Margin
   else
     Result := Max(MinProjectorWidth, 2 * Layout.Output.Tiles.Margin + PageWidth * Layout.Output.CalibrationX);
 end;

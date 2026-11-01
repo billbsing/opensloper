@@ -47,11 +47,13 @@ type
     FStatus: TStatusBar;
     FPatternsSide: TWinControl;
     FOutputScroll: TScrollBox;
-    FKindBox, FPaperBox, FMarksBox, FFillBox, FSizeBox: TComboBox;
+    FKindBox, FPaperBox, FMarksBox, FFillBox, FProfileBox, FFabricBox, FSizeBox: TComboBox;
+    FAllowTurnsBox: TCheckBox;
     FSourceBox: TListBox;
     FSourceSetLabel: TLabel;
     FRemoveSourceButton, FChooseSetButton, FPatternSetButton: TButton;
-    FPaperWidthEdit, FPaperHeightEdit, FRollEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit, FCalibrationYEdit: TFloatSpinEdit;
+    FPaperWidthEdit, FPaperHeightEdit, FRollEdit, FMaterialWidthEdit, FMaterialLengthEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit,
+    FCalibrationYEdit: TFloatSpinEdit;
     FTray, FProblems: TListBox;
     // What each tray line stands for
     FTrayCopies: TUnplacedCopyArray;
@@ -68,6 +70,8 @@ type
     procedure BuildPatternsTab;
     function CurrentSource: TLayoutSource;
     procedure RefreshPatternsTab;
+    procedure RefreshProfiles;
+    procedure RefreshFabrics;
     procedure AddSourceClick(Sender: TObject);
     procedure RemoveSourceClick(Sender: TObject);
     procedure ChooseSetClick(Sender: TObject);
@@ -131,6 +135,7 @@ resourcestring
   rsMenuExport = '&Export PDF...';
   rsMenuExportSVG = 'Export S&VG...';
   rsMenuExportDXF = 'Export &DXF...';
+  rsMenuExportMachineDXF = 'Export &Machine DXF...';
   rsMenuQuit = '&Quit';
   rsMenuEdit = '&Edit';
   rsMenuUndo = '&Undo';
@@ -143,6 +148,12 @@ resourcestring
   rsOutputTiled = 'Tiled pages';
   rsOutputLarge = 'Large format';
   rsOutputProjector = 'Projector';
+  rsOutputMaterial = 'Material sheet';
+  rsMaterialWidth = 'Material width (mm)';
+  rsMaterialLength = 'Material length (mm), 0 for a roll';
+  rsAllowTurns = 'Allow quarter turns (no grain)';
+  rsFabricLimit = 'Fabric';
+  rsFabricAll = 'All fabrics';
   rsRollWidth = 'Roll width (mm)';
   rsPaper = 'Paper';
   rsMargin = 'Margin (mm)';
@@ -211,6 +222,9 @@ resourcestring
   rsExportPDF = 'Export PDF...';
   rsExportSVG = 'Export SVG...';
   rsExportDXF = 'Export DXF...';
+  rsExportMachineDXF = 'Export Machine DXF...';
+  rsProfile = 'Machine profile';
+  rsProfileNone = 'None';
   rsPackPieces = 'Pack pieces';
   rsPackChange = 'Pack pieces';
   rsPackedPages = 'Packed %d copies on %d pages';
@@ -232,11 +246,13 @@ resourcestring
   rsFilterPDF = 'PDF (*.pdf)|*.pdf';
   rsFilterSVG = 'SVG (*.svg)|*.svg';
   rsFilterDXF = 'DXF-AAMA (*.dxf)|*.dxf';
+  rsFilterMachineDXF = 'Machine DXF (*.dxf)|*.dxf';
 
 implementation
 
 uses
-  LCLType, Math, Sloper.Core.Geometry, Sloper.Output.LayoutExport, Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
+  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.Settings, Sloper.Output.LayoutExport,
+  Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
   SideWidth = 340;
@@ -270,6 +286,7 @@ begin
   Position := poScreenCenter;
   OnCloseQuery := @CloseAsked;
   FDocument := TLayoutDocument.Create;
+  FDocument.Layout.MachineProfiles := UserMachineProfiles;
   FDocument.OnChange := @DocumentChanged;
   BuildMenu;
   FStatus := TStatusBar.Create(Self);
@@ -358,6 +375,7 @@ begin
   AddItem(Group, rsMenuExport, @ExportClick, ShortCut(VK_E, [ssModifier])).Tag := Ord(efPDF);
   AddItem(Group, rsMenuExportSVG, @ExportClick).Tag := Ord(efSVG);
   AddItem(Group, rsMenuExportDXF, @ExportClick).Tag := Ord(efDXF);
+  AddItem(Group, rsMenuExportMachineDXF, @ExportClick).Tag := Ord(efMachineDXF);
   AddItem(Group, rsMenuQuit, @QuitClick, ShortCut(VK_Q, [ssModifier]));
   Group := AddMenu(rsMenuEdit);
   FUndoItem := AddItem(Group, rsMenuUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
@@ -568,8 +586,15 @@ begin
   FKindBox.Items.Add(rsOutputTiled);
   FKindBox.Items.Add(rsOutputLarge);
   FKindBox.Items.Add(rsOutputProjector);
+  FKindBox.Items.Add(rsOutputMaterial);
   FKindBox.OnChange := @SettingChange;
   FRollEdit := AddSpin(rsRollWidth, MaxRollWidth, 1, 0);
+  FMaterialWidthEdit := AddSpin(rsMaterialWidth, MaxRollWidth, 1, 0);
+  FMaterialLengthEdit := AddSpin(rsMaterialLength, MaxRollWidth, 1, 0);
+  FAllowTurnsBox := TCheckBox.Create(Self);
+  FAllowTurnsBox.Caption := rsAllowTurns;
+  PlaceRow(FAllowTurnsBox);
+  FAllowTurnsBox.OnClick := @SettingChange;
   AddLabel(rsPaper);
   FPaperBox := TComboBox.Create(Self);
   PlaceRow(FPaperBox);
@@ -596,9 +621,12 @@ begin
   FFillBox.Items.Add(rsFillNone);
   FFillBox.Items.Add(rsFillTint);
   FFillBox.Items.Add(rsFillHatch);
+  FProfileBox := AddChoice(rsProfile);
+  FFabricBox := AddChoice(rsFabricLimit);
   AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
   AddButton(rsExportSVG, @ExportClick).Tag := Ord(efSVG);
   AddButton(rsExportDXF, @ExportClick).Tag := Ord(efDXF);
+  AddButton(rsExportMachineDXF, @ExportClick).Tag := Ord(efMachineDXF);
 end;
 
 procedure TPublishForm.BuildPatternsTab;
@@ -626,6 +654,50 @@ begin
   Result := nil;
   if (FSourceBox.ItemIndex >= 0) and (FSourceBox.ItemIndex < FDocument.Layout.Sources.Count) then
     Result := FDocument.Layout.Sources[FSourceBox.ItemIndex];
+end;
+
+// A name this user does not have stays listed, so opening a layout from
+// another computer does not change it
+procedure TPublishForm.RefreshProfiles;
+var
+  Profile: TMachineProfile;
+  Layout: TLayout;
+begin
+  Layout := FDocument.Layout;
+  FProfileBox.Items.Clear;
+  FProfileBox.Items.Add(rsProfileNone);
+  FProfileBox.Items.Add(StandardProfileName);
+  for Profile in Layout.MachineProfiles do
+    if FProfileBox.Items.IndexOf(Profile.Name) < 0 then
+      FProfileBox.Items.Add(Profile.Name);
+  if (Layout.Output.Profile <> '') and (FProfileBox.Items.IndexOf(Layout.Output.Profile) < 0) then
+    FProfileBox.Items.Add(Layout.Output.Profile);
+  FProfileBox.ItemIndex := 0;
+  if Layout.Output.Profile <> '' then
+    FProfileBox.ItemIndex := FProfileBox.Items.IndexOf(Layout.Output.Profile);
+end;
+
+// Every fabric in the layout's patterns, each name once; a name no pattern has
+// stays listed, so the choice is not lost when a pattern changes
+procedure TPublishForm.RefreshFabrics;
+var
+  Source: TLayoutSource;
+  Index: integer;
+  Layout: TLayout;
+begin
+  Layout := FDocument.Layout;
+  FFabricBox.Items.Clear;
+  FFabricBox.Items.Add(rsFabricAll);
+  for Source in Layout.Sources do
+    if Source.Pattern <> nil then
+      for Index := 0 to Source.Pattern.FabricCount - 1 do
+        if FFabricBox.Items.IndexOf(Source.Pattern.Fabrics[Index].Name) < 0 then
+          FFabricBox.Items.Add(Source.Pattern.Fabrics[Index].Name);
+  if (Layout.Output.Fabric <> '') and (FFabricBox.Items.IndexOf(Layout.Output.Fabric) < 0) then
+    FFabricBox.Items.Add(Layout.Output.Fabric);
+  FFabricBox.ItemIndex := 0;
+  if Layout.Output.Fabric <> '' then
+    FFabricBox.ItemIndex := FFabricBox.Items.IndexOf(Layout.Output.Fabric);
 end;
 
 procedure TPublishForm.RefreshPatternsTab;
@@ -919,6 +991,14 @@ begin
     FMarksBox.Enabled := Layout.Output.Kind = okTiled;
     FFillBox.ItemIndex := Ord(Layout.Output.Fill);
     FFillBox.Enabled := Layout.Output.Kind <> okProjector;
+    RefreshProfiles;
+    RefreshFabrics;
+    FMaterialWidthEdit.Value := Layout.Output.MaterialWidth;
+    FMaterialWidthEdit.Enabled := Layout.Output.Kind = okMaterial;
+    FMaterialLengthEdit.Value := Layout.Output.MaterialLength;
+    FMaterialLengthEdit.Enabled := Layout.Output.Kind = okMaterial;
+    FAllowTurnsBox.Checked := Layout.Output.AllowTurns;
+    FAllowTurnsBox.Enabled := Layout.Output.Kind = okMaterial;
     RefreshPatternsTab;
     FMarginEdit.Value := Layout.Output.Tiles.Margin;
     FOverlapEdit.Value := Layout.Output.Tiles.Overlap;
@@ -949,6 +1029,8 @@ begin
   begin
     ShowStatus(Format(rsLargeSheet, [FormatFloat('0', OneSheetWidth(Layout, Pages[0].Area.MaxX)),
       FormatFloat('0', LargeSheetLength(Layout, Pages[0].Area.MaxY))]));
+    if Layout.Output.Kind = okMaterial then
+      ShowStatus(Layout.MaterialUse);
     Exit;
   end;
   Blank := 0;
@@ -983,6 +1065,17 @@ begin
     PaperSize(Output.Paper, Output.Tiles.PaperWidth, Output.Tiles.PaperHeight);
   Output.Marks := TLayoutMarks(FMarksBox.ItemIndex);
   Output.Fill := TLayoutFill(FFillBox.ItemIndex);
+  Output.MaterialWidth := FMaterialWidthEdit.Value;
+  Output.MaterialLength := FMaterialLengthEdit.Value;
+  Output.AllowTurns := FAllowTurnsBox.Checked;
+  if FFabricBox.ItemIndex > 0 then
+    Output.Fabric := FFabricBox.Items[FFabricBox.ItemIndex]
+  else
+    Output.Fabric := '';
+  if FProfileBox.ItemIndex > 0 then
+    Output.Profile := FProfileBox.Items[FProfileBox.ItemIndex]
+  else
+    Output.Profile := '';
   Output.Tiles.Margin := FMarginEdit.Value;
   Output.Tiles.Overlap := FOverlapEdit.Value;
   Output.CalibrationX := FCalibrationXEdit.Value;
@@ -992,7 +1085,7 @@ begin
     (Output.Tiles.PaperHeight <> Before.Tiles.PaperHeight) or (Output.Tiles.Margin <> Before.Tiles.Margin) or (Output.Tiles.Overlap <> Before.Tiles.Overlap) or
     (Output.Kind <> Before.Kind) then
     Output.ExcludedPages := nil;
-  if not TilesAreUsable(Output.Tiles) or (Output.RollWidth <= 2 * Output.Tiles.Margin) or (Output.CalibrationX <= 0) or
+  if not TilesAreUsable(Output.Tiles) or (Output.RollWidth <= 2 * Output.Tiles.Margin) or (Output.MaterialWidth <= 0) or (Output.CalibrationX <= 0) or
     (Output.CalibrationY <= 0) then
   begin
     ShowStatus(rsLayoutNoPrintArea);
@@ -1092,6 +1185,7 @@ begin
   Filters[efPDF] := rsFilterPDF;
   Filters[efSVG] := rsFilterSVG;
   Filters[efDXF] := rsFilterDXF;
+  Filters[efMachineDXF] := rsFilterMachineDXF;
   Dialog := TSaveDialog.Create(Self);
   try
     Dialog.Filter := Filters[Chosen];

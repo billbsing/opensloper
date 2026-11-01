@@ -26,7 +26,7 @@ unit Sloper.Core.Settings;
 interface
 
 uses
-  Sloper.Core.Measurements;
+  Sloper.Core.Measurements, Sloper.Core.MachineProfiles;
 
 type
   // Which labels the canvas shows: those that help the current step, all, or none
@@ -47,6 +47,8 @@ type
     ShowPieceFills: boolean;
     // How the measurements app shows values
     MeasureUnit: TMeasureUnit;
+    // Besides the built-in Standard
+    MachineProfiles: TMachineProfileArray;
     constructor Create;
     procedure Reset;
     function SaveToText: string;
@@ -56,6 +58,10 @@ type
     function LoadFromFile(const FileName: string; out ErrorMessage: string): boolean;
   end;
 
+// The profiles saved for this user, for the programs that export; none when
+// the settings cannot be read, and a layout naming one then says it is missing
+function UserMachineProfiles: TMachineProfileArray;
+
 resourcestring
   rsSettingsWrongFormat = 'This is not an OpenSloper settings file';
   rsSettingsNewerVersion = 'This file was made by a newer version of OpenSloper (file version %d)';
@@ -63,7 +69,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.JSON;
+  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.AppPaths;
 
 const
   SettingsFormat = 'opensloper-settings';
@@ -83,6 +89,7 @@ begin
   ShowSidePanel := True;
   ShowPieceFills := True;
   MeasureUnit := muMillimetre;
+  MachineProfiles := nil;
 end;
 
 function TAppSettings.SaveToText: string;
@@ -98,6 +105,8 @@ begin
     Obj.Add('showSidePanel', ShowSidePanel);
     Obj.Add('showPieceFills', ShowPieceFills);
     Obj.Add('measureUnit', MeasureUnitNames[MeasureUnit]);
+    if MachineProfiles <> nil then
+      Obj.Add('machineProfiles', MachineProfilesToJSON(MachineProfiles));
     Result := JSONToText(Obj);
   finally
     FreeAndNil(Obj);
@@ -142,6 +151,7 @@ begin
       for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
         if TextValue = MeasureUnitNames[AUnit] then
           MeasureUnit := AUnit;
+    MachineProfiles := MachineProfilesFromJSON(Obj.Find('machineProfiles'));
     Result := True;
   finally
     FreeAndNil(Obj);
@@ -164,6 +174,20 @@ begin
   if not ReadTextFile(FileName, Text, ErrorMessage) then
     Exit(False);
   Result := LoadFromText(Text, ErrorMessage);
+end;
+
+function UserMachineProfiles: TMachineProfileArray;
+var
+  Settings: TAppSettings;
+  Reason: string;
+begin
+  Settings := TAppSettings.Create;
+  try
+    Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
+    Result := Settings.MachineProfiles;
+  finally
+    FreeAndNil(Settings);
+  end;
 end;
 
 end.

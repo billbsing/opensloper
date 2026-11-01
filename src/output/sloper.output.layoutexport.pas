@@ -28,24 +28,26 @@ uses
   Sloper.Output.Layout;
 
 type
-  TExportFormat = (efPDF, efSVG, efDXF);
+  TExportFormat = (efPDF, efSVG, efDXF, efMachineDXF);
 
 const
-  ExportExtensions: array[TExportFormat] of string = ('.pdf', '.svg', '.dxf');
+  ExportNames: array[TExportFormat] of string = ('pdf', 'svg', 'dxf', 'machine-dxf');
+  ExportExtensions: array[TExportFormat] of string = ('.pdf', '.svg', '.dxf', '.dxf');
 
-// By FormatName (pdf, svg or dxf) when there is one, then by FileName's
-// extension, and PDF when there is no file name. False when neither is known.
+// By FormatName (one of ExportNames) when there is one, then by FileName's
+// extension, where .dxf means DXF-AAMA, and PDF when there is no file name.
+// False when neither is known.
 function ExportFormatFor(const FormatName, FileName: string; out AFormat: TExportFormat): boolean;
 // Refuses, listing the blocking problems in ErrorMessage, or writes the file
 function ExportLayout(Layout: TLayout; AFormat: TExportFormat; const FileName: string; out ErrorMessage: string): boolean;
 
 resourcestring
-  rsExportBadFormat = 'Say pdf, svg or dxf, or end the file name with .pdf, .svg or .dxf';
+  rsExportBadFormat = 'Say pdf, svg, dxf or machine-dxf, or end the file name with .pdf, .svg or .dxf';
 
 implementation
 
 uses
-  SysUtils, Sloper.Output.LayoutPDF, Sloper.Output.LayoutSVG, Sloper.Output.LayoutDXF;
+  SysUtils, Sloper.Core.MachineProfiles, Sloper.Output.LayoutPDF, Sloper.Output.LayoutSVG, Sloper.Output.LayoutDXF;
 
 function ExportFormatFor(const FormatName, FileName: string; out AFormat: TExportFormat): boolean;
 var
@@ -53,14 +55,11 @@ var
   Wanted: string;
 begin
   AFormat := efPDF;
-  if FormatName <> '' then
-    Wanted := '.' + LowerCase(FormatName)
-  else if FileName <> '' then
-    Wanted := LowerCase(ExtractFileExt(FileName))
-  else
+  if (FormatName = '') and (FileName = '') then
     Exit(True);
+  Wanted := LowerCase(ExtractFileExt(FileName));
   for Candidate := Low(TExportFormat) to High(TExportFormat) do
-    if ExportExtensions[Candidate] = Wanted then
+    if ((FormatName <> '') and SameText(ExportNames[Candidate], FormatName)) or ((FormatName = '') and (ExportExtensions[Candidate] = Wanted)) then
     begin
       AFormat := Candidate;
       Exit(True);
@@ -69,14 +68,23 @@ begin
 end;
 
 function ExportLayout(Layout: TLayout; AFormat: TExportFormat; const FileName: string; out ErrorMessage: string): boolean;
+var
+  Profile: TMachineProfile;
 begin
   ErrorMessage := Layout.Refusal;
   if ErrorMessage <> '' then
     Exit(False);
+  // The wrong colours would cut the wrong lines, so this never falls back
+  if ((AFormat = efMachineDXF) or ((AFormat = efSVG) and (Layout.Output.Profile <> ''))) and not Layout.ChosenProfile(Profile) then
+  begin
+    ErrorMessage := Format(rsLayoutUnknownProfile, [Layout.Output.Profile]);
+    Exit(False);
+  end;
   case AFormat of
     efPDF: Result := WriteBytesToFile(FileName, LayoutToPDF(Layout), ErrorMessage);
     efSVG: Result := WriteBytesToFile(FileName, LayoutToSVG(Layout), ErrorMessage);
     efDXF: Result := WriteBytesToFile(FileName, LayoutToDXF(Layout), ErrorMessage);
+    efMachineDXF: Result := WriteBytesToFile(FileName, LayoutToMachineDXF(Layout, Profile), ErrorMessage);
     else
       Result := False;
   end;

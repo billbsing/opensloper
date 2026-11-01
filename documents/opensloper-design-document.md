@@ -847,7 +847,7 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
 
 **Moving between the apps.** The drafting app has a Publish… command that opens the publish app with the current pattern, creating a layout for it if there is none, as KiCad's project manager connects its tools.
 
-**Rotation in 90° steps.** Pieces turn by quarter turns only, so the grainline stays square to the sheet; there is no per-piece list of allowed rotations. The grainline is printed on each piece, so a turn on paper does not change how it is cut. A flip is there for mirrored copies. A piece cut twice gets two placements, the second mirrored when `cut.mirrored` is set.
+**Rotation in 90° steps.** Pieces turn by quarter turns only, so the grainline stays square to the sheet; there is no per-piece list of allowed rotations. The grainline is printed on each piece, so a turn on paper does not change how it is cut. On a projector, a material sheet or a layout with a machine profile the piece is cut as it lies, so a quarter turn there is a warning (see Accessories). A flip is there for mirrored copies. A piece cut twice gets two placements, the second mirrored when `cut.mirrored` is set.
 
 **Layout file** (`.slayout`, JSON under the same rules as pattern files; paths relative to the layout file):
 
@@ -885,7 +885,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **New pieces** are placed in plain rows up to 1 m wide, 10 mm apart. This is a starting point; Pack Pieces does the packing. Even-numbered copies of a mirrored piece start flipped.
 - **Problems.** A missing or unreadable file, a deleted piece, a failing piece and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, a pattern with no pieces, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. A source's `size` must be in its measurement file; with none given, a size table uses its first size. The title block names the size.
 - **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration scales everything drawn at true size, including the test square.
-- **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Opening it out to a whole piece can be an output option later.
+- **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Material sheets and layouts with a machine profile open it out to a whole piece instead (see Accessories).
 - **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font.
 - **The window** (`Sloper.Publish.MainForm`, `Sloper.Publish.PreviewCanvas`, with the LCL-free `Sloper.Output.Preview`) is one screen: the pages with the pieces on them, and beside them four tabs (Pieces: turn, flip, pack, the tray; Patterns: the sources; Output: paper settings and the exports; Notes: title block and sheet notes) above an always-visible problems list. It takes a `.slayout`, or a `.sloper` to start a layout for. A page's printable area is drawn white, and grey when blank. Click selects a piece and dragging moves it, on a 0.5 mm grid, as one undo step; Escape cancels. The wheel zooms about the cursor; middle-drag or Space+drag pans.
 - **Undo** (`TLayoutDocument`) records the layout's text before each change, as `TPatternDocument` does, and reads the patterns again on undo. A run of paper setting changes merges into one step.
@@ -914,9 +914,9 @@ File → Export Draft SVG… in the drafting app, and `opensloper-cli export-dra
 
 ### Other exports and packing
 
-SVG and DXF do different jobs, so only SVG uses the arrangement: SVG shows pieces where they were placed, for plotters, laser cutters and Inkscape, while DXF-AAMA carries pieces into a CAD or cutting system, which arranges them itself. Packing only writes placements, so the layout file does not change.
+SVG and DXF-AAMA do different jobs: SVG shows pieces where they were placed, for plotters, laser cutters and Inkscape, while DXF-AAMA carries pieces into a CAD or cutting system, which arranges them itself. The machine DXF (see Accessories) follows the arrangement, as SVG does. Packing only writes placements, so the layout file does not change.
 
-**SVG** (`Sloper.Output.LayoutSVG`, built on `TPlacedPiece`). One true-scale file in millimetres at the layout's positions, with each piece's rotation and flip. There is one group per piece copy, with separate cut, seam, marks and label groups inside it, so a cutter can leave out the seam line. Pages, overlap marks, calibration, the title block and sheet notes are left out: calibration corrects one printer, and the rest belong to paper.
+**SVG** (`Sloper.Output.LayoutSVG`, built on `TPlacedPiece`). One true-scale file in millimetres at the layout's positions, with each piece's rotation and flip. There is one group per piece copy, with separate cut, seam, marks and label groups inside it, so a cutter can leave out the seam line. Pages, overlap marks, calibration, the title block and sheet notes are left out: calibration corrects one printer, and the rest belong to paper. With no machine profile the file is all black; a profile applies its line types, colours and cut order (see Accessories).
 
 **DXF-AAMA** (`Sloper.Output.LayoutDXF`). One block per piece, not per copy, in the piece's own coordinates, unrotated and with y up. The quantity is the piece's cut count. Only placed pieces are written, so the layout still chooses what goes out. A layout with several sizes gets separate blocks for each source, named with the size; grading rules are out of scope. The file is ASCII DXF R12 from our own small writer, like `TPDFWriter`, so the same layout gives the same bytes. Curves are polylines. A piece on a fold is exported as the half drawn, with the fold as a mirror line.
 
@@ -927,19 +927,22 @@ SVG and DXF do different jobs, so only SVG uses the arrangement: SVG shows piece
 | 4 | Notches, as points with angle and length |
 | 7 | Grainline |
 | 6 | Fold (mirror line) |
+| 8 | Placement and fold line markings, as lines |
+| 13 | Holes and stitch holes, as points at their centres; the format has no place for their size |
 
-The layers are kept in one table so ASTM can be added later. ASTM D6673 is paywalled and listed as withdrawn, so these numbers follow Valentina's GPL exporter, with layer 6 taken from its ASTM export because its AAMA export draws mirror lines on layer 8. The file-level text gives the style name, creation date and `Units: METRIC`. The output reads cleanly in `ezdxf`, but the exporter has not been tried on a real cutting system and is assumed to work; a test against one should check the layers and the file-level text. Names outside ASCII are written as they are, since R12 has no way to say UTF-8, and become underscores in block names.
+The layers are kept in one table so ASTM can be added later. ASTM D6673 is paywalled and listed as withdrawn, so these numbers follow Valentina's GPL exporter, with layer 6 taken from its ASTM export because its AAMA export draws mirror lines on layer 8. Layers 8 and 13 come from published layer lists of CAD systems, not from the standard, so they need the same check on a real system. The file-level text gives the style name, creation date and `Units: METRIC`. The output reads cleanly in `ezdxf`, but the exporter has not been tried on a real cutting system and is assumed to work; a test against one should check the layers and the file-level text. Names outside ASCII are written as they are, since R12 has no way to say UTF-8, and become underscores in block names.
 
 **Pack Pieces**, on the Pieces tab, and `opensloper-cli pack LAYOUT`, which rewrites the file. It is one undo step and writes ordinary placements that can still be dragged. Every copy is packed, including those in the tray; failing pieces stay there.
 
-- **Method.** Bounding boxes, tallest first, each placed as low and as far left as it fits, at 0° and at a quarter turn from where it stands, with flips kept and a 10 mm gap. The same input gives the same result. True-shape nesting is left for later.
+- **Method.** Bounding boxes, tallest first, each placed as low and as far left as it fits, at 0° and at a quarter turn from where it stands, with flips kept and a 10 mm gap. The same input gives the same result. True-shape nesting is left for later. On a material sheet the quarter turn is only tried when `allowTurns` is set.
 - **Tiled.** Each column count is tried, pages are counted with the tiling code, and the fewest pages win.
 - **Large format.** Packs to the roll's printable width, for the shortest sheet. A piece too wide either way round is left where it was, with the usual warning.
-- **Projector.** Not offered: the layout has no fabric width to pack against. A `fabricWidth` setting could add it later.
+- **Projector.** Not offered: the layout has no fabric width to pack against. A material sheet is the way to pack to a fabric's width.
+- **Material sheet.** Packs to the sheet's width, for the shortest length, and a sheet with a set length is treated as a limit (see Accessories).
 - **Only if it helps.** Packing keeps the arrangement it found when that uses fewer pages or a shorter sheet, and says so, since a hand arrangement can beat bounding boxes. New copies stay placed. An arrangement that runs off the roll never counts as better.
 - Packing clears `excludedPages`, since the page captions change, and only when pieces moved. Sheet notes stay where they are.
 
-**Commands.** Export SVG and Export DXF sit beside Export PDF on the Output tab and in the File menu. `opensloper-cli export` takes `--format=pdf|svg|dxf`, or goes by the extension of `-o`, and `export` in the Automation API takes a layout path. The problems that block a PDF block these too.
+**Commands.** Export SVG and Export DXF sit beside Export PDF on the Output tab and in the File menu, with Export Machine DXF after them. `opensloper-cli export` takes `--format=pdf|svg|dxf|machine-dxf`, or goes by the extension of `-o`, so `.dxf` means DXF-AAMA, and `--profile=NAME` overrides the layout's machine profile. `export` in the Automation API takes a layout path. The problems that block a PDF block these too.
 
 ## Fabrics
 
@@ -1001,7 +1004,7 @@ The publish app (see Publish app) prints patterns directly at true scale, with n
 - Single large-format PDF (A0 or copy-shop width)
 - Projector mode: dark background, thick light lines, no tiling, for projecting onto fabric
 - SVG and DXF exports (see Other exports and packing), with cut, score, mark, engrave and hole line types for cutting machines (see Accessories)
-- Material layouts: a fabric width, a board or a traced leather hide, one fabric at a time (see Accessories)
+- Material layouts: a fabric width or a board, one fabric at a time, with leather hides to follow (see Accessories)
 - Piece fills: off by default; optional light tint, or hatching later (for black-and-white printers), set per print
 
 **Print screen (the main gap in existing software).** Seamly2D lacked a friendly interface for multi-page printing, so the publish app's main window is one interactive screen rather than a dialog of settings:
@@ -1200,7 +1203,7 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 
 **Command-line tools** (using the LCL-free core and ConsoleTools):
 
-- `opensloper-cli export LAYOUT [--format=pdf|svg|dxf] [-o FILE]`: regenerate a layout's output after patterns or measurements change
+- `opensloper-cli export LAYOUT [--format=pdf|svg|dxf|machine-dxf] [--profile=NAME] [-o FILE]`: regenerate a layout's output after patterns or measurements change
 - `opensloper-cli export-draft PATTERN [--draft=NAME] [--labels] [-m FILE] [-s SIZE] [-o FILE]`: write a draft as SVG (see Draft export)
 - `opensloper-cli pack LAYOUT`: pack a layout's pieces and rewrite the file; exits with 1 when it refuses or nothing improves
 - `opensloper-cli check PATTERN [-m FILE] [-s SIZE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors, invalid objects and seam mismatches, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile` and `size`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
@@ -1252,7 +1255,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
 | `render` | PNG or SVG of the draft or a piece, with options for labels and a region, or of a garment view with `garment` |
-| `export` | A layout file as PDF, SVG or DXF to a given path |
+| `export` | A layout file as PDF, SVG, DXF or machine DXF to a given path; `format` and `profile` are optional |
 | `ui_state` (GUI only) | Selection, label mode, viewport, canvas snapshot |
 
 `render` lets Claude look at the result, not only check numbers, so a wrong curve or misplaced dart is caught visually.
@@ -1347,7 +1350,7 @@ Stitch hole spacing is a formula, and holes are spaced evenly between the ends w
 - **Fields.** Formulas go by place in the list, like notches: `marking1.diameter`, or `marking2.spacing` and `marking2.size`, and removing a marking renumbers the later ones.
 - **Checks.** A hole must lie inside the piece's cutting line, and sizes and spacing must be above 0, or the piece is invalid. Lines are not checked, since a line may run past the edge on purpose. A marking's point or edge is an input of the piece, so it cannot be deleted while marked.
 - **From the app.** Select a piece and a point (for a hole) or an edge, then Tools → Mark Hole, Mark Placement Line, Mark Fold Line or Mark Stitch Holes; values start at 4 mm across, or 4 mm apart with 1 mm holes, and are typed in the piece's properties. Tools → Remove Marking takes off what is on the selected point or edge. In the API, `add_marking` takes `kind` (`hole`, `placement`, `fold` or `stitch`), `point` or `edge` and the values, and `remove_marking` takes `marking`, numbered from 1.
-- **Output.** Markings draw on the canvas, in draft SVG and in the publish app's PDF and SVG with the piece's other marks. DXF leaves them out until step 17 settles their layers.
+- **Output.** Markings draw on the canvas, in draft SVG and in the publish app's PDF and SVG with the piece's other marks. DXF-AAMA writes them on layers 8 and 13 (see Other exports and packing), and with a machine profile each takes its line type (see Cutting machines below).
 
 **Material per piece.** A piece's material is its fabric (see Fabrics): leather, foam, stiffener and interfacing go in the fabric list beside main and lining, so there is no separate material on a piece. Leather pieces are often cut with no seam allowance; per-edge allowance already allows `0`, and a fabric can set a default allowance for pieces that use it. A fabric's `allowance` is set on the Fabrics tab or with `set_fabric`. A piece takes it when it goes on that fabric, or when it is made on the first fabric, and it does not follow later changes, so a piece can still be set by hand. The publish app can lay out one fabric at a time (see below).
 
@@ -1357,13 +1360,27 @@ Stitch hole spacing is a formula, and holes are spaced evenly between the ends w
 | --- | --- | --- |
 | Cut | Piece outline (cutting line) | Red |
 | Score or fold | Fold and score lines | Blue |
-| Mark | Placement lines, seam lines, notches | Black |
+| Mark | Placement lines, seam lines, notches, grainlines, fold brackets | Black |
 | Engrave | Labels and text | Green |
 | Hole | Holes and stitch holes, cut as small circles | Red |
 
-Colours and layer names are set per output profile, because machines differ; DXF-AAMA keeps its own fixed layers (see Other exports and packing). Each line type can be switched off, for example to cut outlines only.
+- **Machine profiles.** Each line type has its colour, layer name, stroke width and an on/off switch, so it can cut outlines only, or use the hairline some lasers need. Profiles describe a machine, not a pattern, so they live in the app settings, which the CLI reads too. There is a built-in `Standard` profile with the colours above.
+- **In a layout.** `profile` in `output` holds only a profile's name. A layout without one writes the plain SVG it always has. A name not in the settings is a blocking problem for that export, never a quiet fallback, since the wrong colours would cut the wrong lines.
+- **Cut order.** Files go score, mark, engrave, holes, then cut, because software that follows file order would otherwise free a piece before its holes are cut, and it can shift.
+- **Holes.** Holes and stitch holes are true circles with a centre and diameter: `<circle>` in SVG and `CIRCLE` in DXF, not short segments.
+- **Machine DXF.** Pieces where they were placed, y up, one entity set per copy, on the profile's layer names. It shares a writer with DXF-AAMA, which keeps its own fixed layers and block per piece (see Other exports and packing). It uses `Standard` if the layout has no profile.
+- **Text.** Labels are `<text>` in SVG and `TEXT` in DXF, so they depend on the machine software's fonts. A single-stroke font, which lasers engrave best, waits for a test on a real machine.
 
-**Laying out on material.** Besides paper tiles, a layout in the publish app can be a material sheet: a fabric width and length, a foam or card board, or a leather hide whose outline is traced from a photo or drawn by hand, with flaws marked as areas to avoid. A layout can be limited to one fabric, so each fabric or hide gets its own cutting layout, and it reports the length or area used.
+**Cut as it lies.** On a material sheet, or in a layout with a machine profile, nothing is left to read the printed grainline before cutting, so two things change:
+
+- **Quarter turns.** A quarter-turned piece gets the same warning as on a projector. A material sheet's packing does not try quarter turns unless its `allowTurns` is set, for a material with no grain such as foam or board.
+- **Fold pieces.** A piece on a fold is opened out to the whole piece, mirrored across its fold line with its seam line, marks and holes, and the fold shows as a Mark. A hole marking on the fold line makes the piece invalid, as it would have no other half, and stitch holes running along the fold are written once. The preview, overlap checks, packing and every export of that layout use the whole piece, so they agree, and a placement gives the top left of the opened-out cutting line. DXF-AAMA still writes the half with its mirror line.
+
+**Laying out on material.** Besides paper tiles, a layout in the publish app can be a material sheet, `kind` `material`: a fabric width, or a foam or card board. `materialWidth` is its width and `materialLength` its length, left out for a roll. A piece past the width or a set length is a warning. A PDF prints it as one sheet of that width, as large format does. The sheet's use is reported as the length used on a roll, and otherwise as the area of the pieces against the sheet's.
+
+**One fabric.** `fabric` in `output` limits a layout to one fabric, of any kind, so each fabric gets its own cutting layout. It holds the fabric's name, because fabric IDs belong to each pattern and a layout can have several, and names match as usual, ignoring case. Pieces on other fabrics leave the tray, Place new pieces, packing, checks and exports. Their placements stay in the file, so clearing the filter brings them back. A name found in no source is a warning.
+
+**Leather hides** come after these, as a step of their own: a hide's outline drawn by hand, with flaws marked as areas to avoid, and then traced over a photo in the publish window. Bounding boxes cannot honour an irregular outline, so packing onto a hide needs true shapes, and until then pieces are placed by hand and checked against the outline.
 
 **Not included.** Fashion drawing beyond the Garment view (illustration, colours, prints) is left to tools such as Inkscape and Krita; a pattern can keep a reference image. Hardware sizes (rings, buckles, zips) are entered as variables, not a catalogue; the Notions library in Future ideas would change that.
 
@@ -1413,8 +1430,9 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 14. Layers and draft tabs (done, see Draft tabs and layers)
 15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (done, see Transforms; the ghost preview is left for later)
 16. Accessories: circles and arcs, rectangle tool, rounded corners, offset edges, internal markings, a default allowance per fabric (done, see Accessories; rounding curved corners is left for later)
-17. Cutting machine output (SVG/DXF line types) and material layouts
-18. Blender export for 3D preview
+17. Cutting machine output (line types, profiles, machine DXF, opened-out fold pieces) and material sheets (fabric widths and boards, one fabric at a time) (done, see Accessories; untried on a real machine, and profiles are edited in the settings file, as there is no window for them yet)
+18. Leather hides: outlines drawn or traced from a photo, flaws, placing and packing on true shapes
+19. Blender export for 3D preview
 
 Open questions:
 
@@ -1429,5 +1447,6 @@ Open questions:
 - [x] Transforms: settled, copies of points and edges that follow one movement, on a new layer by default, with the ghost preview left for later; see Transforms
 - [x] Seeing the finished garment: settled, a flat Garment view comes first and Blender stays as a later step; see Garment view
 - [x] SVG, DXF and packing: settled, SVG follows the arrangement, DXF-AAMA writes one block per piece, packing works on bounding boxes; see Other exports and packing. DXF is untried on a real cutting system
+- [x] Cutting machines and material sheets: settled, profiles in the app settings with the layout naming one, pieces cut as they lie so quarter turns warn and fold pieces open out, hides split into their own step; see Accessories
 - [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
 - [x] Draft tabs and layers: settled, drafts as tabs within one pattern file, global names, ordered layers per draft; see Draft tabs and layers
