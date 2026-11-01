@@ -251,7 +251,7 @@ Eight point operations and three edge types cover basic bodice, skirt and trouse
 **Conventions:**
 
 - Units in mm; angles in degrees, 0° pointing right, positive anticlockwise (as Valentina); the canvas flips y for screen drawing
-- Common fields on every object: `id`, `name`, `type`, `layer`, `visible`, `notes`; `visible` applies only while the object's layer is visible (see Draft tabs and layers)
+- Common fields on every object: `id`, `name`, `type`, `layer`, `notes`; `layer` comes with step 14 (see Draft tabs and layers)
 - Readable properties: point `.x`, `.y`; every edge `.length`, `.angle1` (direction of the start handle) and `.angle2` (direction of the end handle, pointing back along the edge); straight edges also `.angle`
 - Functions: `sin cos tan asin acos atan2 sqrt abs min max round`
 
@@ -470,11 +470,12 @@ Selecting a seam highlights both sides in their colours with chevrons for direct
 
 ## Draft tabs and layers
 
-A pattern file holds one or more drafts, shown as tabs along the bottom of the canvas like sheets in a spreadsheet workbook, and each draft holds layers for drawing order and visibility.
+Step 14; none of this is built yet, so pattern files have no `drafts` or `layer` members so far. A pattern file holds one or more drafts, shown as tabs along the bottom of the canvas like sheets in a spreadsheet workbook, and each draft holds layers for drawing order and visibility.
 
 **Draft tabs.** Each draft is a separate drafting area in the same pattern file, such as Bodice, Sleeve and Collar, with its own canvas, origin and zoom. All drafts share the measurement set, the `#` variables and the undo history.
 
-- Tabs are added, renamed, reordered by dragging and deleted from the tab bar. Deleting a draft is refused while objects on other drafts use its objects.
+- The tab bar sits under the canvas. A `+` tab adds a draft, a double-click renames one, a right-click deletes it and dragging reorders. Deleting a draft is refused while objects on other drafts use its objects.
+- Fit, zoom to selection and the scroll bars work on the current draft only.
 - Undo and redo of a change on another draft switch to that draft, so the change is visible.
 - Sub-windows (one form per draft) were considered and rejected: they make the user manage windows and are the least portable part of the LCL. Seeing two drafts side by side can come later as a split view, a second canvas pane in the main window showing another tab.
 
@@ -484,22 +485,24 @@ A pattern file holds one or more drafts, shown as tabs along the bottom of the c
 
 - Formulas may refer to objects on any draft, so a sleeve cap can use the bodice armhole's `.length`.
 - Direct inputs (a base point, an edge to intersect or split, a curve's end points) must be on the same draft, so every line on a canvas starts from something visible on it. A seam is the exception, since it joins pieces that are often drafted apart.
-- To bring geometry to another draft, such as tracing a facing or yoke off the bodice, a Move transform takes a destination draft and makes parametric copies there.
+- To bring geometry to another draft, such as tracing a facing or yoke off the bodice, a Move transform takes a destination draft and makes parametric copies there. Transforms come after this step, so until then a second draft can read lengths from the first through formulas but cannot reuse its shapes.
 - Piece detection works within one draft.
 
-**Layers.** Each draft has an ordered list of layers; the order is the drawing order (z-order), as in Inkscape.
+**Layers.** Each draft has an ordered list of layers; the order is the drawing order (z-order), as in Inkscape. Sublayers, blend modes, opacity and duplicating a layer are left out for now.
 
-- Every object belongs to exactly one layer. New objects go into the active layer, and Move to layer is an undoable command.
-- Each layer has a visible and a locked checkbox.
+- Every object belongs to exactly one layer. New objects go into the active layer, and selecting an object makes its layer the active one, so new points do not land on the wrong layer.
+- Move to layer is an undoable command, as are moving the selection to the layer above or below. It stays within one draft, since moving between drafts would break the rule on direct inputs.
+- A Layers tab in the side panel lists layers top first, each with a visible and a locked checkbox. Its buttons add and delete a layer and move it up or down, and a double-click renames it.
+- **Solo** shows only one layer, and turning it off brings back the others as they were.
 - **Hidden** means not drawn: objects on a hidden layer are still evaluated, because visible objects may depend on them, but they cannot be selected or snapped to.
-- The layer comes first: on a hidden layer every object is hidden; on a visible layer each object's own `visible` field decides. A hidden object is treated like one on a hidden layer.
 - **Locked** means visible but fixed: its points can be snapped to, but its objects cannot be selected, dragged or deleted. Useful for a finished block being built on.
 - Clicking follows the order: points win over edges, as now, and among points or among edges the topmost layer wins.
 - Piece detection uses visible outline edges only, so hiding the layer with the original dart lets the user click inside the rotated outline without the old edges splitting the region.
+- **Hiding never changes output.** A hidden layer is a working view, so the publish app, Garment View and exports still include its pieces; otherwise a piece could vanish from a print because a layer was left hidden.
 - Deleting a layer is refused while its objects are used elsewhere; a layer can be emptied with Move to layer first.
 - A new draft starts with one layer, `Draft`.
 
-**View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. Layer visibility and lock, the active layer, the current tab and each draft's zoom and position are view state: saved in the pattern file under its own `view` member so the pattern reopens as it was left, but left out of the undo snapshots and the modified flag. The ID counter is also kept out of the undo snapshots but is not view state: it is saved at the top level as `nextId` (see Names and IDs). Draft and layer names, order and membership are part of the pattern and undoable.
+**View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. Layer visibility, lock and solo, the active layer, the current tab and each draft's zoom and position are view state: saved in the pattern file under its own `view` member so the pattern reopens as it was left, but left out of the undo snapshots and the modified flag. The ID counter is also kept out of the undo snapshots but is not view state: it is saved at the top level as `nextId` (see Names and IDs). Draft and layer names, order and membership are part of the pattern and undoable.
 
 **In the file** (shape to be settled with the implementation):
 
@@ -527,7 +530,11 @@ A pattern file holds one or more drafts, shown as tabs along the bottom of the c
 }
 ```
 
-An object's draft is its layer's draft. The format version stays at 1; files written before drafts and integer IDs are not read, and the regression patterns are rebuilt (see File format and storage).
+An object's draft is its layer's draft. The format version stays at 1. A file with no `drafts` loads into one draft with one layer named `Draft`, so existing patterns keep working, and saving writes the new members. Files from before integer IDs are not read.
+
+**Automation API.** New methods list and add drafts and layers and move objects between layers; `add_point` and `add_edge` take an optional `layer`, and `render` takes `draft`.
+
+**Build order.** The model and file format first, including loading old files, with no UI. Then layers: drawing order, visibility and lock across the canvas, snapping and piece detection. Then draft tabs: what each tab shows, and undo switching to the draft that changed. The canvas, snapping and piece detection all walk every object today, so they share one check for what is shown rather than each filtering for itself. Panels, the tab bar and the API come last.
 
 ## Links and problem display
 
@@ -668,7 +675,7 @@ Measurement file (`.slm`); values are in mm, keys follow the name rules and are 
 
 Keys from the measurement catalogue are preferred; custom keys follow the name rules.
 
-Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
+Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example shows `drafts`, `layer` and `view` as they will be from step 14; files do not have them yet. The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
 
 ```json
 {
@@ -704,7 +711,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The format stays
 - `measurementFile` is the measurement set last used with the pattern, written with `/` separators and relative to the pattern's folder unless absolute. `MeasurementFilePath` turns it into a path; the core never loads it by itself. `size` names the size used from a size table, and is empty for a personal set.
 - `variables` and `objects` are in creation order. An object's direct inputs (`base`, `edge`, `start`, a path's node points and so on) must name an object earlier in the file. Creation order guarantees this, because inputs exist before the object and cannot be deleted while it uses them. Formulas may refer to any ID; a missing one shows as an error when evaluated.
 - IDs and references to them (`base`, `edge`, `layer`, `sources` and so on) are JSON numbers; in formula text a reference is the ID in braces (`{3}`).
-- Each object has `id`, `type`, `name` and `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
+- Each object has `id`, `type`, `name` and, from step 14, `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
 - Loading checks IDs (positive integers, unique across drafts, layers, variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
@@ -1063,6 +1070,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
+| Drafts and layers | Files without drafts load into one draft, view state stays out of undo and the modified flag, drawing order, hidden and locked layers in picking, snapping and piece detection, hiding leaves output alone, refused deletes, undo switching drafts |
 | Garment view | Joining along seams with direction and flips, which seams join, mirroring across the centre line, unjoined pieces, no centre line |
 | Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces and drafts, invalid and blocked states, suggestions |
 | Storage | Save → load → save produces identical JSON |
@@ -1270,7 +1278,9 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 11. Seams and seam-length checks (done, see Seams; the Check pattern overlay itself is not built yet, so a mismatch shows in the status bar, the Problems filter and `check`): seam object, Seam tool, Suggest seams, split command on the canvas
 12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (done, see Other exports and packing; DXF untried on a real cutting system)
 13. Garment view: a flat front and back of the finished garment in the drafting app (done, see Garment view; fabric colours wait for fabrics)
-14. Blender export for 3D preview
+14. Layers and draft tabs (designed, see Draft tabs and layers)
+15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (see Transforms)
+16. Blender export for 3D preview
 
 Open questions:
 
