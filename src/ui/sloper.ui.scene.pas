@@ -29,15 +29,13 @@ interface
 
 uses
   SysUtils, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Piece,
-  Sloper.Core.Seam, Sloper.Core.Drafts, Sloper.Core.Settings;
+  Sloper.Core.Seam, Sloper.Core.Transform, Sloper.Core.Drafts, Sloper.Core.Settings;
 
 const
   MinFocusSize = 60;
 
 type
   // A mark showing which way a piece's path runs along one of its edges
-  TDraftObjectArray = array of TDraftObject;
-
   TPieceChevron = record
     Position: TVec2;
     Angle: double;
@@ -570,7 +568,7 @@ begin
     begin
       DraftObject := Pattern.Objects[Index];
       // A seam has no place of its own to put a label
-      if DraftObject.HasResult and not (DraftObject is TSeamObject) and Pattern.IsShown(DraftObject) and
+      if DraftObject.HasResult and not (DraftObject is TSeamObject) and not (DraftObject is TTransformObject) and Pattern.IsShown(DraftObject) and
         ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) then
       begin
         Result[Count] := DraftObject.Key;

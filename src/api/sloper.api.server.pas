@@ -107,6 +107,7 @@ type
     function DoMoveLayer(Params: TJSONObject): TJSONData;
     function DoMoveToLayer(Params: TJSONObject): TJSONData;
     function DoSetActive(Params: TJSONObject): TJSONData;
+    function DoAddTransform(Params: TJSONObject): TJSONData;
     function SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
     function DoAddSeam(Params: TJSONObject): TJSONData;
     function DoFlipSeam(Params: TJSONObject): TJSONData;
@@ -158,6 +159,8 @@ resourcestring
   rsApiNoDraft = 'There is no draft "%s"';
   rsApiNoLayer = 'There is no layer "%s"';
   rsApiDrafts = 'Change drafts';
+  rsApiTransform = 'Add transform';
+  rsApiBadAxis = 'A mirror needs an "axis" with an "edge", or "a" and "b", or "a" and an "angle"';
   rsApiLayers = 'Change layers';
   rsApiBadFold = 'Give an "edge", or "none": true';
   rsApiBadGrainline = 'Give an "angle", a "start" and "end" point, or "none": true';
@@ -168,7 +171,7 @@ implementation
 
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
-  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Garment,
+  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Garment, Sloper.Core.Transform,
   Sloper.Output.DraftSVG, Sloper.Output.GarmentSVG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport;
 
@@ -1428,6 +1431,66 @@ begin
   Result := AddedNode(Target);
 end;
 
+function TApiServer.DoAddTransform(Params: TJSONObject): TJSONData;
+var
+  Spec: TTransformSpec;
+  Axis: TJSONData;
+  Found: TPatternDraft;
+
+  function FormulaOr(const AName, Default_: string): string;
+  begin
+    Result := OptionalFormula(Params, AName);
+    if Result = '' then
+      Result := Default_;
+  end;
+
+begin
+  Spec := Default(TTransformSpec);
+  Spec.Kind := TTransformKind(ChoiceParam(Params, 'type', ['rotate', 'mirror', 'move']));
+  if Params.Find('type') = nil then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['type']));
+  Spec.Name := OptionalString(Params, 'name');
+  Spec.Suffix := OptionalString(Params, 'suffix');
+  if Params.Find('sources') = nil then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['sources']));
+  if Params.Find('layer') <> nil then
+    Spec.Layer := FindLayerParam(Params, 'layer', Found);
+  Spec.Angle := FormulaOr('angle', '0');
+  case Spec.Kind of
+    tkRotate:
+      Spec.Pivot := Reference(Params, 'pivot');
+    tkMirror:
+    begin
+      Axis := Params.Find('axis');
+      if (Axis = nil) or (Axis.JSONType <> jtObject) then
+        raise EApiError.Create(RpcInvalidParams, rsApiBadAxis);
+      if TJSONObject(Axis).Find('edge') <> nil then
+        Spec.AxisEdge := Reference(TJSONObject(Axis), 'edge')
+      else
+      begin
+        Spec.AxisA := Reference(TJSONObject(Axis), 'a');
+        if TJSONObject(Axis).Find('b') <> nil then
+          Spec.AxisB := Reference(TJSONObject(Axis), 'b');
+      end;
+    end;
+    tkMove:
+    begin
+      Spec.Polar := Params.Find('length') <> nil;
+      Spec.Length := FormulaOr('length', '0');
+      Spec.DX := FormulaOr('dx', '0');
+      Spec.DY := FormulaOr('dy', '0');
+      if Params.Find('pivot') <> nil then
+      begin
+        Spec.Pivot := Reference(Params, 'pivot');
+        Spec.Rotate := FormulaOr('rotate', '0');
+      end;
+    end;
+  end;
+  FDocument.BeginChange(rsApiTransform);
+  Spec.Sources := ReferenceList(Params, 'sources');
+  Result := AddedNode(FDocument.Pattern.AddTransform(Spec));
+end;
+
 // View state, so not an undo step: which draft and layer are active, and which
 // layers show
 function TApiServer.DoSetActive(Params: TJSONObject): TJSONData;
@@ -1653,6 +1716,7 @@ begin
     'move_layer': Result := DoMoveLayer(Params);
     'move_to_layer': Result := DoMoveToLayer(Params);
     'set_active': Result := DoSetActive(Params);
+    'add_transform': Result := DoAddTransform(Params);
     'add_seam': Result := DoAddSeam(Params);
     'flip_seam': Result := DoFlipSeam(Params);
     'suggest_seams': Result := DoSuggestSeams;

@@ -133,6 +133,7 @@ resourcestring
   rsFieldAngle2 = 'End angle';
   rsFieldLength2 = 'End handle';
   rsFieldFormula = 'Formula';
+  rsFieldRotate = 'Turn';
   rsFieldEase = 'Ease';
   rsFieldTolerance = 'Tolerance';
   rsFieldNodeAngle = 'Point %s angle';
@@ -153,12 +154,17 @@ resourcestring
   rsTypePart = 'Part of a split edge';
   rsTypePiece = 'Piece';
   rsTypeSeam = 'Seam';
+  rsTypeRotate = 'Rotate';
+  rsTypeMirror = 'Mirror';
+  rsTypeMove = 'Move';
+  rsTypePointCopy = 'Copy of a point';
+  rsTypeEdgeCopy = 'Copy of an edge';
   rsTypeVariable = 'Variable';
 
 implementation
 
 uses
-  Sloper.Core.Drag, Sloper.Core.JSON, Sloper.Core.Piece;
+  Sloper.Core.Drag, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Core.Transform;
 
 const
   VariableDecimals = 4;
@@ -185,6 +191,7 @@ begin
   end;
   case FieldName of
     'ease': Result := rsFieldEase;
+    'rotate': Result := rsFieldRotate;
     'tolerance': Result := rsFieldTolerance;
     'x': Result := rsFieldX;
     'y': Result := rsFieldY;
@@ -239,6 +246,17 @@ begin
     Result := rsTypePiece
   else if Node is TSeamObject then
     Result := rsTypeSeam
+  else if Node is TPointCopy then
+    Result := rsTypePointCopy
+  else if Node is TEdgeCopy then
+    Result := rsTypeEdgeCopy
+  else if Node is TTransformObject then
+    case TTransformObject(Node).Kind of
+      tkRotate: Result := rsTypeRotate;
+      tkMirror: Result := rsTypeMirror;
+      else
+        Result := rsTypeMove;
+    end
   else if Node is TVariable then
     Result := rsTypeVariable
   else

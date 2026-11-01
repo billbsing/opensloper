@@ -100,6 +100,7 @@ type
   end;
 
   TPointObjectArray = array of TPointObject;
+  TDraftObjectArray = array of TDraftObject;
 
   // A point at fixed coordinates, given by formulas x and y
   TFreePoint = class(TPointObject)
@@ -233,6 +234,8 @@ type
     // angle2 (direction of its end handle, pointing back along the edge)
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
+    // Whether its shape is a straight line, as a fold or mirror axis needs
+    function IsStraight: boolean; virtual;
     function Length: double;
     function PointAtLength(ADistance: double): TVec2;
     // The edge as a polyline from start to end, within Tolerance of it
@@ -955,6 +958,11 @@ begin
     Result := NormalizeAngle(EndDirection + 180);
 end;
 
+function TEdgeObject.IsStraight: boolean;
+begin
+  Result := (Self is TLineObject) or ((Self is TSplitPart) and TSplitPart(Self).Straight);
+end;
+
 function TEdgeObject.Length: double;
 var
   Segment: TEdgeSegment;
@@ -1387,7 +1395,7 @@ end;
 
 function IsStraightEdge(Edge: TEdgeObject): boolean;
 begin
-  Result := (Edge is TLineObject) or ((Edge is TSplitPart) and TSplitPart(Edge).Straight);
+  Result := Edge.IsStraight;
 end;
 
 function NewSplitPart(const AKey: string; Source: TEdgeObject; const APoint: string; APart: integer): TSplitPart;

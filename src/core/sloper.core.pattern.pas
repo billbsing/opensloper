@@ -29,9 +29,26 @@ interface
 
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
-  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drafts, Sloper.Core.Piece, Sloper.Core.Seam;
+  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drafts, Sloper.Core.Piece, Sloper.Core.Seam,
+  Sloper.Core.Transform;
 
 type
+  // What AddTransform needs. Sources are expanded: an edge brings its ends.
+  TTransformSpec = record
+    Kind: TTransformKind;
+    Name, Suffix: string;
+    Sources: TStringArray;
+    // Rotate: Pivot and Angle. Move with a turn: Pivot and Rotate.
+    Pivot, Angle, Rotate: string;
+    // Mirror: one of AxisEdge, AxisA and AxisB, or AxisA with Angle
+    AxisEdge, AxisA, AxisB: string;
+    // Move: Length and Angle when Polar, otherwise DX and DY
+    Polar: boolean;
+    Length, DX, DY: string;
+    // Where the copies go; nil makes a new layer named after the transform
+    Layer: TPatternLayer;
+  end;
+
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
   TVariableList = specialize TObjectList<TVariable>;
   TDraftObjectList = specialize TObjectList<TDraftObject>;
@@ -66,6 +83,14 @@ type
     function LayerNameTaken(Draft: TPatternDraft; const AName: string): boolean;
     function NextFreeLabel(const Base: string; Draft: TPatternDraft): string;
     function DeleteObjectsOn(const Layers: TPatternLayerArray; const Subject: string): boolean;
+    function DeleteNode(Node: TEvalNode): boolean;
+    function DeleteTransform(Transform: TTransformObject): boolean;
+    function CopiesOf(Transform: TTransformObject): TDraftObjectArray;
+    function ExpandedSources(const Sources: TStringArray; out Expanded: TStringArray): boolean;
+    function FreeCopyName(const SourceName, Suffix: string): string;
+    function NextSuffix(Kind: TTransformKind): string;
+    function BuildTransform(const Spec: TTransformSpec; const Sources: TStringArray): TTransformObject;
+    procedure MakeCopies(Transform: TTransformObject; const Sources: TStringArray);
     function GetDraftCount: integer;
     function GetDraft(Index: integer): TPatternDraft;
     function GetActiveLayer: TPatternLayer;
@@ -209,6 +234,9 @@ type
     // A formula as the user sees it, with current names
     function FormulaText(Node: TEvalNode; const AField: string): string;
 
+    // A transform and a copy of each source, as one change. The copies start
+    // where the formulas put them. Nil with LastError set when refused.
+    function AddTransform(const Spec: TTransformSpec): TTransformObject;
     // Drafts and layers. Changing them returns False when refused, with the
     // reason in LastError. An empty name takes the next free one.
     function AddDraft(const AName: string = ''): TPatternDraft;
@@ -302,6 +330,10 @@ resourcestring
   rsPatternLastLayer = 'A draft needs at least one layer';
   rsPatternObjectsInUse = '%s cannot be deleted: %s uses %s';
   rsPatternOtherDraft = '%s is on another draft';
+  rsPatternCopyOfTransform = '%s is a copy made by %s, so it changes with it';
+  rsPatternTransformNothing = 'Select the points and edges to copy';
+  rsPatternTransformNotCopyable = '%s cannot be copied: only points and edges can';
+  rsPatternTransformOtherDraft = 'Only a move can put its copies on another draft';
   rsPatternSeamEmptySide = 'Each side of a seam needs at least one edge';
   rsPatternSeamRepeats = 'A side of a seam cannot use %s of %s twice';
   rsPatternGrainSamePoint = 'The grainline needs two different points';
@@ -319,6 +351,8 @@ const
   NewVariableBaseName = 'variable';
   NewPieceBaseName = 'Piece';
   NewSeamBaseName = 'Seam';
+  TransformBaseNames: array[TTransformKind] of string = ('Rotate', 'Mirror', 'Move');
+  TransformSuffixLetters: array[TTransformKind] of string = ('_r', '_m', '_t');
 
 type
   TPatternResolver = class(TNameResolver)
@@ -692,11 +726,8 @@ begin
     for Index := FObjects.Count - 1 downto 0 do
     begin
       Node := Objects[Index];
-      if OnLayers(Node) and (Length(UsersOf(Node)) = 0) then
-      begin
-        Delete(Node);
+      if OnLayers(Node) and (Length(UsersOf(Node)) = 0) and DeleteNode(Node) then
         Removed := True;
-      end;
     end;
   until not Removed;
   Result := True;
@@ -767,15 +798,266 @@ end;
 function TPattern.MoveToLayer(Node: TEvalNode; Layer: TPatternLayer): boolean;
 var
   Draft: TPatternDraft;
+  Item: TDraftObject;
 begin
   if Node is TRepeatPoint then
     Node := TRepeatPoint(Node).Source;
+  // A transform and its copies go together
+  if CopyTransformKey(Node) <> '' then
+    Node := FindNode(CopyTransformKey(Node));
   Draft := DraftOf(Node);
-  if (Draft.IndexOfLayer(Layer) < 0) or not (Node is TDraftObject) then
+  if not (Node is TDraftObject) then
+    Exit(SetError(Format(rsPatternOtherDraft, [Layer.Name])));
+  if (Draft.IndexOfLayer(Layer) < 0) and not ((Node is TTransformObject) and (TTransformObject(Node).Kind = tkMove)) then
     Exit(SetError(Format(rsPatternOtherDraft, [Layer.Name])));
   MakeDraftsExplicit;
   TDraftObject(Node).LayerKey := Layer.Key;
+  if Node is TTransformObject then
+    for Item in CopiesOf(TTransformObject(Node)) do
+      Item.LayerKey := Layer.Key;
   Result := True;
+end;
+
+// Every source once, points first, an edge bringing its ends. Virtual repeat
+// points take an ID here, so this is inside the change.
+function TPattern.ExpandedSources(const Sources: TStringArray; out Expanded: TStringArray): boolean;
+var
+  Points, Edges: TStringArray;
+  Key, Used: string;
+  Node: TEvalNode;
+
+  procedure AddOnce(var List: TStringArray; const AKey: string);
+  var
+    Item: string;
+  begin
+    for Item in List do
+      if Item = AKey then
+        Exit;
+    Insert(AKey, List, System.Length(List));
+  end;
+
+begin
+  Points := nil;
+  Edges := nil;
+  Expanded := nil;
+  if Sources = nil then
+    Exit(SetError(rsPatternTransformNothing));
+  for Key in Sources do
+  begin
+    Node := FindNode(Key);
+    if Node = nil then
+      Exit(SetError(Format(rsPatternUnknownObject, [Key])));
+    if Node is TPointObject then
+    begin
+      Used := UsePoint(Key);
+      AddOnce(Points, Used);
+    end
+    else if Node is TEdgeObject then
+    begin
+      AddOnce(Edges, Key);
+      AddOnce(Points, UsePoint(TEdgeObject(Node).StartKey));
+      AddOnce(Points, UsePoint(TEdgeObject(Node).EndKey));
+    end
+    else
+      Exit(SetError(Format(rsPatternTransformNotCopyable, [Node.DisplayName])));
+  end;
+  Expanded := Concat(Points, Edges);
+  Result := True;
+end;
+
+// The lowest number no transform of this kind has used
+function TPattern.NextSuffix(Kind: TTransformKind): string;
+var
+  Number, Index: integer;
+  Taken: boolean;
+begin
+  Number := 0;
+  repeat
+    Inc(Number);
+    Result := TransformSuffixLetters[Kind] + IntToStr(Number);
+    Taken := False;
+    for Index := 0 to FObjects.Count - 1 do
+      if (Objects[Index] is TTransformObject) and SameName(TTransformObject(Objects[Index]).Suffix, Result) then
+        Taken := True;
+  until not Taken;
+end;
+
+// A name cannot hold a repeat point's brackets
+function TPattern.FreeCopyName(const SourceName, Suffix: string): string;
+begin
+  FNameExclude := nil;
+  Result := NextFreeName(StringReplace(StringReplace(SourceName, '[', '_', []), ']', '', []) + Suffix, @ObjectNameTaken);
+end;
+
+function TPattern.BuildTransform(const Spec: TTransformSpec; const Sources: TStringArray): TTransformObject;
+var
+  Suffix, TransformName, Msg: string;
+  Names, Texts: TStringArray;
+
+  procedure AddField(const AName, Text: string);
+  begin
+    Insert(AName, Names, System.Length(Names));
+    Insert(Text, Texts, System.Length(Texts));
+  end;
+
+begin
+  Result := nil;
+  Suffix := Spec.Suffix;
+  if Suffix = '' then
+    Suffix := NextSuffix(Spec.Kind);
+  TransformName := Spec.Name;
+  if TransformName = '' then
+  begin
+    FNameExclude := nil;
+    TransformName := NextFreeName(TransformBaseNames[Spec.Kind], @ObjectNameTaken);
+  end
+  else if not CheckObjectName(TransformName, nil, Msg) then
+  begin
+    SetError(Msg);
+    Exit;
+  end;
+  Names := nil;
+  Texts := nil;
+  Result := TTransformObject.Create(IntToStr(FNextId), Spec.Kind, Sources, Suffix);
+  case Spec.Kind of
+    tkRotate:
+    begin
+      Result.UseRotate(Spec.Pivot);
+      AddField(FieldAngle, Spec.Angle);
+    end;
+    tkMirror:
+      if Spec.AxisEdge <> '' then
+        Result.UseAxisEdge(Spec.AxisEdge)
+      else if Spec.AxisB <> '' then
+        Result.UseAxisPoints(Spec.AxisA, Spec.AxisB)
+      else
+      begin
+        Result.UseAxisAngle(Spec.AxisA);
+        AddField(FieldAngle, Spec.Angle);
+      end;
+    tkMove:
+    begin
+      Result.UseMove(Spec.Polar, Spec.Pivot);
+      if Spec.Polar then
+      begin
+        AddField(FieldLength, Spec.Length);
+        AddField(FieldAngle, Spec.Angle);
+      end
+      else
+      begin
+        AddField(FieldDX, Spec.DX);
+        AddField(FieldDY, Spec.DY);
+      end;
+      if Spec.Pivot <> '' then
+        AddField(FieldRotate, Spec.Rotate);
+    end;
+  end;
+  if not ParseFields(Result, Names, Texts) then
+  begin
+    FreeAndNil(Result);
+    Exit;
+  end;
+  Inc(FNextId);
+  Result.Name := TransformName;
+end;
+
+procedure TPattern.MakeCopies(Transform: TTransformObject; const Sources: TStringArray);
+var
+  Key, CopyKey: string;
+  Node: TEvalNode;
+  Edge: TEdgeObject;
+  Point: TPointCopy;
+  Copied: TEdgeCopy;
+  PointCopies: TEvalNodeMap;
+begin
+  PointCopies := TEvalNodeMap.Create;
+  try
+    for Key in Sources do
+    begin
+      Node := FindNode(Key);
+      CopyKey := IntToStr(FNextId);
+      Inc(FNextId);
+      if Node is TPointObject then
+      begin
+        Point := TPointCopy.Create(CopyKey, Transform.Key, Key);
+        Point.Name := FreeCopyName(Node.DisplayName, Transform.Suffix);
+        Point.LayerKey := Transform.LayerKey;
+        AddObjectNode(Point);
+        PointCopies.Add(Key, Point);
+      end
+      else
+      begin
+        Edge := TEdgeObject(Node);
+        Copied := TEdgeCopy.Create(CopyKey, Transform.Key, Key, PointCopies[Edge.StartKey].Key, PointCopies[Edge.EndKey].Key, Edge.IsStraight, Edge.NamePrefix);
+        Copied.Name := FreeCopyName(Edge.DisplayName, Transform.Suffix);
+        Copied.NameIsDerived := False;
+        Copied.Role := Edge.Role;
+        Copied.LayerKey := Transform.LayerKey;
+        AddObjectNode(Copied);
+      end;
+    end;
+  finally
+    FreeAndNil(PointCopies);
+  end;
+end;
+
+function TPattern.AddTransform(const Spec: TTransformSpec): TTransformObject;
+var
+  Expanded: TStringArray;
+  Layer: TPatternLayer;
+  Draft: TPatternDraft;
+  Axis: TEvalNode;
+begin
+  Result := nil;
+  if not ExpandedSources(Spec.Sources, Expanded) then
+    Exit;
+  if Spec.Pivot <> '' then
+    if not (FindNode(Spec.Pivot) is TPointObject) then
+    begin
+      SetError(Format(rsDraftNotAPoint, [Spec.Pivot]));
+      Exit;
+    end;
+  if Spec.AxisEdge <> '' then
+  begin
+    Axis := FindNode(Spec.AxisEdge);
+    if not (Axis is TEdgeObject) then
+    begin
+      SetError(Format(rsDraftNotAnEdge, [Spec.AxisEdge]));
+      Exit;
+    end;
+    if not TEdgeObject(Axis).IsStraight then
+    begin
+      SetError(Format(rsTransformCurvedAxis, [Axis.DisplayName]));
+      Exit;
+    end;
+  end;
+  if (Spec.Kind = tkMirror) and (Spec.AxisEdge = '') and not (FindNode(Spec.AxisA) is TPointObject) then
+  begin
+    SetError(Format(rsDraftNotAPoint, [Spec.AxisA]));
+    Exit;
+  end;
+  // A rotate or mirror stays with what it copies
+  Layer := Spec.Layer;
+  Draft := DraftOf(FindNode(Expanded[0]));
+  if (Layer <> nil) and (Spec.Kind <> tkMove) and (Draft.IndexOfLayer(Layer) < 0) then
+  begin
+    SetError(rsPatternTransformOtherDraft);
+    Exit;
+  end;
+  MakeDraftsExplicit;
+  Result := BuildTransform(Spec, Expanded);
+  if Result = nil then
+    Exit;
+  if Layer = nil then
+  begin
+    FindLayer(FActiveDraft.ActiveLayer.Key, Draft);
+    if Spec.Kind <> tkMove then
+      Draft := DraftOf(FindNode(Expanded[0]));
+    Layer := AddLayer(Draft, NextFreeLabel(Result.Name, Draft));
+  end;
+  Result.LayerKey := Layer.Key;
+  AddObjectNode(Result);
+  MakeCopies(Result, Expanded);
 end;
 
 function TPattern.FindDraft(const Key: string): TPatternDraft;
@@ -1784,6 +2066,11 @@ begin
       SetError(Format(rsPatternRepeatItem, [Point.DisplayName]));
       Exit;
     end;
+    if Point is TPointCopy then
+    begin
+      SetError(Format(rsPatternCopyOfTransform, [Point.DisplayName, FindNode(TPointCopy(Point).TransformKey).DisplayName]));
+      Exit;
+    end;
     for FieldIndex := 0 to High(Names) do
       if not NewPoint.Field(Names[FieldIndex]).ParseStored(Texts[FieldIndex]) then
       begin
@@ -1900,7 +2187,54 @@ begin
       Result := Concat(Result, UsersOf(Item));
 end;
 
+function TPattern.CopiesOf(Transform: TTransformObject): TDraftObjectArray;
+var
+  Index: integer;
+begin
+  Result := nil;
+  for Index := 0 to FObjects.Count - 1 do
+    if CopyTransformKey(Objects[Index]) = Transform.Key then
+      Insert(Objects[Index], Result, System.Length(Result));
+end;
+
+// With its copies, unless something else uses one
+function TPattern.DeleteTransform(Transform: TTransformObject): boolean;
+var
+  Copies: TDraftObjectArray;
+  Item: TDraftObject;
+  User: TEvalNode;
+  Index: integer;
+
+  function IsCopy(Node: TEvalNode): boolean;
+  begin
+    Result := CopyTransformKey(Node) = Transform.Key;
+  end;
+
+begin
+  Copies := CopiesOf(Transform);
+  for Item in Copies do
+    for User in UsersOf(Item) do
+      if not IsCopy(User) then
+        Exit(SetError(Format(rsPatternInUse, [Item.DisplayName, User.DisplayName])));
+  for User in UsersOf(Transform) do
+    if not IsCopy(User) then
+      Exit(SetError(Format(rsPatternInUse, [Transform.DisplayName, User.DisplayName])));
+  // Edges first, since they read the points
+  for Index := High(Copies) downto 0 do
+    DeleteNode(Copies[Index]);
+  Result := DeleteNode(Transform);
+end;
+
 function TPattern.Delete(Node: TEvalNode): boolean;
+begin
+  if CopyTransformKey(Node) <> '' then
+    Exit(SetError(Format(rsPatternCopyOfTransform, [Node.DisplayName, FindNode(CopyTransformKey(Node)).DisplayName])));
+  if Node is TTransformObject then
+    Exit(DeleteTransform(TTransformObject(Node)));
+  Result := DeleteNode(Node);
+end;
+
+function TPattern.DeleteNode(Node: TEvalNode): boolean;
 var
   Item: TRepeatPoint;
   Users: TEvalNodeArray;

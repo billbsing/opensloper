@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.GarmentWindow,
-  Sloper.UI.LayersPanel, Sloper.UI.DraftBar, Sloper.Core.Drafts;
+  Sloper.UI.LayersPanel, Sloper.UI.DraftBar, Sloper.Core.Drafts, Sloper.Core.Transform;
 
 type
 
@@ -129,6 +129,7 @@ type
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure SplitClick(Sender: TObject);
+    procedure TransformClick(Sender: TObject);
     procedure GarmentClick(Sender: TObject);
     procedure LayersMoveHere(Sender: TObject);
     procedure DraftChosen(Sender: TObject; Draft: TPatternDraft);
@@ -214,6 +215,9 @@ resourcestring
   rsToolNotch = 'Notch';
   rsToolSeam = 'Seam';
   rsMenuToolsSplit = 'Sp&lit Edge';
+  rsMenuToolsRotate = '&Rotate...';
+  rsMenuToolsMirror = 'M&irror...';
+  rsMenuToolsMove = 'Mo&ve...';
   rsMenuToolsSuggest = 'Suggest Sea&ms...';
   rsNoSuggestions = 'No more seams to suggest';
   rsAddSuggestedSeams = 'Add seams';
@@ -578,7 +582,12 @@ var
   MenuTools, Item: TMenuItem;
   Tool: TCanvasTool;
   Captions: array[TCanvasTool] of string;
+  TransformCaptions: array[TTransformKind] of string;
+  Kind: TTransformKind;
 begin
+  TransformCaptions[tkRotate] := rsMenuToolsRotate;
+  TransformCaptions[tkMirror] := rsMenuToolsMirror;
+  TransformCaptions[tkMove] := rsMenuToolsMove;
   Captions[ctSelect] := rsToolSelect;
   Captions[ctPoint] := rsToolPoint;
   Captions[ctLine] := rsToolLine;
@@ -624,6 +633,14 @@ begin
   Item.Caption := rsMenuToolsSplit;
   Item.OnClick := @SplitClick;
   MenuTools.Add(Item);
+  for Kind := Low(TTransformKind) to High(TTransformKind) do
+  begin
+    Item := TMenuItem.Create(MenuTools);
+    Item.Caption := TransformCaptions[Kind];
+    Item.Tag := Ord(Kind);
+    Item.OnClick := @TransformClick;
+    MenuTools.Add(Item);
+  end;
   Item := TMenuItem.Create(MenuTools);
   Item.Caption := rsMenuToolsSuggest;
   Item.OnClick := @SuggestSeamsClick;
@@ -649,6 +666,12 @@ begin
     FGarment.Document := FDocument;
   end;
   FGarment.ShowView;
+end;
+
+procedure TMainForm.TransformClick(Sender: TObject);
+begin
+  FCanvas.StartTransform(TTransformKind(TComponent(Sender).Tag));
+  FCanvas.SetFocus;
 end;
 
 procedure TMainForm.SplitClick(Sender: TObject);

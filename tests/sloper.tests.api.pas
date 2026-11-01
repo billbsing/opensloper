@@ -98,6 +98,7 @@ type
     procedure TestEveryPointType;
     procedure TestCurves;
     procedure TestSeams;
+    procedure TestTransforms;
     procedure TestDraftsAndLayers;
     procedure TestGarmentView;
     procedure TestExport;
@@ -871,6 +872,41 @@ begin
   AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
   Call('set_fold', '{"name": "Front", "none": true}');
   AssertFalse(Answer.Get('onFold', True));
+end;
+
+procedure TTestAPI.TestTransforms;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 10, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": 0, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": 0, "y": 50}');
+  Call('add_transform', '{"type": "rotate", "sources": ["A"], "pivot": "P", "angle": 90}');
+  AssertEquals('rotate', 'rotate', Answer.Get('type', ''));
+  AssertEquals('angle', '90', FormulaOf(Answer, 'angle'));
+  Call('get_object', '{"name": "A_r1"}');
+  AssertEquals('copy', 'pointCopy', Answer.Get('type', ''));
+  AssertEquals('x', 0, Answer.Get('x', 99.0), 0.001);
+  AssertEquals('y', 10, Answer.Get('y', 99.0), 0.001);
+  Call('add_transform', '{"type": "mirror", "sources": ["A"], "axis": {"a": "P", "b": "Q"}}');
+  AssertEquals('mirror', 'mirror', Answer.Get('type', ''));
+  Call('get_object', '{"name": "A_m1"}');
+  AssertEquals('across', -10, Answer.Get('x', 99.0), 0.001);
+  Call('add_transform', '{"type": "move", "sources": ["A"], "dx": 5, "dy": 6}');
+  Call('get_object', '{"name": "A_t1"}');
+  AssertEquals('moved', 15, Answer.Get('x', 99.0), 0.001);
+  Call('add_transform', '{"type": "mirror", "sources": ["A"]}');
+  AssertEquals('no axis', RpcInvalidParams, ErrorCode);
+  Call('add_transform', '{"type": "turn", "sources": ["A"]}');
+  AssertEquals('no such type', RpcInvalidParams, ErrorCode);
+  Call('add_transform', '{"type": "move", "sources": []}');
+  AssertEquals('nothing to copy', RpcRefused, ErrorCode);
+  Call('delete', '{"name": "A_r1"}');
+  AssertEquals('copy alone', RpcRefused, ErrorCode);
+  Call('delete', '{"name": "Rotate"}');
+  Call('get_object', '{"name": "A_r1"}');
+  AssertEquals('gone with it', RpcRefused, ErrorCode);
+  Call('undo');
+  Call('get_object', '{"name": "A_r1"}');
+  AssertEquals('back', 'pointCopy', Answer.Get('type', ''));
 end;
 
 procedure TTestAPI.TestDraftsAndLayers;

@@ -28,7 +28,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Drafts, Sloper.Core.Settings,
+  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Drafts, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
   Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
@@ -77,6 +77,11 @@ type
     FThumbHeld: boolean;
     // The draft FView belongs to
     FViewDraftKey: string;
+    // A transform waiting for its pivot or axis to be clicked
+    FPicking: boolean;
+    FPickKind: TTransformKind;
+    FPickSources: TStringArray;
+    FPickFirst: string;
     FOnToolChange: TNotifyEvent;
     FOnCursorMove: TCursorMoveEvent;
     FOnMessage: TCanvasMessageEvent;
@@ -92,6 +97,9 @@ type
     function SelectionIsLocked: boolean;
     procedure DropHiddenSelection;
     procedure MoveSelectionBy(Delta: integer);
+    procedure PickHere(X, Y: integer);
+    procedure EndPicking;
+    procedure MakeTransform(const Spec: TTransformSpec);
     procedure ToggleSelected(const Key: string);
     procedure DropMissingSelection;
     procedure StartDrag;
@@ -169,6 +177,9 @@ type
     // Brings the selection into view at the current zoom
     procedure RevealSelection;
     procedure ZoomToSelection;
+    // Copies the selection with a transform: Move at once, Rotate and Mirror
+    // once a pivot or axis has been clicked
+    procedure StartTransform(Kind: TTransformKind);
     // Moves the selected objects to a layer, as one undo step
     procedure MoveSelectionToLayer(Layer: TPatternLayer);
     // Deletes the selected objects, the dependents first; nothing when any is in use
@@ -195,6 +206,13 @@ resourcestring
   rsCanvasMoveHandle = 'Move curve handle';
   rsCanvasNudge = 'Nudge';
   rsCanvasMoveToLayer = 'Move to layer';
+  rsCanvasTransform = 'Add %s';
+  rsCanvasPickPivot = 'Rotate: click the point to turn about; Escape cancels';
+  rsCanvasPickAxis = 'Mirror: click a straight edge, or the first of two points; Escape cancels';
+  rsCanvasPickSecond = 'Mirror: click the second point; Escape cancels';
+  rsCanvasPickPoint = 'Click a point';
+  rsCanvasPickEdge = 'Click a straight edge or a point';
+  rsCanvasNothingSelected = 'Select the points and edges to copy first';
   rsCanvasLocked = 'The layer %s is locked';
   rsCanvasDelete = 'Delete';
   rsCanvasHover = '%s: %s';
@@ -221,7 +239,7 @@ resourcestring
 implementation
 
 uses
-  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.Core.Pattern, Sloper.UI.Scene;
+  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.UI.Scene;
 
 const
   // Screen pixels
@@ -844,10 +862,120 @@ begin
     MoveSelectionToLayer(Draft.Layers[Index]);
 end;
 
+{ Transforms }
+
+procedure TPatternCanvas.EndPicking;
+begin
+  FPicking := False;
+  FPickFirst := '';
+  FPickSources := nil;
+  if FTool = ctSelect then
+    Cursor := crDefault;
+end;
+
+procedure TPatternCanvas.StartTransform(Kind: TTransformKind);
+var
+  Spec: TTransformSpec;
+begin
+  if FDocument = nil then
+    Exit;
+  if FSelection = nil then
+  begin
+    ShowMessageText(rsCanvasNothingSelected);
+    Exit;
+  end;
+  if Kind = tkMove then
+  begin
+    Spec := Default(TTransformSpec);
+    Spec.Kind := tkMove;
+    Spec.Sources := Copy(FSelection);
+    Spec.DX := '0';
+    Spec.DY := '0';
+    MakeTransform(Spec);
+    Exit;
+  end;
+  FPicking := True;
+  FPickKind := Kind;
+  FPickFirst := '';
+  FPickSources := Copy(FSelection);
+  Cursor := crCross;
+  if Kind = tkRotate then
+    ShowMessageText(rsCanvasPickPivot)
+  else
+    ShowMessageText(rsCanvasPickAxis);
+end;
+
+procedure TPatternCanvas.MakeTransform(const Spec: TTransformSpec);
+var
+  Transform: TTransformObject;
+  Key, Reason: string;
+begin
+  EndPicking;
+  FDocument.BeginChange(Format(rsCanvasTransform, [Spec.Name]));
+  Transform := FDocument.Pattern.AddTransform(Spec);
+  Key := '';
+  if Transform <> nil then
+    Key := Transform.Key;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Transform <> nil) then
+    SetSelection([Key])
+  else
+    ShowMessageText(Reason);
+end;
+
+procedure TPatternCanvas.PickHere(X, Y: integer);
+var
+  At: TVec2;
+  Point: TPointObject;
+  Edge: TEdgeObject;
+  Spec: TTransformSpec;
+begin
+  At := ModelAt(X, Y);
+  Point := PointAt(FDocument.Pattern, At, FView.PixelsToMM(PointHitRadius));
+  Spec := Default(TTransformSpec);
+  Spec.Kind := FPickKind;
+  Spec.Sources := FPickSources;
+  if FPickKind = tkRotate then
+  begin
+    if Point = nil then
+    begin
+      ShowMessageText(rsCanvasPickPoint);
+      Exit;
+    end;
+    Spec.Pivot := Point.Key;
+    Spec.Angle := '0';
+    MakeTransform(Spec);
+  end
+  else if Point <> nil then
+  begin
+    if FPickFirst = '' then
+    begin
+      FPickFirst := Point.Key;
+      ShowMessageText(rsCanvasPickSecond);
+      Exit;
+    end;
+    Spec.AxisA := FPickFirst;
+    Spec.AxisB := Point.Key;
+    MakeTransform(Spec);
+  end
+  else
+  begin
+    Edge := EdgeAt(FDocument.Pattern, At, FView.PixelsToMM(EdgeHitRadius));
+    if Edge = nil then
+    begin
+      ShowMessageText(rsCanvasPickEdge);
+      Exit;
+    end;
+    Spec.AxisEdge := Edge.Key;
+    MakeTransform(Spec);
+  end;
+end;
+
 { Drawing tools }
 
 procedure TPatternCanvas.SetTool(Value: TCanvasTool);
 begin
+  EndPicking;
   ClearSeamSides;
   FHasStart := False;
   FSnapShown := False;
@@ -1204,6 +1332,12 @@ begin
   end;
   if FDocument = nil then
     Exit;
+  if FPicking then
+  begin
+    if Button = mbLeft then
+      PickHere(X, Y);
+    Exit;
+  end;
   if FTool = ctPiece then
   begin
     if Button = mbLeft then
@@ -1355,6 +1489,11 @@ begin
     VK_ESCAPE:
       if FMode = cmDragging then
         CancelDrag
+      else if FPicking then
+      begin
+        EndPicking;
+        ShowMessageText('');
+      end
       else if FHasStart then
         CancelStart
       else if PickingSeam then
@@ -1643,7 +1782,8 @@ begin
   LineColor := Faded(StateInk(Edge.State, LineColor), Edge.State);
   if Edge.Key = FHoverKey then
     FBitmap.DrawPolyLineAntialias(Screen, HoverHalo, LineWidth + 6);
-  if IsSelected(Edge.Key) then
+  // Selecting a transform shows its copies
+  if IsSelected(Edge.Key) or IsSelected(CopyTransformKey(Edge)) then
   begin
     LineColor := SelectedInk;
     LineWidth := LineWidth + 1;
@@ -1668,7 +1808,7 @@ begin
     Radius := PointRadius;
   if Point.Key = FHoverKey then
     FBitmap.FillEllipseAntialias(Screen.X, Screen.Y, Radius + 5, Radius + 5, HoverHalo);
-  if IsSelected(Point.Key) then
+  if IsSelected(Point.Key) or IsSelected(CopyTransformKey(Point)) then
   begin
     InkColor := SelectedInk;
     Radius := Radius + 1.5;

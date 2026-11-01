@@ -68,14 +68,9 @@ const
   ClusterGap = 40;
 
 type
-  // X' = XX x + XY y + TX, Y' = YX x + YY y + TY
-  TGarmentMap = record
-    XX, XY, YX, YY, TX, TY: double;
-  end;
-
   TGarmentItem = record
     Piece: TPieceObject;
-    Map: TGarmentMap;
+    Map: TAffine2;
     Placed: boolean;
     // Which group of joined pieces it went into
     Cluster: integer;
@@ -83,64 +78,6 @@ type
 
   TGarmentItemArray = array of TGarmentItem;
   TSeamList = array of TSeamObject;
-
-function IdentityMap: TGarmentMap;
-begin
-  Result := Default(TGarmentMap);
-  Result.XX := 1;
-  Result.YY := 1;
-end;
-
-function Moved(const Map: TGarmentMap; const P: TVec2): TVec2;
-begin
-  Result := Vec2(Map.XX * P.X + Map.XY * P.Y + Map.TX, Map.YX * P.X + Map.YY * P.Y + Map.TY);
-end;
-
-// Before first, then After
-function Combined(const After, Before: TGarmentMap): TGarmentMap;
-begin
-  Result.XX := After.XX * Before.XX + After.XY * Before.YX;
-  Result.XY := After.XX * Before.XY + After.XY * Before.YY;
-  Result.YX := After.YX * Before.XX + After.YY * Before.YX;
-  Result.YY := After.YX * Before.XY + After.YY * Before.YY;
-  Result.TX := After.XX * Before.TX + After.XY * Before.TY + After.TX;
-  Result.TY := After.YX * Before.TX + After.YY * Before.TY + After.TY;
-end;
-
-function Shifted(const Offset: TVec2): TGarmentMap;
-begin
-  Result := IdentityMap;
-  Result.TX := Offset.X;
-  Result.TY := Offset.Y;
-end;
-
-function Turned(AngleDeg: double): TGarmentMap;
-begin
-  Result := IdentityMap;
-  Result.XX := Cos(DegToRad(AngleDeg));
-  Result.XY := -Sin(DegToRad(AngleDeg));
-  Result.YX := Sin(DegToRad(AngleDeg));
-  Result.YY := Cos(DegToRad(AngleDeg));
-end;
-
-// Across the line through A and B
-function Reflected(const A, B: TVec2): TGarmentMap;
-var
-  Along: TVec2;
-  Span: double;
-begin
-  Result := IdentityMap;
-  Span := Distance(A, B);
-  if Span = 0 then
-    Exit;
-  Along := (B - A) * (1 / Span);
-  Result.XX := Along.X * Along.X - Along.Y * Along.Y;
-  Result.XY := 2 * Along.X * Along.Y;
-  Result.YX := Result.XY;
-  Result.YY := -Result.XX;
-  Result.TX := A.X - (Result.XX * A.X + Result.XY * A.Y);
-  Result.TY := A.Y - (Result.YX * A.X + Result.YY * A.Y);
-end;
 
 function ViewShows(Piece: TPieceObject; Side: TGarmentSide): boolean;
 begin
@@ -159,7 +96,7 @@ begin
     begin
       Item := Default(TGarmentItem);
       Item.Piece := TPieceObject(Pattern.Objects[Index]);
-      Item.Map := IdentityMap;
+      Item.Map := AffineIdentity;
       Item.Cluster := -1;
       Insert(Item, Result, Length(Result));
     end;
@@ -216,14 +153,14 @@ procedure SideEnds(Pattern: TPattern; Seam: TSeamObject; OnSideB: boolean; const
   var
     Piece: TPieceObject;
     Edge: TEdgeObject;
-    Map: TGarmentMap;
+    Map: TAffine2;
     Swap: TVec2;
   begin
     Piece := TPieceObject(Pattern.FindNode(Entry.PieceKey));
     Edge := TEdgeObject(Pattern.FindNode(Entry.EdgeKey));
     Map := Items[IndexOfPiece(Items, Entry.PieceKey)].Map;
-    RunStart := Moved(Map, Edge.PointAtLength(0));
-    RunEnd := Moved(Map, Edge.PointAtLength(Edge.Length));
+    RunStart := Map.Apply(Edge.PointAtLength(0));
+    RunEnd := Map.Apply(Edge.PointAtLength(Edge.Length));
     if not Seam.RunsForward(Piece, Entry, OnSideB) then
     begin
       Swap := RunStart;
@@ -254,7 +191,7 @@ end;
 
 // Moves and turns so that the ends of one line meet those of another, as
 // nearly as their lengths allow: any difference is shared between the ends
-function JoiningMap(const FromStart, FromEnd, ToStart, ToEnd: TVec2): TGarmentMap;
+function JoiningMap(const FromStart, FromEnd, ToStart, ToEnd: TVec2): TAffine2;
 var
   Turn: double;
   FromMiddle, ToMiddle: TVec2;
@@ -264,7 +201,7 @@ begin
     Turn := Line2(ToStart, ToEnd).Angle - Line2(FromStart, FromEnd).Angle;
   FromMiddle := Lerp(FromStart, FromEnd, 0.5);
   ToMiddle := Lerp(ToStart, ToEnd, 0.5);
-  Result := Combined(Shifted(ToMiddle), Combined(Turned(Turn), Shifted(-FromMiddle)));
+  Result := AffineThen(AffineShift(ToMiddle), AffineThen(AffineTurn(Turn), AffineShift(-FromMiddle)));
 end;
 
 function AllPlaced(const Items: TGarmentItemArray; const Side: TSeamSide; Cluster: integer): boolean;
@@ -302,7 +239,7 @@ var
   PlacedSide, NewSide: TSeamSide;
   NewItem, Host: integer;
   ToStart, ToEnd, FromStart, FromEnd, NewMiddle, HostMiddle: TVec2;
-  Map: TGarmentMap;
+  Map: TAffine2;
 begin
   Result := False;
   if NewIsSideB then
@@ -324,11 +261,11 @@ begin
   SideEnds(Pattern, Seam, NewIsSideB, Items, FromStart, FromEnd);
   Map := JoiningMap(FromStart, FromEnd, ToStart, ToEnd);
   Host := IndexOfPiece(Items, PlacedSide[0].PieceKey);
-  NewMiddle := Moved(Map, Items[NewItem].Piece.Middle);
-  HostMiddle := Moved(Items[Host].Map, Items[Host].Piece.Middle);
+  NewMiddle := Map.Apply(Items[NewItem].Piece.Middle);
+  HostMiddle := Items[Host].Map.Apply(Items[Host].Piece.Middle);
   // On the same side of the seam, it would lie over the piece it joins
   if Cross(ToEnd - ToStart, NewMiddle - ToStart) * Cross(ToEnd - ToStart, HostMiddle - ToStart) > 0 then
-    Map := Combined(Reflected(ToStart, ToEnd), Map);
+    Map := AffineThen(AffineReflect(ToStart, ToEnd), Map);
   Items[NewItem].Map := Map;
   Items[NewItem].Placed := True;
   Items[NewItem].Cluster := Cluster;
@@ -373,14 +310,14 @@ var
   Item: TGarmentItem;
   Seam: TSeamObject;
   Edge: TEdgeObject;
-  Map: TGarmentMap;
+  Map: TAffine2;
 begin
   Centre := Default(TLine2);
   Result := True;
   for Item in Items do
     if Item.Placed and (Item.Cluster = Cluster) and Item.Piece.OnFold then
     begin
-      Centre := Line2(Moved(Item.Map, Item.Piece.FoldLine.P1), Moved(Item.Map, Item.Piece.FoldLine.P2));
+      Centre := Line2(Item.Map.Apply(Item.Piece.FoldLine.P1), Item.Map.Apply(Item.Piece.FoldLine.P2));
       Exit;
     end;
   for Seam in Seams do
@@ -391,23 +328,23 @@ begin
         Continue;
       Edge := TEdgeObject(Pattern.FindNode(Seam.SideA[0].EdgeKey));
       Map := Item.Map;
-      Centre := Line2(Moved(Map, Edge.PointAtLength(0)), Moved(Map, Edge.PointAtLength(Edge.Length)));
+      Centre := Line2(Map.Apply(Edge.PointAtLength(0)), Map.Apply(Edge.PointAtLength(Edge.Length)));
       Exit;
     end;
   Result := False;
 end;
 
-function MovedAll(const Map: TGarmentMap; const Points: TVec2Array): TVec2Array;
+function MovedAll(const Map: TAffine2; const Points: TVec2Array): TVec2Array;
 var
   Index: integer;
 begin
   Result := nil;
   SetLength(Result, Length(Points));
   for Index := 0 to High(Points) do
-    Result[Index] := Moved(Map, Points[Index]);
+    Result[Index] := Map.Apply(Points[Index]);
 end;
 
-function ShapeOf(Pattern: TPattern; const Item: TGarmentItem; const Map: TGarmentMap): TGarmentShape;
+function ShapeOf(Pattern: TPattern; const Item: TGarmentItem; const Map: TAffine2): TGarmentShape;
 var
   Entry: TPieceEdge;
 begin
@@ -421,7 +358,7 @@ end;
 
 // So the centre line stands upright, turning as little as it can, which keeps
 // the side that was up
-function UprightMap(const Centre: TLine2): TGarmentMap;
+function UprightMap(const Centre: TLine2): TAffine2;
 var
   Turn: double;
 begin
@@ -430,7 +367,7 @@ begin
     Turn := Turn - 180;
   while Turn <= -90 do
     Turn := Turn + 180;
-  Result := Turned(Turn);
+  Result := AffineTurn(Turn);
 end;
 
 procedure Grow(var Bounds: TRect2; var Started: boolean; const Points: TVec2Array);
@@ -462,36 +399,36 @@ var
   Item: TGarmentItem;
   Centre: TLine2;
   HasCentre: boolean;
-  Upright, Mirror: TGarmentMap;
+  Upright, Mirror: TAffine2;
 begin
   Result := nil;
   HasCentre := FindCentreLine(Pattern, Seams, Items, Cluster, Centre);
-  Upright := IdentityMap;
-  Mirror := IdentityMap;
+  Upright := AffineIdentity;
+  Mirror := AffineIdentity;
   if HasCentre then
   begin
     Upright := UprightMap(Centre);
-    Mirror := Reflected(Centre.P1, Centre.P2);
+    Mirror := AffineReflect(Centre.P1, Centre.P2);
   end;
   for Item in Items do
   begin
     if Item.Cluster <> Cluster then
       Continue;
-    Insert(ShapeOf(Pattern, Item, Combined(Upright, Item.Map)), Result, Length(Result));
+    Insert(ShapeOf(Pattern, Item, AffineThen(Upright, Item.Map)), Result, Length(Result));
     if HasCentre and (Item.Piece.OnFold or (Item.Piece.CutCount > 1)) then
-      Insert(ShapeOf(Pattern, Item, Combined(Upright, Combined(Mirror, Item.Map))), Result, Length(Result))
+      Insert(ShapeOf(Pattern, Item, AffineThen(Upright, AffineThen(Mirror, Item.Map))), Result, Length(Result))
     else if not HasCentre and (Item.Piece.CutCount > 1) then
       OneSided := True;
   end;
 end;
 
 // Moves each shape by Offset
-function ShapesShifted(const Shapes: TGarmentShapeArray; const Offset: TVec2): TGarmentShapeArray;
+function ShapesAffineShift(const Shapes: TGarmentShapeArray; const Offset: TVec2): TGarmentShapeArray;
 var
   Index, Line: integer;
-  Map: TGarmentMap;
+  Map: TAffine2;
 begin
-  Map := Shifted(Offset);
+  Map := AffineShift(Offset);
   Result := Copy(Shapes);
   for Index := 0 to High(Result) do
   begin
@@ -539,7 +476,7 @@ begin
     if Cluster > 0 then
     begin
       Own := ShapesBounds(Shapes);
-      Shapes := ShapesShifted(Shapes, Vec2(Result.Bounds.MaxX + ClusterGap - Own.MinX, Result.Bounds.MaxY - Own.MaxY));
+      Shapes := ShapesAffineShift(Shapes, Vec2(Result.Bounds.MaxX + ClusterGap - Own.MinX, Result.Bounds.MaxY - Own.MaxY));
     end;
     Result.Shapes := Concat(Result.Shapes, Shapes);
     Result.Bounds := ShapesBounds(Result.Shapes);

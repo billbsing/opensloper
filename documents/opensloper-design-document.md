@@ -311,7 +311,7 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 
 ## Transforms
 
-Step 15; not built yet. A transform is one operation that produces parametric copies of a set of objects, so rotated, mirrored or moved copies update when measurements change.
+A transform is one operation that produces parametric copies of a set of objects, so rotated, mirrored or moved copies update when measurements change.
 
 Uses: dart rotation, slash and spread, mirroring a half piece, and moving a traced section aside to develop it (facings, yokes, pockets).
 
@@ -334,7 +334,8 @@ Uses: dart rotation, slash and spread, mirroring a half piece, and moving a trac
 1. Draw a slash line from the bust point to the side seam; split the side seam there.
 2. Select the outline between the shoulder dart and the slash.
 3. Rotate about the bust point by the dart angle: the shoulder dart closes, a side dart opens.
-4. Click inside the new outline to form the piece from original and rotated edges.
+4. Move the original edges that were rotated to a layer of their own and hide it. The copies are already on theirs, and the outline they join stays on the first layer, so hiding that would hide too much.
+5. Click inside the new outline to form the piece from original and rotated edges.
 
 Slash and spread repeats this: each slash rotates everything beyond it by the spread amount. A convenience Spread tool that generates the chain can come later.
 
@@ -342,10 +343,13 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 
 - Creating a transform and all copies is one undoable command
 - Deleting a source is refused while a copy uses it, as for any object. Deleting a transform takes its copies with it, unless something else uses them; a copy cannot be deleted alone, as with a repeat's points
-- Copies go on a new layer named after the transform, so hiding the original layer leaves the outline to click inside, and the layer can be deleted when it is not wanted
+- Copies go on a new layer named after the transform, so they can be shown, hidden or deleted together
 - A transform and its copies live on the destination layer. Its properties offer the layer, and changing it moves them all. Only Move offers another draft, since rotate and mirror need to be seen against their originals; a transform may read sources on any draft, an exception to the rule on direct inputs, as for seams
 - From the app: select objects and choose Rotate, Mirror or Move on the Tools menu. Rotate then asks for a pivot and Mirror for two points or an edge. The transform starts with no movement and is selected, ready for the angle or distance to be typed as a formula. Copies are selected as a group through their transform
 - A live ghost preview while dragging, and snapping to angles of existing lines, are left for later
+- A copy is named once, from its source, and keeps that name if the source is renamed. It names no formula of its own, so its properties show what made it and the transform's formulas are edited on the transform
+
+**Code.** `Sloper.Core.Transform` holds `TTransformObject`, `TPointCopy` and `TEdgeCopy`, with `TPattern.AddTransform` expanding the sources and making the copies. The movement is a `TAffine2` from `Sloper.Core.Geometry`, which the Garment view shares. `add_transform` in the Automation API takes `type`, `sources`, `name`, `suffix`, `layer` and, by type, `pivot`, `angle`, `axis` (`edge`, or `a` and `b`, or `a` with `angle`), `dx` and `dy` or `length`, and `rotate`.
 - Rotate and move preserve lengths, giving a free check that seams are unchanged
 - Cut on fold is a piece property applied at output; Mirror is for geometry needed in the draft itself
 
@@ -1185,7 +1189,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `set_cut`, `set_fold`, `set_view`, the draft and layer methods (see Draft tabs and layers), `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `set_cut`, `set_fold`, `set_view`, the draft and layer methods (see Draft tabs and layers), `add_transform`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -1293,7 +1297,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (done, see Other exports and packing; DXF untried on a real cutting system)
 13. Garment view: a flat front and back of the finished garment in the drafting app (done, see Garment view; fabric colours wait for fabrics)
 14. Layers and draft tabs (done, see Draft tabs and layers)
-15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (designed, see Transforms)
+15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (done, see Transforms; the ghost preview is left for later)
 16. Blender export for 3D preview
 
 Open questions:

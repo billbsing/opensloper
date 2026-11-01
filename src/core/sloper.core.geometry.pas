@@ -48,6 +48,12 @@ type
 
   TVec2Array = array of TVec2;
 
+  // A move, turn or mirror: X' = XX x + XY y + TX, Y' = YX x + YY y + TY
+  TAffine2 = record
+    XX, XY, YX, YY, TX, TY: double;
+    function Apply(const P: TVec2): TVec2;
+  end;
+
   TRect2 = record
     MinX, MinY, MaxX, MaxY: double;
   end;
@@ -73,6 +79,15 @@ type
     function ClosestPoint(const P: TVec2; Extend: boolean): TVec2;
   end;
 
+function AffineIdentity: TAffine2;
+function AffineShift(const Offset: TVec2): TAffine2;
+// About the origin, anticlockwise
+function AffineTurn(AngleDeg: double): TAffine2;
+function AffineTurnAbout(const Pivot: TVec2; AngleDeg: double): TAffine2;
+// Across the line through A and B
+function AffineReflect(const A, B: TVec2): TAffine2;
+// Before first, then After
+function AffineThen(const After, Before: TAffine2): TAffine2;
 function Vec2(AX, AY: double): TVec2; inline;
 function Line2(const A, B: TVec2): TLine2; inline;
 function Dot(const A, B: TVec2): double; inline;
@@ -189,6 +204,68 @@ begin
 end;
 
 { Functions }
+
+function TAffine2.Apply(const P: TVec2): TVec2;
+begin
+  Result.X := XX * P.X + XY * P.Y + TX;
+  Result.Y := YX * P.X + YY * P.Y + TY;
+end;
+
+function AffineIdentity: TAffine2;
+begin
+  Result := Default(TAffine2);
+  Result.XX := 1;
+  Result.YY := 1;
+end;
+
+function AffineShift(const Offset: TVec2): TAffine2;
+begin
+  Result := AffineIdentity;
+  Result.TX := Offset.X;
+  Result.TY := Offset.Y;
+end;
+
+function AffineTurn(AngleDeg: double): TAffine2;
+begin
+  Result := AffineIdentity;
+  Result.XX := Cos(DegToRad(AngleDeg));
+  Result.XY := -Sin(DegToRad(AngleDeg));
+  Result.YX := Sin(DegToRad(AngleDeg));
+  Result.YY := Cos(DegToRad(AngleDeg));
+end;
+
+function AffineTurnAbout(const Pivot: TVec2; AngleDeg: double): TAffine2;
+begin
+  Result := AffineThen(AffineShift(Pivot), AffineThen(AffineTurn(AngleDeg), AffineShift(-Pivot)));
+end;
+
+function AffineReflect(const A, B: TVec2): TAffine2;
+var
+  Along: TVec2;
+  Span: double;
+begin
+  Result := AffineIdentity;
+  Span := Distance(A, B);
+  if Span = 0 then
+    Exit;
+  Along := (B - A) * (1 / Span);
+  Result.XX := Along.X * Along.X - Along.Y * Along.Y;
+  Result.XY := 2 * Along.X * Along.Y;
+  Result.YX := Result.XY;
+  Result.YY := -Result.XX;
+  Result.TX := A.X - (Result.XX * A.X + Result.XY * A.Y);
+  Result.TY := A.Y - (Result.YX * A.X + Result.YY * A.Y);
+end;
+
+function AffineThen(const After, Before: TAffine2): TAffine2;
+begin
+  Result.XX := After.XX * Before.XX + After.XY * Before.YX;
+  Result.XY := After.XX * Before.XY + After.XY * Before.YY;
+  Result.YX := After.YX * Before.XX + After.YY * Before.YX;
+  Result.YY := After.YX * Before.XY + After.YY * Before.YY;
+  Result.TX := After.XX * Before.TX + After.XY * Before.TY + After.TX;
+  Result.TY := After.YX * Before.TX + After.YY * Before.TY + After.TY;
+end;
 
 function Vec2(AX, AY: double): TVec2;
 begin

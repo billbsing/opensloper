@@ -29,6 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Seam,
+  Sloper.Core.Drafts, Sloper.Core.Transform, Sloper.Core.Pattern, Sloper.Core.Evaluator,
   Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
 type
@@ -80,6 +81,9 @@ type
     // The edge of each fold choice; '' for none
     FFoldKeys: TStringArray;
     FViewBox: TComboBox;
+    FLayerBox: TComboBox;
+    FLayerKeys: TStringArray;
+    FMadeByText: TGridLabel;
     FSideAText, FSideBText, FDifferenceText: TGridLabel;
     FEdits: array of TEdit;
     // Each field's row for a refused entry, hidden until needed; see RefusalRow
@@ -139,6 +143,8 @@ type
     procedure CutChange(Sender: TObject);
     procedure FoldChange(Sender: TObject);
     procedure ViewChange(Sender: TObject);
+    procedure LayerChange(Sender: TObject);
+    procedure RefreshTransformRows(Node: TEvalNode);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
   protected
@@ -184,6 +190,10 @@ resourcestring
   rsPropMirrored = 'Mirrored';
   rsPropFold = 'Fold';
   rsPropView = 'View';
+  rsPropMadeBy = 'Made by';
+  rsPropLayer = 'Layer';
+  rsPropLayerOfDraft = '%s: %s';
+  rsPropChangeLayer = 'Change layer';
   rsPropViewNone = 'None';
   rsPropViewFront = 'Front';
   rsPropViewBack = 'Back';
@@ -202,7 +212,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
+  Sloper.Core.EvalTypes, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
   Sloper.UI.GridColumns, Sloper.UI.ObjectList;
 
 const
@@ -415,6 +425,9 @@ begin
   FFoldBox := nil;
   FFoldKeys := nil;
   FViewBox := nil;
+  FLayerBox := nil;
+  FLayerKeys := nil;
+  FMadeByText := nil;
   FSideAText := nil;
   FSideBText := nil;
   FDifferenceText := nil;
@@ -628,6 +641,14 @@ begin
       AddPieceRows(TPieceObject(Node));
     if Node is TSeamObject then
       AddSeamRows;
+    if CopyTransformKey(Node) <> '' then
+      FMadeByText := AddTextRow(rsPropMadeBy, '', RowGap);
+    if Node is TTransformObject then
+    begin
+      FLayerBox := TComboBox.Create(Self);
+      FLayerBox.Style := csDropDownList;
+      AddRow(rsPropLayer, FLayerBox, RowGap);
+    end;
     if Node is TPointObject then
       FResult := AddTextRow(rsPropPosition, '', Gap)
     else if Node is TEdgeObject then
@@ -708,6 +729,7 @@ begin
     RefreshPieceRows(TPieceObject(Node));
   if Node is TSeamObject then
     RefreshSeamRows(TSeamObject(Node));
+  RefreshTransformRows(Node);
   if FResult <> nil then
     if Node is TDraftObject then
       FResult.Caption := ResultText(TDraftObject(Node))
@@ -992,6 +1014,62 @@ begin
   try
     FDocument.BeginChange(rsPropChangeCut);
     FDocument.Commit(FDocument.Pattern.SetCut(Piece, FCutEdit.Value, FMirrorBox.Checked), 'cut:' + FKey);
+  finally
+    FCommitting := False;
+  end;
+end;
+
+// The layers it could go on: a move may go to any draft, the others stay
+procedure TPropertiesPanel.RefreshTransformRows(Node: TEvalNode);
+var
+  Pattern: TPattern;
+  Index: integer;
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+begin
+  if FMadeByText <> nil then
+    FMadeByText.Caption := FDocument.Pattern.FindNode(CopyTransformKey(Node)).DisplayName;
+  if FLayerBox = nil then
+    Exit;
+  Pattern := FDocument.Pattern;
+  FLayerBox.OnChange := nil;
+  try
+    FLayerBox.Items.Clear;
+    FLayerKeys := nil;
+    for Index := 0 to Pattern.DraftCount - 1 do
+    begin
+      Draft := Pattern.Drafts[Index];
+      if (TTransformObject(Node).Kind <> tkMove) and (Draft <> Pattern.DraftOf(Node)) then
+        Continue;
+      for Layer in Draft.Layers do
+      begin
+        FLayerBox.Items.Add(Format(rsPropLayerOfDraft, [Draft.Name, Layer.Name]));
+        Insert(Layer.Key, FLayerKeys, Length(FLayerKeys));
+        if Layer = Pattern.LayerOf(Node) then
+          FLayerBox.ItemIndex := High(FLayerKeys);
+      end;
+    end;
+  finally
+    FLayerBox.OnChange := @LayerChange;
+  end;
+end;
+
+procedure TPropertiesPanel.LayerChange(Sender: TObject);
+var
+  Node: TEvalNode;
+  Layer: TPatternLayer;
+  Found: TPatternDraft;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if Node = nil then
+    Exit;
+  Layer := FDocument.Pattern.FindLayer(FLayerKeys[FLayerBox.ItemIndex], Found);
+  if (Layer = nil) or (Layer = FDocument.Pattern.LayerOf(Node)) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeLayer);
+    FDocument.Commit(FDocument.Pattern.MoveToLayer(Node, Layer));
   finally
     FCommitting := False;
   end;

@@ -178,6 +178,11 @@
         <UnitName Value="Sloper.Core.Garment"/>
       </Unit>
       <Unit>
+        <Filename Value="src/core/sloper.core.transform.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Transform"/>
+      </Unit>
+      <Unit>
         <Filename Value="src/core/sloper.core.drafts.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Drafts"/>

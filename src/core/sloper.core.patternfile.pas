@@ -74,7 +74,7 @@ resourcestring
 implementation
 
 uses
-  Math, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam;
+  Math, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform;
 
 const
   TypeFreePoint = 'freePoint';
@@ -94,6 +94,9 @@ const
   TypeSplitPart = 'splitPart';
   TypePiece = 'piece';
   TypeSeam = 'seam';
+  TypePointCopy = 'pointCopy';
+  TypeEdgeCopy = 'edgeCopy';
+  TransformTypes: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
 
   RoleNames: array[TEdgeRole] of string = ('construction', 'outline');
   OffsetModeNames: array[TOffsetMode] of string = ('polar', 'cartesian');
@@ -123,6 +126,11 @@ type
     function CreatePiece(Item: TJSONObject): TDraftObject;
     function ReadSeamSide(Item: TJSONObject; const AName: string; out Side: TSeamSide): boolean;
     function CreateSeam(Item: TJSONObject): TDraftObject;
+    function ReadSources(Item: TJSONObject; out Sources: TStringArray): boolean;
+    function ReadTransformKey(Item: TJSONObject; out Key: string): boolean;
+    function CreateTransform(Item: TJSONObject; Kind: TTransformKind): TDraftObject;
+    function CreatePointCopy(Item: TJSONObject): TDraftObject;
+    function CreateEdgeCopy(Item: TJSONObject): TDraftObject;
     function ReadGrainline(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
@@ -169,6 +177,12 @@ begin
     Result := TypePiece
   else if DraftObject is TSeamObject then
     Result := TypeSeam
+  else if DraftObject is TTransformObject then
+    Result := TransformTypes[TTransformObject(DraftObject).Kind]
+  else if DraftObject is TPointCopy then
+    Result := TypePointCopy
+  else if DraftObject is TEdgeCopy then
+    Result := TypeEdgeCopy
   else
     raise Exception.CreateFmt('No file type for %s', [DraftObject.ClassName]);
 end;
@@ -261,6 +275,33 @@ begin
     FreeAndNil(Result);
     raise;
   end;
+end;
+
+procedure SaveTransform(Transform: TTransformObject; Into: TJSONObject);
+var
+  List: TJSONArray;
+  Axis: TJSONObject;
+  Key: string;
+begin
+  List := TJSONArray.Create;
+  Into.Add('sources', List);
+  for Key in Transform.Sources do
+    List.Add(JSONId(Key));
+  Into.Add('suffix', Transform.Suffix);
+  if Transform.PivotKey <> '' then
+    Into.Add('pivot', JSONId(Transform.PivotKey));
+  if Transform.Kind = tkMove then
+    Into.Add('mode', OffsetModeNames[TOffsetMode(Ord(not Transform.Polar))]);
+  if Transform.Kind <> tkMirror then
+    Exit;
+  Axis := TJSONObject.Create;
+  Into.Add('axis', Axis);
+  if Transform.AxisEdgeKey <> '' then
+    Axis.Add('edge', JSONId(Transform.AxisEdgeKey))
+  else
+    Axis.Add('a', JSONId(Transform.AxisAKey));
+  if Transform.AxisBKey <> '' then
+    Axis.Add('b', JSONId(Transform.AxisBKey));
 end;
 
 function SaveGrainline(Piece: TPieceObject): TJSONObject;
@@ -423,6 +464,20 @@ begin
       Result.Add('edge', JSONId(Part.Source));
       Result.Add('point', JSONId(Part.Point));
       Result.Add('part', Part.Part);
+    end
+    else if DraftObject is TTransformObject then
+      SaveTransform(TTransformObject(DraftObject), Result)
+    else if DraftObject is TPointCopy then
+    begin
+      Result.Add('transform', JSONId(TPointCopy(DraftObject).TransformKey));
+      Result.Add('source', JSONId(TPointCopy(DraftObject).Source));
+    end
+    else if DraftObject is TEdgeCopy then
+    begin
+      Result.Add('transform', JSONId(TEdgeCopy(DraftObject).TransformKey));
+      Result.Add('source', JSONId(TEdgeCopy(DraftObject).Source));
+      Result.Add('start', JSONId(TEdgeCopy(DraftObject).StartKey));
+      Result.Add('end', JSONId(TEdgeCopy(DraftObject).EndKey));
     end
     else if DraftObject is TSeamObject then
     begin
@@ -1155,6 +1210,133 @@ begin
   TSeamObject(Result).Reversed := Flipped;
 end;
 
+function TPatternLoader.ReadSources(Item: TJSONObject; out Sources: TStringArray): boolean;
+var
+  List: TJSONData;
+  Index: integer;
+  Node: TEvalNode;
+  Key: string;
+begin
+  Sources := nil;
+  List := Item.Find('sources');
+  if (List = nil) or (List.JSONType <> jtArray) or (List.Count = 0) then
+    Exit(Missing('sources'));
+  for Index := 0 to List.Count - 1 do
+  begin
+    if List.Items[Index].JSONType <> jtNumber then
+      Exit(Missing('sources'));
+    Key := IntToStr(List.Items[Index].AsInteger);
+    Node := FPattern.FindNode(Key);
+    if Node = nil then
+      Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
+    if not (Node is TPointObject) and not (Node is TEdgeObject) then
+      Exit(Problem(Format(rsPatternTransformNotCopyable, [NodeLabel(Node)])));
+    Insert(Key, Sources, Length(Sources));
+  end;
+  Result := True;
+end;
+
+function TPatternLoader.ReadTransformKey(Item: TJSONObject; out Key: string): boolean;
+var
+  Id: integer;
+begin
+  Key := '';
+  if not GetJSONInteger(Item, 'transform', Id) then
+    Exit(Missing('transform'));
+  Key := IntToStr(Id);
+  if not (FPattern.FindNode(Key) is TTransformObject) then
+    Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
+  Result := True;
+end;
+
+function TPatternLoader.CreateTransform(Item: TJSONObject; Kind: TTransformKind): TDraftObject;
+var
+  Sources: TStringArray;
+  Suffix, First, Second: string;
+  Transform: TTransformObject;
+  Axis: TJSONObject;
+  Mode: integer;
+begin
+  Result := nil;
+  if not ReadSources(Item, Sources) then
+    Exit;
+  if not GetJSONString(Item, 'suffix', Suffix) then
+  begin
+    Missing('suffix');
+    Exit;
+  end;
+  Transform := TTransformObject.Create(FId, Kind, Sources, Suffix);
+  Result := Transform;
+  First := '';
+  case Kind of
+    tkRotate:
+      if ReadInput(Item, 'pivot', False, First) then
+        Transform.UseRotate(First)
+      else
+        FreeAndNil(Result);
+    tkMove:
+    begin
+      if (Item.Find('pivot') <> nil) and not ReadInput(Item, 'pivot', False, First) then
+      begin
+        FreeAndNil(Result);
+        Exit;
+      end;
+      if ReadChoice(Item, 'mode', OffsetModeNames, Mode) then
+        Transform.UseMove(TOffsetMode(Mode) = omPolar, First)
+      else
+        FreeAndNil(Result);
+    end;
+    tkMirror:
+    begin
+      if (Item.Find('axis') = nil) or (Item.Find('axis').JSONType <> jtObject) then
+      begin
+        Missing('axis');
+        FreeAndNil(Result);
+        Exit;
+      end;
+      Axis := TJSONObject(Item.Find('axis'));
+      if Axis.Find('edge') <> nil then
+      begin
+        if ReadInput(Axis, 'edge', True, First) then
+          Transform.UseAxisEdge(First)
+        else
+          FreeAndNil(Result);
+      end
+      else if not ReadInput(Axis, 'a', False, First) then
+        FreeAndNil(Result)
+      else if Axis.Find('b') = nil then
+        Transform.UseAxisAngle(First)
+      else if ReadInput(Axis, 'b', False, Second) then
+        Transform.UseAxisPoints(First, Second)
+      else
+        FreeAndNil(Result);
+    end;
+  end;
+end;
+
+function TPatternLoader.CreatePointCopy(Item: TJSONObject): TDraftObject;
+var
+  Transform, Source: string;
+begin
+  Result := nil;
+  if ReadTransformKey(Item, Transform) and ReadInput(Item, 'source', False, Source) then
+    Result := TPointCopy.Create(FId, Transform, Source);
+end;
+
+function TPatternLoader.CreateEdgeCopy(Item: TJSONObject): TDraftObject;
+var
+  Transform, Source, First, Second: string;
+  Edge: TEdgeObject;
+begin
+  Result := nil;
+  if ReadTransformKey(Item, Transform) and ReadInput(Item, 'source', True, Source) and ReadInput(Item, 'start', False, First) and
+    ReadInput(Item, 'end', False, Second) then
+  begin
+    Edge := TEdgeObject(FPattern.FindNode(Source));
+    Result := TEdgeCopy.Create(FId, Transform, Source, First, Second, Edge.IsStraight, Edge.NamePrefix);
+  end;
+end;
+
 // The object with its inputs and options; formulas come later. nil on failure.
 function TPatternLoader.CreateObject(Item: TJSONObject; const TypeText: string): TDraftObject;
 var
@@ -1230,6 +1412,16 @@ begin
     Result := CreatePiece(Item)
   else if TypeText = TypeSeam then
     Result := CreateSeam(Item)
+  else if TypeText = TransformTypes[tkRotate] then
+    Result := CreateTransform(Item, tkRotate)
+  else if TypeText = TransformTypes[tkMirror] then
+    Result := CreateTransform(Item, tkMirror)
+  else if TypeText = TransformTypes[tkMove] then
+    Result := CreateTransform(Item, tkMove)
+  else if TypeText = TypePointCopy then
+    Result := CreatePointCopy(Item)
+  else if TypeText = TypeEdgeCopy then
+    Result := CreateEdgeCopy(Item)
   else if TypeText = TypeSplitPart then
   begin
     if ReadInput(Item, 'edge', True, First) and ReadInput(Item, 'point', False, Second) then
@@ -1341,7 +1533,8 @@ begin
     // Points, pieces and seams need a name; an edge without one is named after its ends
     ObjectName := '';
     HasName := Item.Find('name') <> nil;
-    if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) or (DraftObject is TSeamObject) or (DraftObject is TRepeatObject) then
+    if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) or (DraftObject is TSeamObject) or
+      (DraftObject is TTransformObject) or (DraftObject is TRepeatObject) then
     begin
       if not GetJSONString(Item, 'name', ObjectName) then
         Exit(Missing('name'));
