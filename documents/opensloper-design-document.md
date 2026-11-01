@@ -14,6 +14,7 @@ Goals:
 - An Inkscape-like canvas where snapping records relationships automatically
 - Automatic piece detection instead of manually tracing outlines in order
 - Seam allowance, notches, grainlines and true-scale tiled printing
+- Garments and accessories in fabric and leather, with output for cutting machines
 - A small, maintainable codebase with a pure-Pascal core
 
 ## Technology and licence
@@ -48,7 +49,7 @@ A pattern is a graph of draft objects whose positions come from measurements, va
 | Operation | How a point is placed: offset, along line, intersection, perpendicular, midpoint/ratio | Inferred from snapping where possible |
 | Edge | Line, Bézier curve or arc between points | Curve handles have angle and length formulas |
 | Role | Each edge is *construction* (guide, dashed) or *outline* | Only outline edges form piece boundaries |
-| Piece | Closed path: ordered edge references, each with a reversed flag | Seam allowance (default + per edge), grainline, notches, labels, cut count, fold line |
+| Piece | Closed path: ordered edge references, each with a reversed flag | Seam allowance (default + per edge), grainline, notches, internal markings, labels, fabric, cut count, fold line |
 | Fabric | A named fabric in the pattern (Main, Lining, Contrast, Interfacing) with a colour and fill style | Pieces are assigned a fabric; drives piece fills, the cut list, and later layout and 3D textures |
 | Seam | Pairing of the edges that are sewn together, with direction and expected ease | Made by the user, with suggestions from the app; drives seam-length checks and 3D export |
 | Draft | A drafting area within a pattern file, shown as a tab | E.g. bodice, sleeve, collar; drafts share measurements, variables and names |
@@ -71,7 +72,7 @@ Four layers, each depending only on the ones below; the core has no LCL dependen
 Layers (dependencies point down):
 
 - **UI (LCL):** canvas view (BGRABitmap, pan, zoom), interaction tools (select, add point, curve, piece), snapping engine (turns snaps into operations), panels (formulas, measurements, layers)
-- **Output:** tiled PDF, SVG and DXF, Blender export (later); reads computed geometry from the core
+- **Output:** tiled PDF, SVG and DXF with line types for cutting machines, Blender export (later); reads computed geometry from the core
 - **Document:** TPatternDocument (owns the model), undo/redo commands, change notifications
 - **Core (pure Pascal, no LCL):** geometry, expressions, model, evaluator, piece builder (Clipper2 seam allowance), storage (JSON pattern and measurement files)
 
@@ -246,7 +247,7 @@ end;
 
 ## Operation set
 
-Eight point operations and three edge types cover basic bodice, skirt and trouser blocks; many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
+Eight point operations and three edge types cover basic bodice, skirt and trouser blocks; circles, arcs, rounded corners and offset edges are added for accessories (see Accessories); many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
 
 **Conventions:**
 
@@ -291,10 +292,10 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 
 | Object | Fields |
 | --- | --- |
-| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `view` (`none`, `front`, `back` or `both`; see Garment view); `fabric` (fabric ID); `fill` (optional per-piece override) |
+| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `markings[]` (hole, placement line, fold or score line, stitch holes); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `view` (`none`, `front`, `back` or `both`; see Garment view); `fabric` (fabric ID); `fill` (optional per-piece override) |
 | Seam | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` (see Seams) |
 
-**Deferred to phase two:** bisector; circle × circle; arcs (approximated by curve paths at first); tangent from a point to a curve.
+**Deferred to phase two:** bisector; tangent from a point to a curve. Circles, arcs and circle × circle are brought forward for accessories (see Accessories).
 
 ```json
 { "id": 5, "type": "circleEdgePoint", "name": "SP",
@@ -990,7 +991,8 @@ The publish app (see Publish app) prints patterns directly at true scale, with n
 
 - Single large-format PDF (A0 or copy-shop width)
 - Projector mode: dark background, thick light lines, no tiling, for projecting onto fabric
-- SVG and DXF exports (see Other exports and packing)
+- SVG and DXF exports (see Other exports and packing), with cut, score, mark, engrave and hole line types for cutting machines (see Accessories)
+- Material layouts: a fabric width, a board or a traced leather hide, one fabric at a time (see Accessories)
 - Piece fills: off by default; optional light tint, or hatching later (for black-and-white printers), set per print
 
 **Print screen (the main gap in existing software).** Seamly2D lacked a friendly interface for multi-page printing, so the publish app's main window is one interactive screen rather than a dialog of settings:
@@ -1103,7 +1105,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 
 | Area | What the tests check |
 | --- | --- |
-| Geometry | Intersections, curve length, point-at-length, point-in-polygon, signed area, with a tolerance helper (`AssertPointsNear`, e.g. 0.001 mm) |
+| Geometry | Intersections, curve length, circle and arc length, offset curves, corner rounding, point-at-length, point-in-polygon, signed area, with a tolerance helper (`AssertPointsNear`, e.g. 0.001 mm) |
 | Formula engine | Parsing, precedence, degree-based trig, reference lists, name↔ID round trip, error messages and positions |
 | Evaluator | Ordering, dirty propagation, cycle rejection, invalid and blocked states |
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
@@ -1281,6 +1283,64 @@ Everything is computed from the pattern (`Sloper.Core.Garment`, no LCL dependenc
 
 **Automation API.** `set_view` sets a piece's view, and `render` takes `garment` (`front` or `back`) for one view as SVG.
 
+## Accessories
+
+OpenSloper drafts accessories in fabric and leather (bags, pouches, wallets, hats, belts) as well as garments, using the same parametric core; the additions below are useful for garments too.
+
+**What already works:**
+
+- **Product dimensions instead of body measurements.** A bag is driven by `#width`, `#height`, `#depth` and `#strap_length`, plain variables, so a pattern needs no measurement file. A range of sizes (small, medium, large) is a size table of dimensions, read as `@width` and so on; nothing in the measurement format assumes a body. Hats and gloves use body measurements (`@head`) as garments do.
+- **Matching lengths.** A gusset's length is a formula reading the panel edge it is sewn to (`Curve_A_B.length`), and seams check that they match.
+- **Repeated panels.** One panel of a six-panel cap is drafted and rotated into copies.
+
+**Circles and arcs.** Round bases, hat crowns and brims, and rounded corners need exact circles, which give exact lengths for the gussets sewn to them. Circle and arc edges are therefore brought forward from phase two (see Operation set):
+
+| Operation | Fields | Covers |
+| --- | --- | --- |
+| Circle | `centre`, `radius` | Round bag bases, hat crowns, cylinder ends; a closed edge that can be a piece on its own, which needs the rule that a piece has at least two edges relaxed |
+| Arc | `centre`, `radius`, `angle1`, `angle2` | Brims, curved flaps, rounded corners |
+
+Both are stored as cubic segments like every other edge, so lengths, positions along them, splitting and crossings work unchanged; `.length` is computed from the exact formula. Circle × circle intersection comes with them.
+
+**Rectangle tool.** Most bag and pouch pieces start as rectangles. A canvas tool creates a free or snapped corner point, three offset points and four lines from `width` and `height` formulas in one undo step. It is a convenience only: the result is ordinary points and lines.
+
+**Rounded corners.** A Round corner operation replaces the corner where two edges meet with an arc of a formula radius, trimming both edges to its tangent points. It produces a new arc and two trimmed edges that follow the originals, as Split edge does.
+
+**Offset edge.** A parallel copy of an edge at a formula distance, to the left or right of its direction. Needed for stitch lines, facings, linings, hems, turn-backs and leather edge allowances. Unlike seam allowance, which only applies to a finished piece outline, it is an ordinary parametric edge that other operations can use.
+
+| Operation | Fields | Covers |
+| --- | --- | --- |
+| Offset edge | `edge`, `distance`, `side` (left/right), `role` | Stitch lines, facings, linings, turned edges |
+
+**Markings inside a piece.** Notches mark only the edge. A piece also has internal markings, drawn from points and edges of the draft and printed with the piece, so they follow measurement changes:
+
+| Marking | From | Use |
+| --- | --- | --- |
+| Hole | A point, with a diameter | Rivets, snaps, magnetic clasps, eyelets, buttonholes' ends |
+| Placement line | An edge | Pocket, strap, handle and zip positions; quilting lines |
+| Fold or score line | An edge | Folds in leather and stiffened pieces; pleat lines on garments |
+| Stitch holes | An edge (usually an Offset edge), with spacing and hole size | Hand-stitching holes for leather, spaced evenly along the edge |
+
+Stitch hole spacing is a formula, and holes are spaced evenly between the ends with the spacing adjusted to fit, so they stay even when the size changes. The piece reports the hole count, which is also useful for working out thread length.
+
+**Material per piece.** A piece's material is its fabric (see Fabrics): leather, foam, stiffener and interfacing go in the fabric list beside main and lining, so there is no separate material on a piece. Leather pieces are often cut with no seam allowance; per-edge allowance already allows `0`, and a fabric can set a default allowance for pieces that use it. The publish app can lay out one fabric at a time (see below).
+
+**Cutting machines.** Laser cutters, plotters and cutting machines (such as Cricut) read SVG and DXF and treat line types differently, so exports keep them apart:
+
+| Line type | What | Usual colour in SVG |
+| --- | --- | --- |
+| Cut | Piece outline (cutting line) | Red |
+| Score or fold | Fold and score lines | Blue |
+| Mark | Placement lines, seam lines, notches | Black |
+| Engrave | Labels and text | Green |
+| Hole | Holes and stitch holes, cut as small circles | Red |
+
+Colours and layer names are set per output profile, because machines differ; DXF-AAMA keeps its own fixed layers (see Other exports and packing). Each line type can be switched off, for example to cut outlines only.
+
+**Laying out on material.** Besides paper tiles, a layout in the publish app can be a material sheet: a fabric width and length, a foam or card board, or a leather hide whose outline is traced from a photo or drawn by hand, with flaws marked as areas to avoid. A layout can be limited to one fabric, so each fabric or hide gets its own cutting layout, and it reports the length or area used.
+
+**Not included.** Fashion drawing beyond the Garment view (illustration, colours, prints) is left to tools such as Inkscape and Krita; a pattern can keep a reference image. Hardware sizes (rings, buckles, zips) are entered as variables, not a catalogue; the Notions library in Future ideas would change that.
+
 ## 3D preview (later phase)
 
 3D draping is deferred and will use Blender's cloth simulation rather than a built-in simulator.
@@ -1326,7 +1386,9 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 13. Garment view: a flat front and back of the finished garment in the drafting app (done, see Garment view)
 14. Layers and draft tabs (done, see Draft tabs and layers)
 15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (done, see Transforms; the ghost preview is left for later)
-16. Blender export for 3D preview
+16. Accessories: circles and arcs, rectangle tool, rounded corners, offset edges, internal markings, a default allowance per fabric
+17. Cutting machine output (SVG/DXF line types) and material layouts
+18. Blender export for 3D preview
 
 Open questions:
 
@@ -1336,6 +1398,7 @@ Open questions:
 - [x] Project name: settled, OpenSloper (opensloper.com available; reserve domain and GitHub name; file extensions .sloper for patterns, .slm for measurements)
 - [x] Undo granularity: settled, see Key design decisions item 7
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
+- [x] Accessories: settled, fabric and leather accessories on the same core, with the additions in Accessories
 - [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
 - [x] Transforms: settled, copies of points and edges that follow one movement, on a new layer by default, with the ghost preview left for later; see Transforms
 - [x] Seeing the finished garment: settled, a flat Garment view comes first and Blender stays as a later step; see Garment view
