@@ -120,6 +120,7 @@ type
     function ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadFold(Item: TJSONObject; Piece: TPieceObject): boolean;
+    function ReadView(Item: TJSONObject; Piece: TPieceObject): boolean;
     function LoadObject(Item: TJSONObject): boolean;
   public
     constructor Create(APattern: TPattern);
@@ -437,6 +438,8 @@ begin
       Result.Add('cut', SaveCut(TPieceObject(DraftObject)));
       if TPieceObject(DraftObject).OnFold then
         Result.Add('foldEdge', JSONId(TPieceObject(DraftObject).FoldEdgeKey));
+      if TPieceObject(DraftObject).View <> pvNone then
+        Result.Add('view', PieceViewNames[Ord(TPieceObject(DraftObject).View)]);
     end
     else
       for Index := 0 to DraftObject.FieldCount - 1 do
@@ -777,6 +780,18 @@ begin
 end;
 
 // Optional
+// Optional: none when absent
+function TPatternLoader.ReadView(Item: TJSONObject; Piece: TPieceObject): boolean;
+var
+  Choice: integer;
+begin
+  if Item.Find('view') = nil then
+    Exit(True);
+  Result := ReadChoice(Item, 'view', PieceViewNames, Choice);
+  if Result then
+    Piece.View := TPieceView(Choice);
+end;
+
 function TPatternLoader.ReadFold(Item: TJSONObject; Piece: TPieceObject): boolean;
 var
   Key: string;
@@ -851,7 +866,7 @@ begin
       Exit;
     end;
   end;
-  if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) or not ReadCut(Item, Piece) or not ReadFold(Item, Piece) then
+  if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) or not ReadCut(Item, Piece) or not ReadFold(Item, Piece) or not ReadView(Item, Piece) then
     FreeAndNil(Result);
 end;
 

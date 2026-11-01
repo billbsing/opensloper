@@ -93,6 +93,7 @@ type
     function DoRemoveNotch(Params: TJSONObject): TJSONData;
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
+    function DoSetView(Params: TJSONObject): TJSONData;
     function SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
     function DoAddSeam(Params: TJSONObject): TJSONData;
     function DoFlipSeam(Params: TJSONObject): TJSONData;
@@ -140,6 +141,7 @@ resourcestring
   rsApiAddRepeat = 'Add repeat';
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
+  rsApiView = 'Change garment view';
   rsApiBadFold = 'Give an "edge", or "none": true';
   rsApiBadGrainline = 'Give an "angle", a "start" and "end" point, or "none": true';
   rsApiBadNotch = 'Give a "point", or an "edge" and a "position"';
@@ -149,7 +151,8 @@ implementation
 
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
-  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Output.DraftSVG, Sloper.Output.Layout,
+  Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Garment,
+  Sloper.Output.DraftSVG, Sloper.Output.GarmentSVG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport;
 
 const
@@ -322,6 +325,7 @@ begin
         Result.Add('cutCount', TPieceObject(Node).CutCount);
         Result.Add('mirrored', TPieceObject(Node).Mirrored);
         Result.Add('onFold', TPieceObject(Node).OnFold);
+        Result.Add('view', PieceViewNames[Ord(TPieceObject(Node).View)]);
       end
       else if Node is TSeamObject then
       begin
@@ -842,7 +846,13 @@ begin
   Info := TJSONObject.Create;
   try
     Info.Add('format', RenderFormatSVG);
-    Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
+    if (Params <> nil) and (Params.Find('garment') <> nil) then
+    begin
+      FDocument.LiveUpdate;
+      Info.Add('svg', GarmentToSVG(BuildGarment(FDocument.Pattern, TGarmentSide(ChoiceParam(Params, 'garment', ['front', 'back'])))));
+    end
+    else
+      Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
     Result := Info;
   except
     FreeAndNil(Info);
@@ -1178,6 +1188,20 @@ begin
   Result := AddedNode(Piece);
 end;
 
+function TApiServer.DoSetView(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Choice: integer;
+begin
+  Piece := TargetPiece(Params);
+  if Params.Find('view') = nil then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['view']));
+  Choice := ChoiceParam(Params, 'view', PieceViewNames);
+  FDocument.BeginChange(rsApiView);
+  Piece.View := TPieceView(Choice);
+  Result := AddedNode(Piece);
+end;
+
 function TApiServer.DoSetFold(Params: TJSONObject): TJSONData;
 var
   Piece: TPieceObject;
@@ -1354,6 +1378,7 @@ begin
     'remove_notch': Result := DoRemoveNotch(Params);
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
+    'set_view': Result := DoSetView(Params);
     'add_seam': Result := DoAddSeam(Params);
     'flip_seam': Result := DoFlipSeam(Params);
     'suggest_seams': Result := DoSuggestSeams;

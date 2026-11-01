@@ -28,7 +28,7 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams;
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.GarmentWindow;
 
 type
 
@@ -88,6 +88,7 @@ type
     FSidePanel: TPageControl;
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
+    FGarment: TGarmentWindow;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FSideItem: TMenuItem;
     FObjects: TObjectsPanel;
@@ -125,6 +126,7 @@ type
     procedure CreateTools;
     procedure ToolClick(Sender: TObject);
     procedure SplitClick(Sender: TObject);
+    procedure GarmentClick(Sender: TObject);
     procedure SuggestSeamsClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
     procedure CanvasSelectionChange(Sender: TObject);
@@ -187,6 +189,7 @@ resourcestring
   rsMenuViewZoomOut = 'Zoom &Out';
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
+  rsMenuViewGarment = '&Garment View';
   rsMenuViewSidePanel = '&Side Panel';
   rsTabObjects = 'Objects';
   rsTabVariables = 'Variables';
@@ -514,7 +517,7 @@ end;
 // The label modes in the View menu; each item's Tag is its TLabelMode
 procedure TMainForm.CreateLabelMenu;
 var
-  MenuLabels: TMenuItem;
+  MenuLabels, MenuGarment: TMenuItem;
   Mode: TLabelMode;
   Captions: array[TLabelMode] of string;
 begin
@@ -523,6 +526,11 @@ begin
   Captions[lmNone] := rsLabelsNone;
   MenuLabels := TMenuItem.Create(MainMenu);
   MenuLabels.Caption := rsMenuViewLabels;
+  MenuGarment := TMenuItem.Create(MainMenu);
+  MenuGarment.Caption := rsMenuViewGarment;
+  MenuGarment.ShortCut := ShortCut(VK_G, [ssModifier]);
+  MenuGarment.OnClick := @GarmentClick;
+  MenuView.Add(MenuGarment);
   MenuView.Add(NewLine);
   MenuView.Add(MenuLabels);
   for Mode := Low(TLabelMode) to High(TLabelMode) do
@@ -602,6 +610,16 @@ begin
   MenuTools.Add(Item);
 end;
 
+procedure TMainForm.GarmentClick(Sender: TObject);
+begin
+  if FGarment = nil then
+  begin
+    FGarment := TGarmentWindow.CreateFor(Self);
+    FGarment.Document := FDocument;
+  end;
+  FGarment.ShowView;
+end;
+
 procedure TMainForm.SplitClick(Sender: TObject);
 begin
   FCanvas.SplitSelection;
@@ -669,6 +687,8 @@ begin
   FreeAndNil(FSettings);
   // The canvas and panels listen to the document, so they let go first
   FCanvas.Document := nil;
+  if FGarment <> nil then
+    FGarment.Document := nil;
   FProperties.Document := nil;
   FObjects.Document := nil;
   FVariables.Document := nil;

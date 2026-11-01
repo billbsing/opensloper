@@ -33,6 +33,8 @@ const
   PieceAllowanceField = 'allowance';
   DefaultPieceAllowance = '10';
   GrainAngleField = 'grainline.angle';
+  // As written in pattern files and the Automation API
+  PieceViewNames: array[0..3] of string = ('none', 'front', 'back', 'both');
   DefaultGrainAngle = '90';
   // A point this close (in mm) to a piece's seam line can carry a notch
   NotchPointTolerance = 0.05;
@@ -41,6 +43,9 @@ const
   PieceJoinTolerance = 0.01;
 
 type
+  // Which view of the finished garment the piece shows in
+  TPieceView = (pvNone, pvFront, pvBack, pvBoth);
+
   TPieceEdge = record
     EdgeKey: string;
     // True when the path runs along the edge from its end to its start
@@ -85,6 +90,7 @@ type
     FFoldEdgeKey: string;
     FFoldLine: TLine2;
     FFoldInwards: double;
+    FView: TPieceView;
     function BuildOutline(Context: TEvalContext; DefaultWidth: double; out Outline: TVec2Array; out Widths, EdgeWidths: TDoubleArray): TEvalState;
     function ComputeGrainline(Context: TEvalContext; const Points: TVec2Array; out Line: TLine2): TEvalState;
     function ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray; Anticlockwise: boolean;
@@ -146,6 +152,7 @@ type
     // Last good line of the fold, along its edge
     property FoldLine: TLine2 read FFoldLine;
     function OnFold: boolean;
+    property View: TPieceView read FView write FView;
   end;
 
 resourcestring

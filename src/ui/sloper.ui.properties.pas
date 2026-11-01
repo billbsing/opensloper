@@ -79,6 +79,7 @@ type
     FFoldBox: TComboBox;
     // The edge of each fold choice; '' for none
     FFoldKeys: TStringArray;
+    FViewBox: TComboBox;
     FSideAText, FSideBText, FDifferenceText: TGridLabel;
     FEdits: array of TEdit;
     // Each field's row for a refused entry, hidden until needed; see RefusalRow
@@ -96,6 +97,8 @@ type
     FSwallowEnterUp: boolean;
     // Undo or redo changed the pattern, so even the field being typed in follows it
     FRefreshFocused: boolean;
+    // The piece's rows are being filled in, which is not the user changing them
+    FFillingPieceRows: boolean;
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure ClearControls;
@@ -135,6 +138,7 @@ type
     procedure RefreshPieceRows(Piece: TPieceObject);
     procedure CutChange(Sender: TObject);
     procedure FoldChange(Sender: TObject);
+    procedure ViewChange(Sender: TObject);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
   protected
@@ -179,6 +183,12 @@ resourcestring
   rsPropCut = 'Cut';
   rsPropMirrored = 'Mirrored';
   rsPropFold = 'Fold';
+  rsPropView = 'View';
+  rsPropViewNone = 'None';
+  rsPropViewFront = 'Front';
+  rsPropViewBack = 'Back';
+  rsPropViewBoth = 'Both';
+  rsPropChangeView = 'Change garment view';
   rsPropNoFold = 'None';
   rsPropChangeCut = 'Change cut';
   rsPropChangeFold = 'Change fold';
@@ -404,6 +414,7 @@ begin
   FMirrorBox := nil;
   FFoldBox := nil;
   FFoldKeys := nil;
+  FViewBox := nil;
   FSideAText := nil;
   FSideBText := nil;
   FDifferenceText := nil;
@@ -934,14 +945,30 @@ begin
   end;
   FFoldBox.OnChange := @FoldChange;
   AddRow(rsPropFold, FFoldBox, RowGap);
+  FViewBox := TComboBox.Create(Self);
+  FViewBox.Style := csDropDownList;
+  // In the order of TPieceView
+  FViewBox.Items.Add(rsPropViewNone);
+  FViewBox.Items.Add(rsPropViewFront);
+  FViewBox.Items.Add(rsPropViewBack);
+  FViewBox.Items.Add(rsPropViewBoth);
+  FViewBox.OnChange := @ViewChange;
+  AddRow(rsPropView, FViewBox, RowGap);
 end;
 
 procedure TPropertiesPanel.RefreshPieceRows(Piece: TPieceObject);
 var
   Index: integer;
 begin
-  FCutEdit.Value := Piece.CutCount;
-  FMirrorBox.Checked := Piece.Mirrored;
+  // Each row fires its change event, when the others are not yet filled in
+  FFillingPieceRows := True;
+  try
+    FCutEdit.Value := Piece.CutCount;
+    FMirrorBox.Checked := Piece.Mirrored;
+    FViewBox.ItemIndex := Ord(Piece.View);
+  finally
+    FFillingPieceRows := False;
+  end;
   for Index := 0 to High(FFoldKeys) do
     if FFoldKeys[Index] = Piece.FoldEdgeKey then
       FFoldBox.ItemIndex := Index;
@@ -953,6 +980,8 @@ var
   Node: TEvalNode;
   Piece: TPieceObject;
 begin
+  if FFillingPieceRows then
+    Exit;
   Node := FDocument.Pattern.FindNode(FKey);
   if not (Node is TPieceObject) then
     Exit;
@@ -963,6 +992,23 @@ begin
   try
     FDocument.BeginChange(rsPropChangeCut);
     FDocument.Commit(FDocument.Pattern.SetCut(Piece, FCutEdit.Value, FMirrorBox.Checked), 'cut:' + FKey);
+  finally
+    FCommitting := False;
+  end;
+end;
+
+procedure TPropertiesPanel.ViewChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TPieceObject) or (Ord(TPieceObject(Node).View) = FViewBox.ItemIndex) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeView);
+    TPieceObject(Node).View := TPieceView(FViewBox.ItemIndex);
+    FDocument.EndChange;
   finally
     FCommitting := False;
   end;

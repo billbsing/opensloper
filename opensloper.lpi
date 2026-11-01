@@ -148,9 +148,24 @@
         <UnitName Value="Sloper.Core.SeamSuggest"/>
       </Unit>
       <Unit>
+        <Filename Value="src/ui/sloper.ui.garmentwindow.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.GarmentWindow"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.garmentnotes.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.GarmentNotes"/>
+      </Unit>
+      <Unit>
         <Filename Value="src/ui/sloper.ui.suggestseams.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.SuggestSeams"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/core/sloper.core.garment.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Garment"/>
       </Unit>
       <Unit>
         <Filename Value="src/core/sloper.core.piecedetect.pas"/>

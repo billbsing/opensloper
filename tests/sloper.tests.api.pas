@@ -98,6 +98,7 @@ type
     procedure TestEveryPointType;
     procedure TestCurves;
     procedure TestSeams;
+    procedure TestGarmentView;
     procedure TestExport;
     procedure TestSplitEdge;
     procedure TestCreatePiece;
@@ -869,6 +870,28 @@ begin
   AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
   Call('set_fold', '{"name": "Front", "none": true}');
   AssertFalse(Answer.Get('onFold', True));
+end;
+
+procedure TTestAPI.TestGarmentView;
+begin
+  AddSquare;
+  Call('create_piece', '{"name": "Front", "x": 50, "y": 50}');
+  AssertEquals('none to begin with', 'none', Answer.Get('view', ''));
+  Call('set_view', '{"name": "Front", "view": "front"}');
+  AssertEquals('set', 'front', Answer.Get('view', ''));
+  Call('render', '{"garment": "front"}');
+  AssertTrue('drawn', Pos('data-name="Front"', Answer.Get('svg', '')) > 0);
+  Call('render', '{"garment": "back"}');
+  AssertEquals('not in the back', 0, Pos('data-name="Front"', Answer.Get('svg', '')));
+  Call('undo');
+  Call('get_object', '{"name": "Front"}');
+  AssertEquals('undone', 'none', Answer.Get('view', ''));
+  Call('set_view', '{"name": "Front", "view": "sideways"}');
+  AssertEquals('bad view', RpcInvalidParams, ErrorCode);
+  Call('set_view', '{"name": "Front"}');
+  AssertEquals('no view', RpcInvalidParams, ErrorCode);
+  Call('render', '{"garment": "side"}');
+  AssertEquals('bad side', RpcInvalidParams, ErrorCode);
 end;
 
 procedure TTestAPI.TestExport;
