@@ -46,6 +46,8 @@ type
     // Zooms by Factor keeping the model point under Anchor (screen) still
     procedure ZoomAt(Factor: double; const Anchor: TVec2);
     procedure Pan(DX, DY: double);
+    // Puts the model point Centre in the middle of a Width x Height view
+    procedure CentreOn(const Centre: TVec2; Width, Height: double);
     // Shows Bounds (model) centred in a Width x Height view, with Margin pixels around it
     procedure Fit(const Bounds: TRect2; Width, Height, Margin: double);
     // Centres Bounds (model) without zooming, unless all of it already shows,
@@ -128,6 +130,12 @@ procedure TViewTransform.Pan(DX, DY: double);
 begin
   OriginX := OriginX + DX;
   OriginY := OriginY + DY;
+end;
+
+procedure TViewTransform.CentreOn(const Centre: TVec2; Width, Height: double);
+begin
+  OriginX := Width / 2 - Centre.X * Scale;
+  OriginY := Height / 2 + Centre.Y * Scale;
 end;
 
 procedure TViewTransform.Fit(const Bounds: TRect2; Width, Height, Margin: double);

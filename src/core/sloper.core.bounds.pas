@@ -91,7 +91,8 @@ begin
   Bounds := Default(TRect2);
   Empty := True;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
+    if Pattern.InActiveDraft(Pattern.Objects[Index]) then
+      IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
   Result := not Empty;
 end;
 

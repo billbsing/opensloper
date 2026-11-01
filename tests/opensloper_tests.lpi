@@ -62,6 +62,11 @@
         <UnitName Value="Sloper.Tests.Piece"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.layers.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Layers"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.garment.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Garment"/>

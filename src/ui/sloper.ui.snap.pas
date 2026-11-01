@@ -100,9 +100,10 @@ begin
   end;
 end;
 
-function IsUsable(DraftObject: TDraftObject): boolean;
+// A locked layer can still be snapped to; one that does not show cannot
+function IsUsable(Pattern: TPattern; DraftObject: TDraftObject): boolean;
 begin
-  Result := (DraftObject.State = esValid) and DraftObject.HasResult;
+  Result := (DraftObject.State = esValid) and DraftObject.HasResult and Pattern.IsShown(DraftObject);
 end;
 
 // Valid edges within Radius of At, in pattern order
@@ -116,7 +117,7 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not IsUsable(DraftObject) then
+    if not (DraftObject is TEdgeObject) or not IsUsable(Pattern, DraftObject) then
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
     if Offset <= Radius then
@@ -261,12 +262,12 @@ begin
 
   BestGap := MaxDouble;
   Anchor := Pattern.FindNode(AnchorKey);
-  if (Anchor is TPointObject) and IsUsable(TPointObject(Anchor)) and LineUp(TPointObject(Anchor), At, Radius, Result, BestGap) then
+  if (Anchor is TPointObject) and IsUsable(Pattern, TPointObject(Anchor)) and LineUp(TPointObject(Anchor), At, Radius, Result, BestGap) then
     Exit;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPointObject) and IsUsable(DraftObject) then
+    if (DraftObject is TPointObject) and IsUsable(Pattern, DraftObject) then
       LineUp(TPointObject(DraftObject), At, Radius, Result, BestGap);
   end;
 end;

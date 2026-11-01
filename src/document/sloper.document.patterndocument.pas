@@ -49,8 +49,9 @@ type
   // dcPattern: definitions or results changed. dcObjectsReplaced: the
   // pattern's objects are new instances (undo, redo, cancel, load).
   // dcMeasurements: another measurement set. dcHistory: what can be undone
-  // or redone. dcFile: file name or modified flag.
-  TDocumentChange = (dcPattern, dcObjectsReplaced, dcMeasurements, dcHistory, dcFile);
+  // or redone. dcFile: file name or modified flag. dcView: which draft shows,
+  // or which layers.
+  TDocumentChange = (dcPattern, dcObjectsReplaced, dcMeasurements, dcHistory, dcFile, dcView);
   TDocumentChanges = set of TDocumentChange;
   TDocumentListener = procedure(Document: TPatternDocument; Changes: TDocumentChanges) of object;
   TDocumentClock = function: TDateTime of object;
@@ -161,6 +162,8 @@ type
     function Commit(Success: boolean; const MergeKey: string = ''): boolean;
     // Re-evaluates and notifies, without recording anything
     procedure LiveUpdate;
+    // Which draft or layers show: part of no undo step and not a modification
+    procedure ViewChanged;
 
     // False while a change is open or there is nothing to undo or redo
     function Undo: boolean;
@@ -200,7 +203,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.JSON, Sloper.Core.PatternFile;
+  Sloper.Core.JSON, Sloper.Core.Drafts, Sloper.Core.Evaluator, Sloper.Core.PatternFile;
 
   { TCommand }
 
@@ -376,15 +379,39 @@ end;
 // counter stays where it is, so an undone object's ID is never handed out again.
 procedure TPatternDocument.ApplySnapshot(const Text: string);
 var
-  Err: string;
-  NextId: integer;
+  Err, ViewText, ChangedKey: string;
+  NextId, Index: integer;
+  Before, BeforeDrafts: TStringArray;
+  Node: TEvalNode;
+  Draft: TPatternDraft;
 begin
   NextId := FPattern.NextId;
+  ViewText := PatternViewToText(FPattern);
+  Before := ObjectTexts(FPattern);
+  // Each entry beside its object's draft, for one that undo takes away
+  BeforeDrafts := nil;
+  SetLength(BeforeDrafts, FPattern.ObjectCount);
+  for Index := 0 to FPattern.ObjectCount - 1 do
+    BeforeDrafts[Index] := FPattern.DraftOf(FPattern.Objects[Index]).Key;
   if not LoadPatternFromText(FPattern, Text, Err) then
     raise EDocumentError.CreateFmt(rsDocumentBadSnapshot, [Err]);
   if NextId > FPattern.NextId then
     FPattern.NextId := NextId;
   FPattern.MeasurementFile := MeasurementFileFor(FFileName);
+  // The view is not part of the history, so it stays as it was
+  RestorePatternView(FPattern, ViewText);
+  // Show what changed: its draft, or where it was if it has gone
+  ChangedKey := FirstChangedObject(Before, ObjectTexts(FPattern));
+  Node := FPattern.FindNode(ChangedKey);
+  Draft := nil;
+  if Node <> nil then
+    Draft := FPattern.DraftOf(Node)
+  else
+    for Index := 0 to High(Before) do
+      if Copy(Before[Index], 1, Length(ChangedKey) + 1) = ChangedKey + #9 then
+        Draft := FPattern.FindDraft(BeforeDrafts[Index]);
+  if (ChangedKey <> '') and (Draft <> nil) then
+    FPattern.ActiveDraft := Draft;
   FPattern.Evaluate;
 end;
 
@@ -671,6 +698,11 @@ begin
     CancelChange;
     Result := False;
   end;
+end;
+
+procedure TPatternDocument.ViewChanged;
+begin
+  Notify([dcView]);
 end;
 
 procedure TPatternDocument.LiveUpdate;

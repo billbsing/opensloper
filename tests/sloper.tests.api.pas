@@ -98,6 +98,7 @@ type
     procedure TestEveryPointType;
     procedure TestCurves;
     procedure TestSeams;
+    procedure TestDraftsAndLayers;
     procedure TestGarmentView;
     procedure TestExport;
     procedure TestSplitEdge;
@@ -870,6 +871,51 @@ begin
   AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
   Call('set_fold', '{"name": "Front", "none": true}');
   AssertFalse(Answer.Get('onFold', True));
+end;
+
+procedure TTestAPI.TestDraftsAndLayers;
+var
+  Drafts: TJSONArray;
+begin
+  Call('list_drafts');
+  AssertEquals('one to begin with', 1, Answer.Arrays['drafts'].Count);
+  Call('add_draft', '{"name": "Sleeve"}');
+  Drafts := Answer.Arrays['drafts'];
+  AssertEquals('two', 2, Drafts.Count);
+  AssertTrue('the new one is active', TJSONObject(Drafts.Items[1]).Get('active', False));
+  Call('add_draft', '{"name": "sleeve"}');
+  AssertEquals('name taken', RpcRefused, ErrorCode);
+  Call('add_layer', '{"name": "Dart"}');
+  Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0, "layer": "Draft"}');
+  AssertEquals('add_point', 'A', Answer.Get('name', ''));
+  Call('add_point', '{"type": "freePoint", "name": "B", "x": 1, "y": 0, "layer": "Nowhere"}');
+  AssertEquals('no such layer', RpcRefused, ErrorCode);
+  Call('move_to_layer', '{"name": "A", "layer": "Dart"}');
+  AssertEquals('moved', 'A', Answer.Get('name', ''));
+  Call('render', '{"draft": "Sleeve"}');
+  AssertTrue('on this draft', Pos('data-name="A"', Answer.Get('svg', '')) > 0);
+  Call('render', '{"draft": "Draft"}');
+  AssertEquals('not that one', 0, Pos('data-name="A"', Answer.Get('svg', '')));
+  Call('render', '{"draft": "Nowhere"}');
+  AssertEquals('no such draft', RpcRefused, ErrorCode);
+  Call('set_active', '{"layer": "Dart", "hidden": true, "locked": true}');
+  Drafts := Answer.Arrays['drafts'];
+  AssertTrue('hidden', TJSONObject(TJSONObject(Drafts.Items[1]).Arrays['layers'].Items[1]).Get('hidden', False));
+  Call('move_layer', '{"layer": "Dart", "by": -1}');
+  Drafts := Answer.Arrays['drafts'];
+  AssertEquals('moved down', 'Dart', TJSONObject(TJSONObject(Drafts.Items[1]).Arrays['layers'].Items[0]).Get('name', ''));
+  Call('rename_layer', '{"layer": "Dart", "name": "Side dart"}');
+  Call('rename_draft', '{"draft": "Sleeve", "name": "Arm"}');
+  AssertEquals('renamed', 'Arm', TJSONObject(Answer.Arrays['drafts'].Items[1]).Get('name', ''));
+  Call('undo');
+  Call('list_drafts');
+  AssertEquals('undone', 'Sleeve', TJSONObject(Answer.Arrays['drafts'].Items[1]).Get('name', ''));
+  Call('delete_layer', '{"layer": "Draft"}');
+  AssertEquals('deleted', 1, TJSONObject(Answer.Arrays['drafts'].Items[1]).Arrays['layers'].Count);
+  Call('delete_draft', '{"draft": "Sleeve"}');
+  AssertEquals('deleted', 1, Answer.Arrays['drafts'].Count);
+  Call('delete_draft', '{"draft": "Draft"}');
+  AssertEquals('the last stays', RpcRefused, ErrorCode);
 end;
 
 procedure TTestAPI.TestGarmentView;

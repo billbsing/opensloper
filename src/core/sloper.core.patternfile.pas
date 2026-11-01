@@ -27,20 +27,27 @@ unit Sloper.Core.PatternFile;
 interface
 
 uses
-  Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Drafts, Sloper.Core.Pattern;
 
 const
   PatternFormat = 'pattern';
   PatternVersion = 1;
 
-// WithNextId False leaves out the ID counter, for undo snapshots, which
-// restore definitions but never the counter
+// WithNextId False leaves out the ID counter and the view state, for undo
+// snapshots, which restore definitions but neither of those
 function SavePatternToText(Pattern: TPattern; WithNextId: boolean = True): string;
 // Replaces the pattern's contents. On failure the pattern is left empty and
 // ErrorMessage says why. A formula that does not parse is kept as text and
 // shows as an error when evaluated. Call Evaluate afterwards.
 function LoadPatternFromText(Pattern: TPattern; const Text: string; out ErrorMessage: string): boolean;
 function SavePatternToFile(Pattern: TPattern; const FileName: string; out ErrorMessage: string): boolean;
+// View state as text, and put back after an undo has replaced the pattern
+function PatternViewToText(Pattern: TPattern): string;
+procedure RestorePatternView(Pattern: TPattern; const Text: string);
+// The ID of the first object that differs between two sets of object texts
+// from ObjectTexts, or ''
+function ObjectTexts(Pattern: TPattern): TStringArray;
+function FirstChangedObject(const Before, After: TStringArray): string;
 // The object's "type" in a pattern file, such as offsetPoint
 function PatternObjectTypeName(DraftObject: TDraftObject): string;
 function LoadPatternFromFile(Pattern: TPattern; const FileName: string; out ErrorMessage: string): boolean;
@@ -67,7 +74,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam;
+  Math, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam;
 
 const
   TypeFreePoint = 'freePoint';
@@ -121,6 +128,8 @@ type
     function ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadFold(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadView(Item: TJSONObject; Piece: TPieceObject): boolean;
+    function LoadDrafts(Data: TJSONData): boolean;
+    function ReadLayer(Item: TJSONObject; DraftObject: TDraftObject): boolean;
     function LoadObject(Item: TJSONObject): boolean;
   public
     constructor Create(APattern: TPattern);
@@ -358,6 +367,8 @@ begin
     // A derived name (Line_A_B) is recomputed on loading
     if not ((DraftObject is TEdgeObject) and TEdgeObject(DraftObject).NameIsDerived) then
       Result.Add('name', DraftObject.Name);
+    if DraftObject.LayerKey <> '' then
+      Result.Add('layer', JSONId(DraftObject.LayerKey));
 
     if DraftObject is TOffsetPoint then
     begin
@@ -453,6 +464,236 @@ begin
   end;
 end;
 
+function SaveDrafts(Pattern: TPattern): TJSONArray;
+var
+  Index: integer;
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+  Item, Entry: TJSONObject;
+  Layers: TJSONArray;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Index := 0 to Pattern.DraftCount - 1 do
+    begin
+      Draft := Pattern.Drafts[Index];
+      Item := TJSONObject.Create;
+      Result.Add(Item);
+      Item.Add('id', JSONId(Draft.Key));
+      Item.Add('name', Draft.Name);
+      Layers := TJSONArray.Create;
+      Item.Add('layers', Layers);
+      for Layer in Draft.Layers do
+      begin
+        Entry := TJSONObject.Create;
+        Layers.Add(Entry);
+        Entry.Add('id', JSONId(Layer.Key));
+        Entry.Add('name', Layer.Name);
+      end;
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+// The implicit first draft and layer have no key; 0 stands for them
+function ViewId(const Key: string): integer;
+begin
+  Result := StrToIntDef(Key, 0);
+end;
+
+function SaveView(Pattern: TPattern): TJSONObject;
+var
+  Index: integer;
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+  Drafts, Item: TJSONObject;
+  Hidden, Locked, Centre: TJSONArray;
+begin
+  Result := TJSONObject.Create;
+  try
+    Result.Add('draft', ViewId(Pattern.ActiveDraft.Key));
+    if Pattern.SoloLayer <> nil then
+      Result.Add('solo', ViewId(Pattern.SoloLayer.Key));
+    Drafts := TJSONObject.Create;
+    Result.Add('drafts', Drafts);
+    for Index := 0 to Pattern.DraftCount - 1 do
+    begin
+      Draft := Pattern.Drafts[Index];
+      Item := TJSONObject.Create;
+      Drafts.Add(IntToStr(ViewId(Draft.Key)), Item);
+      Item.Add('activeLayer', ViewId(Draft.ActiveLayer.Key));
+      if Draft.HasView then
+      begin
+        Item.Add('zoom', JSONFloat(Draft.Zoom));
+        Centre := TJSONArray.Create;
+        Item.Add('centre', Centre);
+        Centre.Add(JSONFloat(Draft.CentreX));
+        Centre.Add(JSONFloat(Draft.CentreY));
+      end;
+      Hidden := TJSONArray.Create;
+      Item.Add('hidden', Hidden);
+      Locked := TJSONArray.Create;
+      Item.Add('locked', Locked);
+      for Layer in Draft.Layers do
+      begin
+        if Layer.Hidden then
+          Hidden.Add(ViewId(Layer.Key));
+        if Layer.Locked then
+          Locked.Add(ViewId(Layer.Key));
+      end;
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+function KeyOfViewId(Id: integer): string;
+begin
+  Result := '';
+  if Id > 0 then
+    Result := IntToStr(Id);
+end;
+
+// Whatever no longer exists is passed over: the view is only a convenience
+procedure ReadPatternViewData(Pattern: TPattern; Data: TJSONData);
+var
+  Root, Drafts, Item: TJSONObject;
+  Value, Index: integer;
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+  List: TJSONData;
+
+  procedure MarkLayers(const AName: string; Hide: boolean);
+  var
+    Position: integer;
+    Marked: TPatternLayer;
+  begin
+    List := Item.Find(AName);
+    if (List = nil) or (List.JSONType <> jtArray) then
+      Exit;
+    for Position := 0 to List.Count - 1 do
+      if List.Items[Position].JSONType = jtNumber then
+      begin
+        Marked := Draft.FindLayer(KeyOfViewId(List.Items[Position].AsInteger));
+        if (Marked <> nil) and Hide then
+          Marked.Hidden := True
+        else if Marked <> nil then
+          Marked.Locked := True;
+      end;
+  end;
+
+begin
+  if (Data = nil) or (Data.JSONType <> jtObject) then
+    Exit;
+  Root := TJSONObject(Data);
+  if GetJSONInteger(Root, 'draft', Value) and (Pattern.FindDraft(KeyOfViewId(Value)) <> nil) then
+    Pattern.ActiveDraft := Pattern.FindDraft(KeyOfViewId(Value));
+  if GetJSONInteger(Root, 'solo', Value) then
+    Pattern.SoloLayer := Pattern.FindLayer(KeyOfViewId(Value), Draft);
+  if (Root.Find('drafts') = nil) or (Root.Find('drafts').JSONType <> jtObject) then
+    Exit;
+  Drafts := TJSONObject(Root.Find('drafts'));
+  for Index := 0 to Pattern.DraftCount - 1 do
+  begin
+    Draft := Pattern.Drafts[Index];
+    Data := Drafts.Find(IntToStr(ViewId(Draft.Key)));
+    if (Data = nil) or (Data.JSONType <> jtObject) then
+      Continue;
+    Item := TJSONObject(Data);
+    if GetJSONInteger(Item, 'activeLayer', Value) then
+    begin
+      Layer := Draft.FindLayer(KeyOfViewId(Value));
+      if Layer <> nil then
+        Draft.ActiveLayer := Layer;
+    end;
+    List := Item.Find('centre');
+    if GetJSONNumber(Item, 'zoom', Draft.Zoom) and (List <> nil) and (List.JSONType = jtArray) and (List.Count = 2) then
+    begin
+      Draft.CentreX := List.Items[0].AsFloat;
+      Draft.CentreY := List.Items[1].AsFloat;
+      Draft.HasView := True;
+    end;
+    MarkLayers('hidden', True);
+    MarkLayers('locked', False);
+  end;
+end;
+
+function PatternViewToText(Pattern: TPattern): string;
+var
+  Root: TJSONObject;
+begin
+  Root := SaveView(Pattern);
+  try
+    Result := JSONToText(Root);
+  finally
+    FreeAndNil(Root);
+  end;
+end;
+
+procedure RestorePatternView(Pattern: TPattern; const Text: string);
+var
+  Root: TJSONObject;
+  Err: string;
+begin
+  if not ParseJSONObject(Text, Root, Err) then
+    Exit;
+  try
+    ReadPatternViewData(Pattern, Root);
+  finally
+    FreeAndNil(Root);
+  end;
+end;
+
+function ObjectTexts(Pattern: TPattern): TStringArray;
+var
+  Index: integer;
+  Item: TJSONObject;
+begin
+  Result := nil;
+  SetLength(Result, Pattern.ObjectCount);
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    Item := SaveObject(Pattern.Objects[Index]);
+    try
+      Result[Index] := Pattern.Objects[Index].Key + #9 + Item.AsJSON;
+    finally
+      FreeAndNil(Item);
+    end;
+  end;
+end;
+
+function FirstChangedObject(const Before, After: TStringArray): string;
+
+  function KeyOf(const Text: string): string;
+  begin
+    Result := Copy(Text, 1, Pos(#9, Text) - 1);
+  end;
+
+  function IsIn(const Text: string; const List: TStringArray): boolean;
+  var
+    Item: string;
+  begin
+    Result := False;
+    for Item in List do
+      if Item = Text then
+        Exit(True);
+  end;
+
+var
+  Text: string;
+begin
+  Result := '';
+  for Text in After do
+    if not IsIn(Text, Before) then
+      Exit(KeyOf(Text));
+  for Text in Before do
+    if not IsIn(Text, After) then
+      Exit(KeyOf(Text));
+end;
+
 function SavePatternToText(Pattern: TPattern; WithNextId: boolean): string;
 var
   Root: TJSONObject;
@@ -468,6 +709,9 @@ begin
     Root.Add('measurementFile', Pattern.MeasurementFile);
     if WithNextId then
       Root.Add('nextId', Pattern.NextId);
+    // One unchanged draft and layer write nothing, so simple files stay simple
+    if Pattern.Drafts[0].Key <> '' then
+      Root.Add('drafts', SaveDrafts(Pattern));
     List := TJSONArray.Create;
     Root.Add('variables', List);
     for Index := 0 to Pattern.VariableCount - 1 do
@@ -476,6 +720,8 @@ begin
     Root.Add('objects', List);
     for Index := 0 to Pattern.ObjectCount - 1 do
       List.Add(SaveObject(Pattern.Objects[Index]));
+    if WithNextId and (Pattern.Drafts[0].Key <> '') then
+      Root.Add('view', SaveView(Pattern));
     Result := JSONToText(Root);
   finally
     FreeAndNil(Root);
@@ -595,12 +841,13 @@ end;
 function IdIsFree(Pattern: TPattern; Item: TJSONObject; out Id: string): boolean;
 var
   Value: integer;
+  Found: TPatternDraft;
 begin
   Id := '';
   if not GetJSONInteger(Item, 'id', Value) or (Value < 1) then
     Exit(False);
   Id := IntToStr(Value);
-  Result := Pattern.FindNode(Id) = nil;
+  Result := (Pattern.FindNode(Id) = nil) and (Pattern.FindDraft(Id) = nil) and (Pattern.FindLayer(Id, Found) = nil);
 end;
 
 function TPatternLoader.LoadVariables(Data: TJSONData): boolean;
@@ -1022,6 +1269,62 @@ begin
   Result := True;
 end;
 
+function TPatternLoader.LoadDrafts(Data: TJSONData): boolean;
+var
+  Index, Inner: integer;
+  Item, Entry: TJSONObject;
+  Layers: TJSONData;
+  Id, LayerId, AName: string;
+  Draft: TPatternDraft;
+  Found: TPatternDraft;
+begin
+  if Data = nil then
+    Exit(True);
+  if (Data.JSONType <> jtArray) or (Data.Count = 0) then
+    Exit(Fail(Format(rsPatternFileList, ['drafts'])));
+  for Index := 0 to Data.Count - 1 do
+  begin
+    if Data.Items[Index].JSONType <> jtObject then
+      Exit(Fail(Format(rsPatternFileList, ['drafts'])));
+    Item := TJSONObject(Data.Items[Index]);
+    if not IdIsFree(FPattern, Item, Id) or not GetJSONString(Item, 'name', AName) then
+      Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'drafts'])));
+    Layers := Item.Find('layers');
+    if (Layers = nil) or (Layers.JSONType <> jtArray) or (Layers.Count = 0) then
+      Exit(Fail(Format(rsPatternFileList, ['layers'])));
+    Draft := TPatternDraft.Create(Id, AName);
+    FPattern.InsertDraft(Draft);
+    for Inner := 0 to Layers.Count - 1 do
+    begin
+      if Layers.Items[Inner].JSONType <> jtObject then
+        Exit(Fail(Format(rsPatternFileList, ['layers'])));
+      Entry := TJSONObject(Layers.Items[Inner]);
+      if not IdIsFree(FPattern, Entry, LayerId) or not GetJSONString(Entry, 'name', AName) then
+        Exit(Fail(Format(rsPatternFileBadId, [Inner + 1, 'layers'])));
+      Draft.AddLayer(LayerId, AName);
+      FPattern.NextId := Math.Max(FPattern.NextId, StrToInt(LayerId) + 1);
+    end;
+    if FPattern.FindLayer(Id, Found) <> nil then
+      Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'drafts'])));
+  end;
+  Result := True;
+end;
+
+// Optional: an object with no layer goes on the first draft's first layer
+function TPatternLoader.ReadLayer(Item: TJSONObject; DraftObject: TDraftObject): boolean;
+var
+  Id: integer;
+  Found: TPatternDraft;
+begin
+  Result := True;
+  DraftObject.LayerKey := FPattern.Drafts[0].Layers[0].Key;
+  if Item.Find('layer') = nil then
+    Exit;
+  if not GetJSONInteger(Item, 'layer', Id) or (FPattern.FindLayer(IntToStr(Id), Found) = nil) then
+    Exit(Missing('layer'));
+  DraftObject.LayerKey := IntToStr(Id);
+end;
+
 function TPatternLoader.LoadObject(Item: TJSONObject): boolean;
 var
   DraftObject, Inserted: TDraftObject;
@@ -1058,6 +1361,8 @@ begin
       TEdgeObject(DraftObject).NameIsDerived := not HasName;
     end;
     DraftObject.Name := ObjectName;
+    if not ReadLayer(Item, DraftObject) then
+      Exit(False);
     Inserted := DraftObject;
     FPattern.InsertObject(DraftObject);
     DraftObject := nil;
@@ -1105,7 +1410,7 @@ begin
       Exit(Fail(Format(rsPatternFileNewerVersion, [Version])));
     if GetJSONString(Root, 'units', TextValue) and (TextValue <> 'mm') then
       Exit(Fail(Format(rsPatternFileUnits, [TextValue])));
-    if not LoadVariables(Root.Find('variables')) or not LoadObjects(Root.Find('objects')) then
+    if not LoadDrafts(Root.Find('drafts')) or not LoadVariables(Root.Find('variables')) or not LoadObjects(Root.Find('objects')) then
       Exit(False);
     // Loading has put NextId above every ID; a saved counter may be higher,
     // because deleted IDs stay retired. Hand-written files may leave it out.
@@ -1118,6 +1423,7 @@ begin
     GetJSONString(Root, 'notes', FPattern.Notes);
     GetJSONString(Root, 'measurementFile', FPattern.MeasurementFile);
     FPattern.UpdateDerivedNames;
+    ReadPatternViewData(FPattern, Root.Find('view'));
     Result := True;
   finally
     FreeAndNil(Root);

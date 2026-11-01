@@ -55,6 +55,7 @@ uses
   Sloper.Tests.Piece,
   Sloper.Tests.Seam,
   Sloper.Tests.Garment,
+  Sloper.Tests.Layers,
   Sloper.Tests.Layout,
   Sloper.Tests.LayoutExports,
   Sloper.Tests.MeasurementDocument,

@@ -255,19 +255,19 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult then
+    if (DraftObject is TPieceObject) and DraftObject.HasResult and Pattern.InActiveDraft(DraftObject) then
       Result := Result + PieceElement(TPieceObject(DraftObject), View.Extent);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) then
+    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) and Pattern.InActiveDraft(DraftObject) then
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult then
+    if (DraftObject is TPieceObject) and DraftObject.HasResult and Pattern.InActiveDraft(DraftObject) then
     begin
       Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
       if Options.Labels then
@@ -275,7 +275,7 @@ begin
     end;
   end;
   for Point in Pattern.AllPoints do
-    if Point.HasResult then
+    if Point.HasResult and Pattern.InActiveDraft(Point) then
       Result := Result + PointElement(Point, View.Extent, Options.Labels);
   Result := Result + '</svg>' + #10;
 end;

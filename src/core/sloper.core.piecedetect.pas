@@ -100,7 +100,7 @@ type
     property Arcs: TArcArray read FArcs;
   end;
 
-// Outline edges with results. An edge that has been split stays in the
+// Outline edges with results on layers that show. An edge that has been split stays in the
 // pattern; its outline parts stand in for it, or it would overlap them.
 function OutlineEdges(Pattern: TPattern): TEdgeList;
 var
@@ -112,13 +112,13 @@ begin
   Replaced := specialize THashSet<string>.Create;
   try
     for Index := 0 to Pattern.ObjectCount - 1 do
-      if (Pattern.Objects[Index] is TSplitPart) and (TSplitPart(Pattern.Objects[Index]).Role = erOutline) then
+      if (Pattern.Objects[Index] is TSplitPart) and (TSplitPart(Pattern.Objects[Index]).Role = erOutline) and Pattern.IsShown(Pattern.Objects[Index]) then
         Replaced.Add(TSplitPart(Pattern.Objects[Index]).Source);
     for Index := 0 to Pattern.ObjectCount - 1 do
       if Pattern.Objects[Index] is TEdgeObject then
       begin
         Edge := TEdgeObject(Pattern.Objects[Index]);
-        if (Edge.Role = erOutline) and (Edge.State = esValid) and not Replaced.Contains(Edge.Key) then
+        if (Edge.Role = erOutline) and (Edge.State = esValid) and not Replaced.Contains(Edge.Key) and Pattern.IsShown(Edge) then
           Result.Add(Edge);
       end;
   except

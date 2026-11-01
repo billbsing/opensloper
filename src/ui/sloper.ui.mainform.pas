@@ -28,7 +28,8 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.GarmentWindow;
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.GarmentWindow,
+  Sloper.UI.LayersPanel, Sloper.UI.DraftBar, Sloper.Core.Drafts;
 
 type
 
@@ -89,6 +90,8 @@ type
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
     FGarment: TGarmentWindow;
+    FLayers: TLayersPanel;
+    FDraftBar: TDraftBar;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FSideItem: TMenuItem;
     FObjects: TObjectsPanel;
@@ -127,6 +130,8 @@ type
     procedure ToolClick(Sender: TObject);
     procedure SplitClick(Sender: TObject);
     procedure GarmentClick(Sender: TObject);
+    procedure LayersMoveHere(Sender: TObject);
+    procedure DraftChosen(Sender: TObject; Draft: TPatternDraft);
     procedure SuggestSeamsClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
     procedure CanvasSelectionChange(Sender: TObject);
@@ -190,6 +195,7 @@ resourcestring
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
   rsMenuViewGarment = '&Garment View';
+  rsTabLayers = 'Layers';
   rsMenuViewSidePanel = '&Side Panel';
   rsTabObjects = 'Objects';
   rsTabVariables = 'Variables';
@@ -292,6 +298,11 @@ begin
   FCanvasPanel.Parent := Self;
   FCanvasPanel.Align := alClient;
   FCanvasPanel.BevelOuter := bvNone;
+  FDraftBar := TDraftBar.Create(Self);
+  FDraftBar.Parent := FCanvasPanel;
+  FDraftBar.Align := alBottom;
+  FDraftBar.OnMessage := @ListPanelMessage;
+  FDraftBar.OnChoose := @DraftChosen;
   FCanvasHorzBar := TScrollBar.Create(Self);
   FCanvasHorzBar.Parent := FCanvasPanel;
   FCanvasHorzBar.Align := alBottom;
@@ -304,6 +315,7 @@ begin
   FCanvas.HorzBar := FCanvasHorzBar;
   FCanvas.VertBar := FCanvasVertBar;
   FCanvas.Document := FDocument;
+  FDraftBar.Document := FDocument;
   FCanvas.OnCursorMove := @CanvasCursorMove;
   FCanvas.OnMessage := @CanvasMessage;
   FCanvas.OnToolChange := @CanvasToolChange;
@@ -364,12 +376,12 @@ procedure TMainForm.CreateSidePanel;
   end;
 
 var
-  AlignSheet: TTabSheet;
+  AlignSheet, LayersSheet: TTabSheet;
 begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
   FSidePanel.Align := alLeft;
-  FSidePanel.Width := Scale96ToForm(420);
+  FSidePanel.Width := Scale96ToForm(490);
   FObjects := TObjectsPanel(AddTab(rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
@@ -389,6 +401,14 @@ begin
   FAlign.Document := FDocument;
   FAlign.OnMessage := @ListPanelMessage;
   FAlign.OnSelect := @AlignSelect;
+  LayersSheet := FSidePanel.AddTabSheet;
+  LayersSheet.Caption := rsTabLayers;
+  FLayers := TLayersPanel.Create(Self);
+  FLayers.Parent := LayersSheet;
+  FLayers.Align := alClient;
+  FLayers.Document := FDocument;
+  FLayers.OnMessage := @ListPanelMessage;
+  FLayers.OnMoveHere := @LayersMoveHere;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
@@ -610,6 +630,17 @@ begin
   MenuTools.Add(Item);
 end;
 
+procedure TMainForm.LayersMoveHere(Sender: TObject);
+begin
+  FCanvas.MoveSelectionToLayer(FDocument.Pattern.ActiveLayer);
+end;
+
+procedure TMainForm.DraftChosen(Sender: TObject; Draft: TPatternDraft);
+begin
+  FCanvas.ShowDraft(Draft);
+  FCanvas.SetFocus;
+end;
+
 procedure TMainForm.GarmentClick(Sender: TObject);
 begin
   if FGarment = nil then
@@ -687,6 +718,8 @@ begin
   FreeAndNil(FSettings);
   // The canvas and panels listen to the document, so they let go first
   FCanvas.Document := nil;
+  FLayers.Document := nil;
+  FDraftBar.Document := nil;
   if FGarment <> nil then
     FGarment.Document := nil;
   FProperties.Document := nil;
@@ -814,7 +847,7 @@ begin
     Exit;
   end;
   FCanvas.SelectNone;
-  FCanvas.ZoomToFit;
+  FCanvas.RestoreDraftView;
   if FDocument.MeasurementError <> '' then
     MessageDlg(Format(rsMeasurementsMissing, [FDocument.MeasurementError]), mtWarning, [mbOK], 0);
 end;
@@ -848,7 +881,7 @@ begin
     Exit;
   FDocument.NewPattern;
   FCanvas.SelectNone;
-  FCanvas.ZoomToFit;
+  FCanvas.RestoreDraftView;
 end;
 
 procedure TMainForm.MenuFileOpenClick(Sender: TObject);

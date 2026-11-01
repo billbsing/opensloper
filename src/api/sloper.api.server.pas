@@ -30,7 +30,7 @@ unit Sloper.API.Server;
 interface
 
 uses
-  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Document.PatternDocument;
+  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Drafts, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Document.PatternDocument;
 
 const
   // JSON-RPC 2.0's own codes
@@ -94,6 +94,19 @@ type
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
     function DoSetView(Params: TJSONObject): TJSONData;
+    function FindDraftParam(Params: TJSONObject; const AName: string): TPatternDraft;
+    function FindLayerParam(Params: TJSONObject; const AName: string; out Draft: TPatternDraft): TPatternLayer;
+    procedure UseLayerParam(Params: TJSONObject);
+    function DraftsToJSON: TJSONData;
+    function DoAddDraft(Params: TJSONObject): TJSONData;
+    function DoAddLayer(Params: TJSONObject): TJSONData;
+    function DoRenameDraft(Params: TJSONObject): TJSONData;
+    function DoRenameLayer(Params: TJSONObject): TJSONData;
+    function DoDeleteDraft(Params: TJSONObject): TJSONData;
+    function DoDeleteLayer(Params: TJSONObject): TJSONData;
+    function DoMoveLayer(Params: TJSONObject): TJSONData;
+    function DoMoveToLayer(Params: TJSONObject): TJSONData;
+    function DoSetActive(Params: TJSONObject): TJSONData;
     function SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
     function DoAddSeam(Params: TJSONObject): TJSONData;
     function DoFlipSeam(Params: TJSONObject): TJSONData;
@@ -142,6 +155,10 @@ resourcestring
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
   rsApiView = 'Change garment view';
+  rsApiNoDraft = 'There is no draft "%s"';
+  rsApiNoLayer = 'There is no layer "%s"';
+  rsApiDrafts = 'Change drafts';
+  rsApiLayers = 'Change layers';
   rsApiBadFold = 'Give an "edge", or "none": true';
   rsApiBadGrainline = 'Give an "angle", a "start" and "end" point, or "none": true';
   rsApiBadNotch = 'Give a "point", or an "edge" and a "position"';
@@ -822,6 +839,7 @@ var
   RegionItem: TJSONObject;
   RenderFormat: string;
   Info: TJSONObject;
+  Shown: TPatternDraft;
 begin
   RenderFormat := OptionalString(Params, 'format');
   if (RenderFormat <> '') and (RenderFormat <> RenderFormatSVG) then
@@ -852,7 +870,16 @@ begin
       Info.Add('svg', GarmentToSVG(BuildGarment(FDocument.Pattern, TGarmentSide(ChoiceParam(Params, 'garment', ['front', 'back'])))));
     end
     else
-      Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
+    begin
+      Shown := FDocument.Pattern.ActiveDraft;
+      if (Params <> nil) and (Params.Find('draft') <> nil) then
+        FDocument.Pattern.ActiveDraft := FindDraftParam(Params, 'draft');
+      try
+        Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
+      finally
+        FDocument.Pattern.ActiveDraft := Shown;
+      end;
+    end;
     Result := Info;
   except
     FreeAndNil(Info);
@@ -882,6 +909,7 @@ var
   Pick: integer;
   Added: TEvalNode;
 begin
+  UseLayerParam(Params);
   Pattern := FDocument.Pattern;
   TypeName := RequireString(Params, 'type');
   PointName := OptionalString(Params, 'name');
@@ -979,6 +1007,7 @@ var
   Index: integer;
   Added: TEvalNode;
 begin
+  UseLayerParam(Params);
   Pattern := FDocument.Pattern;
   TypeName := RequireString(Params, 'type');
   EdgeName := OptionalString(Params, 'name');
@@ -1188,6 +1217,241 @@ begin
   Result := AddedNode(Piece);
 end;
 
+// By ID or name
+function TApiServer.FindDraftParam(Params: TJSONObject; const AName: string): TPatternDraft;
+var
+  Id: integer;
+  Text: string;
+  Index: integer;
+begin
+  Result := nil;
+  if GetJSONInteger(Params, AName, Id) then
+  begin
+    Text := IntToStr(Id);
+    Result := FDocument.Pattern.FindDraft(Text);
+  end
+  else
+  begin
+    Text := RequireString(Params, AName);
+    for Index := 0 to FDocument.Pattern.DraftCount - 1 do
+      if SameText(FDocument.Pattern.Drafts[Index].Name, Text) then
+        Result := FDocument.Pattern.Drafts[Index];
+  end;
+  if Result = nil then
+    raise EApiError.Create(RpcRefused, Format(rsApiNoDraft, [Text]));
+end;
+
+// By ID, or by name on the active draft
+function TApiServer.FindLayerParam(Params: TJSONObject; const AName: string; out Draft: TPatternDraft): TPatternLayer;
+var
+  Id: integer;
+  Text: string;
+  Layer: TPatternLayer;
+begin
+  Result := nil;
+  Draft := FDocument.Pattern.ActiveDraft;
+  if GetJSONInteger(Params, AName, Id) then
+  begin
+    Text := IntToStr(Id);
+    Result := FDocument.Pattern.FindLayer(Text, Draft);
+  end
+  else
+  begin
+    Text := RequireString(Params, AName);
+    for Layer in Draft.Layers do
+      if SameText(Layer.Name, Text) then
+        Result := Layer;
+  end;
+  if Result = nil then
+    raise EApiError.Create(RpcRefused, Format(rsApiNoLayer, [Text]));
+end;
+
+// add_point and add_edge can name the layer the object goes on
+procedure TApiServer.UseLayerParam(Params: TJSONObject);
+var
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+begin
+  if (Params = nil) or (Params.Find('layer') = nil) then
+    Exit;
+  Layer := FindLayerParam(Params, 'layer', Draft);
+  FDocument.Pattern.ActiveDraft := Draft;
+  FDocument.Pattern.SelectLayer(Layer);
+end;
+
+function TApiServer.DraftsToJSON: TJSONData;
+var
+  Reply, Item, Entry: TJSONObject;
+  List, Layers: TJSONArray;
+  Index: integer;
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+begin
+  Reply := TJSONObject.Create;
+  try
+    List := TJSONArray.Create;
+    Reply.Add('drafts', List);
+    for Index := 0 to FDocument.Pattern.DraftCount - 1 do
+    begin
+      Draft := FDocument.Pattern.Drafts[Index];
+      Item := TJSONObject.Create;
+      List.Add(Item);
+      Item.Add('id', StrToIntDef(Draft.Key, 0));
+      Item.Add('name', Draft.Name);
+      Item.Add('active', Draft = FDocument.Pattern.ActiveDraft);
+      Layers := TJSONArray.Create;
+      Item.Add('layers', Layers);
+      for Layer in Draft.Layers do
+      begin
+        Entry := TJSONObject.Create;
+        Layers.Add(Entry);
+        Entry.Add('id', StrToIntDef(Layer.Key, 0));
+        Entry.Add('name', Layer.Name);
+        Entry.Add('active', Layer = Draft.ActiveLayer);
+        Entry.Add('hidden', Layer.Hidden);
+        Entry.Add('locked', Layer.Locked);
+      end;
+    end;
+  except
+    FreeAndNil(Reply);
+    raise;
+  end;
+  Result := Reply;
+end;
+
+function TApiServer.DoAddDraft(Params: TJSONObject): TJSONData;
+var
+  Added: TPatternDraft;
+begin
+  FDocument.BeginChange(rsApiDrafts);
+  Added := FDocument.Pattern.AddDraft(OptionalString(Params, 'name'));
+  if Added = nil then
+    RefuseChange;
+  FDocument.Pattern.ActiveDraft := Added;
+  FDocument.EndChange;
+  Result := DraftsToJSON;
+end;
+
+function TApiServer.DoAddLayer(Params: TJSONObject): TJSONData;
+var
+  Draft: TPatternDraft;
+  Added: TPatternLayer;
+begin
+  Draft := FDocument.Pattern.ActiveDraft;
+  if (Params <> nil) and (Params.Find('draft') <> nil) then
+    Draft := FindDraftParam(Params, 'draft');
+  FDocument.BeginChange(rsApiLayers);
+  Added := FDocument.Pattern.AddLayer(Draft, OptionalString(Params, 'name'));
+  if Added = nil then
+    RefuseChange;
+  FDocument.Pattern.SelectLayer(Added);
+  FDocument.EndChange;
+  Result := DraftsToJSON;
+end;
+
+function TApiServer.DoRenameDraft(Params: TJSONObject): TJSONData;
+var
+  Draft: TPatternDraft;
+begin
+  Draft := FindDraftParam(Params, 'draft');
+  FDocument.BeginChange(rsApiDrafts);
+  if not FDocument.Pattern.RenameDraft(Draft, RequireString(Params, 'name')) then
+    RefuseChange;
+  FDocument.EndChange;
+  Result := DraftsToJSON;
+end;
+
+function TApiServer.DoRenameLayer(Params: TJSONObject): TJSONData;
+var
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+begin
+  Layer := FindLayerParam(Params, 'layer', Draft);
+  FDocument.BeginChange(rsApiLayers);
+  if not FDocument.Pattern.RenameLayer(Draft, Layer, RequireString(Params, 'name')) then
+    RefuseChange;
+  FDocument.EndChange;
+  Result := DraftsToJSON;
+end;
+
+function TApiServer.DoDeleteDraft(Params: TJSONObject): TJSONData;
+var
+  Draft: TPatternDraft;
+begin
+  Draft := FindDraftParam(Params, 'draft');
+  FDocument.BeginChange(rsApiDrafts);
+  if not FDocument.Pattern.DeleteDraft(Draft) then
+    RefuseChange;
+  FDocument.EndChange;
+  Result := DraftsToJSON;
+end;
+
+function TApiServer.DoDeleteLayer(Params: TJSONObject): TJSONData;
+var
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+begin
+  Layer := FindLayerParam(Params, 'layer', Draft);
+  FDocument.BeginChange(rsApiLayers);
+  if not FDocument.Pattern.DeleteLayer(Draft, Layer) then
+    RefuseChange;
+  FDocument.EndChange;
+  Result := DraftsToJSON;
+end;
+
+// Up the stack for a positive "by"
+function TApiServer.DoMoveLayer(Params: TJSONObject): TJSONData;
+var
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+  By: integer;
+begin
+  Layer := FindLayerParam(Params, 'layer', Draft);
+  if not GetJSONInteger(Params, 'by', By) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['by']));
+  FDocument.BeginChange(rsApiLayers);
+  FDocument.Commit(FDocument.Pattern.MoveLayer(Draft, Layer, By));
+  Result := DraftsToJSON;
+end;
+
+function TApiServer.DoMoveToLayer(Params: TJSONObject): TJSONData;
+var
+  Target: TEvalNode;
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+begin
+  Target := FindTarget(Params);
+  Layer := FindLayerParam(Params, 'layer', Draft);
+  FDocument.BeginChange(rsApiLayers);
+  if not FDocument.Pattern.MoveToLayer(Target, Layer) then
+    RefuseChange;
+  Result := AddedNode(Target);
+end;
+
+// View state, so not an undo step: which draft and layer are active, and which
+// layers show
+function TApiServer.DoSetActive(Params: TJSONObject): TJSONData;
+var
+  Draft: TPatternDraft;
+  Layer: TPatternLayer;
+  Hidden, Locked: boolean;
+begin
+  if Params.Find('draft') <> nil then
+    FDocument.Pattern.ActiveDraft := FindDraftParam(Params, 'draft');
+  if Params.Find('layer') <> nil then
+  begin
+    Layer := FindLayerParam(Params, 'layer', Draft);
+    FDocument.Pattern.ActiveDraft := Draft;
+    FDocument.Pattern.SelectLayer(Layer);
+    if GetJSONBoolean(Params, 'hidden', Hidden) then
+      Layer.Hidden := Hidden;
+    if GetJSONBoolean(Params, 'locked', Locked) then
+      Layer.Locked := Locked;
+  end;
+  FDocument.ViewChanged;
+  Result := DraftsToJSON;
+end;
+
 function TApiServer.DoSetView(Params: TJSONObject): TJSONData;
 var
   Piece: TPieceObject;
@@ -1379,6 +1643,16 @@ begin
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
     'set_view': Result := DoSetView(Params);
+    'list_drafts': Result := DraftsToJSON;
+    'add_draft': Result := DoAddDraft(Params);
+    'add_layer': Result := DoAddLayer(Params);
+    'rename_draft': Result := DoRenameDraft(Params);
+    'rename_layer': Result := DoRenameLayer(Params);
+    'delete_draft': Result := DoDeleteDraft(Params);
+    'delete_layer': Result := DoDeleteLayer(Params);
+    'move_layer': Result := DoMoveLayer(Params);
+    'move_to_layer': Result := DoMoveToLayer(Params);
+    'set_active': Result := DoSetActive(Params);
     'add_seam': Result := DoAddSeam(Params);
     'flip_seam': Result := DoFlipSeam(Params);
     'suggest_seams': Result := DoSuggestSeams;

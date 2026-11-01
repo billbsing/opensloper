@@ -37,6 +37,7 @@ type
   TObjectRow = record
     Key: string;
     Name: string;
+    Draft: string;
     Operation: string;
     Value: string;
     Formulas: string;
@@ -80,8 +81,8 @@ function SeamDifferenceText(Seam: TSeamObject): string;
 function SuggestionCaption(Pattern: TPattern; const Item: TSeamSuggestion): string;
 function ObjectRow(Pattern: TPattern; DraftObject: TDraftObject): TObjectRow;
 // The objects passing Filter whose name, operation or formulas contain Search,
-// ignoring case, in pattern order
-function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: string): TObjectRowArray;
+// ignoring case, in pattern order. A DraftName keeps to that draft.
+function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: string; const DraftName: string = ''): TObjectRowArray;
 function VariableRow(Pattern: TPattern; Variable: TVariable): TVariableRow;
 // The variables whose name, formula or description contain Search, ignoring case
 function VariableRows(Pattern: TPattern; const Search: string): TVariableRowArray;
@@ -324,6 +325,7 @@ begin
   Result.Key := DraftObject.Key;
   Result.Name := DraftObject.DisplayName;
   Result.Operation := TypeCaption(DraftObject);
+  Result.Draft := Pattern.DraftOf(DraftObject).Name;
   Result.Value := ResultText(DraftObject);
   Result.Formulas := FormulasText(Pattern, DraftObject);
   Result.State := DraftObject.State;
@@ -348,7 +350,7 @@ begin
     (Pos(LowerSearch, LowerCase(Row.Formulas)) > 0);
 end;
 
-function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: string): TObjectRowArray;
+function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: string; const DraftName: string): TObjectRowArray;
 var
   Index, Count, Number: integer;
   LowerSearch: string;
@@ -374,7 +376,7 @@ begin
   LowerSearch := LowerCase(Trim(Search));
   Count := 0;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if not PassesFilter(Pattern.Objects[Index], Filter) then
+    if not PassesFilter(Pattern.Objects[Index], Filter) or ((DraftName <> '') and (Pattern.DraftOf(Pattern.Objects[Index]).Name <> DraftName)) then
       Continue
     else if (Pattern.Objects[Index] is TRepeatObject) and (TRepeatObject(Pattern.Objects[Index]).Count > 0) then
       // A repeat is listed as its points, and the first stands for it

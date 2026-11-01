@@ -251,7 +251,7 @@ Eight point operations and three edge types cover basic bodice, skirt and trouse
 **Conventions:**
 
 - Units in mm; angles in degrees, 0° pointing right, positive anticlockwise (as Valentina); the canvas flips y for screen drawing
-- Common fields on every object: `id`, `name`, `type`, `layer`, `notes`; `layer` comes with step 14 (see Draft tabs and layers)
+- Common fields on every object: `id`, `name`, `type`, `layer`, `notes`; `layer` is left out until a pattern has drafts of its own (see Draft tabs and layers)
 - Readable properties: point `.x`, `.y`; every edge `.length`, `.angle1` (direction of the start handle) and `.angle2` (direction of the end handle, pointing back along the edge); straight edges also `.angle`
 - Functions: `sin cos tan asin acos atan2 sqrt abs min max round`
 
@@ -396,6 +396,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
 - **Scroll bars** beside and below the canvas show where the view is, over the pattern with a margin round it and wherever the view has been panned to. They stay in place, greyed, when everything is showing, so that the canvas does not change size. After using one the keys go back to the canvas.
+- **Layers:** Shift+Page Up and Shift+Page Down move the selection to the layer above or below. Objects on a locked layer can be selected from the objects list, to read them, but not moved or deleted.
 - **Tools:** Select (S), Point (P), Line (L), Curve (C), Piece (K), Notch (T) and Seam (E), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
 - **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
   1. An existing point is reused.
@@ -470,7 +471,7 @@ Selecting a seam highlights both sides in their colours with chevrons for direct
 
 ## Draft tabs and layers
 
-Step 14; none of this is built yet, so pattern files have no `drafts` or `layer` members so far. A pattern file holds one or more drafts, shown as tabs along the bottom of the canvas like sheets in a spreadsheet workbook, and each draft holds layers for drawing order and visibility.
+A pattern file holds one or more drafts, shown as tabs along the bottom of the canvas like sheets in a spreadsheet workbook, and each draft holds layers for drawing order and visibility.
 
 **Draft tabs.** Each draft is a separate drafting area in the same pattern file, such as Bodice, Sleeve and Collar, with its own canvas, origin and zoom. All drafts share the measurement set, the `#` variables and the undo history.
 
@@ -530,11 +531,13 @@ Step 14; none of this is built yet, so pattern files have no `drafts` or `layer`
 }
 ```
 
-An object's draft is its layer's draft. The format version stays at 1. A file with no `drafts` loads into one draft with one layer named `Draft`, so existing patterns keep working, and saving writes the new members. Files from before integer IDs are not read.
+An object's draft is its layer's draft. The format version stays at 1. A pattern starts with one draft and one layer, both named `Draft`, which have no IDs and are not written to the file, so existing patterns load as they are and their IDs do not move. The first time a draft or layer is added, renamed, moved or deleted they take IDs from the counter, and from then on the file has `drafts`, `layer` and `view`. So a pattern with one unchanged layer has no saved view: hiding that layer lasts only as long as the session. Files from before integer IDs are not read.
 
-**Automation API.** New methods list and add drafts and layers and move objects between layers; `add_point` and `add_edge` take an optional `layer`, and `render` takes `draft`.
+**Automation API.** `list_drafts`, `add_draft`, `add_layer`, `rename_draft`, `rename_layer`, `delete_draft`, `delete_layer`, `move_layer` and `move_to_layer`, with drafts and layers named by ID or name; a layer's name is looked up on the active draft. `set_active` chooses the draft and layer and sets `hidden` and `locked`, as view state with no undo step. `add_point` and `add_edge` take an optional `layer`, which becomes the active layer, and `render` takes `draft`.
 
-**Build order.** The model and file format first, including loading old files, with no UI. Then layers: drawing order, visibility and lock across the canvas, snapping and piece detection. Then draft tabs: what each tab shows, and undo switching to the draft that changed. The canvas, snapping and piece detection all walk every object today, so they share one check for what is shown rather than each filtering for itself. Panels, the tab bar and the API come last.
+**Code.** `Sloper.Core.Drafts` holds drafts and layers, and `TPattern` answers `IsShown` and `IsPickable`, which the canvas, snapping and piece detection all go by, so none of them filters for itself. `ShownObjects` and `ShownPoints` in `Sloper.UI.Scene` give drawing order. Bounds and `render` go by the draft only, and the publish app, Garment View and exports read every piece. An object cannot take a direct input from another draft: `CheckPoint` and `CheckEdgeTarget` refuse it for the active draft, and seams skip that check. A file is not checked for this. The UI is `Sloper.UI.LayersPanel` and `Sloper.UI.DraftBar`. Undo keeps the view text aside and puts it back after replacing the pattern, then shows the draft of the first object that differs. Undoing the change that first gave the drafts IDs loses that draft's remembered zoom, as the keys go with it.
+
+The objects panel has a Draft column and filter. Not done yet: autocomplete showing an object's draft.
 
 ## Links and problem display
 
@@ -675,7 +678,7 @@ Measurement file (`.slm`); values are in mm, keys follow the name rules and are 
 
 Keys from the measurement catalogue are preferred; custom keys follow the name rules.
 
-Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example shows `drafts`, `layer` and `view` as they will be from step 14; files do not have them yet. The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
+Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example shows `drafts`, `layer` and `view`, which a pattern with one unchanged draft and layer leaves out. The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
 
 ```json
 {
@@ -711,7 +714,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
 - `measurementFile` is the measurement set last used with the pattern, written with `/` separators and relative to the pattern's folder unless absolute. `MeasurementFilePath` turns it into a path; the core never loads it by itself. `size` names the size used from a size table, and is empty for a personal set.
 - `variables` and `objects` are in creation order. An object's direct inputs (`base`, `edge`, `start`, a path's node points and so on) must name an object earlier in the file. Creation order guarantees this, because inputs exist before the object and cannot be deleted while it uses them. Formulas may refer to any ID; a missing one shows as an error when evaluated.
 - IDs and references to them (`base`, `edge`, `layer`, `sources` and so on) are JSON numbers; in formula text a reference is the ID in braces (`{3}`).
-- Each object has `id`, `type`, `name` and, from step 14, `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
+- Each object has `id`, `type`, `name` and, once a pattern has drafts of its own, `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
 - Loading checks IDs (positive integers, unique across drafts, layers, variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
@@ -1172,7 +1175,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `set_cut`, `set_fold`, `set_view`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `set_cut`, `set_fold`, `set_view`, the draft and layer methods (see Draft tabs and layers), `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -1278,7 +1281,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 11. Seams and seam-length checks (done, see Seams; the Check pattern overlay itself is not built yet, so a mismatch shows in the status bar, the Problems filter and `check`): seam object, Seam tool, Suggest seams, split command on the canvas
 12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (done, see Other exports and packing; DXF untried on a real cutting system)
 13. Garment view: a flat front and back of the finished garment in the drafting app (done, see Garment view; fabric colours wait for fabrics)
-14. Layers and draft tabs (designed, see Draft tabs and layers)
+14. Layers and draft tabs (done, see Draft tabs and layers)
 15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (see Transforms)
 16. Blender export for 3D preview
 

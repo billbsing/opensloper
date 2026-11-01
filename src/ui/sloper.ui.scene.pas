@@ -29,13 +29,15 @@ interface
 
 uses
   SysUtils, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Piece,
-  Sloper.Core.Seam, Sloper.Core.Settings;
+  Sloper.Core.Seam, Sloper.Core.Drafts, Sloper.Core.Settings;
 
 const
   MinFocusSize = 60;
 
 type
   // A mark showing which way a piece's path runs along one of its edges
+  TDraftObjectArray = array of TDraftObject;
+
   TPieceChevron = record
     Position: TVec2;
     Angle: double;
@@ -54,9 +56,13 @@ type
 function ObjectsBounds(Pattern: TPattern; const Keys: TStringArray; out Bounds: TRect2): boolean;
 // The edge as a polyline, curves flattened to within Tolerance mm
 function EdgePolyline(Edge: TEdgeObject; Tolerance: double): TVec2Array;
-// The nearest point within Radius mm of At, or nil
+// What shows on the canvas, bottom layer first
+function ShownObjects(Pattern: TPattern): TDraftObjectArray;
+function ShownPoints(Pattern: TPattern): TPointObjectArray;
+// The point within Radius mm of At that can be picked, or nil: the top layer
+// wins, then the nearest
 function PointAt(Pattern: TPattern; const At: TVec2; Radius: double): TPointObject;
-// The nearest edge within Radius mm of At, or nil
+// The same for edges
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
 // The smallest piece whose cutting line contains At, or nil
 function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
@@ -175,17 +181,20 @@ function PointAt(Pattern: TPattern; const At: TVec2; Radius: double): TPointObje
 var
   Point: TPointObject;
   Best, Gap: double;
+  Rank: integer;
 begin
   Result := nil;
   Best := Radius;
+  Rank := -1;
   for Point in Pattern.AllPoints do
   begin
-    if not Point.HasResult then
+    if not Point.HasResult or not Pattern.IsPickable(Point) then
       Continue;
     Gap := Distance(Point.Position, At);
-    if Gap <= Best then
+    if (Gap <= Radius) and ((Pattern.LayerRank(Point) > Rank) or ((Pattern.LayerRank(Point) = Rank) and (Gap <= Best))) then
     begin
       Best := Gap;
+      Rank := Pattern.LayerRank(Point);
       Result := Point;
     end;
   end;
@@ -193,24 +202,56 @@ end;
 
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
 var
-  Index: integer;
+  Index, Rank: integer;
   DraftObject: TDraftObject;
   Best, Position, Offset: double;
 begin
   Result := nil;
   Best := Radius;
+  Rank := -1;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (TEdgeObject(DraftObject).Segments = nil) then
+    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (TEdgeObject(DraftObject).Segments = nil) or not Pattern.IsPickable(DraftObject) then
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
-    if Offset <= Best then
+    if (Offset <= Radius) and ((Pattern.LayerRank(DraftObject) > Rank) or ((Pattern.LayerRank(DraftObject) = Rank) and (Offset <= Best))) then
     begin
       Best := Offset;
+      Rank := Pattern.LayerRank(DraftObject);
       Result := TEdgeObject(DraftObject);
     end;
   end;
+end;
+
+function ShownObjects(Pattern: TPattern): TDraftObjectArray;
+var
+  Layer: TPatternLayer;
+  Index, Count: integer;
+begin
+  Result := nil;
+  SetLength(Result, Pattern.ObjectCount);
+  Count := 0;
+  for Layer in Pattern.ActiveDraft.Layers do
+    for Index := 0 to Pattern.ObjectCount - 1 do
+      if (Pattern.LayerOf(Pattern.Objects[Index]) = Layer) and Pattern.IsShown(Pattern.Objects[Index]) then
+      begin
+        Result[Count] := Pattern.Objects[Index];
+        Inc(Count);
+      end;
+  SetLength(Result, Count);
+end;
+
+function ShownPoints(Pattern: TPattern): TPointObjectArray;
+var
+  Layer: TPatternLayer;
+  Point: TPointObject;
+begin
+  Result := nil;
+  for Layer in Pattern.ActiveDraft.Layers do
+    for Point in Pattern.AllPoints do
+      if (Pattern.LayerOf(Point) = Layer) and Pattern.IsShown(Point) then
+        Insert(Point, Result, Length(Result));
 end;
 
 function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
@@ -222,7 +263,7 @@ begin
   Result := nil;
   Best := Infinity;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult then
+    if (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult and Pattern.IsPickable(Pattern.Objects[Index]) then
     begin
       Piece := TPieceObject(Pattern.Objects[Index]);
       Size := Abs(SignedArea(Piece.CutLine));
@@ -272,7 +313,7 @@ begin
   for Entry in Side do
   begin
     Piece := TPieceObject(Pattern.FindNode(Entry.PieceKey));
-    if Piece.PathIndexOf(Entry.EdgeKey) < 0 then
+    if (Piece.PathIndexOf(Entry.EdgeKey) < 0) or not Pattern.IsShown(Piece) then
       Continue;
     Edge := TEdgeObject(Pattern.FindNode(Entry.EdgeKey));
     Item.Position := Edge.PointAtLength(Edge.Length / 2);
@@ -296,7 +337,7 @@ begin
   Best := Radius;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
-    if not (Pattern.Objects[Index] is TPieceObject) or not Pattern.Objects[Index].HasResult then
+    if not (Pattern.Objects[Index] is TPieceObject) or not Pattern.Objects[Index].HasResult or not Pattern.IsPickable(Pattern.Objects[Index]) then
       Continue;
     Piece := TPieceObject(Pattern.Objects[Index]);
     for PathEntry in Piece.Path do
@@ -315,7 +356,7 @@ begin
     Exit;
   Inside := PointInPolygon(At, TPieceObject(Pattern.FindNode(Entry.PieceKey)).Outline);
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if not Inside and (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult then
+    if not Inside and (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult and Pattern.IsPickable(Pattern.Objects[Index]) then
     begin
       Piece := TPieceObject(Pattern.Objects[Index]);
       if (Piece.PathIndexOf(Entry.EdgeKey) >= 0) and PointInPolygon(At, Piece.Outline) then
@@ -413,7 +454,7 @@ begin
   Result := False;
   Best := Radius;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if Pattern.Objects[Index] is TPieceObject then
+    if (Pattern.Objects[Index] is TPieceObject) and Pattern.IsPickable(Pattern.Objects[Index]) then
     begin
       Piece := TPieceObject(Pattern.Objects[Index]);
       for Entry := 0 to High(Piece.Path) do
@@ -529,7 +570,8 @@ begin
     begin
       DraftObject := Pattern.Objects[Index];
       // A seam has no place of its own to put a label
-      if DraftObject.HasResult and not (DraftObject is TSeamObject) and ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) then
+      if DraftObject.HasResult and not (DraftObject is TSeamObject) and Pattern.IsShown(DraftObject) and
+        ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) then
       begin
         Result[Count] := DraftObject.Key;
         Inc(Count);
@@ -537,7 +579,7 @@ begin
     end;
     SetLength(Result, Count);
     for Point in Pattern.AllPoints do
-      if (Point is TRepeatPoint) and Point.HasResult and ((Mode = lmAll) or Wanted.Contains(Point.Key)) then
+      if (Point is TRepeatPoint) and Point.HasResult and Pattern.IsShown(Point) and ((Mode = lmAll) or Wanted.Contains(Point.Key)) then
         Insert(Point.Key, Result, Length(Result));
   finally
     FreeAndNil(Wanted);

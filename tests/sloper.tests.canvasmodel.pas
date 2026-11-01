@@ -48,6 +48,7 @@ type
     procedure TestSeamHasNoLabel;
     procedure TestSeamBounds;
     procedure TestSplitFromSelection;
+    procedure TestCentreOn;
     procedure TestScrollContentLargerThanView;
     procedure TestScrollNothingToScroll;
     procedure TestScrollViewPannedAwayFromContent;
@@ -297,6 +298,16 @@ begin
   AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(50, 50), Path, ErrorMessage));
   Result := FPattern.AddPiece('Front', Path, '10');
   FPattern.Evaluate;
+end;
+
+procedure TTestCanvasModel.TestCentreOn;
+var
+  View: TViewTransform;
+begin
+  View := DefaultView;
+  View.Scale := 4;
+  View.CentreOn(Vec2(100, -50), 800, 600);
+  AssertPointsNear('in the middle', Vec2(400, 300), View.ToScreen(Vec2(100, -50)));
 end;
 
 // 1000 pixels of content starting 300 before the view of 400
