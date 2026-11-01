@@ -85,12 +85,16 @@ type
     function DoAddPoint(Params: TJSONObject): TJSONData;
     function DoAddEdge(Params: TJSONObject): TJSONData;
     function DoSplitEdge(Params: TJSONObject): TJSONData;
+    function DoAddRectangle(Params: TJSONObject): TJSONData;
+    function DoRoundCorner(Params: TJSONObject): TJSONData;
     function DoCreatePiece(Params: TJSONObject): TJSONData;
     function DoSetEdgeAllowance(Params: TJSONObject): TJSONData;
     function TargetPiece(Params: TJSONObject): TPieceObject;
     function DoSetGrainline(Params: TJSONObject): TJSONData;
     function DoAddNotch(Params: TJSONObject): TJSONData;
     function DoRemoveNotch(Params: TJSONObject): TJSONData;
+    function DoAddMarking(Params: TJSONObject): TJSONData;
+    function DoRemoveMarking(Params: TJSONObject): TJSONData;
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
     function DoSetView(Params: TJSONObject): TJSONData;
@@ -164,6 +168,8 @@ resourcestring
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
   rsApiView = 'Change garment view';
+  rsApiAddMarking = 'Add marking';
+  rsApiRemoveMarking = 'Remove marking';
   rsApiFabrics = 'Change fabrics';
   rsApiPieceFabric = 'Change fabric';
   rsApiPieceFill = 'Change fill';
@@ -355,6 +361,8 @@ begin
         Result.Add('perimeter', ReportFloat(TPieceObject(Node).Perimeter));
         Result.Add('path', PiecePathToJSON(TPieceObject(Node)));
         Result.Add('notches', Length(TPieceObject(Node).Notches));
+        Result.Add('markings', Length(TPieceObject(Node).Markings));
+        Result.Add('holes', Round(TPieceObject(Node).PropertyValue('holes')));
         Result.Add('cutCount', TPieceObject(Node).CutCount);
         Result.Add('mirrored', TPieceObject(Node).Mirrored);
         Result.Add('onFold', TPieceObject(Node).OnFold);
@@ -987,6 +995,16 @@ begin
       FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddIntersectPoint(PointName, First, Second, FlagA, FlagB, Pick);
     end;
+    'circleCirclePoint':
+    begin
+      First := Reference(Params, 'centreA');
+      FormulaA := FormulaParam(Params, 'radiusA');
+      Second := Reference(Params, 'centreB');
+      FormulaB := FormulaParam(Params, 'radiusB');
+      Pick := PickParam(Params);
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddCircleCirclePoint(PointName, First, FormulaA, Second, FormulaB, Pick);
+    end;
     'circleEdgePoint':
     begin
       First := Reference(Params, 'centre');
@@ -1052,6 +1070,30 @@ begin
       FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddCurve(First, Second, Angle1, Length1, Angle2, Length2, Role, EdgeName);
     end;
+    'offsetEdge':
+    begin
+      First := Reference(Params, 'edge');
+      Length1 := FormulaParam(Params, 'distance');
+      Index := ChoiceParam(Params, 'side', ['left', 'right']);
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddOffsetEdge(First, Length1, TOffsetSide(Index), Role, EdgeName);
+    end;
+    'circle':
+    begin
+      First := Reference(Params, 'centre');
+      Length1 := FormulaParam(Params, 'radius');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddCircle(First, Length1, Role, EdgeName);
+    end;
+    'arc':
+    begin
+      First := Reference(Params, 'centre');
+      Length1 := FormulaParam(Params, 'radius');
+      Angle1 := FormulaParam(Params, 'angle1');
+      Angle2 := FormulaParam(Params, 'angle2');
+      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      Added := Pattern.AddArc(First, Length1, Angle1, Angle2, Role, EdgeName);
+    end;
     'curvePath':
     begin
       Nodes := Params.Find('nodes');
@@ -1079,9 +1121,48 @@ begin
       Added := Pattern.AddCurvePath(NodeKeys, Angles, LengthsIn, LengthsOut, Role, EdgeName);
     end;
     else
-      raise EApiError.Create(RpcInvalidParams, Format(rsApiUnknownType, [TypeName, 'line, curve, curvePath']));
+      raise EApiError.Create(RpcInvalidParams, Format(rsApiUnknownType, [TypeName, 'line, curve, circle, arc, offsetEdge, curvePath']));
   end;
   Result := AddedNode(Added);
+end;
+
+function TApiServer.DoAddRectangle(Params: TJSONObject): TJSONData;
+var
+  Corner, Width, Height: string;
+  Edges: TRectangleEdges;
+  Keys: array[0..3] of string;
+  Index: integer;
+  List: TJSONArray;
+begin
+  Corner := Reference(Params, 'corner');
+  Width := FormulaParam(Params, 'width');
+  Height := FormulaParam(Params, 'height');
+  FDocument.BeginChange(Format(rsApiAdd, ['rectangle']));
+  if not FDocument.Pattern.AddRectangle(Corner, Width, Height, RoleParam(Params), Edges) then
+    RefuseChange;
+  for Index := 0 to 3 do
+    Keys[Index] := Edges[Index].Key;
+  FDocument.EndChange;
+  List := TJSONArray.Create;
+  try
+    for Index := 0 to 3 do
+      List.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(Keys[Index])));
+    Result := List;
+  except
+    FreeAndNil(List);
+    raise;
+  end;
+end;
+
+function TApiServer.DoRoundCorner(Params: TJSONObject): TJSONData;
+var
+  EdgeA, EdgeB, Radius: string;
+begin
+  EdgeA := Reference(Params, 'edgeA');
+  EdgeB := Reference(Params, 'edgeB');
+  Radius := FormulaParam(Params, 'radius');
+  FDocument.BeginChange(Format(rsApiAdd, ['corner']));
+  Result := AddedNode(FDocument.Pattern.AddRoundCorner(EdgeA, EdgeB, Radius));
 end;
 
 function TApiServer.DoSplitEdge(Params: TJSONObject): TJSONData;
@@ -1204,6 +1285,59 @@ begin
 end;
 
 // Notches count from 1, as in the field names
+function TApiServer.DoAddMarking(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Kind: TMarkingKind;
+  Key, FirstFormula, SecondFormula: string;
+  Done: boolean;
+begin
+  Piece := TargetPiece(Params);
+  if Params.Find('kind') = nil then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['kind']));
+  Kind := TMarkingKind(ChoiceParam(Params, 'kind', MarkingKindNames));
+  case Kind of
+    mkHole:
+    begin
+      Key := Reference(Params, 'point');
+      FirstFormula := FormulaParam(Params, MarkingDiameterField);
+      FDocument.BeginChange(rsApiAddMarking);
+      Done := FDocument.Pattern.AddHoleMarking(Piece, Key, FirstFormula);
+    end;
+    mkStitchHoles:
+    begin
+      Key := Reference(Params, 'edge');
+      FirstFormula := FormulaParam(Params, MarkingSpacingField);
+      SecondFormula := FormulaParam(Params, MarkingSizeField);
+      FDocument.BeginChange(rsApiAddMarking);
+      Done := FDocument.Pattern.AddStitchMarking(Piece, Key, FirstFormula, SecondFormula);
+    end;
+    else
+    begin
+      Key := Reference(Params, 'edge');
+      FDocument.BeginChange(rsApiAddMarking);
+      Done := FDocument.Pattern.AddLineMarking(Piece, Kind, Key);
+    end;
+  end;
+  if not Done then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
+function TApiServer.DoRemoveMarking(Params: TJSONObject): TJSONData;
+var
+  Piece: TPieceObject;
+  Index: integer;
+begin
+  Piece := TargetPiece(Params);
+  if not GetJSONInteger(Params, 'marking', Index) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['marking']));
+  FDocument.BeginChange(rsApiRemoveMarking);
+  if not FDocument.Pattern.RemoveMarking(Piece, Index - 1) then
+    RefuseChange;
+  Result := AddedNode(Piece);
+end;
+
 function TApiServer.DoRemoveNotch(Params: TJSONObject): TJSONData;
 var
   Piece: TPieceObject;
@@ -1279,6 +1413,8 @@ begin
       Item.Add('name', Fabric.Name);
       Item.Add('color', Fabric.Color);
       Item.Add('fill', FabricFillNames[Ord(Fabric.Fill)]);
+      if Fabric.HasAllowance then
+        Item.Add('allowance', ReportFloat(Fabric.Allowance));
     end;
     Reply.Add('cutList', FDocument.Pattern.CutList);
   except
@@ -1317,6 +1453,7 @@ end;
 function TApiServer.DoSetFabric(Params: TJSONObject): TJSONData;
 var
   Fabric: TPatternFabric;
+  Allowance: double;
 begin
   Fabric := FindFabricParam(Params, 'fabric');
   FDocument.BeginChange(rsApiFabrics);
@@ -1324,6 +1461,11 @@ begin
     RefuseChange;
   if Params.Find('fill') <> nil then
     FDocument.Pattern.SetFabricFill(Fabric, TFabricFill(ChoiceParam(Params, 'fill', FabricFillNames)));
+  if (Params.Find('allowance') <> nil) and not (GetJSONNumber(Params, 'allowance', Allowance) and
+    FDocument.Pattern.SetFabricAllowance(Fabric, True, Allowance)) then
+    RefuseChange;
+  if (Params.Find('noAllowance') <> nil) and BooleanParam(Params, 'noAllowance') then
+    FDocument.Pattern.SetFabricAllowance(Fabric, False, 0);
   FDocument.EndChange;
   Result := FabricsToJSON;
 end;
@@ -1852,11 +1994,15 @@ begin
     'add_point': Result := DoAddPoint(Params);
     'add_edge': Result := DoAddEdge(Params);
     'split_edge': Result := DoSplitEdge(Params);
+    'add_rectangle': Result := DoAddRectangle(Params);
+    'round_corner': Result := DoRoundCorner(Params);
     'create_piece': Result := DoCreatePiece(Params);
     'set_edge_allowance': Result := DoSetEdgeAllowance(Params);
     'set_grainline': Result := DoSetGrainline(Params);
     'add_notch': Result := DoAddNotch(Params);
     'remove_notch': Result := DoRemoveNotch(Params);
+    'add_marking': Result := DoAddMarking(Params);
+    'remove_marking': Result := DoRemoveMarking(Params);
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
     'set_view': Result := DoSetView(Params);

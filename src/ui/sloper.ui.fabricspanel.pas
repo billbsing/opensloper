@@ -49,6 +49,7 @@ type
     procedure DeleteClick(Sender: TObject);
     procedure ColourClick(Sender: TObject);
     procedure FillClick(Sender: TObject);
+    procedure AllowanceClick(Sender: TObject);
     procedure Say(const AText: string);
   public
     constructor Create(AOwner: TComponent); override;
@@ -66,6 +67,13 @@ resourcestring
   rsFabricFill = 'Fill';
   rsFabricFillTint = 'Tint';
   rsFabricFillHatch = 'Hatching';
+  rsFabricAllowance = 'Allowance';
+  rsFabricAllowanceButton = 'Allowance...';
+  rsFabricAllowanceHint = 'Set the seam allowance pieces take on this fabric';
+  rsFabricAllowanceTitle = 'Seam allowance';
+  rsFabricAllowancePrompt = 'Millimetres, or empty for none';
+  rsFabricAllowanceChange = 'Change fabric allowance';
+  rsFabricAllowanceBad = 'The allowance must be a number, such as 10 or 3.5';
   rsFabricNew = 'New';
   rsFabricNewHint = 'Add a fabric';
   rsFabricDelete = 'Delete';
@@ -88,11 +96,13 @@ const
   ColumnColour = 0;
   ColumnName = 1;
   ColumnFill = 2;
+  ColumnAllowance = 3;
   ColourWidth = 64;
-  NameWidth = 180;
+  NameWidth = 130;
   FillWidth = 90;
+  AllowanceWidth = 90;
   ButtonRowHeight = 36;
-  ButtonWidth = 80;
+  ButtonWidth = 88;
   ButtonHeight = 30;
   ButtonGap = 2;
   CutListHeight = 90;
@@ -147,6 +157,7 @@ begin
   AddButton(rsFabricDelete, rsFabricDeleteHint, @DeleteClick);
   AddButton(rsFabricColourButton, rsFabricColourHint, @ColourClick);
   AddButton(rsFabricFillButton, rsFabricFillHint, @FillClick);
+  AddButton(rsFabricAllowanceButton, rsFabricAllowanceHint, @AllowanceClick);
   FGrid := TStringGrid.Create(Self);
   FGrid.Parent := Self;
   FGrid.Align := alClient;
@@ -157,6 +168,7 @@ begin
   AddColumn(rsFabricColour, ColourWidth);
   AddColumn(rsFabricName, NameWidth);
   AddColumn(rsFabricFill, FillWidth);
+  AddColumn(rsFabricAllowance, AllowanceWidth);
   FGrid.OnPrepareCanvas := @GridPrepareCanvas;
   FGrid.OnDblClick := @GridDoubleClick;
 end;
@@ -231,6 +243,10 @@ begin
       FGrid.Cells[ColumnColour, Index + 1] := Fabric.Color;
       FGrid.Cells[ColumnName, Index + 1] := Fabric.Name;
       FGrid.Cells[ColumnFill, Index + 1] := FillCaptions[Fabric.Fill];
+      if Fabric.HasAllowance then
+        FGrid.Cells[ColumnAllowance, Index + 1] := FloatToStr(Fabric.Allowance)
+      else
+        FGrid.Cells[ColumnAllowance, Index + 1] := '';
     end;
     FCutList.Text := FDocument.Pattern.CutList;
   finally
@@ -268,6 +284,11 @@ begin
   if FGrid.Col = ColumnFill then
   begin
     FillClick(Sender);
+    Exit;
+  end;
+  if FGrid.Col = ColumnAllowance then
+  begin
+    AllowanceClick(Sender);
     Exit;
   end;
   NewName := Fabric.Name;
@@ -333,6 +354,35 @@ begin
   FDocument.BeginChange(rsFabricChangeFill);
   FDocument.Pattern.SetFabricFill(Fabric, Other[Fabric.Fill]);
   FDocument.EndChange;
+end;
+
+procedure TFabricsPanel.AllowanceClick(Sender: TObject);
+var
+  Fabric: TPatternFabric;
+  Entry, Reason: string;
+  Value: double;
+begin
+  Fabric := CurrentFabric;
+  if Fabric = nil then
+    Exit;
+  Entry := '';
+  if Fabric.HasAllowance then
+    Entry := FloatToStr(Fabric.Allowance);
+  if not InputQuery(rsFabricAllowanceTitle, rsFabricAllowancePrompt, Entry) then
+    Exit;
+  Entry := Trim(Entry);
+  Value := 0;
+  if (Entry <> '') and not TryStrToFloat(Entry, Value) then
+  begin
+    Say(rsFabricAllowanceBad);
+    Exit;
+  end;
+  FDocument.BeginChange(rsFabricAllowanceChange);
+  Reason := '';
+  if not FDocument.Pattern.SetFabricAllowance(Fabric, Entry <> '', Value) then
+    Reason := FDocument.Pattern.LastError;
+  if not FDocument.Commit(Reason = '') then
+    Say(Reason);
 end;
 
 end.

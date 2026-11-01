@@ -91,6 +91,13 @@ const
   TypeProjectPoint = 'projectPoint';
   TypeLine = 'line';
   TypeCurve = 'curve';
+  TypeCircle = 'circle';
+  TypeArc = 'arc';
+  TypeCircleCirclePoint = 'circleCirclePoint';
+  TypeOffsetEdge = 'offsetEdge';
+  TypeCornerArc = 'cornerArc';
+  TypeCornerPoint = 'cornerPoint';
+  OffsetSideNames: array[TOffsetSide] of string = ('left', 'right');
   TypeCurvePath = 'curvePath';
   TypeSplitPart = 'splitPart';
   TypePiece = 'piece';
@@ -134,6 +141,7 @@ type
     function CreateEdgeCopy(Item: TJSONObject): TDraftObject;
     function ReadGrainline(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
+    function ReadMarkings(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadFold(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadView(Item: TJSONObject; Piece: TPieceObject): boolean;
@@ -173,6 +181,18 @@ begin
     Result := TypeLine
   else if DraftObject is TCurveObject then
     Result := TypeCurve
+  else if DraftObject is TCircleObject then
+    Result := TypeCircle
+  else if DraftObject is TOffsetEdge then
+    Result := TypeOffsetEdge
+  else if DraftObject is TCornerArc then
+    Result := TypeCornerArc
+  else if DraftObject is TCornerPoint then
+    Result := TypeCornerPoint
+  else if DraftObject is TArcObject then
+    Result := TypeArc
+  else if DraftObject is TCircleCirclePoint then
+    Result := TypeCircleCirclePoint
   else if DraftObject is TCurvePathObject then
     Result := TypeCurvePath
   else if DraftObject is TSplitPart then
@@ -351,6 +371,44 @@ begin
   end;
 end;
 
+function SaveMarkings(Piece: TPieceObject): TJSONArray;
+var
+  Index: integer;
+  Item: TJSONObject;
+  Marking: TPieceMarking;
+
+  procedure AddPart(const Part: string);
+  begin
+    Item.Add(Part, Piece.Field(Piece.MarkingField(Index, Part)).StoredText);
+  end;
+
+begin
+  Result := TJSONArray.Create;
+  try
+    for Index := 0 to High(Piece.Markings) do
+    begin
+      Marking := Piece.Markings[Index];
+      Item := TJSONObject.Create;
+      Result.Add(Item);
+      Item.Add('kind', MarkingKindNames[Ord(Marking.Kind)]);
+      if Marking.PointKey <> '' then
+        Item.Add('point', JSONId(Marking.PointKey))
+      else
+        Item.Add('edge', JSONId(Marking.EdgeKey));
+      if Marking.Kind = mkHole then
+        AddPart(MarkingDiameterField)
+      else if Marking.Kind = mkStitchHoles then
+      begin
+        AddPart(MarkingSpacingField);
+        AddPart(MarkingSizeField);
+      end;
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
 function SaveNotches(Piece: TPieceObject): TJSONArray;
 var
   Index: integer;
@@ -460,6 +518,30 @@ begin
       Result.Add('extendB', Intersect.ExtendB);
       Result.Add('pick', Intersect.Pick);
     end
+    else if DraftObject is TCornerArc then
+    begin
+      Result.Add('vertex', JSONId(TCornerArc(DraftObject).Vertex));
+      Result.Add('edgeA', JSONId(TCornerArc(DraftObject).EdgeA));
+      Result.Add('edgeB', JSONId(TCornerArc(DraftObject).EdgeB));
+    end
+    else if DraftObject is TCornerPoint then
+    begin
+      Result.Add('arc', JSONId(TCornerPoint(DraftObject).Arc));
+      Result.Add('end', TCornerPoint(DraftObject).EndNumber);
+    end
+    else if DraftObject is TOffsetEdge then
+    begin
+      Result.Add('edge', JSONId(TOffsetEdge(DraftObject).Source));
+      Result.Add('side', OffsetSideNames[TOffsetEdge(DraftObject).Side]);
+    end
+    else if DraftObject is TRoundEdge then
+      Result.Add('centre', JSONId(TRoundEdge(DraftObject).Centre))
+    else if DraftObject is TCircleCirclePoint then
+    begin
+      Result.Add('centreA', JSONId(TCircleCirclePoint(DraftObject).CentreA));
+      Result.Add('centreB', JSONId(TCircleCirclePoint(DraftObject).CentreB));
+      Result.Add('pick', TCircleCirclePoint(DraftObject).Pick);
+    end
     else if DraftObject is TCircleEdgePoint then
     begin
       Circle := TCircleEdgePoint(DraftObject);
@@ -519,6 +601,8 @@ begin
         Result.Add('grainline', SaveGrainline(TPieceObject(DraftObject)));
       if TPieceObject(DraftObject).Notches <> nil then
         Result.Add('notches', SaveNotches(TPieceObject(DraftObject)));
+      if TPieceObject(DraftObject).Markings <> nil then
+        Result.Add('markings', SaveMarkings(TPieceObject(DraftObject)));
       Result.Add('cut', SaveCut(TPieceObject(DraftObject)));
       if TPieceObject(DraftObject).OnFold then
         Result.Add('foldEdge', JSONId(TPieceObject(DraftObject).FoldEdgeKey));
@@ -556,6 +640,8 @@ begin
       Item.Add('name', Pattern.Fabrics[Index].Name);
       Item.Add('color', Pattern.Fabrics[Index].Color);
       Item.Add('fill', FabricFillNames[Ord(Pattern.Fabrics[Index].Fill)]);
+      if Pattern.Fabrics[Index].HasAllowance then
+        Item.Add('allowance', JSONFloat(Pattern.Fabrics[Index].Allowance));
     end;
   except
     FreeAndNil(Result);
@@ -1067,6 +1153,48 @@ begin
 end;
 
 // Optional. Each has a "point", or an "edge" of the piece and a "position".
+function TPatternLoader.ReadMarkings(Item: TJSONObject; Piece: TPieceObject): boolean;
+var
+  Data: TJSONData;
+  Marking: TJSONObject;
+  Index, Choice, Added: integer;
+  Key: string;
+  Kind: TMarkingKind;
+begin
+  Data := Item.Find('markings');
+  if Data = nil then
+    Exit(True);
+  if Data.JSONType <> jtArray then
+    Exit(Missing('markings'));
+  for Index := 0 to Data.Count - 1 do
+  begin
+    if Data.Items[Index].JSONType <> jtObject then
+      Exit(Missing('markings'));
+    Marking := TJSONObject(Data.Items[Index]);
+    if Marking.Find('kind') = nil then
+      Exit(Missing('kind'));
+    if not ReadChoice(Marking, 'kind', MarkingKindNames, Choice) then
+      Exit(False);
+    Kind := TMarkingKind(Choice);
+    if Kind = mkHole then
+    begin
+      if not ReadInput(Marking, 'point', False, Key) then
+        Exit(False);
+      Added := Piece.AddMarking(Kind, Key, '');
+      if not ReadFormula(Marking, MarkingDiameterField, Piece, Piece.MarkingField(Added, MarkingDiameterField)) then
+        Exit(False);
+      Continue;
+    end;
+    if not ReadInput(Marking, 'edge', True, Key) then
+      Exit(False);
+    Added := Piece.AddMarking(Kind, '', Key);
+    if (Kind = mkStitchHoles) and (not ReadFormula(Marking, MarkingSpacingField, Piece, Piece.MarkingField(Added, MarkingSpacingField)) or
+      not ReadFormula(Marking, MarkingSizeField, Piece, Piece.MarkingField(Added, MarkingSizeField))) then
+      Exit(False);
+  end;
+  Result := True;
+end;
+
 function TPatternLoader.ReadNotches(Item: TJSONObject; Piece: TPieceObject): boolean;
 var
   Data: TJSONData;
@@ -1212,7 +1340,7 @@ begin
     Missing('path');
     Exit;
   end;
-  if Entries.Count < 2 then
+  if Entries.Count < 1 then
   begin
     Problem(rsPatternPieceTooShort);
     Exit;
@@ -1255,8 +1383,8 @@ begin
       Exit;
     end;
   end;
-  if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) or not ReadCut(Item, Piece) or not ReadFold(Item, Piece) or
-    not ReadView(Item, Piece) or not ReadFabric(Item, Piece) or not ReadFill(Item, Piece) then
+  if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) or not ReadMarkings(Item, Piece) or not ReadCut(Item, Piece) or
+    not ReadFold(Item, Piece) or not ReadView(Item, Piece) or not ReadFabric(Item, Piece) or not ReadFill(Item, Piece) then
     FreeAndNil(Result);
 end;
 
@@ -1428,7 +1556,7 @@ end;
 // The object with its inputs and options; formulas come later. nil on failure.
 function TPatternLoader.CreateObject(Item: TJSONObject; const TypeText: string): TDraftObject;
 var
-  First, Second: string;
+  First, Second, Third: string;
   Choice, EndChoice, Pick, Part: integer;
   FlagA, FlagB: boolean;
 begin
@@ -1493,6 +1621,42 @@ begin
   begin
     if ReadInput(Item, 'start', False, First) and ReadInput(Item, 'end', False, Second) then
       Result := TCurveObject.Create(FId, First, Second);
+  end
+  else if TypeText = TypeOffsetEdge then
+  begin
+    if ReadInput(Item, 'edge', True, First) and ReadChoice(Item, 'side', OffsetSideNames, Choice) then
+      Result := TOffsetEdge.Create(FId, First, TEdgeObject(FPattern.FindNode(First)).StartKey, TEdgeObject(FPattern.FindNode(First)).EndKey, TOffsetSide(Choice));
+  end
+  else if TypeText = TypeCornerArc then
+  begin
+    if ReadInput(Item, 'vertex', False, First) and ReadInput(Item, 'edgeA', True, Second) and ReadInput(Item, 'edgeB', True, Third) then
+      Result := TCornerArc.Create(FId, First, Second, Third);
+  end
+  else if TypeText = TypeCornerPoint then
+  begin
+    if ReadInput(Item, 'arc', True, First) then
+      if not GetJSONInteger(Item, 'end', Pick) or (Pick < 1) or (Pick > 2) then
+        Missing('end')
+      else
+        Result := TCornerPoint.Create(FId, First, Pick);
+  end
+  else if TypeText = TypeCircle then
+  begin
+    if ReadInput(Item, 'centre', False, First) then
+      Result := TCircleObject.Create(FId, First);
+  end
+  else if TypeText = TypeArc then
+  begin
+    if ReadInput(Item, 'centre', False, First) then
+      Result := TArcObject.Create(FId, First);
+  end
+  else if TypeText = TypeCircleCirclePoint then
+  begin
+    if ReadInput(Item, 'centreA', False, First) and ReadInput(Item, 'centreB', False, Second) and ReadPick(Item, Pick) then
+      if Pick > 2 then
+        Problem(rsPatternBadPick)
+      else
+        Result := TCircleCirclePoint.Create(FId, First, Second, Pick);
   end
   else if TypeText = TypeCurvePath then
     Result := CreateCurvePath(Item)
@@ -1584,6 +1748,12 @@ begin
     Fabric.Color := UpperCase(Color);
     Fabric.Fill := TFabricFill(Choice);
     FPattern.InsertFabric(Fabric);
+    if Item.Find('allowance') <> nil then
+    begin
+      if not GetJSONNumber(Item, 'allowance', Fabric.Allowance) or (Fabric.Allowance < 0) then
+        Exit(Missing('allowance'));
+      Fabric.HasAllowance := True;
+    end;
   end;
   Result := True;
 end;

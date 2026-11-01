@@ -247,7 +247,7 @@ end;
 
 ## Operation set
 
-Eight point operations and three edge types cover basic bodice, skirt and trouser blocks; circles, arcs, rounded corners and offset edges are added for accessories (see Accessories); many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
+Nine point operations and six edge types cover basic bodice, skirt and trouser blocks; circles, arcs, rounded corners and offset edges are added for accessories (see Accessories); many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
 
 **Conventions:**
 
@@ -265,6 +265,7 @@ Eight point operations and three edge types cover basic bodice, skirt and trouse
 | Along edge | `edge`, `from` (start/end), `mode` (length/ratio), `value` | Point along a line, curve or arc; midpoint (ratio 0.5); thirds; dart positions |
 | Intersect edges | `edgeA`, `edgeB`, `extendA`, `extendB`, `pick` | Line×line, line×curve, curve×curve |
 | Circle × edge | `centre`, `radius`, `edge`, `extend`, `pick` | Compass step, e.g. shoulder length from neck point onto the shoulder slope line |
+| Circle × circle | `centreA`, `radiusA`, `centreB`, `radiusB`, `pick` | A point at given distances from two points; `pick` 1 is to the left going from A to B, and 2 to the right |
 | Project onto edge | `point`, `edge`, `direction` (perpendicular/angle), `angle`, `extend` | Foot of a perpendicular; drop vertically from a point to the hem line |
 | Between points | `a`, `b`, `mode` (ratio/length), `value` | A point on the straight line from `a` to `b`, without needing an edge; used by Distribute |
 | Repeat | `a` + `b`, or `edge`; `count`, `ends` (include or exclude the end points); `points[]` of `index`, `id` (generated points in use) | N evenly spaced points between two points or along an edge (equal arc length); buttons, pleats, tucks, gathers, notch rows, belt loops |
@@ -283,6 +284,8 @@ Every point is a `TRepeatPoint` kept by its `TRepeatObject`, not in the pattern'
 | --- | --- | --- |
 | Line | `start`, `end`, `role` | Straight seams, construction lines |
 | Curve (cubic Bézier) | `start`, `end`, `angle1`, `length1`, `angle2`, `length2`, `role` | Single smooth curves: hip curve, side seam shaping |
+| Circle | `centre`, `radius`, `role` | Round bases, hat crowns; see Accessories |
+| Arc | `centre`, `radius`, `angle1`, `angle2`, `role` | Brims, curved flaps; see Accessories |
 | Curve path | `nodes[]` of `point`, `angle`, `lengthIn`, `lengthOut`; `role` | Armholes, necklines, crotch curves; one shared tangent per node keeps joins smooth. `angle` is the direction of travel at the node; formula fields are named `node2.angle`, `node2.lengthIn` and so on |
 | Split edge | `edge`, `point` (on the edge, typically from Along edge or Intersect edges) | Two parametric edges; needed for dart rotation and slash-and-spread |
 
@@ -743,14 +746,20 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
 | `projectPoint` | `point`, `edge`, `direction` (`perpendicular`/`angle`), `extend`, `angle` (only for `angle`) |
 | `line` | `start`, `end`, `role` |
 | `curve` | `start`, `end`, `angle1`, `length1`, `angle2`, `length2`, `role` |
+| `circle` | `centre`, `radius`, `role` |
+| `arc` | `centre`, `radius`, `angle1`, `angle2`, `role` |
+| `circleCirclePoint` | `centreA`, `centreB`, `pick`, `radiusA`, `radiusB` |
+| `offsetEdge` | `edge`, `side` (`left`/`right`), `distance`, `role` |
+| `cornerArc` | `vertex`, `edgeA`, `edgeB`, `radius`, `role` |
+| `cornerPoint` | `arc`, `end` (1 or 2) |
 | `curvePath` | `nodes[]` of `point`, `angle`, `lengthIn` (not on the first), `lengthOut` (not on the last); `role` |
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
-| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional); `view` (optional: `none` by default); `fabric` (optional, see below); `fill` (optional: `color`, and `style` of `tint` or `hatch`) |
+| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `markings[]` (optional: `kind`, then `point` and `diameter`, or `edge`, with `spacing` and `size` for `stitch`); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional); `view` (optional: `none` by default); `fabric` (optional, see below); `fill` (optional: `color`, and `style` of `tint` or `hatch`) |
 | `seam` | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` |
 
 Custom labels join `piece` when they are built.
 
-`fabrics` lists `id`, `name`, `color` (`#RRGGBB`) and `fill` (`tint` by default, or `hatch`). It sits after `objects` but is read first, since pieces refer to it. A pattern whose only fabric is the untouched Main has neither `fabrics` nor a piece `fabric` (see Fabrics).
+`fabrics` lists `id`, `name`, `color` (`#RRGGBB`), `fill` (`tint` by default, or `hatch`) and optional `allowance`. It sits after `objects` but is read first, since pieces refer to it. A pattern whose only fabric is the untouched Main has neither `fabrics` nor a piece `fabric` (see Fabrics).
 
 ## Measurements app
 
@@ -1215,7 +1224,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `set_cut`, `set_fold`, `set_view`, the draft and layer methods (see Draft tabs and layers), the fabric methods (see Fabrics), `add_transform`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type` and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels`, `shown` (only what the canvas shows, see Draft export) and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_rectangle`, `round_corner`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `add_marking`, `remove_marking`, `set_cut`, `set_fold`, `set_view`, the draft and layer methods (see Draft tabs and layers), the fabric methods (see Fabrics), `add_transform`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type`, including `circleCirclePoint`, `circle` and `arc`, and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels`, `shown` (only what the canvas shows, see Draft export) and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -1236,6 +1245,8 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `set_view` | Set which garment view a piece shows in: `none`, `front`, `back` or `both` |
 | `list_fabrics`, `add_fabric`, `rename_fabric`, `set_fabric`, `delete_fabric` | The fabric list and the cut list; add, rename, recolour, change fill or delete a fabric |
 | `set_piece_fabric`, `set_piece_fill` | Assign a piece's `fabric`, or `none`; set its own `color` and `style` |
+| `add_rectangle`, `round_corner` | Add a rectangle from a `corner`; round the corner between two edges |
+| `add_marking`, `remove_marking` | Add a hole, placement line, fold line or stitch holes to a piece; remove one by number from 1 |
 | `add_notch`, `remove_notch` | Add a notch on a `point` or at an `edge` and `position`; remove one by number from 1 |
 | `add_seam`, `flip_seam`, `suggest_seams` | Add a seam from `sideA` and `sideB`, with optional `ease` and `tolerance`; flip its direction; list likely pairs without storing them |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
@@ -1297,16 +1308,26 @@ OpenSloper drafts accessories in fabric and leather (bags, pouches, wallets, hat
 
 | Operation | Fields | Covers |
 | --- | --- | --- |
-| Circle | `centre`, `radius` | Round bag bases, hat crowns, cylinder ends; a closed edge that can be a piece on its own, which needs the rule that a piece has at least two edges relaxed |
+| Circle | `centre`, `radius` | Round bag bases, hat crowns, cylinder ends; a closed edge that can be a piece on its own |
 | Arc | `centre`, `radius`, `angle1`, `angle2` | Brims, curved flaps, rounded corners |
 
-Both are stored as cubic segments like every other edge, so lengths, positions along them, splitting and crossings work unchanged; `.length` is computed from the exact formula. Circle × circle intersection comes with them.
+Both are stored as cubic segments like every other edge, at most 45° each, so lengths, positions along them, splitting and crossings work unchanged; `.length` is computed from the exact formula, and `.radius` can be read too. Circle × circle intersection comes with them (see Operation set).
 
-**Rectangle tool.** Most bag and pouch pieces start as rectangles. A canvas tool creates a free or snapped corner point, three offset points and four lines from `width` and `height` formulas in one undo step. It is a convenience only: the result is ordinary points and lines.
+- **Direction.** A circle starts at 0° and runs anticlockwise. An arc runs from `angle1` to `angle2`, anticlockwise when `angle2` is the greater and clockwise when it is the lesser, so 350° to 370° crosses 0°. Two equal angles, or a full turn or more, are invalid.
+- **Ends.** The centre is the only point input, so a circle or arc is named after it (`Circle_O`). Its ends are not point objects: to join a line to an arc, put an Along edge point on its end, at length 0 from the start or the end, and the line follows the arc as it changes.
+- **As a piece.** A piece needs at least two edges, or one that closes on itself. Clicking inside a circle nothing crosses makes a one-edge piece, unless a smaller region around the click is there. A circle crossed by another edge has to be split at the crossings, as for any edge.
+- **From the app.** Select a point, then Tools → Circle or Arc. The edge starts as an outline with a 50 mm radius, selected, ready for its values to be typed.
 
-**Rounded corners.** A Round corner operation replaces the corner where two edges meet with an arc of a formula radius, trimming both edges to its tangent points. It produces a new arc and two trimmed edges that follow the originals, as Split edge does.
+**Rectangle.** Most bag and pouch pieces start as rectangles. Select a point, then Tools → Rectangle: it adds three offset points and four outline lines from `width` and `height` formulas, 200 by 100 mm to start with, in one undo step. The width is on the point across from the corner and the height on the point above it, and the fourth point reads the height from there, so each is in one place. It is a convenience only: the result is ordinary points and lines. `add_rectangle` in the Automation API takes `corner`, `width`, `height` and `role`.
 
-**Offset edge.** A parallel copy of an edge at a formula distance, to the left or right of its direction. Needed for stitch lines, facings, linings, hems, turn-backs and leather edge allowances. Unlike seam allowance, which only applies to a finished piece outline, it is an ordinary parametric edge that other operations can use.
+**Rounded corners.** A Round corner operation replaces the corner where two edges meet with an arc of a formula radius, trimming both edges to its tangent points. It produces a new arc and two trimmed edges that follow the originals, as Split edge does. Select the two edges, then Tools → Round Corner, or `round_corner` with `edgeA`, `edgeB` and `radius`.
+
+- The arc is a `cornerArc`, the tangent points are two `cornerPoint`s, and each edge is split there with ordinary split parts. The part away from the corner stays an outline; the part at the corner and the original edge become construction, so the sharp corner stays as a guide and piece detection follows the arc.
+- Only corners between straight edges that share a point can be rounded. Curves need a tangent found numerically and are left for later.
+- An edge that is already part of a piece is refused, as a piece keeps the edges it was made from.
+- To round all the corners of a rectangle, use what is left of each edge for the next corner.
+
+**Offset edge.** A parallel copy of an edge at a formula distance, to the left or right of its direction. Needed for stitch lines, facings, linings, hems, turn-backs and leather edge allowances. Unlike seam allowance, which only applies to a finished piece outline, it is an ordinary parametric edge that other operations can use. Select an edge, then Tools → Offset Edge Left or Right; it starts as construction, 10 mm away. `add_edge` takes `offsetEdge`. A line stays exact, and a curve is followed with eight cubics each, to about a hundredth of a millimetre. Its ends are not points, as for an arc, and an offset tighter than a curve's radius folds over itself, which is not checked.
 
 | Operation | Fields | Covers |
 | --- | --- | --- |
@@ -1321,9 +1342,14 @@ Both are stored as cubic segments like every other edge, so lengths, positions a
 | Fold or score line | An edge | Folds in leather and stiffened pieces; pleat lines on garments |
 | Stitch holes | An edge (usually an Offset edge), with spacing and hole size | Hand-stitching holes for leather, spaced evenly along the edge |
 
-Stitch hole spacing is a formula, and holes are spaced evenly between the ends with the spacing adjusted to fit, so they stay even when the size changes. The piece reports the hole count, which is also useful for working out thread length.
+Stitch hole spacing is a formula, and holes are spaced evenly between the ends with the spacing adjusted to fit, so they stay even when the size changes. The piece reports the hole count, which is also useful for working out thread length: `.holes` counts stitch holes only, and `get_object` gives it too.
 
-**Material per piece.** A piece's material is its fabric (see Fabrics): leather, foam, stiffener and interfacing go in the fabric list beside main and lining, so there is no separate material on a piece. Leather pieces are often cut with no seam allowance; per-edge allowance already allows `0`, and a fabric can set a default allowance for pieces that use it. The publish app can lay out one fabric at a time (see below).
+- **Fields.** Formulas go by place in the list, like notches: `marking1.diameter`, or `marking2.spacing` and `marking2.size`, and removing a marking renumbers the later ones.
+- **Checks.** A hole must lie inside the piece's cutting line, and sizes and spacing must be above 0, or the piece is invalid. Lines are not checked, since a line may run past the edge on purpose. A marking's point or edge is an input of the piece, so it cannot be deleted while marked.
+- **From the app.** Select a piece and a point (for a hole) or an edge, then Tools → Mark Hole, Mark Placement Line, Mark Fold Line or Mark Stitch Holes; values start at 4 mm across, or 4 mm apart with 1 mm holes, and are typed in the piece's properties. Tools → Remove Marking takes off what is on the selected point or edge. In the API, `add_marking` takes `kind` (`hole`, `placement`, `fold` or `stitch`), `point` or `edge` and the values, and `remove_marking` takes `marking`, numbered from 1.
+- **Output.** Markings draw on the canvas, in draft SVG and in the publish app's PDF and SVG with the piece's other marks. DXF leaves them out until step 17 settles their layers.
+
+**Material per piece.** A piece's material is its fabric (see Fabrics): leather, foam, stiffener and interfacing go in the fabric list beside main and lining, so there is no separate material on a piece. Leather pieces are often cut with no seam allowance; per-edge allowance already allows `0`, and a fabric can set a default allowance for pieces that use it. A fabric's `allowance` is set on the Fabrics tab or with `set_fabric`. A piece takes it when it goes on that fabric, or when it is made on the first fabric, and it does not follow later changes, so a piece can still be set by hand. The publish app can lay out one fabric at a time (see below).
 
 **Cutting machines.** Laser cutters, plotters and cutting machines (such as Cricut) read SVG and DXF and treat line types differently, so exports keep them apart:
 
@@ -1386,7 +1412,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 13. Garment view: a flat front and back of the finished garment in the drafting app (done, see Garment view)
 14. Layers and draft tabs (done, see Draft tabs and layers)
 15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (done, see Transforms; the ghost preview is left for later)
-16. Accessories: circles and arcs, rectangle tool, rounded corners, offset edges, internal markings, a default allowance per fabric
+16. Accessories: circles and arcs, rectangle tool, rounded corners, offset edges, internal markings, a default allowance per fabric (done, see Accessories; rounding curved corners is left for later)
 17. Cutting machine output (SVG/DXF line types) and material layouts
 18. Blender export for 3D preview
 

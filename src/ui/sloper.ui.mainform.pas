@@ -135,6 +135,12 @@ type
     procedure ToolClick(Sender: TObject);
     procedure SplitClick(Sender: TObject);
     procedure TransformClick(Sender: TObject);
+    procedure RoundEdgeClick(Sender: TObject);
+    procedure RectangleClick(Sender: TObject);
+    procedure OffsetClick(Sender: TObject);
+    procedure RoundCornerClick(Sender: TObject);
+    procedure MarkingClick(Sender: TObject);
+    procedure RemoveMarkingClick(Sender: TObject);
     procedure GarmentClick(Sender: TObject);
     procedure LayersMoveHere(Sender: TObject);
     procedure DraftChosen(Sender: TObject; Draft: TPatternDraft);
@@ -162,7 +168,7 @@ var
 implementation
 
 uses
-  Math, process, Sloper.Core.JSON, Sloper.Output.DraftSVG, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
+  Math, process, Sloper.Core.Draft, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
   Sloper.Core.AppPaths, Sloper.Core.Measurements,
   Sloper.Core.PatternCheck, Sloper.Output.Layout;
 
@@ -228,6 +234,17 @@ resourcestring
   rsToolNotch = 'Notch';
   rsToolSeam = 'Seam';
   rsMenuToolsSplit = 'Sp&lit Edge';
+  rsMenuToolsCircle = 'C&ircle';
+  rsMenuToolsArc = '&Arc';
+  rsMenuToolsRectangle = 'Rec&tangle';
+  rsMenuToolsOffsetLeft = 'O&ffset Edge Left';
+  rsMenuToolsOffsetRight = 'Offset Edge Ri&ght';
+  rsMenuToolsRoundCorner = 'Ro&und Corner';
+  rsMenuToolsHole = 'Mark &Hole';
+  rsMenuToolsPlacement = 'Mark Placement Line';
+  rsMenuToolsFoldLine = 'Mark Fold Line';
+  rsMenuToolsStitch = 'Mark Stitch Holes';
+  rsMenuToolsRemoveMarking = 'Remove Marking';
   rsMenuToolsRotate = '&Rotate...';
   rsMenuToolsMirror = 'M&irror...';
   rsMenuToolsMove = 'Mo&ve...';
@@ -617,8 +634,14 @@ var
   Tool: TCanvasTool;
   Captions: array[TCanvasTool] of string;
   TransformCaptions: array[TTransformKind] of string;
+  MarkingCaptions: array[TMarkingKind] of string;
+  Marking: TMarkingKind;
   Kind: TTransformKind;
 begin
+  MarkingCaptions[mkHole] := rsMenuToolsHole;
+  MarkingCaptions[mkPlacement] := rsMenuToolsPlacement;
+  MarkingCaptions[mkFoldLine] := rsMenuToolsFoldLine;
+  MarkingCaptions[mkStitchHoles] := rsMenuToolsStitch;
   TransformCaptions[tkRotate] := rsMenuToolsRotate;
   TransformCaptions[tkMirror] := rsMenuToolsMirror;
   TransformCaptions[tkMove] := rsMenuToolsMove;
@@ -667,6 +690,52 @@ begin
   Item.Caption := rsMenuToolsSplit;
   Item.OnClick := @SplitClick;
   MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsCircle;
+  Item.Tag := Ord(True);
+  Item.OnClick := @RoundEdgeClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsArc;
+  Item.Tag := Ord(False);
+  Item.OnClick := @RoundEdgeClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsRectangle;
+  Item.OnClick := @RectangleClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsRoundCorner;
+  Item.OnClick := @RoundCornerClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsOffsetLeft;
+  Item.Tag := Ord(osLeft);
+  Item.OnClick := @OffsetClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsOffsetRight;
+  Item.Tag := Ord(osRight);
+  Item.OnClick := @OffsetClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := '-';
+  MenuTools.Add(Item);
+  for Marking := Low(TMarkingKind) to High(TMarkingKind) do
+  begin
+    Item := TMenuItem.Create(MenuTools);
+    Item.Caption := MarkingCaptions[Marking];
+    Item.Tag := Ord(Marking);
+    Item.OnClick := @MarkingClick;
+    MenuTools.Add(Item);
+  end;
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := rsMenuToolsRemoveMarking;
+  Item.OnClick := @RemoveMarkingClick;
+  MenuTools.Add(Item);
+  Item := TMenuItem.Create(MenuTools);
+  Item.Caption := '-';
+  MenuTools.Add(Item);
   for Kind := Low(TTransformKind) to High(TTransformKind) do
   begin
     Item := TMenuItem.Create(MenuTools);
@@ -700,6 +769,42 @@ begin
     FGarment.Document := FDocument;
   end;
   FGarment.ShowView;
+end;
+
+procedure TMainForm.MarkingClick(Sender: TObject);
+begin
+  FCanvas.MarkSelection(TMarkingKind(TComponent(Sender).Tag));
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.RemoveMarkingClick(Sender: TObject);
+begin
+  FCanvas.UnmarkSelection;
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.RectangleClick(Sender: TObject);
+begin
+  FCanvas.AddRectangleHere;
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.OffsetClick(Sender: TObject);
+begin
+  FCanvas.OffsetSelection(TOffsetSide(TComponent(Sender).Tag));
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.RoundCornerClick(Sender: TObject);
+begin
+  FCanvas.RoundSelectedCorner;
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.RoundEdgeClick(Sender: TObject);
+begin
+  FCanvas.AddRoundEdge(TComponent(Sender).Tag = Ord(True));
+  FCanvas.SetFocus;
 end;
 
 procedure TMainForm.TransformClick(Sender: TObject);

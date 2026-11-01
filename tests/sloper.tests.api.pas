@@ -49,6 +49,9 @@ type
     procedure TearDown; override;
   published
     procedure TestRenderShownLeavesOutHidden;
+    procedure TestCircleArcAndCircleCircle;
+    procedure TestRectangleCornerAndOffset;
+    procedure TestMarkings;
     procedure TestFabricMethods;
     procedure TestFabricRefusals;
     procedure TestPieceFabricAndFill;
@@ -281,6 +284,59 @@ begin
   AssertEquals('variables', 1, Answer.Get('variables', 0));
   AssertEquals('measurements found beside it', FSetPath, Answer.Get('measurements', ''));
   AssertFalse('not modified', Answer.Get('modified', True));
+end;
+
+procedure TTestAPI.TestMarkings;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Flap"}');
+  Call('add_point', '{"type": "freePoint", "name": "H", "x": 50, "y": 50}');
+  Call('add_marking', '{"name": "Flap", "kind": "hole", "point": "H", "diameter": 4}');
+  AssertEquals(1, Answer.Get('markings', 0));
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": 10, "y": 80}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": 90, "y": 80}');
+  Call('add_edge', '{"type": "line", "start": "P", "end": "Q", "name": "Stitch"}');
+  Call('add_marking', '{"name": "Flap", "kind": "stitch", "edge": "Stitch", "spacing": 4, "size": 1}');
+  AssertEquals(21, Answer.Get('holes', 0));
+  Call('remove_marking', '{"name": "Flap", "marking": 1}');
+  AssertEquals(1, Answer.Get('markings', 0));
+  Call('remove_marking', '{"name": "Flap", "marking": 9}');
+  AssertEquals(Format(rsPatternNoMarking, [9]), ErrorText);
+end;
+
+procedure TTestAPI.TestRectangleCornerAndOffset;
+var
+  Edges: TJSONArray;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "O", "x": 0, "y": 0}');
+  Call('add_rectangle', '{"corner": "O", "width": 200, "height": 100, "role": "outline"}');
+  Edges := TJSONArray(FReply.Find('result'));
+  AssertEquals(4, Edges.Count);
+  Call('round_corner', Format('{"edgeA": "%s", "edgeB": "%s", "radius": 20}', [Edges.Objects[0].Get('name', ''), Edges.Objects[1].Get('name', '')]));
+  AssertEquals('valid', Answer.Get('state', ''));
+  Call('add_edge', '{"type": "offsetEdge", "edge": "Line_B_O", "distance": 5, "side": "right", "role": "construction"}');
+  AssertEquals('Offset_B_O', Answer.Get('name', ''));
+  Call('create_piece', '{"x": 100, "y": 50, "name": "Flap"}');
+  AssertEquals('valid', Answer.Get('state', ''));
+  Call('add_fabric', '{"name": "Leather"}');
+  Call('set_fabric', '{"fabric": "Leather", "allowance": 0}');
+  AssertEquals(0, TJSONArray(Answer.Find('fabrics')).Objects[1].Get('allowance', -1.0), 1e-9);
+end;
+
+procedure TTestAPI.TestCircleArcAndCircleCircle;
+begin
+  Call('add_point', '{"type": "freePoint", "name": "O", "x": 0, "y": 0}');
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": 60, "y": 0}');
+  Call('add_edge', '{"type": "circle", "centre": "O", "radius": 50, "role": "outline"}');
+  AssertEquals('Circle_O', Answer.Get('name', ''));
+  Call('add_edge', '{"type": "arc", "centre": "O", "radius": 30, "angle1": 0, "angle2": 90, "name": "Flap"}');
+  AssertEquals('Flap', Answer.Get('name', ''));
+  Call('add_point', '{"type": "circleCirclePoint", "name": "C", "centreA": "O", "radiusA": 50, "centreB": "P", "radiusB": 50, "pick": 1}');
+  Call('get_object', '{"name": "C"}');
+  AssertEquals(30, Answer.Get('x', 0.0), 1e-6);
+  AssertEquals(40, Answer.Get('y', 0.0), 1e-6);
+  Call('create_piece', '{"x": -40, "y": 0, "name": "Base"}');
+  AssertEquals('valid', Answer.Get('state', ''));
 end;
 
 procedure TTestAPI.TestRenderShownLeavesOutHidden;

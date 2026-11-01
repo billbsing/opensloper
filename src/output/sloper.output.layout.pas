@@ -1145,6 +1145,8 @@ begin
     AddMark(Stroke);
   for Stroke in Piece.FoldArrow do
     AddMark(Stroke);
+  for Stroke in Piece.MarkingStrokes do
+    AddMark(Stroke);
   for Mark in Piece.NotchMarks do
     AddMark(Line2(Mark.Cut, Mark.Tip));
   Result.LabelAt := Moved(Piece.Middle);

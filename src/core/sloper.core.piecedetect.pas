@@ -97,6 +97,8 @@ type
     // way at a node two crossing panels share. nil when there is none.
     function CycleAt(const At: TVec2): TIntegerArray;
     function ArcIsWholeEdge(Arc: integer): boolean;
+    // The area the face encloses
+    function FaceSize(const Face: TIntegerArray): double;
     property Arcs: TArcArray read FArcs;
   end;
 
@@ -311,6 +313,11 @@ begin
   end;
 end;
 
+function TFaceFinder.FaceSize(const Face: TIntegerArray): double;
+begin
+  Result := Abs(SignedArea(FacePolygon(Face)));
+end;
+
 function TFaceFinder.FaceAt(const At: TVec2): TIntegerArray;
 var
   Index: integer;
@@ -469,12 +476,38 @@ begin
   Result := nil;
 end;
 
+// The smallest edge that closes on itself around At, or nil. Faces never hold
+// such an edge when nothing crosses it, as it has only the one node.
+function ClosedEdgeAt(Edges: TEdgeList; const At: TVec2; out Size: double): TEdgeObject;
+var
+  Edge: TEdgeObject;
+  Polygon: TVec2Array;
+begin
+  Result := nil;
+  Size := Infinity;
+  for Edge in Edges do
+  begin
+    if not Edge.IsClosed or (Edge.Length <= 0) then
+      Continue;
+    if Length(CutPositions(Edge, Edges)) > 2 then
+      Continue;
+    Polygon := Edge.Flatten(CurveStep / MinCurveSteps);
+    if PointInPolygon(At, Polygon) and (Abs(SignedArea(Polygon)) < Size) then
+    begin
+      Size := Abs(SignedArea(Polygon));
+      Result := Edge;
+    end;
+  end;
+end;
+
 function DetectPiecePath(Pattern: TPattern; const At: TVec2; out Path: TPiecePath; out ErrorMessage: string): boolean;
 var
   Edges: TEdgeList;
   Finder: TFaceFinder;
   Face: TIntegerArray;
   WholeEdgeError: string;
+  Closed: TEdgeObject;
+  ClosedSize: double;
 begin
   Path := nil;
   ErrorMessage := rsDetectNoRegion;
@@ -485,6 +518,15 @@ begin
     Finder := TFaceFinder.Create;
     Finder.Build(Edges, True);
     Face := Finder.FaceAt(At);
+    Closed := ClosedEdgeAt(Edges, At, ClosedSize);
+    if (Closed <> nil) and ((Face = nil) or (ClosedSize < Finder.FaceSize(Face))) then
+    begin
+      SetLength(Path, 1);
+      Path[0].EdgeKey := Closed.Key;
+      // Pieces run clockwise
+      Path[0].Reversed := SignedArea(Closed.Flatten(CurveStep / MinCurveSteps)) > 0;
+      Exit(True);
+    end;
     if Face = nil then
       Exit;
     Result := FacePath(Finder, Face, Path, ErrorMessage);

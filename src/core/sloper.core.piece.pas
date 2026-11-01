@@ -39,6 +39,12 @@ const
   DefaultGrainAngle = '90';
   // A point this close (in mm) to a piece's seam line can carry a notch
   NotchPointTolerance = 0.05;
+  // The second part of a marking's fields, after "markingN."
+  MarkingDiameterField = 'diameter';
+  MarkingSpacingField = 'spacing';
+  MarkingSizeField = 'size';
+  // As written in pattern files and the Automation API
+  MarkingKindNames: array[0..3] of string = ('hole', 'placement', 'fold', 'stitch');
   // Ends of neighbouring edges this close (in mm) count as joined, so formula
   // rounding cannot open a piece
   PieceJoinTolerance = 0.01;
@@ -73,6 +79,27 @@ type
 
   TNotchMarkArray = array of TNotchMark;
 
+  // mkHole is at a point, with a diameter. The others are along an edge:
+  // mkStitchHoles also has a spacing and a hole size.
+  TMarkingKind = (mkHole, mkPlacement, mkFoldLine, mkStitchHoles);
+
+  TPieceMarking = record
+    Kind: TMarkingKind;
+    PointKey, EdgeKey: string;
+  end;
+
+  TPieceMarkingArray = array of TPieceMarking;
+
+  // A marking worked out: Line for a line, Holes for holes of diameter HoleSize
+  TMarkingMark = record
+    Kind: TMarkingKind;
+    Line: TVec2Array;
+    Holes: TVec2Array;
+    HoleSize: double;
+  end;
+
+  TMarkingMarkArray = array of TMarkingMark;
+
   // The default seam allowance is the field "allowance"; an edge with its own
   // has a field such as "edge2.allowance", which exists only while it does
   TPieceObject = class(TDraftObject)
@@ -85,6 +112,8 @@ type
     FGrainline: TLine2;
     FNotches: TPieceNotchArray;
     FNotchMarks: TNotchMarkArray;
+    FMarkings: TPieceMarkingArray;
+    FMarkingMarks: TMarkingMarkArray;
     FCutCount: integer;
     FMirrored: boolean;
     FFoldEdgeKey: string;
@@ -99,6 +128,7 @@ type
     function ComputeNotch(Context: TEvalContext; Index: integer; const EdgeWidths: TDoubleArray; Anticlockwise: boolean;
       out Mark: TNotchMark): TEvalState;
     procedure ComputeFold(Context: TEvalContext; Anticlockwise: boolean; out Line: TLine2; out Inwards: double);
+    function ComputeMarking(Context: TEvalContext; Index: integer; const Cut: TVec2Array; out Mark: TMarkingMark): TEvalState;
     function OutwardAngle(Edge: TEdgeObject; PathIndex: integer; Position: double; Anticlockwise: boolean): double;
     function LocateNotch(Context: TEvalContext; Index: integer; out PathIndex: integer; out Position: double): TEvalState;
   public
@@ -121,6 +151,12 @@ type
     function AddNotch(const APointKey, AEdgeKey: string): integer;
     procedure RemoveNotch(Index: integer);
     function NotchField(Index: integer): string;
+    // A new marking's index; its fields follow from its kind
+    function AddMarking(AKind: TMarkingKind; const APointKey, AEdgeKey: string): integer;
+    procedure RemoveMarking(Index: integer);
+    function MarkingField(Index: integer; const Part: string): string;
+    // Its markings as short strokes, holes as small circles, for drawing
+    function MarkingStrokes: TLine2Array;
     function Area: double;
     function Perimeter: double;
     // The middle of the outline's extent
@@ -145,6 +181,9 @@ type
     property Notches: TPieceNotchArray read FNotches;
     // Last good marks, one per notch
     property NotchMarks: TNotchMarkArray read FNotchMarks;
+    property Markings: TPieceMarkingArray read FMarkings;
+    // Last good marks, one per marking
+    property MarkingMarks: TMarkingMarkArray read FMarkingMarks;
     // How many to cut, at least 1
     property CutCount: integer read FCutCount write FCutCount;
     // Copies after the first are cut mirrored, as a left and a right
@@ -170,6 +209,9 @@ resourcestring
   rsPieceNegativeAllowance = 'A seam allowance cannot be negative';
   rsPieceNoCutLine = 'No cutting line could be worked out';
   rsPieceGrainSamePlace = 'The grainline starts and ends at the same place';
+  rsPieceHoleOutside = 'The hole at %s is outside the piece';
+  rsPieceHoleSize = 'A hole needs a size above 0';
+  rsPieceStitchSpacing = 'Stitch holes need a spacing above 0';
   rsPieceNotchOffPiece = 'The notch at %s is not on the seam line';
   rsPieceNotchPastEnd = 'The notch at %s mm is off %s (%s mm long)';
   rsPieceCaption = '%s, cut %d';
@@ -216,6 +258,11 @@ begin
   for Index := 0 to High(FNotches) do
     if FNotches[Index].PointKey <> '' then
       System.Insert(FNotches[Index].PointKey, Result, Length(Result));
+  for Index := 0 to High(FMarkings) do
+    if FMarkings[Index].PointKey <> '' then
+      System.Insert(FMarkings[Index].PointKey, Result, Length(Result))
+    else
+      System.Insert(FMarkings[Index].EdgeKey, Result, Length(Result));
 end;
 
 function TPieceObject.TypeName: string;
@@ -225,12 +272,19 @@ end;
 
 function TPieceObject.HasProperty(const Prop: string): boolean;
 begin
-  Result := False;
+  Result := Prop = 'holes';
 end;
 
+// Only stitch holes count, as they are what thread goes through
 function TPieceObject.PropertyValue(const Prop: string): double;
+var
+  Mark: TMarkingMark;
 begin
   Result := 0;
+  if Prop = 'holes' then
+    for Mark in FMarkingMarks do
+      if Mark.Kind = mkStitchHoles then
+        Result := Result + Length(Mark.Holes);
 end;
 
 function TPieceObject.PathIndexOf(const EdgeKey: string): integer;
@@ -276,6 +330,137 @@ end;
 function TPieceObject.NotchField(Index: integer): string;
 begin
   Result := 'notch' + IntToStr(Index + 1) + '.position';
+end;
+
+function TPieceObject.MarkingField(Index: integer; const Part: string): string;
+begin
+  Result := 'marking' + IntToStr(Index + 1) + '.' + Part;
+end;
+
+function TPieceObject.AddMarking(AKind: TMarkingKind; const APointKey, AEdgeKey: string): integer;
+begin
+  Result := Length(FMarkings);
+  SetLength(FMarkings, Result + 1);
+  FMarkings[Result].Kind := AKind;
+  FMarkings[Result].PointKey := APointKey;
+  FMarkings[Result].EdgeKey := AEdgeKey;
+  case AKind of
+    mkHole: AddField(MarkingField(Result, MarkingDiameterField));
+    mkStitchHoles:
+    begin
+      AddField(MarkingField(Result, MarkingSpacingField));
+      AddField(MarkingField(Result, MarkingSizeField));
+    end;
+  end;
+end;
+
+procedure TPieceObject.RemoveMarking(Index: integer);
+var
+  Later: integer;
+
+  procedure MoveDown(At: integer);
+  begin
+    case FMarkings[At].Kind of
+      mkHole: RenameField(MarkingField(At, MarkingDiameterField), MarkingField(At - 1, MarkingDiameterField));
+      mkStitchHoles:
+      begin
+        RenameField(MarkingField(At, MarkingSpacingField), MarkingField(At - 1, MarkingSpacingField));
+        RenameField(MarkingField(At, MarkingSizeField), MarkingField(At - 1, MarkingSizeField));
+      end;
+    end;
+  end;
+
+begin
+  case FMarkings[Index].Kind of
+    mkHole: RemoveField(MarkingField(Index, MarkingDiameterField));
+    mkStitchHoles:
+    begin
+      RemoveField(MarkingField(Index, MarkingSpacingField));
+      RemoveField(MarkingField(Index, MarkingSizeField));
+    end;
+  end;
+  for Later := Index + 1 to High(FMarkings) do
+    MoveDown(Later);
+  System.Delete(FMarkings, Index, 1);
+  if Index <= High(FMarkingMarks) then
+    System.Delete(FMarkingMarks, Index, 1);
+end;
+
+function TPieceObject.ComputeMarking(Context: TEvalContext; Index: integer; const Cut: TVec2Array; out Mark: TMarkingMark): TEvalState;
+var
+  Marking: TPieceMarking;
+  Node: TEvalNode;
+  Edge: TEdgeObject;
+  Diameter, Spacing, Size: double;
+  Count, Hole: integer;
+begin
+  Mark := Default(TMarkingMark);
+  Marking := FMarkings[Index];
+  Mark.Kind := Marking.Kind;
+  if Marking.Kind = mkHole then
+  begin
+    Node := Context.FindNode(Marking.PointKey);
+    if not (Node is TPointObject) then
+      Exit(Fail(esError, Format(rsDraftNotAPoint, [Marking.PointKey])));
+    if not EvalField(Context, MarkingField(Index, MarkingDiameterField), Diameter) then
+      Exit(esError);
+    if Diameter <= 0 then
+      Exit(Fail(esInvalid, rsPieceHoleSize));
+    if not PointInPolygon(TPointObject(Node).Position, Cut) then
+      Exit(Fail(esInvalid, Format(rsPieceHoleOutside, [Node.DisplayName])));
+    SetLength(Mark.Holes, 1);
+    Mark.Holes[0] := TPointObject(Node).Position;
+    Mark.HoleSize := Diameter;
+    Exit(esValid);
+  end;
+  Node := Context.FindNode(Marking.EdgeKey);
+  if not (Node is TEdgeObject) then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [Marking.EdgeKey])));
+  Edge := TEdgeObject(Node);
+  if Marking.Kind <> mkStitchHoles then
+  begin
+    Mark.Line := Edge.Flatten(CoarseFlatness);
+    Exit(esValid);
+  end;
+  if not EvalField(Context, MarkingField(Index, MarkingSpacingField), Spacing) or not EvalField(Context, MarkingField(Index, MarkingSizeField), Size) then
+    Exit(esError);
+  if Spacing <= 0 then
+    Exit(Fail(esInvalid, rsPieceStitchSpacing));
+  if Size <= 0 then
+    Exit(Fail(esInvalid, rsPieceHoleSize));
+  // Evenly between the ends, with the spacing adjusted to fit
+  Count := Max(1, Round(Edge.Length / Spacing));
+  SetLength(Mark.Holes, Count + 1);
+  for Hole := 0 to Count do
+    Mark.Holes[Hole] := Edge.PointAtLength(Edge.Length * Hole / Count);
+  Mark.HoleSize := Size;
+  Result := esValid;
+end;
+
+function TPieceObject.MarkingStrokes: TLine2Array;
+const
+  CircleStrokes = 16;
+var
+  Mark: TMarkingMark;
+  Hole: TVec2;
+  Index: integer;
+
+  procedure Add(const From, Target: TVec2);
+  begin
+    SetLength(Result, Length(Result) + 1);
+    Result[High(Result)] := Line2(From, Target);
+  end;
+
+begin
+  Result := nil;
+  for Mark in FMarkingMarks do
+  begin
+    for Index := 1 to High(Mark.Line) do
+      Add(Mark.Line[Index - 1], Mark.Line[Index]);
+    for Hole in Mark.Holes do
+      for Index := 0 to CircleStrokes - 1 do
+        Add(PolarPoint(Hole, Mark.HoleSize / 2, Index * 360 / CircleStrokes), PolarPoint(Hole, Mark.HoleSize / 2, (Index + 1) * 360 / CircleStrokes));
+  end;
 end;
 
 function TPieceObject.AddNotch(const APointKey, AEdgeKey: string): integer;
@@ -523,6 +708,7 @@ var
   Widths, EdgeWidths: TDoubleArray;
   Line: TLine2;
   Marks: TNotchMarkArray;
+  NewMarkings: TMarkingMarkArray;
   Index: integer;
   NewFold: TLine2;
   FoldInwards: double;
@@ -549,7 +735,16 @@ begin
     if Result <> esValid then
       Exit;
   end;
+  NewMarkings := nil;
+  SetLength(NewMarkings, Length(FMarkings));
+  for Index := 0 to High(FMarkings) do
+  begin
+    Result := ComputeMarking(Context, Index, Cut, NewMarkings[Index]);
+    if Result <> esValid then
+      Exit;
+  end;
   ComputeFold(Context, SignedArea(Points) > 0, NewFold, FoldInwards);
+  FMarkingMarks := NewMarkings;
   FOutline := Points;
   FCutLine := Cut;
   FGrainline := Line;

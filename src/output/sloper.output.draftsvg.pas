@@ -279,7 +279,7 @@ var
   PathText: string;
 begin
   PathText := '';
-  for Stroke in Concat(Piece.GrainArrow, Piece.FoldArrow) do
+  for Stroke in Concat(Piece.GrainArrow, Piece.FoldArrow, Piece.MarkingStrokes) do
     PathText := PathText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
   for Mark in Piece.NotchMarks do
     PathText := PathText + 'M ' + Coord(Mark.Cut) + ' L ' + Coord(Mark.Tip) + ' ';

@@ -33,6 +33,7 @@ type
   TOffsetMode = (omPolar, omCartesian);
   TAlongMode = (amLength, amRatio);
   TProjectDirection = (pdPerpendicular, pdAngle);
+  TOffsetSide = (osLeft, osRight);
 
   TSegmentKind = (skLine, skCurve);
 
@@ -236,6 +237,8 @@ type
     function PropertyValue(const Prop: string): double; override;
     // Whether its shape is a straight line, as a fold or mirror axis needs
     function IsStraight: boolean; virtual;
+    // Whether it ends where it starts, like a circle, so it can bound a piece alone
+    function IsClosed: boolean;
     function Length: double;
     function PointAtLength(ADistance: double): TVec2;
     // The edge as a polyline from start to end, within Tolerance of it
@@ -275,6 +278,38 @@ type
 
   // Cubic Bézier between two points; handles given by angle1/length1 at the
   // start and angle2/length2 at the end
+  // A circle or arc, drawn as cubic segments and read exactly. Its centre is its
+  // only point input, so it stands as both ends' key; a point on its end is
+  // made with Along edge.
+  TRoundEdge = class(TEdgeObject)
+  protected
+    FRadius, FSweep: double;
+    procedure SetRound(const ACentre: TVec2; ARadius, AStartAngle, ASweep: double);
+  public
+    constructor Create(const AKey, ACentre: string);
+    function HasProperty(const Prop: string): boolean; override;
+    function PropertyValue(const Prop: string): double; override;
+    property Centre: string read FStartKey;
+  end;
+
+  // A whole circle, starting at 0 degrees and running anticlockwise
+  TCircleObject = class(TRoundEdge)
+  public
+    function TypeName: string; override;
+    function NamePrefix: string; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+  end;
+
+  // From angle1 to angle2 around the centre: anticlockwise when angle2 is the
+  // greater, clockwise when it is the lesser
+  TArcObject = class(TRoundEdge)
+  public
+    constructor Create(const AKey, ACentre: string);
+    function TypeName: string; override;
+    function NamePrefix: string; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+  end;
+
   TCurveObject = class(TEdgeObject)
   private
     function GetCurve: TCubicBezier;
@@ -367,6 +402,72 @@ type
 
   // From a point onto an edge: the foot of the perpendicular, or along a
   // line at the angle formula. The nearest result to the point is used.
+  // A parallel copy of an edge, to the left or right of its direction. Its ends
+  // are not points; put an Along edge point on them, as for an arc.
+  TOffsetEdge = class(TEdgeObject)
+  private
+    FSource: string;
+    FSide: TOffsetSide;
+    FStraight: boolean;
+  public
+    constructor Create(const AKey, ASource, ASourceStart, ASourceEnd: string; ASide: TOffsetSide);
+    function InputKeys: TStringArray; override;
+    function TypeName: string; override;
+    function NamePrefix: string; override;
+    function IsStraight: boolean; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property Source: string read FSource;
+    property Side: TOffsetSide read FSide;
+  end;
+
+  // The arc that rounds the corner where two straight edges meet at Vertex,
+  // running from its tangent point on EdgeA to the one on EdgeB
+  TCornerArc = class(TRoundEdge)
+  private
+    FEdgeA, FEdgeB: string;
+    FTrimmedA, FTrimmedB: TEdgeObject;
+  public
+    constructor Create(const AKey, AVertex, AEdgeA, AEdgeB: string);
+    function InputKeys: TStringArray; override;
+    function TypeName: string; override;
+    function NamePrefix: string; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property Vertex: string read FStartKey;
+    property EdgeA: string read FEdgeA;
+    property EdgeB: string read FEdgeB;
+    // The parts of the edges that stay, set when the corner is made
+    property TrimmedA: TEdgeObject read FTrimmedA write FTrimmedA;
+    property TrimmedB: TEdgeObject read FTrimmedB write FTrimmedB;
+  end;
+
+  // Where a rounded corner's arc starts (end 1) or finishes (end 2)
+  TCornerPoint = class(TPointObject)
+  private
+    FArc: string;
+    FEnd: integer;
+  public
+    constructor Create(const AKey, AArc: string; AEnd: integer);
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property Arc: string read FArc;
+    property EndNumber: integer read FEnd;
+  end;
+
+  // A point at a distance from each of two points. Pick 1 is to the left going
+  // from A to B, and 2 to the right.
+  TCircleCirclePoint = class(TPointObject)
+  private
+    FCentreA, FCentreB: string;
+    FPick: integer;
+  public
+    constructor Create(const AKey, ACentreA, ACentreB: string; APick: integer);
+    function InputKeys: TStringArray; override;
+    function Compute(Context: TEvalContext): TEvalState; override;
+    property CentreA: string read FCentreA;
+    property CentreB: string read FCentreB;
+    property Pick: integer read FPick;
+  end;
+
   TProjectPoint = class(TPointObject)
   private
     FSource, FEdge: string;
@@ -411,6 +512,16 @@ resourcestring
   rsDraftPickMissing = 'There are only %d crossings, so crossing %d does not exist';
   rsDraftCircleMisses = 'The circle does not reach %s';
   rsDraftNegativeRadius = 'The radius cannot be negative';
+  rsDraftRadiusNotPositive = 'The radius must be above 0';
+  rsDraftBadArcSweep = 'An arc needs two different angles, less than a full turn apart; use a circle for a full turn';
+  rsDraftCirclesMiss = 'The two circles do not cross';
+  rsDraftTypeCircle = 'circle';
+  rsDraftTypeArc = 'arc';
+  rsDraftTypeOffset = 'offset edge';
+  rsDraftTypeCorner = 'rounded corner';
+  rsDraftNegativeOffset = 'An offset cannot be negative; choose the other side';
+  rsDraftCornerStraight = 'The edges do not make a corner to round';
+  rsDraftCornerTooBig = 'This radius is too big for the edges at this corner';
   rsDraftNoFoot = 'No perpendicular from %s meets %s';
   rsDraftNoProjection = 'A line from %s at %s° does not meet %s';
   rsDraftNotOnEdge = '%s is not on %s';
@@ -963,6 +1074,18 @@ begin
   Result := (Self is TLineObject) or ((Self is TSplitPart) and TSplitPart(Self).Straight);
 end;
 
+function TEdgeObject.IsClosed: boolean;
+const
+  ClosedTolerance = 0.01;
+var
+  Points: TVec2Array;
+begin
+  if FSegments = nil then
+    Exit(False);
+  Points := Flatten(1);
+  Result := (System.Length(Points) > 2) and (Distance(Points[0], Points[High(Points)]) <= ClosedTolerance);
+end;
+
 function TEdgeObject.Length: double;
 var
   Segment: TEdgeSegment;
@@ -1298,6 +1421,370 @@ begin
   Result := 'Curve';
 end;
 
+function InputEdge(Context: TEvalContext; const Key: string): TEdgeObject;
+var
+  Found: TEvalNode;
+begin
+  Found := Context.FindNode(Key);
+  if Found is TEdgeObject then
+    Result := TEdgeObject(Found)
+  else
+    Result := nil;
+end;
+
+constructor TRoundEdge.Create(const AKey, ACentre: string);
+begin
+  inherited Create(AKey, ACentre, ACentre);
+  AddField('radius');
+end;
+
+function TRoundEdge.HasProperty(const Prop: string): boolean;
+begin
+  Result := (Prop = 'radius') or inherited HasProperty(Prop);
+end;
+
+// The segments are close, and the length has an exact formula
+function TRoundEdge.PropertyValue(const Prop: string): double;
+begin
+  if Prop = 'radius' then
+    Result := FRadius
+  else if Prop = 'length' then
+    Result := FRadius * DegToRad(Abs(FSweep))
+  else
+    Result := inherited PropertyValue(Prop);
+end;
+
+// A cubic per 45 degrees or less stays within a few millionths of the radius
+procedure TRoundEdge.SetRound(const ACentre: TVec2; ARadius, AStartAngle, ASweep: double);
+const
+  MaxSegmentSweep = 45;
+var
+  Count, Index: integer;
+  Step, Handle, Angle: double;
+  Curve: TCubicBezier;
+
+  function OnCircle(Degrees: double): TVec2;
+  begin
+    Result := ACentre + Vec2(Cos(DegToRad(Degrees)), Sin(DegToRad(Degrees))) * ARadius;
+  end;
+
+  function Tangent(Degrees: double): TVec2;
+  begin
+    Result := Vec2(-Sin(DegToRad(Degrees)), Cos(DegToRad(Degrees))) * (ARadius * Handle);
+  end;
+
+begin
+  FRadius := ARadius;
+  FSweep := ASweep;
+  Count := Ceil(Abs(ASweep) / MaxSegmentSweep);
+  Step := ASweep / Count;
+  Handle := 4 / 3 * Tan(DegToRad(Step) / 4);
+  FSegments := nil;
+  for Index := 0 to Count - 1 do
+  begin
+    Angle := AStartAngle + Index * Step;
+    Curve.P0 := OnCircle(Angle);
+    Curve.P1 := Curve.P0 + Tangent(Angle);
+    Curve.P3 := OnCircle(Angle + Step);
+    Curve.P2 := Curve.P3 - Tangent(Angle + Step);
+    AddSegment(FSegments, CurveSegment(Curve));
+  end;
+end;
+
+function TCircleObject.TypeName: string;
+begin
+  Result := rsDraftTypeCircle;
+end;
+
+function TCircleObject.NamePrefix: string;
+begin
+  Result := 'Circle';
+end;
+
+function TCircleObject.Compute(Context: TEvalContext): TEvalState;
+var
+  CentrePos: TVec2;
+  Radius: double;
+begin
+  if not PointPosition(Context, StartKey, CentrePos) then
+    Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey])));
+  if not EvalField(Context, 'radius', Radius) then
+    Exit(esError);
+  if Radius <= 0 then
+    Exit(Fail(esInvalid, rsDraftRadiusNotPositive));
+  SetRound(CentrePos, Radius, 0, 360);
+  Result := esValid;
+end;
+
+constructor TArcObject.Create(const AKey, ACentre: string);
+begin
+  inherited Create(AKey, ACentre);
+  AddField('angle1');
+  AddField('angle2');
+end;
+
+function TArcObject.TypeName: string;
+begin
+  Result := rsDraftTypeArc;
+end;
+
+function TArcObject.NamePrefix: string;
+begin
+  Result := 'Arc';
+end;
+
+function TArcObject.Compute(Context: TEvalContext): TEvalState;
+const
+  SmallestSweep = 1e-6;
+var
+  CentrePos: TVec2;
+  Radius, FirstAngle, LastAngle: double;
+begin
+  if not PointPosition(Context, StartKey, CentrePos) then
+    Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey])));
+  if not EvalField(Context, 'radius', Radius) or not EvalField(Context, 'angle1', FirstAngle) or not EvalField(Context, 'angle2', LastAngle) then
+    Exit(esError);
+  if Radius <= 0 then
+    Exit(Fail(esInvalid, rsDraftRadiusNotPositive));
+  if (Abs(LastAngle - FirstAngle) < SmallestSweep) or (Abs(LastAngle - FirstAngle) >= 360) then
+    Exit(Fail(esInvalid, rsDraftBadArcSweep));
+  SetRound(CentrePos, Radius, FirstAngle, LastAngle - FirstAngle);
+  Result := esValid;
+end;
+
+constructor TCircleCirclePoint.Create(const AKey, ACentreA, ACentreB: string; APick: integer);
+begin
+  inherited Create(AKey);
+  FCentreA := ACentreA;
+  FCentreB := ACentreB;
+  FPick := APick;
+  AddField('radiusA');
+  AddField('radiusB');
+end;
+
+function TCircleCirclePoint.InputKeys: TStringArray;
+begin
+  Result := [FCentreA, FCentreB];
+end;
+
+function TCircleCirclePoint.Compute(Context: TEvalContext): TEvalState;
+var
+  PosA, PosB, First, Second: TVec2;
+  RadiusA, RadiusB: double;
+  Count: integer;
+begin
+  if not InputPoint(Context, FCentreA, PosA) or not InputPoint(Context, FCentreB, PosB) then
+    Exit(esError);
+  if not EvalField(Context, 'radiusA', RadiusA) or not EvalField(Context, 'radiusB', RadiusB) then
+    Exit(esError);
+  if (RadiusA < 0) or (RadiusB < 0) then
+    Exit(Fail(esInvalid, rsDraftNegativeRadius));
+  Count := IntersectCircles(PosA, RadiusA, PosB, RadiusB, First, Second);
+  if Count = 0 then
+    Exit(Fail(esInvalid, rsDraftCirclesMiss));
+  if FPick > Count then
+    Exit(Fail(esInvalid, Format(rsDraftPickMissing, [Count, FPick])));
+  if FPick = 1 then
+    FPosition := First
+  else
+    FPosition := Second;
+  Result := esValid;
+end;
+
+constructor TOffsetEdge.Create(const AKey, ASource, ASourceStart, ASourceEnd: string; ASide: TOffsetSide);
+begin
+  inherited Create(AKey, ASourceStart, ASourceEnd);
+  FSource := ASource;
+  FSide := ASide;
+  AddField('distance');
+end;
+
+function TOffsetEdge.InputKeys: TStringArray;
+begin
+  Result := [FSource];
+end;
+
+function TOffsetEdge.TypeName: string;
+begin
+  Result := rsDraftTypeOffset;
+end;
+
+function TOffsetEdge.NamePrefix: string;
+begin
+  Result := 'Offset';
+end;
+
+function TOffsetEdge.IsStraight: boolean;
+begin
+  Result := FStraight;
+end;
+
+function TOffsetEdge.Compute(Context: TEvalContext): TEvalState;
+const
+  // A cubic per span follows a parallel curve to about a hundredth of a mm
+  SpansPerCurve = 8;
+  JoinTolerance = 0.001;
+var
+  SourceEdge: TEdgeObject;
+  Distance2, Direction: double;
+  Segment: TEdgeSegment;
+  HasEnd: boolean;
+  LastEnd: TVec2;
+
+  function Across(const Along: TVec2): TVec2;
+  begin
+    Result := Vec2(-Along.Y, Along.X) * (Direction * Distance2 / Along.Length);
+  end;
+
+  procedure AddJoined(const Start, Finish: TVec2; const Added: TEdgeSegment);
+  begin
+    // A sharp bend in the source leaves a gap on its outer side
+    if HasEnd and not PointsNear(LastEnd, Start, JoinTolerance) then
+      AddSegment(FSegments, LineSegment(Line2(LastEnd, Start)));
+    AddSegment(FSegments, Added);
+    LastEnd := Finish;
+    HasEnd := True;
+  end;
+
+  procedure AddCurve(const Curve: TCubicBezier);
+  var
+    Span: integer;
+    First, Last, Tangent1, Tangent2: TVec2;
+    Handle: double;
+  begin
+    for Span := 0 to SpansPerCurve - 1 do
+    begin
+      Tangent1 := Curve.DerivativeAt(Span / SpansPerCurve);
+      Tangent2 := Curve.DerivativeAt((Span + 1) / SpansPerCurve);
+      if (Tangent1.Length = 0) or (Tangent2.Length = 0) then
+        Continue;
+      First := Curve.PointAt(Span / SpansPerCurve) + Across(Tangent1);
+      Last := Curve.PointAt((Span + 1) / SpansPerCurve) + Across(Tangent2);
+      Handle := Sloper.Core.Geometry.Distance(First, Last) / 3;
+      AddJoined(First, Last, CurveSegment(CubicBezier(First, First + Tangent1 * (Handle / Tangent1.Length), Last - Tangent2 * (Handle / Tangent2.Length), Last)));
+    end;
+  end;
+
+begin
+  SourceEdge := InputEdge(Context, FSource);
+  if SourceEdge = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FSource])));
+  if not EvalField(Context, 'distance', Distance2) then
+    Exit(esError);
+  if Distance2 < 0 then
+    Exit(Fail(esInvalid, rsDraftNegativeOffset));
+  Direction := 1;
+  if FSide = osRight then
+    Direction := -1;
+  FStraight := SourceEdge.IsStraight;
+  FSegments := nil;
+  HasEnd := False;
+  for Segment in SourceEdge.Segments do
+    if Segment.Kind = skLine then
+      AddJoined(Segment.Line.P1 + Across(Segment.Line.P2 - Segment.Line.P1), Segment.Line.P2 + Across(Segment.Line.P2 - Segment.Line.P1),
+        LineSegment(Line2(Segment.Line.P1 + Across(Segment.Line.P2 - Segment.Line.P1), Segment.Line.P2 + Across(Segment.Line.P2 - Segment.Line.P1))))
+    else
+      AddCurve(Segment.Curve);
+  Result := esValid;
+end;
+
+constructor TCornerArc.Create(const AKey, AVertex, AEdgeA, AEdgeB: string);
+begin
+  inherited Create(AKey, AVertex);
+  FEdgeA := AEdgeA;
+  FEdgeB := AEdgeB;
+end;
+
+function TCornerArc.InputKeys: TStringArray;
+begin
+  Result := [Vertex, FEdgeA, FEdgeB];
+end;
+
+function TCornerArc.TypeName: string;
+begin
+  Result := rsDraftTypeCorner;
+end;
+
+function TCornerArc.NamePrefix: string;
+begin
+  Result := 'Corner';
+end;
+
+function TCornerArc.Compute(Context: TEvalContext): TEvalState;
+const
+  // Edges this close to a straight run or doubled back have no corner to round
+  SmallestTurn = 0.01;
+var
+  First, Second: TEdgeObject;
+  Corner, Along1, Along2, TangentA, TangentB, Middle: TVec2;
+  Radius, Half, Reach, Sweep: double;
+
+  function AwayFromCorner(Edge: TEdgeObject): TVec2;
+  begin
+    Result := Edge.PointAtLength(Edge.Length) - Corner;
+    if Distance(Edge.PointAtLength(0), Corner) > Result.Length then
+      Result := Edge.PointAtLength(0) - Corner;
+    Result := Result * (1 / Result.Length);
+  end;
+
+begin
+  if not PointPosition(Context, Vertex, Corner) then
+    Exit(Fail(esError, Format(rsDraftNotAPoint, [Vertex])));
+  First := InputEdge(Context, FEdgeA);
+  Second := InputEdge(Context, FEdgeB);
+  if First = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeA])));
+  if Second = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeB])));
+  if not EvalField(Context, 'radius', Radius) then
+    Exit(esError);
+  if Radius <= 0 then
+    Exit(Fail(esInvalid, rsDraftRadiusNotPositive));
+  Along1 := AwayFromCorner(First);
+  Along2 := AwayFromCorner(Second);
+  Half := ArcCos(EnsureRange(Dot(Along1, Along2), -1, 1)) / 2;
+  if (RadToDeg(Half) < SmallestTurn) or (RadToDeg(Half) > 90 - SmallestTurn) then
+    Exit(Fail(esInvalid, rsDraftCornerStraight));
+  Reach := Radius / Tan(Half);
+  if (Reach >= First.Length) or (Reach >= Second.Length) then
+    Exit(Fail(esInvalid, rsDraftCornerTooBig));
+  TangentA := Corner + Along1 * Reach;
+  TangentB := Corner + Along2 * Reach;
+  Middle := Along1 + Along2;
+  Middle := Corner + Middle * (Radius / Sin(Half) / Middle.Length);
+  Sweep := NormalizeAngle(AngleBetween(Middle, TangentB) - AngleBetween(Middle, TangentA));
+  if Sweep > 180 then
+    Sweep := Sweep - 360;
+  SetRound(Middle, Radius, AngleBetween(Middle, TangentA), Sweep);
+  Result := esValid;
+end;
+
+constructor TCornerPoint.Create(const AKey, AArc: string; AEnd: integer);
+begin
+  inherited Create(AKey);
+  FArc := AArc;
+  FEnd := AEnd;
+end;
+
+function TCornerPoint.InputKeys: TStringArray;
+begin
+  Result := [FArc];
+end;
+
+function TCornerPoint.Compute(Context: TEvalContext): TEvalState;
+var
+  ArcEdge: TEdgeObject;
+begin
+  ArcEdge := InputEdge(Context, FArc);
+  if ArcEdge = nil then
+    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FArc])));
+  if FEnd = 1 then
+    FPosition := ArcEdge.PointAtLength(0)
+  else
+    FPosition := ArcEdge.PointAtLength(ArcEdge.Length);
+  Result := esValid;
+end;
+
 function TCurveObject.Compute(Context: TEvalContext): TEvalState;
 var
   StartPos, EndPos: TVec2;
@@ -1587,17 +2074,6 @@ begin
 end;
 
 // The edge for Key, or nil if it is not an edge
-function InputEdge(Context: TEvalContext; const Key: string): TEdgeObject;
-var
-  Found: TEvalNode;
-begin
-  Found := Context.FindNode(Key);
-  if Found is TEdgeObject then
-    Result := TEdgeObject(Found)
-  else
-    Result := nil;
-end;
-
 { TIntersectPoint }
 
 constructor TIntersectPoint.Create(const AKey, AEdgeA, AEdgeB: string;

@@ -116,6 +116,10 @@ function IntersectLines(const A, B: TLine2; ExtendA, ExtendB: boolean; out Hit: 
 function IntersectLineCircle(const L: TLine2; Extend: boolean; const Centre: TVec2; Radius: double): TIntersectionArray;
 
 // Positive when the points run anticlockwise
+// Where two circles cross: First is to the left going from centre A to centre
+// B, and Second to the right. Count is 0 when they miss or share a centre, 1
+// when they touch.
+function IntersectCircles(const A: TVec2; RadiusA: double; const B: TVec2; RadiusB: double; out First, Second: TVec2): integer;
 function SignedArea(const Pts: TVec2Array): double;
 function IsClockwise(const Pts: TVec2Array): boolean;
 // Non-zero winding rule; points exactly on the boundary may go either way
@@ -419,6 +423,37 @@ begin
     Add((-B - Root) / (2 * A));
     Add((-B + Root) / (2 * A));
   end;
+end;
+
+function IntersectCircles(const A: TVec2; RadiusA: double; const B: TVec2; RadiusB: double; out First, Second: TVec2): integer;
+const
+  TouchTolerance = 1e-9;
+var
+  Gap, Along, HeightSquared, Height: double;
+  Unit2, Foot, Across: TVec2;
+begin
+  First := Vec2(0, 0);
+  Second := First;
+  Gap := Distance(A, B);
+  if Gap < TouchTolerance then
+    Exit(0);
+  Along := (Gap * Gap + RadiusA * RadiusA - RadiusB * RadiusB) / (2 * Gap);
+  HeightSquared := RadiusA * RadiusA - Along * Along;
+  if HeightSquared < -TouchTolerance * Max(RadiusA * RadiusA, 1) then
+    Exit(0);
+  Unit2 := (B - A) * (1 / Gap);
+  Foot := A + Unit2 * Along;
+  if HeightSquared <= TouchTolerance * Max(RadiusA * RadiusA, 1) then
+  begin
+    First := Foot;
+    Second := Foot;
+    Exit(1);
+  end;
+  Height := Sqrt(HeightSquared);
+  Across := Vec2(-Unit2.Y, Unit2.X) * Height;
+  First := Foot + Across;
+  Second := Foot - Across;
+  Result := 2;
 end;
 
 function SignedArea(const Pts: TVec2Array): double;

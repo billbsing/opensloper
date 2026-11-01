@@ -1,0 +1,791 @@
+{
+  OpenSloper - parametric sewing pattern drafting
+  Copyright (C) 2026 The OpenSloper authors
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+}
+
+unit Sloper.Tests.Accessories;
+
+{$mode ObjFPC}{$H+}
+
+interface
+
+uses
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Draft,
+  Sloper.Core.Fabrics, Sloper.Core.Piece;
+
+type
+  TTestAccessories = class(TOSTestCase)
+  private
+    FPattern, FLoaded: TPattern;
+    function Pt(const AName: string; X: double = 0; Y: double = 0): string;
+    function Line(const A, B: string): TLineObject;
+    function Rectangle(const Width: string = '200'; const Height: string = '100'): TRectangleEdges;
+    function Reloaded: TPattern;
+    function PieceAt(X, Y: double; const AName: string = 'Panel'): TPieceObject;
+  protected
+    procedure SetUp; override;
+    procedure TearDown; override;
+  published
+    procedure TestRectangleCorners;
+    procedure TestRectangleIsAPiece;
+    procedure TestRectangleFollowsFormulas;
+    procedure TestRectangleHeightIsInOnePlace;
+    procedure TestRectangleRoundTrip;
+    procedure TestRectangleOnFirstPointIsOneChange;
+    procedure TestOffsetLineLeft;
+    procedure TestOffsetLineRight;
+    procedure TestOffsetFollowsSource;
+    procedure TestOffsetFollowsDistance;
+    procedure TestOffsetNegativeIsInvalid;
+    procedure TestOffsetOfArcChangesRadius;
+    procedure TestOffsetOfCurveStaysAtDistance;
+    procedure TestOffsetOfPathJoinsUp;
+    procedure TestOffsetIsStraightOnlyFromAStraightEdge;
+    procedure TestOffsetRoundTrip;
+    procedure TestPointAlongOffset;
+    procedure TestCornerTangentPoints;
+    procedure TestCornerArcLength;
+    procedure TestCornerFollowsRadius;
+    procedure TestCornerFollowsMovedPoint;
+    procedure TestCornerRadiusTooBigIsInvalid;
+    procedure TestCornerRefusesCurve;
+    procedure TestCornerRefusesEdgesNotMeeting;
+    procedure TestCornerRefusesEdgeInAPiece;
+    procedure TestCornerLeavesConstruction;
+    procedure TestAllFourCornersMakeAPiece;
+    procedure TestCornerRoundTrip;
+    procedure TestFabricAllowanceSetsPiece;
+    procedure TestFabricAllowanceForNewPiece;
+    procedure TestFabricWithoutAllowanceLeavesPiece;
+    procedure TestExplicitAllowanceStands;
+    procedure TestFabricAllowanceRoundTrip;
+    procedure TestFabricAllowanceRefusesNegative;
+    procedure TestLeatherHasNoAllowance;
+    procedure TestHoleMarking;
+    procedure TestHoleFollowsItsPoint;
+    procedure TestHoleOutsidePieceIsInvalid;
+    procedure TestHoleDiameterMustBePositive;
+    procedure TestPlacementLineFollowsEdge;
+    procedure TestFoldLineMarking;
+    procedure TestStitchHolesSpaceEvenly;
+    procedure TestStitchSpacingAdjustsToFit;
+    procedure TestStitchHolesFollowSize;
+    procedure TestStitchSpacingMustBePositive;
+    procedure TestPieceReportsHoleCount;
+    procedure TestMarkingUsesItsInput;
+    procedure TestRemoveMarkingRenumbers;
+    procedure TestRemoveMissingMarkingRefused;
+    procedure TestMarkingsRoundTrip;
+    procedure TestMarkingsDrawAsStrokes;
+  end;
+
+implementation
+
+uses
+  Math, Sloper.Core.EvalTypes, Sloper.Core.PatternFile, Sloper.Core.PieceDetect, Sloper.Core.Evaluator;
+
+procedure TTestAccessories.SetUp;
+begin
+  inherited SetUp;
+  FPattern := TPattern.Create;
+end;
+
+procedure TTestAccessories.TearDown;
+begin
+  FreeAndNil(FLoaded);
+  FreeAndNil(FPattern);
+  inherited TearDown;
+end;
+
+function TTestAccessories.Pt(const AName: string; X, Y: double): string;
+begin
+  Result := FPattern.AddFreePoint(AName, FloatToStr(X), FloatToStr(Y)).Key;
+end;
+
+function TTestAccessories.Line(const A, B: string): TLineObject;
+begin
+  Result := FPattern.AddLine(A, B, erOutline);
+  AssertNotNull(FPattern.LastError, Result);
+end;
+
+function TTestAccessories.Rectangle(const Width, Height: string): TRectangleEdges;
+begin
+  AssertTrue(FPattern.LastError, FPattern.AddRectangle(Pt('O'), Width, Height, erOutline, Result));
+  FPattern.Evaluate;
+end;
+
+function TTestAccessories.Reloaded: TPattern;
+var
+  Reason: string;
+begin
+  FreeAndNil(FLoaded);
+  FLoaded := TPattern.Create;
+  AssertTrue(Reason, LoadPatternFromText(FLoaded, SavePatternToText(FPattern), Reason));
+  FLoaded.Evaluate;
+  Result := FLoaded;
+end;
+
+function TTestAccessories.PieceAt(X, Y: double; const AName: string): TPieceObject;
+var
+  Path: TPiecePath;
+  Reason: string;
+begin
+  FPattern.Evaluate;
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(X, Y), Path, Reason));
+  Result := FPattern.AddPiece(AName, Path, DefaultPieceAllowance);
+  AssertNotNull(FPattern.LastError, Result);
+  FPattern.Evaluate;
+end;
+
+procedure TTestAccessories.TestRectangleCorners;
+var
+  Edges: TRectangleEdges;
+begin
+  Edges := Rectangle;
+  AssertPointsNear('bottom', Vec2(200, 0), Edges[0].PointAtLength(Edges[0].Length));
+  AssertPointsNear('right', Vec2(200, 100), Edges[1].PointAtLength(Edges[1].Length));
+  AssertPointsNear('top', Vec2(0, 100), Edges[2].PointAtLength(Edges[2].Length));
+  AssertPointsNear('left', Vec2(0, 0), Edges[3].PointAtLength(Edges[3].Length));
+end;
+
+procedure TTestAccessories.TestRectangleIsAPiece;
+begin
+  Rectangle;
+  AssertEquals(20000, PieceAt(50, 50).Area, 1e-6);
+end;
+
+procedure TTestAccessories.TestRectangleFollowsFormulas;
+var
+  Edges: TRectangleEdges;
+begin
+  FPattern.AddVariable('width', '300');
+  FPattern.AddVariable('height', '80');
+  Edges := Rectangle('#width', '#height');
+  AssertEquals(300, Edges[0].Length, 1e-9);
+  AssertEquals(80, Edges[1].Length, 1e-9);
+end;
+
+procedure TTestAccessories.TestRectangleHeightIsInOnePlace;
+var
+  Edges: TRectangleEdges;
+begin
+  Edges := Rectangle;
+  // The top left point holds the height, and the top right follows it
+  AssertTrue(FPattern.LastError, FPattern.SetFormula(FPattern.FindNode(Edges[2].EndKey), 'dy', '150'));
+  FPattern.Evaluate;
+  AssertEquals(150, Edges[1].Length, 1e-9);
+  AssertEquals(150, Edges[3].Length, 1e-9);
+end;
+
+procedure TTestAccessories.TestRectangleRoundTrip;
+var
+  Edges: TRectangleEdges;
+begin
+  Edges := Rectangle;
+  Reloaded;
+  AssertEquals(100, TEdgeObject(FLoaded.FindNode(Edges[1].Key)).Length, 1e-9);
+end;
+
+procedure TTestAccessories.TestRectangleOnFirstPointIsOneChange;
+var
+  Edges: TRectangleEdges;
+begin
+  Edges := Rectangle;
+  AssertEquals('corner, three points and four lines', 8, FPattern.ObjectCount);
+  AssertEquals('outline', Ord(erOutline), Ord(Edges[0].Role));
+end;
+
+procedure TTestAccessories.TestOffsetLineLeft;
+var
+  Edge: TOffsetEdge;
+begin
+  Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osLeft);
+  FPattern.Evaluate;
+  AssertTrue(Edge.Message, Edge.State = esValid);
+  AssertPointsNear('start', Vec2(0, 10), Edge.PointAtLength(0));
+  AssertPointsNear('end', Vec2(100, 10), Edge.PointAtLength(Edge.Length));
+end;
+
+procedure TTestAccessories.TestOffsetLineRight;
+var
+  Edge: TOffsetEdge;
+begin
+  Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osRight);
+  FPattern.Evaluate;
+  AssertPointsNear('start', Vec2(0, -10), Edge.PointAtLength(0));
+end;
+
+procedure TTestAccessories.TestOffsetFollowsSource;
+var
+  B: string;
+  Edge: TOffsetEdge;
+begin
+  B := Pt('B', 100);
+  Edge := FPattern.AddOffsetEdge(Line(Pt('A'), B).Key, '10', osLeft);
+  FPattern.Evaluate;
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(B), 'x', '250'));
+  FPattern.Evaluate;
+  AssertEquals(250, Edge.Length, 1e-9);
+end;
+
+procedure TTestAccessories.TestOffsetFollowsDistance;
+var
+  Edge: TOffsetEdge;
+begin
+  FPattern.AddVariable('stitch', '6');
+  Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '#stitch * 2', osLeft);
+  FPattern.Evaluate;
+  AssertEquals(12, Edge.PointAtLength(0).Y, 1e-9);
+end;
+
+procedure TTestAccessories.TestOffsetNegativeIsInvalid;
+var
+  Edge: TOffsetEdge;
+begin
+  Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '-1', osLeft);
+  FPattern.Evaluate;
+  AssertTrue(Edge.State = esInvalid);
+end;
+
+procedure TTestAccessories.TestOffsetOfArcChangesRadius;
+var
+  Arc: TArcObject;
+  Edge: TOffsetEdge;
+  Index: integer;
+begin
+  Arc := FPattern.AddArc(Pt('O'), '50', '0', '180', erOutline);
+  // Anticlockwise, the left side is towards the centre
+  Edge := FPattern.AddOffsetEdge(Arc.Key, '10', osLeft);
+  FPattern.Evaluate;
+  for Index := 0 to 20 do
+    AssertEquals(40, Distance(Edge.PointAtLength(Edge.Length * Index / 20), Vec2(0, 0)), 0.01);
+  AssertEquals(Pi * 40, Edge.Length, 0.05);
+end;
+
+procedure TTestAccessories.TestOffsetOfCurveStaysAtDistance;
+var
+  Curve: TCurveObject;
+  Edge: TOffsetEdge;
+  Index: integer;
+  At: TVec2;
+  Position, Gap: double;
+begin
+  Curve := FPattern.AddCurve(Pt('A'), Pt('B', 300), '60', '120', '120', '120', erOutline);
+  Edge := FPattern.AddOffsetEdge(Curve.Key, '15', osRight);
+  FPattern.Evaluate;
+  for Index := 0 to 40 do
+  begin
+    At := Edge.PointAtLength(Edge.Length * Index / 40);
+    Curve.Locate(At, Position, Gap);
+    AssertEquals(15, Gap, 0.05);
+  end;
+end;
+
+procedure TTestAccessories.TestOffsetOfPathJoinsUp;
+var
+  Edge: TOffsetEdge;
+  Path: TCurvePathObject;
+  Points: TVec2Array;
+  Index: integer;
+begin
+  Path := FPattern.AddCurvePath([Pt('A'), Pt('B', 100), Pt('C', 200)], ['0', '45', '0'], ['0', '30', '30'], ['30', '30', '0'], erOutline);
+  AssertNotNull(FPattern.LastError, Path);
+  Edge := FPattern.AddOffsetEdge(Path.Key, '10', osLeft);
+  FPattern.Evaluate;
+  Points := Edge.Flatten(0.1);
+  for Index := 1 to High(Points) do
+    AssertTrue('no jumps', Distance(Points[Index - 1], Points[Index]) < 40);
+end;
+
+procedure TTestAccessories.TestOffsetIsStraightOnlyFromAStraightEdge;
+var
+  Straight, Round: TOffsetEdge;
+begin
+  Straight := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osLeft);
+  Round := FPattern.AddOffsetEdge(FPattern.AddArc(Pt('O'), '50', '0', '90').Key, '10', osLeft);
+  FPattern.Evaluate;
+  AssertTrue(Straight.IsStraight);
+  AssertFalse(Round.IsStraight);
+end;
+
+procedure TTestAccessories.TestOffsetRoundTrip;
+var
+  Edge, Back: TOffsetEdge;
+begin
+  Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osRight, erOutline);
+  FPattern.Evaluate;
+  Back := TOffsetEdge(Reloaded.FindNode(Edge.Key));
+  AssertTrue(Back.Side = osRight);
+  AssertTrue(Back.Role = erOutline);
+  AssertPointsNear('same place', Vec2(0, -10), Back.PointAtLength(0));
+  AssertEquals(SavePatternToText(FPattern), SavePatternToText(FLoaded));
+end;
+
+procedure TTestAccessories.TestPointAlongOffset;
+var
+  Edge: TOffsetEdge;
+  Point: TAlongEdgePoint;
+begin
+  Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osLeft);
+  Point := FPattern.AddAlongEdgePoint('M', Edge.Key, False, amRatio, '0.5');
+  FPattern.Evaluate;
+  AssertPointsNear('middle', Vec2(50, 10), Point.Position);
+end;
+
+procedure TTestAccessories.TestCornerTangentPoints;
+var
+  V: string;
+  Arc: TCornerArc;
+begin
+  V := Pt('V', 100);
+  Arc := FPattern.AddRoundCorner(Line(Pt('A'), V).Key, Line(V, Pt('B', 100, 100)).Key, '20');
+  AssertNotNull(FPattern.LastError, Arc);
+  FPattern.Evaluate;
+  AssertTrue(Arc.Message, Arc.State = esValid);
+  AssertPointsNear('on the first edge', Vec2(80, 0), Arc.PointAtLength(0));
+  AssertPointsNear('on the second', Vec2(100, 20), Arc.PointAtLength(Arc.Length));
+end;
+
+procedure TTestAccessories.TestCornerArcLength;
+var
+  V: string;
+  Arc: TCornerArc;
+begin
+  V := Pt('V', 100);
+  Arc := FPattern.AddRoundCorner(Line(Pt('A'), V).Key, Line(V, Pt('B', 100, 100)).Key, '20');
+  FPattern.Evaluate;
+  AssertEquals('a quarter circle', Pi * 10, Arc.PropertyValue('length'), 1e-9);
+end;
+
+procedure TTestAccessories.TestCornerFollowsRadius;
+var
+  V: string;
+  Arc: TCornerArc;
+begin
+  V := Pt('V', 100);
+  Arc := FPattern.AddRoundCorner(Line(Pt('A'), V).Key, Line(V, Pt('B', 100, 100)).Key, '20');
+  FPattern.Evaluate;
+  AssertTrue(FPattern.SetFormula(Arc, 'radius', '40'));
+  FPattern.Evaluate;
+  AssertPointsNear('moved along', Vec2(60, 0), Arc.PointAtLength(0));
+end;
+
+procedure TTestAccessories.TestCornerFollowsMovedPoint;
+var
+  V: string;
+  Arc: TCornerArc;
+begin
+  V := Pt('V', 100);
+  Arc := FPattern.AddRoundCorner(Line(Pt('A'), V).Key, Line(V, Pt('B', 100, 100)).Key, '20');
+  FPattern.Evaluate;
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(V), 'y', '0.5'));
+  FPattern.Evaluate;
+  AssertTrue(Arc.Message, Arc.State = esValid);
+end;
+
+procedure TTestAccessories.TestCornerRadiusTooBigIsInvalid;
+var
+  V: string;
+  Arc: TCornerArc;
+begin
+  V := Pt('V', 100);
+  Arc := FPattern.AddRoundCorner(Line(Pt('A'), V).Key, Line(V, Pt('B', 100, 100)).Key, '150');
+  FPattern.Evaluate;
+  AssertTrue(Arc.State = esInvalid);
+end;
+
+procedure TTestAccessories.TestCornerRefusesCurve;
+var
+  V: string;
+  Curve: TCurveObject;
+begin
+  V := Pt('V', 100);
+  Curve := FPattern.AddCurve(Pt('A'), V, '30', '30', '150', '30', erOutline);
+  FPattern.Evaluate;
+  AssertTrue(FPattern.AddRoundCorner(Curve.Key, Line(V, Pt('B', 100, 100)).Key, '20') = nil);
+  AssertEquals(Format(rsPatternCornerNotStraight, [Curve.Name]), FPattern.LastError);
+end;
+
+procedure TTestAccessories.TestCornerRefusesEdgesNotMeeting;
+var
+  First, Second: TLineObject;
+begin
+  First := Line(Pt('A'), Pt('B', 100));
+  Second := Line(Pt('C', 200), Pt('D', 300));
+  FPattern.Evaluate;
+  AssertTrue(FPattern.AddRoundCorner(First.Key, Second.Key, '20') = nil);
+  AssertEquals(Format(rsPatternCornerNotMeeting, [First.Name, Second.Name]), FPattern.LastError);
+end;
+
+procedure TTestAccessories.TestCornerRefusesEdgeInAPiece;
+var
+  Edges: TRectangleEdges;
+begin
+  Edges := Rectangle;
+  PieceAt(50, 50);
+  AssertTrue(FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20') = nil);
+  AssertEquals(Format(rsPatternCornerInPiece, [Edges[0].Name, 'Panel']), FPattern.LastError);
+end;
+
+procedure TTestAccessories.TestCornerLeavesConstruction;
+var
+  V: string;
+  First: TLineObject;
+begin
+  V := Pt('V', 100);
+  First := Line(Pt('A'), V);
+  FPattern.AddRoundCorner(First.Key, Line(V, Pt('B', 100, 100)).Key, '20');
+  AssertTrue('the sharp corner stays as a guide', First.Role = erConstruction);
+end;
+
+procedure TTestAccessories.TestAllFourCornersMakeAPiece;
+const
+  Radius = 20;
+var
+  Edges: TRectangleEdges;
+  Index: integer;
+  Current: array[0..3] of TEdgeObject;
+  Arc: TCornerArc;
+  Piece: TPieceObject;
+begin
+  Edges := Rectangle;
+  for Index := 0 to 3 do
+    Current[Index] := Edges[Index];
+  // Each corner trims two edges, and the next uses what is left of them
+  for Index := 0 to 3 do
+  begin
+    Arc := FPattern.AddRoundCorner(Current[Index].Key, Current[(Index + 1) mod 4].Key, IntToStr(Radius));
+    AssertNotNull(FPattern.LastError, Arc);
+    Current[Index] := Arc.TrimmedA;
+    Current[(Index + 1) mod 4] := Arc.TrimmedB;
+  end;
+  Piece := PieceAt(100, 50);
+  AssertEquals('four lines and four arcs', 8, Length(Piece.Path));
+  AssertEquals('within 0.03%, from the flattened outline', 20000 - (4 - Pi) * Sqr(Radius), Piece.Area, 6);
+  AssertEquals(2 * (200 + 100) - 8 * Radius + 2 * Pi * Radius, Piece.Perimeter, 0.5);
+  Reloaded;
+  AssertTrue('survives saving', FLoaded.FindObject('Panel').State = esValid);
+end;
+
+procedure TTestAccessories.TestCornerRoundTrip;
+var
+  V: string;
+  Arc, Back: TCornerArc;
+begin
+  V := Pt('V', 100);
+  Arc := FPattern.AddRoundCorner(Line(Pt('A'), V).Key, Line(V, Pt('B', 100, 100)).Key, '20');
+  FPattern.Evaluate;
+  Back := TCornerArc(Reloaded.FindNode(Arc.Key));
+  AssertPointsNear('same', Vec2(80, 0), Back.PointAtLength(0));
+  AssertEquals(SavePatternToText(FPattern), SavePatternToText(FLoaded));
+end;
+
+procedure TTestAccessories.TestFabricAllowanceSetsPiece;
+var
+  Leather: TPatternFabric;
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  Leather := FPattern.AddFabric('Leather');
+  AssertTrue(FPattern.SetFabricAllowance(Leather, True, 3));
+  FPattern.SetPieceFabric(Piece, Leather);
+  FPattern.Evaluate;
+  AssertEquals('3', FPattern.FormulaText(Piece, PieceAllowanceField));
+end;
+
+procedure TTestAccessories.TestFabricAllowanceForNewPiece;
+begin
+  AssertTrue(FPattern.SetFabricAllowance(FPattern.Fabrics[0], True, 4.5));
+  Rectangle;
+  AssertEquals('4.5', FPattern.FormulaText(PieceAt(50, 50), PieceAllowanceField));
+end;
+
+procedure TTestAccessories.TestFabricWithoutAllowanceLeavesPiece;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.SetFormula(Piece, PieceAllowanceField, '12'));
+  FPattern.SetPieceFabric(Piece, FPattern.AddFabric('Lining'));
+  AssertEquals('12', FPattern.FormulaText(Piece, PieceAllowanceField));
+end;
+
+procedure TTestAccessories.TestExplicitAllowanceStands;
+var
+  Path: TPiecePath;
+  Reason: string;
+begin
+  AssertTrue(FPattern.SetFabricAllowance(FPattern.Fabrics[0], True, 3));
+  Rectangle;
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(50, 50), Path, Reason));
+  AssertEquals('25', FPattern.FormulaText(FPattern.AddPiece('Panel', Path, '25'), PieceAllowanceField));
+end;
+
+procedure TTestAccessories.TestFabricAllowanceRoundTrip;
+begin
+  AssertTrue(FPattern.SetFabricAllowance(FPattern.AddFabric('Leather'), True, 0));
+  Reloaded;
+  AssertTrue(FLoaded.Fabrics[1].HasAllowance);
+  AssertEquals(0, FLoaded.Fabrics[1].Allowance, 1e-9);
+  AssertFalse('the other has none', FLoaded.Fabrics[0].HasAllowance);
+end;
+
+procedure TTestAccessories.TestFabricAllowanceRefusesNegative;
+begin
+  AssertFalse(FPattern.SetFabricAllowance(FPattern.Fabrics[0], True, -1));
+end;
+
+procedure TTestAccessories.TestLeatherHasNoAllowance;
+var
+  Leather: TPatternFabric;
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  Leather := FPattern.AddFabric('Leather');
+  AssertTrue(FPattern.SetFabricAllowance(Leather, True, 0));
+  FPattern.SetPieceFabric(Piece, Leather);
+  FPattern.Evaluate;
+  AssertEquals('cut on the line', Piece.Area, Abs(SignedArea(Piece.CutLine)), 1);
+end;
+
+procedure TTestAccessories.TestHoleMarking;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.LastError, FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertEquals(1, Length(Piece.MarkingMarks));
+  AssertPointsNear('at its point', Vec2(50, 50), Piece.MarkingMarks[0].Holes[0]);
+  AssertEquals(4, Piece.MarkingMarks[0].HoleSize, 1e-9);
+end;
+
+procedure TTestAccessories.TestHoleFollowsItsPoint;
+var
+  Piece: TPieceObject;
+  Hole: string;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  Hole := Pt('H', 50, 50);
+  AssertTrue(FPattern.AddHoleMarking(Piece, Hole, '4'));
+  FPattern.Evaluate;
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(Hole), 'x', '120'));
+  FPattern.Evaluate;
+  AssertPointsNear('moved', Vec2(120, 50), Piece.MarkingMarks[0].Holes[0]);
+end;
+
+procedure TTestAccessories.TestHoleOutsidePieceIsInvalid;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 500, 500), '4'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.State = esInvalid);
+end;
+
+procedure TTestAccessories.TestHoleDiameterMustBePositive;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '0'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.State = esInvalid);
+end;
+
+procedure TTestAccessories.TestPlacementLineFollowsEdge;
+var
+  Piece: TPieceObject;
+  First, Pocket: string;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  First := Pt('P', 20, 50);
+  Pocket := FPattern.AddLine(First, Pt('Q', 180, 50)).Key;
+  AssertTrue(FPattern.LastError, FPattern.AddLineMarking(Piece, mkPlacement, Pocket));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertPointsNear('start', Vec2(20, 50), Piece.MarkingMarks[0].Line[0]);
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(First), 'y', '70'));
+  FPattern.Evaluate;
+  AssertPointsNear('moved', Vec2(20, 70), Piece.MarkingMarks[0].Line[0]);
+end;
+
+procedure TTestAccessories.TestFoldLineMarking;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddLineMarking(Piece, mkFoldLine, FPattern.AddLine(Pt('P', 100, 0), Pt('Q', 100, 100)).Key));
+  FPattern.Evaluate;
+  AssertTrue(Piece.MarkingMarks[0].Kind = mkFoldLine);
+end;
+
+procedure TTestAccessories.TestStitchHolesSpaceEvenly;
+var
+  Piece: TPieceObject;
+  Edge: string;
+  Holes: TVec2Array;
+  Index: integer;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  Edge := FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50)).Key;
+  AssertTrue(FPattern.LastError, FPattern.AddStitchMarking(Piece, Edge, '4', '1'));
+  FPattern.Evaluate;
+  Holes := Piece.MarkingMarks[0].Holes;
+  AssertEquals('both ends and all between', 26, Length(Holes));
+  for Index := 1 to High(Holes) do
+    AssertEquals(4, Distance(Holes[Index - 1], Holes[Index]), 1e-6);
+  AssertEquals(1, Piece.MarkingMarks[0].HoleSize, 1e-9);
+end;
+
+procedure TTestAccessories.TestStitchSpacingAdjustsToFit;
+var
+  Piece: TPieceObject;
+  Holes: TVec2Array;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 121, 50)).Key, '4', '1'));
+  FPattern.Evaluate;
+  Holes := Piece.MarkingMarks[0].Holes;
+  AssertEquals(26, Length(Holes));
+  AssertPointsNear('runs to the end', Vec2(121, 50), Holes[High(Holes)]);
+  AssertEquals(101 / 25, Distance(Holes[0], Holes[1]), 1e-6);
+end;
+
+procedure TTestAccessories.TestStitchHolesFollowSize;
+var
+  Piece: TPieceObject;
+  End2: string;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  End2 := Pt('Q', 120, 50);
+  AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('P', 20, 50), End2).Key, '4', '1'));
+  FPattern.Evaluate;
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(End2), 'x', '180'));
+  FPattern.Evaluate;
+  AssertEquals(41, Length(Piece.MarkingMarks[0].Holes));
+end;
+
+procedure TTestAccessories.TestStitchSpacingMustBePositive;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50)).Key, '0', '1'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.State = esInvalid);
+end;
+
+procedure TTestAccessories.TestPieceReportsHoleCount;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50)).Key, '4', '1'));
+  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 60), '4'));
+  FPattern.Evaluate;
+  AssertEquals('stitch holes only: thread goes through those', 26, Piece.PropertyValue('holes'), 1e-9);
+end;
+
+procedure TTestAccessories.TestMarkingUsesItsInput;
+var
+  Piece: TPieceObject;
+  Hole: string;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  Hole := Pt('H', 50, 50);
+  AssertTrue(FPattern.AddHoleMarking(Piece, Hole, '4'));
+  AssertFalse('the point is in use', FPattern.Delete(FPattern.FindNode(Hole)));
+end;
+
+procedure TTestAccessories.TestRemoveMarkingRenumbers;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
+  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('J', 60, 50), '7'));
+  AssertTrue(FPattern.RemoveMarking(Piece, 0));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertEquals(1, Length(Piece.Markings));
+  AssertEquals('7', FPattern.FormulaText(Piece, Piece.MarkingField(0, MarkingDiameterField)));
+  AssertEquals(7, Piece.MarkingMarks[0].HoleSize, 1e-9);
+end;
+
+procedure TTestAccessories.TestRemoveMissingMarkingRefused;
+var
+  Piece: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertFalse(FPattern.RemoveMarking(Piece, 0));
+end;
+
+procedure TTestAccessories.TestMarkingsRoundTrip;
+var
+  Piece, Back: TPieceObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
+  AssertTrue(FPattern.AddLineMarking(Piece, mkPlacement, FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50)).Key));
+  AssertTrue(FPattern.AddLineMarking(Piece, mkFoldLine, FPattern.AddLine(Pt('R', 20, 60), Pt('S', 120, 60)).Key));
+  AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('T', 20, 70), Pt('U', 120, 70)).Key, '5', '1.5'));
+  FPattern.Evaluate;
+  Back := TPieceObject(Reloaded.FindNode(Piece.Key));
+  AssertTrue(Back.Message, Back.State = esValid);
+  AssertEquals(4, Length(Back.Markings));
+  AssertTrue(Back.Markings[3].Kind = mkStitchHoles);
+  AssertEquals(21, Length(Back.MarkingMarks[3].Holes));
+  AssertEquals(SavePatternToText(FPattern), SavePatternToText(FLoaded));
+end;
+
+procedure TTestAccessories.TestMarkingsDrawAsStrokes;
+var
+  Piece: TPieceObject;
+  Before: integer;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  Before := Length(Piece.MarkingStrokes);
+  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
+  FPattern.Evaluate;
+  AssertEquals(0, Before);
+  AssertTrue('a circle of strokes', Length(Piece.MarkingStrokes) > 8);
+end;
+
+initialization
+  RegisterTest(TTestAccessories);
+end.

@@ -34,6 +34,9 @@ uses
 
 type
   // What AddTransform needs. Sources are expanded: an edge brings its ends.
+  // In order around: from the corner along the width, then up, back and down
+  TRectangleEdges = array[0..3] of TLineObject;
+
   TTransformSpec = record
     Kind: TTransformKind;
     Name, Suffix: string;
@@ -180,6 +183,8 @@ type
       Extend: boolean; Pick: integer): TCircleEdgePoint;
     // From SourceId onto an edge, square to it or at the Angle formula
     // (Angle is ignored for pdPerpendicular)
+    // Pick 1 is to the left going from A to B, and 2 to the right
+    function AddCircleCirclePoint(const AName, CentreAId, RadiusA, CentreBId, RadiusB: string; Pick: integer): TCircleCirclePoint;
     function AddProjectPoint(const AName, SourceId, EdgeId: string;
       Direction: TProjectDirection; const Angle: string; Extend: boolean): TProjectPoint;
     function AddLine(const StartId, EndId: string; Role: TEdgeRole = erConstruction;
@@ -191,6 +196,16 @@ type
     // (direction of travel); LengthsIn and LengthsOut the handle lengths before
     // and after it. All arrays have one entry per node; LengthsIn[0] and the
     // last LengthsOut are ignored.
+    function AddCircle(const CentreId, Radius: string; Role: TEdgeRole = erConstruction; const AName: string = ''): TCircleObject;
+    function AddArc(const CentreId, Radius, Angle1, Angle2: string; Role: TEdgeRole = erConstruction; const AName: string = ''): TArcObject;
+    // Points and lines from CornerId, with Width and Height as formulas. The
+    // height is held in one place, the point above the corner.
+    function AddRectangle(const CornerId, Width, Height: string; Role: TEdgeRole; out Edges: TRectangleEdges): boolean;
+    function AddOffsetEdge(const EdgeId, Distance: string; Side: TOffsetSide; Role: TEdgeRole = erOutline; const AName: string = ''): TOffsetEdge;
+    // Rounds the corner where two straight edges meet. Each is split at the
+    // arc's tangent point; the part beyond the corner stays, and the rest
+    // becomes construction, as the sharp corner's guide.
+    function AddRoundCorner(const EdgeAId, EdgeBId, Radius: string): TCornerArc;
     function AddCurvePath(const NodeIds, Angles, LengthsIn, LengthsOut: array of string;
       Role: TEdgeRole = erConstruction; const AName: string = ''): TCurvePathObject;
     // Splits an edge at a point on it into two new edges, which follow the
@@ -212,6 +227,11 @@ type
     // A notch Position mm along an edge of the piece, from the edge's start
     function AddEdgeNotch(Piece: TPieceObject; const EdgeId, Position: string): boolean;
     function RemoveNotch(Piece: TPieceObject; Index: integer): boolean;
+    function AddHoleMarking(Piece: TPieceObject; const PointId, Diameter: string): boolean;
+    // A placement or fold line along an edge
+    function AddLineMarking(Piece: TPieceObject; Kind: TMarkingKind; const EdgeId: string): boolean;
+    function AddStitchMarking(Piece: TPieceObject; const EdgeId, Spacing, Size: string): boolean;
+    function RemoveMarking(Piece: TPieceObject; Index: integer): boolean;
     function SetCut(Piece: TPieceObject; Count: integer; Mirrored: boolean): boolean;
     // Cuts the piece on the fold along a straight edge of it; an empty EdgeId
     // clears the fold
@@ -266,6 +286,9 @@ type
     function AddFabric(const AName: string = ''; const AColor: string = ''; AFill: TFabricFill = ffTint): TPatternFabric;
     function RenameFabric(Fabric: TPatternFabric; const NewName: string): boolean;
     function SetFabricColor(Fabric: TPatternFabric; const AColor: string): boolean;
+    // A fabric's allowance goes on a piece when it takes the fabric; it does not
+    // follow later changes, so the piece can be set by hand
+    function SetFabricAllowance(Fabric: TPatternFabric; HasAllowance: boolean; Allowance: double): boolean;
     procedure SetFabricFill(Fabric: TPatternFabric; AFill: TFabricFill);
     // Refused for the last fabric and for one that pieces use
     function DeleteFabric(Fabric: TPatternFabric): boolean;
@@ -357,7 +380,10 @@ resourcestring
   rsPatternPathTooShort = 'A curve path needs at least two points';
   rsPatternPathRepeats = 'A curve path cannot use the same point twice in a row';
   rsPatternPathArrays = 'A curve path needs an angle and handle lengths for every point';
-  rsPatternPieceTooShort = 'A piece needs at least two edges';
+  rsPatternPieceTooShort = 'A piece needs at least two edges, or one that closes on itself';
+  rsPatternCornerNotStraight = 'Only corners between straight edges can be rounded, and %s is not straight';
+  rsPatternCornerNotMeeting = '%s and %s do not meet at a point';
+  rsPatternCornerInPiece = '%s is part of %s; delete the piece first, then make it again after rounding the corner';
   rsPatternPieceRepeats = 'A piece cannot use %s twice';
   rsPatternNotInPiece = '%s is not part of %s';
   rsPatternEmptyLabel = 'A draft or layer needs a name';
@@ -385,6 +411,7 @@ resourcestring
   rsPatternSeamRepeats = 'A side of a seam cannot use %s of %s twice';
   rsPatternGrainSamePoint = 'The grainline needs two different points';
   rsPatternNoNotch = 'There is no notch %d';
+  rsPatternNoMarking = 'There is no marking %d';
   rsPatternBadCutCount = 'A piece must be cut at least once';
   rsPatternFoldNotStraight = 'A fold has to be straight, and %s is not';
 
@@ -605,6 +632,16 @@ begin
   ResetFabrics;
 end;
 
+// As formula text, always with a decimal point
+function AllowanceText(Fabric: TPatternFabric): string;
+var
+  Formats: TFormatSettings;
+begin
+  Formats := DefaultFormatSettings;
+  Formats.DecimalSeparator := '.';
+  Result := FloatToStr(Fabric.Allowance, Formats);
+end;
+
 procedure TPattern.ResetFabrics;
 var
   Fabric: TPatternFabric;
@@ -723,6 +760,16 @@ begin
   Result := True;
 end;
 
+function TPattern.SetFabricAllowance(Fabric: TPatternFabric; HasAllowance: boolean; Allowance: double): boolean;
+begin
+  if HasAllowance and (Allowance < 0) then
+    Exit(SetError(rsPieceNegativeAllowance));
+  MakeFabricsExplicit;
+  Fabric.HasAllowance := HasAllowance;
+  Fabric.Allowance := Allowance;
+  Result := True;
+end;
+
 function TPattern.SetFabricColor(Fabric: TPatternFabric; const AColor: string): boolean;
 begin
   if not IsFabricColor(AColor) then
@@ -789,6 +836,8 @@ begin
     Piece.FabricKey := Fabric.Key
   else
     Piece.FabricKey := '';
+  if (Fabric <> nil) and Fabric.HasAllowance then
+    SetFormula(Piece, PieceAllowanceField, AllowanceText(Fabric));
 end;
 
 function TPattern.SetPieceFill(Piece: TPieceObject; const AColor: string; Style: TPieceFillStyle): boolean;
@@ -1868,6 +1917,21 @@ begin
     Result := nil;
 end;
 
+function TPattern.AddCircleCirclePoint(const AName, CentreAId, RadiusA, CentreBId, RadiusB: string; Pick: integer): TCircleCirclePoint;
+begin
+  Result := nil;
+  if not CheckPoint(CentreAId) or not CheckPoint(CentreBId) then
+    Exit;
+  if (Pick < 1) or (Pick > 2) then
+  begin
+    SetError(rsPatternBadPick);
+    Exit;
+  end;
+  Result := TCircleCirclePoint.Create(IntToStr(FNextId), CentreAId, CentreBId, Pick);
+  if not AddPointObject(Result, AName, ['radiusA', 'radiusB'], [RadiusA, RadiusB]) then
+    Result := nil;
+end;
+
 function TPattern.AddCircleEdgePoint(const AName, CentreId, Radius, EdgeId: string;
   Extend: boolean; Pick: integer): TCircleEdgePoint;
 begin
@@ -1910,7 +1974,11 @@ function TPattern.DerivedEdgeName(AEdge: TEdgeObject): string;
 
 begin
   FNameExclude := AEdge;
-  Result := NextFreeName(AEdge.NamePrefix + '_' + EndName(FindNode(AEdge.StartKey)) + '_' + EndName(FindNode(AEdge.EndKey)), @ObjectNameTaken);
+  if AEdge.StartKey = AEdge.EndKey then
+    Result := AEdge.NamePrefix + '_' + EndName(FindNode(AEdge.StartKey))
+  else
+    Result := AEdge.NamePrefix + '_' + EndName(FindNode(AEdge.StartKey)) + '_' + EndName(FindNode(AEdge.EndKey));
+  Result := NextFreeName(Result, @ObjectNameTaken);
   FNameExclude := nil;
 end;
 
@@ -1962,6 +2030,136 @@ begin
   if not AddEdgeObject(Result, AName, Role, ['angle1', 'length1', 'angle2', 'length2'],
     [Angle1, Length1, Angle2, Length2]) then
     Result := nil;
+end;
+
+function TPattern.AddCircle(const CentreId, Radius: string; Role: TEdgeRole; const AName: string): TCircleObject;
+begin
+  Result := TCircleObject.Create(IntToStr(FNextId), CentreId);
+  if not AddEdgeObject(Result, AName, Role, ['radius'], [Radius]) then
+    Result := nil;
+end;
+
+function TPattern.AddArc(const CentreId, Radius, Angle1, Angle2: string; Role: TEdgeRole; const AName: string): TArcObject;
+begin
+  Result := TArcObject.Create(IntToStr(FNextId), CentreId);
+  if not AddEdgeObject(Result, AName, Role, ['radius', 'angle1', 'angle2'], [Radius, Angle1, Angle2]) then
+    Result := nil;
+end;
+
+function TPattern.AddRectangle(const CornerId, Width, Height: string; Role: TEdgeRole; out Edges: TRectangleEdges): boolean;
+var
+  Corner: TEvalNode;
+  Across, Above, Opposite: TOffsetPoint;
+  CornerName: string;
+begin
+  Edges := Default(TRectangleEdges);
+  Result := CheckPoint(CornerId);
+  if not Result then
+    Exit;
+  Corner := FindNode(CornerId);
+  CornerName := Corner.DisplayName;
+  Across := AddOffsetPoint('', CornerId, omCartesian, Width, '0');
+  if Across = nil then
+    Exit(False);
+  Above := AddOffsetPoint('', CornerId, omCartesian, '0', Height);
+  if Above = nil then
+    Exit(False);
+  Opposite := AddOffsetPoint('', Across.Key, omCartesian, '0', Above.DisplayName + '.y - ' + CornerName + '.y');
+  if Opposite = nil then
+    Exit(False);
+  Edges[0] := AddLine(CornerId, Across.Key, Role);
+  Edges[1] := AddLine(Across.Key, Opposite.Key, Role);
+  Edges[2] := AddLine(Opposite.Key, Above.Key, Role);
+  Edges[3] := AddLine(Above.Key, CornerId, Role);
+  Result := (Edges[0] <> nil) and (Edges[1] <> nil) and (Edges[2] <> nil) and (Edges[3] <> nil);
+end;
+
+function TPattern.AddOffsetEdge(const EdgeId, Distance: string; Side: TOffsetSide; Role: TEdgeRole; const AName: string): TOffsetEdge;
+var
+  Source: TEdgeObject;
+begin
+  Result := nil;
+  if not CheckEdgeTarget(EdgeId) then
+    Exit;
+  Source := TEdgeObject(FindNode(EdgeId));
+  Result := TOffsetEdge.Create(IntToStr(FNextId), EdgeId, Source.StartKey, Source.EndKey, Side);
+  if not AddEdgeObject(Result, AName, Role, ['distance'], [Distance]) then
+    Result := nil;
+end;
+
+function TPattern.AddRoundCorner(const EdgeAId, EdgeBId, Radius: string): TCornerArc;
+var
+  First, Second: TEdgeObject;
+  Vertex: string;
+  Starts, Ends: TSplitPart;
+  TangentA, TangentB: TCornerPoint;
+
+  function CheckEdge(Edge: TEdgeObject): boolean;
+  var
+    User: TEvalNode;
+  begin
+    if not Edge.IsStraight then
+      Exit(SetError(Format(rsPatternCornerNotStraight, [Edge.DisplayName])));
+    for User in UsersOf(Edge) do
+      if User is TPieceObject then
+        Exit(SetError(Format(rsPatternCornerInPiece, [Edge.DisplayName, User.DisplayName])));
+    Result := True;
+  end;
+
+  // Splits the edge and returns the part away from the corner; the sharp end
+  // and the whole edge become construction
+  function Trim(Edge: TEdgeObject; const PointKey: string): TEdgeObject;
+  var
+    Near: TSplitPart;
+  begin
+    Result := nil;
+    if not SplitEdge(Edge.Key, PointKey, Starts, Ends) then
+      Exit;
+    if Edge.StartKey = Vertex then
+    begin
+      Near := Starts;
+      Result := Ends;
+    end
+    else
+    begin
+      Near := Ends;
+      Result := Starts;
+    end;
+    Near.Role := erConstruction;
+    Edge.Role := erConstruction;
+  end;
+
+begin
+  Result := nil;
+  if not CheckEdgeTarget(EdgeAId) or not CheckEdgeTarget(EdgeBId) then
+    Exit;
+  First := TEdgeObject(FindNode(EdgeAId));
+  Second := TEdgeObject(FindNode(EdgeBId));
+  if not CheckEdge(First) or not CheckEdge(Second) then
+    Exit;
+  if (First.StartKey = Second.StartKey) or (First.StartKey = Second.EndKey) then
+    Vertex := First.StartKey
+  else if (First.EndKey = Second.StartKey) or (First.EndKey = Second.EndKey) then
+    Vertex := First.EndKey
+  else
+  begin
+    SetError(Format(rsPatternCornerNotMeeting, [First.DisplayName, Second.DisplayName]));
+    Exit;
+  end;
+  Result := TCornerArc.Create(IntToStr(FNextId), Vertex, EdgeAId, EdgeBId);
+  if not AddEdgeObject(Result, '', First.Role, ['radius'], [Radius]) then
+  begin
+    Result := nil;
+    Exit;
+  end;
+  TangentA := TCornerPoint.Create(IntToStr(FNextId), Result.Key, 1);
+  if not AddPointObject(TangentA, '', [], []) then
+    Exit(nil);
+  TangentB := TCornerPoint.Create(IntToStr(FNextId), Result.Key, 2);
+  if not AddPointObject(TangentB, '', [], []) then
+    Exit(nil);
+  Result.TrimmedA := Trim(First, TangentA.Key);
+  Result.TrimmedB := Trim(Second, TangentB.Key);
 end;
 
 function TPattern.AddCurvePath(const NodeIds, Angles, LengthsIn, LengthsOut: array of string;
@@ -2046,10 +2244,11 @@ end;
 function TPattern.AddPiece(const AName: string; const Path: TPiecePath; const Allowance: string): TPieceObject;
 var
   Index, Other: integer;
-  Msg, PieceName: string;
+  Msg, PieceName, PieceAllowance: string;
 begin
   Result := nil;
-  if Length(Path) < 2 then
+  // One edge will do only when it closes on itself, like a circle
+  if (Length(Path) = 0) or ((Length(Path) = 1) and not ((FindNode(Path[0].EdgeKey) is TEdgeObject) and TEdgeObject(FindNode(Path[0].EdgeKey)).IsClosed)) then
   begin
     SetError(rsPatternPieceTooShort);
     Exit;
@@ -2077,7 +2276,11 @@ begin
     Exit;
   end;
   Result := TPieceObject.Create(IntToStr(FNextId), Path);
-  if not ParseFields(Result, [PieceAllowanceField], [Allowance]) then
+  // The first fabric's allowance stands in for the general default
+  PieceAllowance := Allowance;
+  if (Allowance = DefaultPieceAllowance) and FFabrics[0].HasAllowance then
+    PieceAllowance := AllowanceText(FFabrics[0]);
+  if not ParseFields(Result, [PieceAllowanceField], [PieceAllowance]) then
   begin
     FreeAndNil(Result);
     Exit;
@@ -2200,6 +2403,49 @@ begin
   Result := SetFormula(Piece, Piece.NotchField(Index), Position);
   if not Result then
     Piece.RemoveNotch(Index);
+end;
+
+function TPattern.AddHoleMarking(Piece: TPieceObject; const PointId, Diameter: string): boolean;
+var
+  Index: integer;
+begin
+  if not CheckPoint(PointId) then
+    Exit(False);
+  Index := Piece.AddMarking(mkHole, PointId, '');
+  KeepInputsBefore(Piece);
+  Result := SetFormula(Piece, Piece.MarkingField(Index, MarkingDiameterField), Diameter);
+  if not Result then
+    Piece.RemoveMarking(Index);
+end;
+
+function TPattern.AddLineMarking(Piece: TPieceObject; Kind: TMarkingKind; const EdgeId: string): boolean;
+begin
+  if not CheckEdgeTarget(EdgeId) then
+    Exit(False);
+  Piece.AddMarking(Kind, '', EdgeId);
+  KeepInputsBefore(Piece);
+  Result := True;
+end;
+
+function TPattern.AddStitchMarking(Piece: TPieceObject; const EdgeId, Spacing, Size: string): boolean;
+var
+  Index: integer;
+begin
+  if not CheckEdgeTarget(EdgeId) then
+    Exit(False);
+  Index := Piece.AddMarking(mkStitchHoles, '', EdgeId);
+  KeepInputsBefore(Piece);
+  Result := SetFormula(Piece, Piece.MarkingField(Index, MarkingSpacingField), Spacing) and SetFormula(Piece, Piece.MarkingField(Index, MarkingSizeField), Size);
+  if not Result then
+    Piece.RemoveMarking(Index);
+end;
+
+function TPattern.RemoveMarking(Piece: TPieceObject; Index: integer): boolean;
+begin
+  if (Index < 0) or (Index > High(Piece.Markings)) then
+    Exit(SetError(Format(rsPatternNoMarking, [Index + 1])));
+  Piece.RemoveMarking(Index);
+  Result := True;
 end;
 
 function TPattern.RemoveNotch(Piece: TPieceObject; Index: integer): boolean;

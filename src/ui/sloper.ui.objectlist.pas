@@ -125,6 +125,12 @@ resourcestring
   rsFieldValue = 'Distance or ratio';
   rsFieldCount = 'Count';
   rsFieldRadius = 'Radius';
+  rsFieldRadiusA = 'Radius from A';
+  rsFieldRadiusB = 'Radius from B';
+  rsFieldDistance = 'Distance';
+  rsFieldMarkingDiameter = 'Marking %s diameter';
+  rsFieldMarkingSpacing = 'Marking %s spacing';
+  rsFieldMarkingSize = 'Marking %s hole size';
   rsFieldAllowance = 'Seam allowance';
   rsFieldGrainAngle = 'Grainline angle';
   rsFieldNotch = 'Notch %s position';
@@ -148,6 +154,12 @@ resourcestring
   rsTypeRepeatPoint = 'Point in a repeat';
   rsTypeIntersect = 'Crossing of two edges';
   rsTypeCircle = 'Compass step onto an edge';
+  rsTypeCircleCircle = 'Two compass steps';
+  rsTypeCircleEdge = 'Circle';
+  rsTypeArc = 'Arc';
+  rsTypeOffsetEdge = 'Offset edge';
+  rsTypeCornerArc = 'Rounded corner';
+  rsTypeCornerPoint = 'End of a rounded corner';
   rsTypeProject = 'Point projected onto an edge';
   rsTypeLine = 'Line';
   rsTypeCurve = 'Curve';
@@ -180,6 +192,16 @@ begin
     Exit(Format(rsFieldEdgeAllowance, [Copy(FieldName, 5, Dot - 5)]));
   if (Dot > 0) and (Copy(FieldName, 1, 5) = 'notch') then
     Exit(Format(rsFieldNotch, [Copy(FieldName, 6, Dot - 6)]));
+  if (Dot > 0) and (Copy(FieldName, 1, 7) = 'marking') then
+  begin
+    NodeNumber := Copy(FieldName, 8, Dot - 8);
+    Part := Copy(FieldName, Dot + 1, MaxInt);
+    if Part = MarkingDiameterField then
+      Exit(Format(rsFieldMarkingDiameter, [NodeNumber]));
+    if Part = MarkingSpacingField then
+      Exit(Format(rsFieldMarkingSpacing, [NodeNumber]));
+    Exit(Format(rsFieldMarkingSize, [NodeNumber]));
+  end;
   if (Dot > 0) and (Copy(FieldName, 1, 4) = 'node') then
   begin
     NodeNumber := Copy(FieldName, 5, Dot - 5);
@@ -203,6 +225,9 @@ begin
     'value': Result := rsFieldValue;
     'count': Result := rsFieldCount;
     'radius': Result := rsFieldRadius;
+    'radiusA': Result := rsFieldRadiusA;
+    'radiusB': Result := rsFieldRadiusB;
+    'distance': Result := rsFieldDistance;
     'allowance': Result := rsFieldAllowance;
     'grainline.angle': Result := rsFieldGrainAngle;
     'angle1': Result := rsFieldAngle1;
@@ -233,6 +258,18 @@ begin
     Result := rsTypeIntersect
   else if Node is TCircleEdgePoint then
     Result := rsTypeCircle
+  else if Node is TCircleCirclePoint then
+    Result := rsTypeCircleCircle
+  else if Node is TCircleObject then
+    Result := rsTypeCircleEdge
+  else if Node is TOffsetEdge then
+    Result := rsTypeOffsetEdge
+  else if Node is TCornerArc then
+    Result := rsTypeCornerArc
+  else if Node is TCornerPoint then
+    Result := rsTypeCornerPoint
+  else if Node is TArcObject then
+    Result := rsTypeArc
   else if Node is TProjectPoint then
     Result := rsTypeProject
   else if Node is TLineObject then

@@ -183,6 +183,18 @@ type
     // Copies the selection with a transform: Move at once, Rotate and Mirror
     // once a pivot or axis has been clicked
     procedure StartTransform(Kind: TTransformKind);
+    // A circle or arc around the selected point, ready for its radius to be typed
+    procedure AddRoundEdge(WholeCircle: boolean);
+    // A rectangle from the selected point
+    procedure AddRectangleHere;
+    // A construction edge parallel to the selected edge
+    procedure OffsetSelection(Side: TOffsetSide);
+    // Rounds the corner between the two selected edges
+    procedure RoundSelectedCorner;
+    // Adds a marking to the selected piece from the point or edge selected with it
+    procedure MarkSelection(Kind: TMarkingKind);
+    // Removes the selected piece's markings on the point or edge selected with it
+    procedure UnmarkSelection;
     // Moves the selected objects to a layer, as one undo step
     procedure MoveSelectionToLayer(Layer: TPatternLayer);
     // Deletes the selected objects, the dependents first; nothing when any is in use
@@ -211,6 +223,19 @@ resourcestring
   rsCanvasNudge = 'Nudge';
   rsCanvasMoveToLayer = 'Move to layer';
   rsCanvasTransform = 'Add %s';
+  rsCanvasPickCentre = 'Select the point for its centre first';
+  rsCanvasAddRound = 'Add circle or arc';
+  rsCanvasPickCorner = 'Select the point for its corner first';
+  rsCanvasAddRectangle = 'Add rectangle';
+  rsCanvasPickEdgeToOffset = 'Select the edge to offset first';
+  rsCanvasAddOffset = 'Add offset edge';
+  rsCanvasPickCornerEdges = 'Select the two straight edges that meet at the corner';
+  rsCanvasRoundCorner = 'Round corner';
+  rsCanvasPickHole = 'Select the piece and the point for the hole';
+  rsCanvasPickMarkingEdge = 'Select the piece and the edge for the marking';
+  rsCanvasPickMarkingToRemove = 'Select the piece and the point or edge of the marking to remove';
+  rsCanvasAddMarking = 'Add marking';
+  rsCanvasRemoveMarking = 'Remove marking';
   rsCanvasPickPivot = 'Rotate: click the point to turn about; Escape cancels';
   rsCanvasPickAxis = 'Mirror: click a straight edge, or the first of two points; Escape cancels';
   rsCanvasPickSecond = 'Mirror: click the second point; Escape cancels';
@@ -246,6 +271,16 @@ uses
   Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect, Sloper.UI.Scene;
 
 const
+  // A new circle or arc, as a starting point for typing the real values
+  NewRoundRadius = '50';
+  NewArcSweep = '90';
+  NewRectangleWidth = '200';
+  NewRectangleHeight = '100';
+  NewOffsetDistance = '10';
+  NewCornerRadius = '10';
+  NewHoleDiameter = '4';
+  NewStitchSpacing = '4';
+  NewStitchSize = '1';
   // How strongly a fabric's colour shows under the lines
   FabricTintAlpha = 60;
   FabricHatchAlpha = 130;
@@ -875,6 +910,198 @@ begin
   FPickSources := nil;
   if FTool = ctSelect then
     Cursor := crDefault;
+end;
+
+procedure TPatternCanvas.AddRoundEdge(WholeCircle: boolean);
+var
+  Node: TEvalNode;
+  Added: TEdgeObject;
+  Key, Reason: string;
+begin
+  if FDocument = nil then
+    Exit;
+  Node := nil;
+  if Length(FSelection) = 1 then
+    Node := FDocument.Pattern.FindNode(FSelection[0]);
+  if not (Node is TPointObject) then
+  begin
+    ShowMessageText(rsCanvasPickCentre);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddRound);
+  if WholeCircle then
+    Added := FDocument.Pattern.AddCircle(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, erOutline)
+  else
+    Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, '0', NewArcSweep, erOutline);
+  Key := '';
+  if Added <> nil then
+    Key := Added.Key;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Added <> nil) then
+    SetSelection([Key])
+  else
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.AddRectangleHere;
+var
+  Node: TEvalNode;
+  Edges: TRectangleEdges;
+  Key, Reason: string;
+  Done: boolean;
+begin
+  if FDocument = nil then
+    Exit;
+  Node := nil;
+  if Length(FSelection) = 1 then
+    Node := FDocument.Pattern.FindNode(FSelection[0]);
+  if not (Node is TPointObject) then
+  begin
+    ShowMessageText(rsCanvasPickCorner);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddRectangle);
+  Done := FDocument.Pattern.AddRectangle(FDocument.Pattern.UsePoint(Node.Key), NewRectangleWidth, NewRectangleHeight, erOutline, Edges);
+  Key := '';
+  if Done then
+    Key := Edges[0].EndKey;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Done) then
+    SetSelection([Key])
+  else
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.OffsetSelection(Side: TOffsetSide);
+var
+  Node: TEvalNode;
+  Added: TOffsetEdge;
+  Key, Reason: string;
+begin
+  if FDocument = nil then
+    Exit;
+  Node := nil;
+  if Length(FSelection) = 1 then
+    Node := FDocument.Pattern.FindNode(FSelection[0]);
+  if not (Node is TEdgeObject) then
+  begin
+    ShowMessageText(rsCanvasPickEdgeToOffset);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddOffset);
+  Added := FDocument.Pattern.AddOffsetEdge(Node.Key, NewOffsetDistance, Side, erConstruction);
+  Key := '';
+  if Added <> nil then
+    Key := Added.Key;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Added <> nil) then
+    SetSelection([Key])
+  else
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.RoundSelectedCorner;
+var
+  Added: TCornerArc;
+  Key, Reason: string;
+begin
+  if FDocument = nil then
+    Exit;
+  if (Length(FSelection) <> 2) or not (FDocument.Pattern.FindNode(FSelection[0]) is TEdgeObject) or not
+    (FDocument.Pattern.FindNode(FSelection[1]) is TEdgeObject) then
+  begin
+    ShowMessageText(rsCanvasPickCornerEdges);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasRoundCorner);
+  Added := FDocument.Pattern.AddRoundCorner(FSelection[0], FSelection[1], NewCornerRadius);
+  Key := '';
+  if Added <> nil then
+    Key := Added.Key;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Added <> nil) then
+    SetSelection([Key])
+  else
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.MarkSelection(Kind: TMarkingKind);
+var
+  Key, Reason, Target: string;
+  Node: TEvalNode;
+  Piece: TPieceObject;
+  Done: boolean;
+begin
+  if FDocument = nil then
+    Exit;
+  Piece := nil;
+  Target := '';
+  for Key in FSelection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if Node is TPieceObject then
+      Piece := TPieceObject(Node)
+    else if ((Kind = mkHole) and (Node is TPointObject)) or ((Kind <> mkHole) and (Node is TEdgeObject)) then
+      Target := Key;
+  end;
+  if (Piece = nil) or (Target = '') or (Length(FSelection) <> 2) then
+  begin
+    if Kind = mkHole then
+      ShowMessageText(rsCanvasPickHole)
+    else
+      ShowMessageText(rsCanvasPickMarkingEdge);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddMarking);
+  case Kind of
+    mkHole: Done := FDocument.Pattern.AddHoleMarking(Piece, FDocument.Pattern.UsePoint(Target), NewHoleDiameter);
+    mkStitchHoles: Done := FDocument.Pattern.AddStitchMarking(Piece, Target, NewStitchSpacing, NewStitchSize);
+    else
+      Done := FDocument.Pattern.AddLineMarking(Piece, Kind, Target);
+  end;
+  Reason := FDocument.Pattern.LastError;
+  if not FDocument.Commit(Done) then
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.UnmarkSelection;
+var
+  Key, Target: string;
+  Node: TEvalNode;
+  Piece: TPieceObject;
+  Index: integer;
+  Done: boolean;
+begin
+  if FDocument = nil then
+    Exit;
+  Piece := nil;
+  Target := '';
+  for Key in FSelection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if Node is TPieceObject then
+      Piece := TPieceObject(Node)
+    else
+      Target := Key;
+  end;
+  if (Piece = nil) or (Target = '') then
+  begin
+    ShowMessageText(rsCanvasPickMarkingToRemove);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasRemoveMarking);
+  Done := False;
+  for Index := High(Piece.Markings) downto 0 do
+    if (Piece.Markings[Index].PointKey = Target) or (Piece.Markings[Index].EdgeKey = Target) then
+      Done := FDocument.Pattern.RemoveMarking(Piece, Index) or Done;
+  if not FDocument.Commit(Done) then
+    ShowMessageText(rsCanvasPickMarkingToRemove);
+  Invalidate;
 end;
 
 procedure TPatternCanvas.StartTransform(Kind: TTransformKind);
@@ -1772,7 +1999,7 @@ begin
   LineColor := Faded(StateInk(Piece.State, ConstructionInk), Piece.State);
   if IsSelected(Piece.Key) then
     LineColor := SelectedInk;
-  for Stroke in Concat(Piece.GrainArrow, Piece.FoldArrow) do
+  for Stroke in Concat(Piece.GrainArrow, Piece.FoldArrow, Piece.MarkingStrokes) do
   begin
     First := FView.ToScreen(Stroke.P1);
     Last := FView.ToScreen(Stroke.P2);

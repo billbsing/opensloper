@@ -241,6 +241,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Fabrics"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.circles.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Circles"/>
+      </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.accessories.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Accessories"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

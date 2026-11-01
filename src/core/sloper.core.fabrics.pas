@@ -54,6 +54,9 @@ type
   public
     Key, Name, Color: string;
     Fill: TFabricFill;
+    // The seam allowance a piece takes when it goes on this fabric
+    HasAllowance: boolean;
+    Allowance: double;
   end;
 
   TPatternFabricList = specialize TObjectList<TPatternFabric>;
