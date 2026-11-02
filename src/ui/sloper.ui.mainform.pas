@@ -107,7 +107,7 @@ type
     FChoosingVariable: boolean;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
-    FSplitter: TSplitter;
+    // FSplitter: TSplitter;
     FToolBar: TToolBar;
     FToolButtons: array[TCanvasTool] of TToolButton;
     FToolItems: array[TCanvasTool] of TMenuItem;
@@ -216,6 +216,7 @@ resourcestring
   rsTabLayers = 'Layers';
   rsTabFabrics = 'Fabrics';
   rsMenuViewSidePanel = '&Side Panel';
+  rsTabProperties = 'Properties';
   rsTabObjects = 'Objects';
   rsTabVariables = 'Variables';
   rsTabMeasurements = 'Measurements';
@@ -318,17 +319,17 @@ begin
 
   FDocument := TPatternDocument.Create;
   CreateTools;
-  FProperties := TPropertiesPanel.Create(Self);
-  FProperties.Parent := Self;
-  FProperties.Align := alRight;
-  FProperties.Width := Scale96ToForm(280);
-  FProperties.Document := FDocument;
-  LoadSettings;
-  FSplitter := TSplitter.Create(Self);
-  FSplitter.Parent := Self;
-  FSplitter.Align := alRight;
-  FSplitter.Left := FProperties.Left - FSplitter.Width;
+  // FProperties := TPropertiesPanel.Create(Self);
+  // FProperties.Parent := Self;
+  // FProperties.Align := alRight;
+  // FProperties.Width := Scale96ToForm(280);
+  // FProperties.Document := FDocument;
+  // FSplitter := TSplitter.Create(Self);
+  // FSplitter.Parent := Self;
+  // FSplitter.Align := alRight;
+  // FSplitter.Left := FProperties.Left - FSplitter.Width;
   CreateSidePanel;
+  LoadSettings;
   FCanvasPanel := TPanel.Create(Self);
   FCanvasPanel.Parent := Self;
   FCanvasPanel.Align := alClient;
@@ -414,12 +415,19 @@ procedure TMainForm.CreateSidePanel;
   end;
 
 var
-  AlignSheet, LayersSheet, FabricsSheet: TTabSheet;
+  PropertySheet, AlignSheet, LayersSheet, FabricsSheet: TTabSheet;
 begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
-  FSidePanel.Align := alLeft;
+  FSidePanel.Align := alRight;
   FSidePanel.Width := Scale96ToForm(490);
+  FSidePanel.TabPosition:= tpLeft;
+  PropertySheet := FSidePanel.AddTabSheet;
+  PropertySheet.Caption := rsTabProperties;
+  FProperties := TPropertiesPanel.Create(Self);
+  FProperties.Parent := PropertySheet;
+  FProperties.Align := alClient;
+  FProperties.Document := FDocument;
   FObjects := TObjectsPanel(AddTab(rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
@@ -459,8 +467,8 @@ begin
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
   FSideSplitter := TSplitter.Create(Self);
   FSideSplitter.Parent := Self;
-  FSideSplitter.Align := alLeft;
-  FSideSplitter.Left := FSidePanel.Left + FSidePanel.Width;
+  FSideSplitter.Align := alRight;
+  FSideSplitter.Left := FSidePanel.Left - FSideSplitter.Width;
   FSideItem := TMenuItem.Create(MainMenu);
   FSideItem.Caption := rsMenuViewSidePanel;
   FSideItem.OnClick := @SideItemClick;

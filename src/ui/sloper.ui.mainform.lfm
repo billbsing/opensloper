@@ -1,9 +1,11 @@
 object MainForm: TMainForm
-  Left = 200
+  Left = 415
   Height = 700
-  Top = 120
+  Top = 210
   Width = 1100
   Caption = 'OpenSloper'
+  ClientHeight = 700
+  ClientWidth = 1100
   Menu = MainMenu
   Position = poScreenCenter
   LCLVersion = '4.99.0.0'
@@ -13,19 +15,19 @@ object MainForm: TMainForm
   OnShow = FormShow
   object StatusBar: TStatusBar
     Left = 0
-    Height = 23
-    Top = 677
+    Height = 22
+    Top = 678
     Width = 1100
-    Panels = <
+    Panels = <    
       item
         Width = 190
-      end
+      end    
       item
         Width = 150
-      end
+      end    
       item
         Width = 200
-      end
+      end    
       item
         Width = 50
       end>
