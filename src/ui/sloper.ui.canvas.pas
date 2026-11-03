@@ -171,6 +171,8 @@ type
     procedure SelectNone;
     // The pattern as it was last seen, or fitted
     procedure RestoreView;
+    // The objects the canvas is naming now, for an export that matches it
+    function ShownLabelKeys: TStringArray;
     // Selects these objects, as a click on the canvas would
     procedure SelectObjects(const Keys: TStringArray);
     // Brings the selection into view at the current zoom
@@ -1177,6 +1179,13 @@ begin
     Result := FLabelMode;
 end;
 
+function TPatternCanvas.ShownLabelKeys: TStringArray;
+begin
+  Result := nil;
+  if FDocument <> nil then
+    Result := LabelKeys(FDocument.Pattern, ShownLabelMode, FSelection, FHoverKey, ToolLabelKeys);
+end;
+
 // What a drawing tool is working with: the start of a line and the snap
 function TPatternCanvas.ToolLabelKeys: TStringArray;
 begin
@@ -2035,7 +2044,7 @@ var
   Screen: TVec2;
   InkColor: TBGRAPixel;
 begin
-  for Key in LabelKeys(FDocument.Pattern, ShownLabelMode, FSelection, FHoverKey, ToolLabelKeys) do
+  for Key in ShownLabelKeys do
   begin
     Node := FDocument.Pattern.FindNode(Key);
     if Node is TPointObject then

@@ -31,6 +31,7 @@ type
     FPattern: TPattern;
     procedure Build;
     function Render(Labels: boolean = False): string;
+    function RenderChosen(const Keys: TStringArray): string;
     procedure AssertHas(const Msg, Part, Text: string);
     procedure AssertLacks(const Msg, Part, Text: string);
     procedure BuildPiece;
@@ -44,6 +45,9 @@ type
     procedure TestPathHasEverySegment;
     procedure TestConstructionIsDashed;
     procedure TestLabels;
+    procedure TestAllLabelsEdges;
+    procedure TestChosenLabelsOnly;
+    procedure TestChosenNoneLabelsNothing;
     procedure TestViewBoxHasAMargin;
     procedure TestRegion;
     procedure TestFailingObjectIsRed;
@@ -148,6 +152,42 @@ begin
   Build;
   AssertLacks('off by default', '<text', Render);
   AssertHas('on', '>C</text>', Render(True));
+end;
+
+procedure TTestDraftSVG.TestAllLabelsEdges;
+begin
+  Build;
+  AssertHas('the line, as on screen', '>Line_A_B</text>', Render(True));
+end;
+
+function TTestDraftSVG.RenderChosen(const Keys: TStringArray): string;
+var
+  Options: TDraftSVGOptions;
+begin
+  Options := DefaultDraftSVGOptions;
+  Options.Labels := True;
+  Options.LabelChosen := True;
+  Options.LabelKeys := Keys;
+  Result := DraftToSVG(FPattern, Options);
+end;
+
+// As the canvas's contextual labels: only what it was showing
+procedure TTestDraftSVG.TestChosenLabelsOnly;
+var
+  Text: string;
+begin
+  Build;
+  Text := RenderChosen([FPattern.FindObject('C').Key, FPattern.FindObject('Line_A_B').Key]);
+  AssertHas('the point chosen', '>C</text>', Text);
+  AssertHas('the edge chosen', '>Line_A_B</text>', Text);
+  AssertLacks('not the others', '>A</text>', Text);
+  AssertHas('every point is still drawn', 'data-name="A"', Text);
+end;
+
+procedure TTestDraftSVG.TestChosenNoneLabelsNothing;
+begin
+  Build;
+  AssertLacks('none chosen', '<text', RenderChosen(nil));
 end;
 
 procedure TTestDraftSVG.TestViewBoxHasAMargin;

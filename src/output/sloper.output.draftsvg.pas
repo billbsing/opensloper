@@ -26,11 +26,16 @@ unit Sloper.Output.DraftSVG;
 interface
 
 uses
-  Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Pattern;
 
 type
   TDraftSVGOptions = record
+    // Names every point, edge and piece, as the canvas's All labels
     Labels: boolean;
+    // Names only these objects, as the canvas was showing them; Labels is
+    // then ignored
+    LabelChosen: boolean;
+    LabelKeys: TStringArray;
     // Pieces are left unfilled, as with View -> Piece Fills off
     NoFills: boolean;
     // Show only this part of the draft, in model millimetres
@@ -47,7 +52,7 @@ function EscapeXML(const Text: string): string;
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece;
+  Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece;
 
 const
   CoordinateDecimals = 3;
@@ -250,6 +255,21 @@ begin
     [Num(Middle.X), Num(-Middle.Y), Num(Extent * FontShare), StateColor(Piece.State, InkColor), EscapeXML(Pattern.PieceCaption(Piece))]) + #10;
 end;
 
+function LabelElement(const At: TVec2; Extent: double; const Color, Text: string): string;
+var
+  Offset: double;
+begin
+  Offset := Extent * PointShare * 1.5;
+  Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
+    [Num(At.X + Offset), Num(-At.Y - Offset), Num(Extent * FontShare), Color, EscapeXML(Text)]) + #10;
+end;
+
+// Halfway along the edge, where the canvas puts its name
+function EdgeLabelElement(Edge: TEdgeObject; Extent: double): string;
+begin
+  Result := LabelElement(Edge.PointAtLength(Edge.Length / 2), Extent, StateColor(Edge.State, InkColor), Edge.DisplayName);
+end;
+
 function PointElement(Point: TPointObject; Extent: double; Labels: boolean): string;
 var
   Radius: double;
@@ -260,9 +280,7 @@ begin
   Result := Format('<circle data-id="%s" data-name="%s" cx="%s" cy="%s" r="%s" fill="%s"/>',
     [Point.Key, EscapeXML(Point.DisplayName), Num(Point.Position.X), Num(-Point.Position.Y), Num(Radius), Color]) + #10;
   if Labels then
-    Result := Result + Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
-      [Num(Point.Position.X + Radius * 1.5), Num(-Point.Position.Y - Radius * 1.5), Num(Extent * FontShare), Color,
-      EscapeXML(Point.DisplayName)]) + #10;
+    Result := Result + LabelElement(Point.Position, Extent, Color, Point.DisplayName);
 end;
 
 function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
@@ -271,6 +289,19 @@ var
   Index: integer;
   DraftObject: TDraftObject;
   Point: TPointObject;
+
+  function Labelled(DraftObject: TDraftObject): boolean;
+  var
+    Key: string;
+  begin
+    if not Options.LabelChosen then
+      Exit(Options.Labels);
+    for Key in Options.LabelKeys do
+      if Key = DraftObject.Key then
+        Exit(True);
+    Result := False;
+  end;
+
 begin
   View := DraftView(Pattern, Options);
   Result := SVGStart(View);
@@ -285,7 +316,11 @@ begin
   begin
     DraftObject := Pattern.Objects[Index];
     if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) then
+    begin
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
+      if Labelled(DraftObject) then
+        Result := Result + EdgeLabelElement(TEdgeObject(DraftObject), View.Extent);
+    end;
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
@@ -293,13 +328,13 @@ begin
     if (DraftObject is TPieceObject) and DraftObject.HasResult then
     begin
       Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
-      if Options.Labels then
+      if Labelled(DraftObject) then
         Result := Result + PieceLabelElement(Pattern, TPieceObject(DraftObject), View.Extent);
     end;
   end;
   for Point in Pattern.AllPoints do
     if Point.HasResult then
-      Result := Result + PointElement(Point, View.Extent, Options.Labels);
+      Result := Result + PointElement(Point, View.Extent, Labelled(Point));
   Result := Result + '</svg>' + #10;
 end;
 

@@ -42,9 +42,6 @@ Have the anotations appear at the highest Z-order , over the design. The user ca
 Add, Edit, Delete, Move anotations in the design page.
 Set font, and font size for anotations.
 
-#### SVG Export in designer
-When doing SVG export on the design page - change to show the labels that are shown on the screen by the user, if contextual - then use only contextual labels, if all then show all else None. 
-
 #### New Circle and Rectangle creation
 Now we can merge and break points...
 Circle and Rectangle, drawing tools, do not need to select a point first. After creating a circle the point is automatically placed in the midle. The rectangle places 4 points automaticcaly.

@@ -844,8 +844,8 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 
 File → Export Draft SVG… in the drafting app, and `opensloper-cli export-draft PATTERN [--labels] [-m FILE] [-s SIZE] [-o FILE]`, write the draft as a true-scale SVG in millimetres: the construction itself, with its points, construction lines, curves and pieces, for teaching, documentation, review and marking up in Inkscape. It is not for cutting, which the publish app's SVG does from finished pieces and needs a layout; this needs only a draft, even an unfinished one. The drawing is `DraftToSVG`, as `render` uses.
 
-- It matches the screen. In the window it follows View → Piece Fills, draws labels unless Labels is None, and takes the pattern as it stands, saved or not. On a contextual Labels setting it draws them all, since nothing is hovered in a file.
-- The CLI draws with fills on and labels only with `--labels`. Problems are warnings: failing objects draw in their state colours, or are left out if they have never been computed, and the file is still written.
+- It matches the screen. In the window it follows View → Piece Fills, takes the pattern as it stands, saved or not, and names exactly what the canvas is naming: everything on All, nothing on None, and on Contextual the selection with its inputs and dependents (`TPatternCanvas.ShownLabelKeys` into `LabelChosen` and `LabelKeys`). Points, edges and pieces are named as on screen, an edge halfway along it. Every object is drawn either way; only the names change.
+- The CLI draws with fills on and names everything, points, edges and pieces, only with `--labels`; `render`'s `labels` does the same. Problems are warnings: failing objects draw in their state colours, or are left out if they have never been computed, and the file is still written.
 - The suggested file is the pattern's name with `.svg`.
 
 ### Other exports and packing

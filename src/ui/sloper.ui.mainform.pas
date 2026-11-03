@@ -1119,7 +1119,10 @@ begin
       Exit;
     Options := DefaultDraftSVGOptions;
     Options.NoFills := not FCanvas.ShowPieceFills;
-    Options.Labels := FCanvas.LabelMode <> lmNone;
+    // The names the canvas is showing: all, none, or for Contextual the
+    // selection and what it uses and is used by
+    Options.LabelChosen := True;
+    Options.LabelKeys := FCanvas.ShownLabelKeys;
     if WriteTextFile(Dialog.FileName, DraftToSVG(FDocument.Pattern, Options), Reason) then
       StatusBar.Panels[PanelMessage].Text := Format(rsExportDraftDone, [ExtractFileName(Dialog.FileName)])
     else
