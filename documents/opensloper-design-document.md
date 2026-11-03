@@ -824,7 +824,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Problems.** A missing or unreadable file, a deleted piece, a failing piece and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, a pattern with no pieces, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. A source's `size` must be in its measurement file; with none given, a size table uses its first size. The title block names the size.
 - **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration scales everything drawn at true size, including the test square.
 - **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Material sheets and layouts with a machine profile open it out to a whole piece instead (see Accessories).
-- **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font.
+- **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font. Annotations will add TrueType embedding for their chosen fonts (see Annotations).
 - **The window** (`Sloper.Publish.MainForm`, `Sloper.Publish.PreviewCanvas`, with the LCL-free `Sloper.Output.Preview`) is one screen: the pages with the pieces on them, and beside them four tabs (Pieces: turn, flip, pack, the tray; Patterns: the sources; Output: paper settings and the exports; Notes: title block and sheet notes) above an always-visible problems list. It takes a `.slayout`, or a `.sloper` to start a layout for. A page's printable area is drawn white, and grey when blank. Click selects a piece and dragging moves it, on a 0.5 mm grid, as one undo step; Escape cancels. The wheel zooms about the cursor; middle-drag or Space+drag pans.
 - **Undo** (`TLayoutDocument`) records the layout's text before each change, as `TPatternDocument` does, and reads the patterns again on undo. A run of paper setting changes merges into one step.
 - **Keeping in step.** Once a second the window compares a checksum of each source's pattern and measurement files, since file times only go to the second. A changed file has to read the same on two checks before it is loaded, so a save still in progress is not read. The status bar then says what was read, and new pieces show as unplaced. Reload Patterns reads everything again by hand.
@@ -976,7 +976,7 @@ Notes, callouts and a title block are first-class objects that print with the pa
 
 **Text and style:**
 
-- Size set in mm or pt at true print size, so text prints at a known size whatever the zoom
+- The user chooses each annotation's font by name, from the fonts installed on the computer, and its size in points at true print size, so text prints at a known size whatever the zoom
 - Multi-line text, bold and italic, left/centre/right alignment, optional box or white background so text stays readable over lines
 - Leader arrows with a small set of end styles (arrow, dot, none)
 
@@ -987,6 +987,13 @@ Notes, callouts and a title block are first-class objects that print with the pa
 - The print screen offers a title block template (position, which fields to show), placed once per print, with an optional copy on every tiled page
 
 **Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and pattern-space annotations are saved in the pattern file with everything else. Sheet-space annotations (title block, sheet notes) belong to a printed layout, so they are edited in the publish app and saved in the layout file.
+
+**Decided (2026-11-03), not built yet:**
+
+- **Scope.** The first version is everything above in one go: notes and callouts, anchoring, live fields (`{pattern.name}` and the others, and `{=Line_A_B.length}`), font name and size, bold, italic, alignment, box or white background, leader end styles, print-or-screen, and showing or hiding annotations. The to-do list's asks (drawn above the pattern, show and hide, add, edit, delete and move on the canvas, font and size) are part of it.
+- **Fonts on screen and in SVG.** The canvas draws with the chosen font. SVG files name it in `font-family`, so a viewer without it substitutes another.
+- **Fonts in PDF.** `TPDFWriter` embeds the chosen font's TrueType file, so a print matches the screen. TrueType outlines only at first, with WinAnsi (Latin-1) text; an OpenType (CFF) font, or one not installed, falls back to Helvetica with a warning in the problems list. A PDF grows by the font file's size. The writer stays deterministic, since the whole file is embedded as it is.
+- **To settle when building:** which annotations a layout prints (likely those anchored to a piece, or lying inside its cutting line, following that piece's placement, and only those marked print), whether DXF carries text, how the font file is found from its name on each platform (likely FCL's `fpttf` font cache), and how a note's file stores the font (likely `font`, `bold`, `italic` beside `size`).
 
 ```json
 { "id": 20, "type": "callout",

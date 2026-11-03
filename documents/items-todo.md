@@ -38,6 +38,11 @@ Have the anotations appear at the highest Z-order , over the design. The user ca
 Add, Edit, Delete, Move anotations in the design page.
 Set font, and font size for anotations.
 
+Decided 2026-11-03 (see Annotations in the design document; not started):
+- The user chooses the font name (installed fonts) and size (points) for each annotation.
+- The PDF embeds the chosen TrueType font so prints match the screen; OpenType/CFF or a missing font falls back to Helvetica with a warning.
+- First version is everything in the design: notes, callouts, live fields, bold/italic, alignment, box/background, leader ends, print-or-screen, show/hide.
+
 #### New Circle and Rectangle creation
 Now we can merge and break points...
 Circle and Rectangle, drawing tools, do not need to select a point first. After creating a circle the point is automatically placed in the midle. The rectangle places 4 points automaticcaly.
