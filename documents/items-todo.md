@@ -30,10 +30,6 @@ Point names 'M, MyNode, O' -> MyNode
 This is the opposite of tool merge, a single point is broken up into multiple points, depending on the number of connecting objects.
 The new point names, are the same as a copy so point 'M' -> 'M1, M2'.
 
-#### CHange a line or curve type
-Allow the user to selelct a line or curve, and change it's type, using the property panel, or using an tool.
-So Curve -> Line and Line -> Curve.
-
 #### Locking an object
 An object can be locked and the user can do any operation with this except the formular can still be run, and the object can still move based on the formular values.
 

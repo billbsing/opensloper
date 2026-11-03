@@ -187,6 +187,8 @@ type
     procedure AddRectangleHere;
     // A construction edge parallel to the selected edge
     procedure OffsetSelection(Side: TOffsetSide);
+    // Changes the selected edges to lines or curves in place, as one undo step
+    procedure ConvertSelection(ToCurve: boolean);
     // Rounds the corner between the two selected edges
     procedure RoundSelectedCorner;
     // Adds a marking to the selected piece from the point or edge selected with it
@@ -224,6 +226,9 @@ resourcestring
   rsCanvasAddRectangle = 'Add rectangle';
   rsCanvasPickEdgeToOffset = 'Select the edge to offset first';
   rsCanvasAddOffset = 'Add offset edge';
+  rsCanvasPickEdgesToConvert = 'Select the edges to change first';
+  rsCanvasConvertToLine = 'Change to line';
+  rsCanvasConvertToCurve = 'Change to curve';
   rsCanvasPickCornerEdges = 'Select the two straight edges that meet at the corner';
   rsCanvasRoundCorner = 'Round corner';
   rsCanvasPickHole = 'Select the piece and the point for the hole';
@@ -892,6 +897,46 @@ begin
   if FDocument.Commit(Added <> nil) then
     SetSelection([Key])
   else
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.ConvertSelection(ToCurve: boolean);
+var
+  Key, Reason: string;
+  Node: TEvalNode;
+  Edges: TStringArray;
+  Done: boolean;
+begin
+  if FDocument = nil then
+    Exit;
+  Edges := nil;
+  for Key in FSelection do
+    if FDocument.Pattern.FindNode(Key) is TEdgeObject then
+      Insert(Key, Edges, Length(Edges));
+  if Edges = nil then
+  begin
+    ShowMessageText(rsCanvasPickEdgesToConvert);
+    Exit;
+  end;
+  if ToCurve then
+    FDocument.BeginChange(rsCanvasConvertToCurve)
+  else
+    FDocument.BeginChange(rsCanvasConvertToLine);
+  Done := True;
+  // Each edge keeps its ID, so it is found again after the one before it changed
+  for Key in Edges do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if ToCurve then
+      Done := FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)) <> nil
+    else
+      Done := FDocument.Pattern.ConvertToLine(TEdgeObject(Node)) <> nil;
+    if not Done then
+      Break;
+  end;
+  Reason := FDocument.Pattern.LastError;
+  if not FDocument.Commit(Done) then
     ShowMessageText(Reason);
   Invalidate;
 end;

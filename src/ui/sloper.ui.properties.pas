@@ -46,6 +46,7 @@ type
   end;
 
   TColumnDragEvent = procedure(Sender: TObject; NewLeft: integer) of object;
+  TPropertiesMessageEvent = procedure(Sender: TObject; const AText: string) of object;
 
   // The draggable strip between the name and value columns
   TColumnDivider = class(TGraphicControl)
@@ -78,6 +79,11 @@ type
     FCutEdit: TSpinEdit;
     FMirrorBox: TCheckBox;
     FFoldBox: TComboBox;
+    // A line, curve or arc's type, which can be changed
+    FTypeBox: TComboBox;
+    // The edge waiting to be changed, once the type box's handler has returned
+    FConvertKey: string;
+    FOnMessage: TPropertiesMessageEvent;
     // The edge of each fold choice; '' for none
     FFoldKeys: TStringArray;
     // One choice per fabric, then none
@@ -144,6 +150,8 @@ type
     procedure RefreshPieceRows(Piece: TPieceObject);
     procedure CutChange(Sender: TObject);
     procedure FoldChange(Sender: TObject);
+    procedure TypeChange(Sender: TObject);
+    procedure ConvertQueued(Data: PtrInt);
     procedure FabricChange(Sender: TObject);
     procedure FillStyleChange(Sender: TObject);
     procedure FillColorChange(Sender: TObject);
@@ -164,6 +172,8 @@ type
     procedure FocusName;
     // The part of a row's width given to names; kept between sessions by the main form
     property NameShare: double read FNameShare write SetNameShare;
+    // Says why a change was refused
+    property OnMessage: TPropertiesMessageEvent read FOnMessage write FOnMessage;
   end;
 
 resourcestring
@@ -208,6 +218,7 @@ resourcestring
   rsPropNoFold = 'None';
   rsPropChangeCut = 'Change cut';
   rsPropChangeFold = 'Change fold';
+  rsPropChangeType = 'Change edge type';
   rsPropValue = 'Value';
   rsPropEdit = 'Change %s';
   rsPropRename = 'Rename';
@@ -324,6 +335,7 @@ end;
 
 destructor TPropertiesPanel.Destroy;
 begin
+  Application.RemoveAsyncCalls(Self);
   SetDocument(nil);
   inherited Destroy;
 end;
@@ -429,6 +441,7 @@ begin
   FCutEdit := nil;
   FMirrorBox := nil;
   FFoldBox := nil;
+  FTypeBox := nil;
   FFoldKeys := nil;
   FFabricBox := nil;
   FFillStyleBox := nil;
@@ -622,7 +635,22 @@ begin
     FDivider.Parent := Self;
     FDivider.OnDrag := @DividerDrag;
     SetLength(FRefusals, Node.FieldCount + RefusalBase);
-    AddTextRow(rsPropType, TypeCaption(Node), Gap);
+    // A line, curve or arc the user drew can change type; copies and parts follow other edges
+    if (Node.ClassType = TLineObject) or (Node.ClassType = TCurveObject) or (Node.ClassType = TArcObject) then
+    begin
+      FTypeBox := TComboBox.Create(Self);
+      FTypeBox.Style := csDropDownList;
+      if Node is TArcObject then
+        FTypeBox.Items.Add(rsTypeArc);
+      FTypeBox.Items.Add(rsTypeLine);
+      if not (Node is TArcObject) then
+        FTypeBox.Items.Add(rsTypeCurve);
+      FTypeBox.ItemIndex := FTypeBox.Items.IndexOf(TypeCaption(Node));
+      FTypeBox.OnChange := @TypeChange;
+      AddRow(rsPropType, FTypeBox, Gap);
+    end
+    else
+      AddTextRow(rsPropType, TypeCaption(Node), Gap);
     if Node is TRepeatPoint then
       AddTextRow(rsPropName, TRepeatPoint(Node).Name, RowGap)
     else if (Node is TDraftObject) or (Node is TVariable) then
@@ -1127,6 +1155,43 @@ procedure TPropertiesPanel.RefreshTransformRows(Node: TEvalNode);
 begin
   if FMadeByText <> nil then
     FMadeByText.Caption := FDocument.Pattern.FindNode(CopyTransformKey(Node)).DisplayName;
+end;
+
+// Changing type replaces the object and rebuilds the panel, box and all, so
+// it waits until this handler has returned
+procedure TPropertiesPanel.TypeChange(Sender: TObject);
+begin
+  FConvertKey := FKey;
+  Application.QueueAsyncCall(@ConvertQueued, FTypeBox.ItemIndex);
+end;
+
+procedure TPropertiesPanel.ConvertQueued(Data: PtrInt);
+var
+  Node: TEvalNode;
+  Wanted, Reason: string;
+  Done: boolean;
+begin
+  if (FDocument = nil) or (FConvertKey = '') or (FTypeBox = nil) or (FConvertKey <> FKey) then
+    Exit;
+  Node := FDocument.Pattern.FindNode(FConvertKey);
+  FConvertKey := '';
+  if not (Node is TEdgeObject) or (Data < 0) or (Data >= FTypeBox.Items.Count) then
+    Exit;
+  Wanted := FTypeBox.Items[Data];
+  if Wanted = TypeCaption(Node) then
+    Exit;
+  FDocument.BeginChange(rsPropChangeType);
+  if Wanted = rsTypeLine then
+    Done := FDocument.Pattern.ConvertToLine(TEdgeObject(Node)) <> nil
+  else
+    Done := FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)) <> nil;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Done) then
+    Exit;
+  // The box goes back to the type the edge still has
+  Rebuild;
+  if Assigned(FOnMessage) then
+    FOnMessage(Self, Reason);
 end;
 
 procedure TPropertiesPanel.FoldChange(Sender: TObject);

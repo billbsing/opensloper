@@ -113,6 +113,7 @@ type
     procedure TestEdgeAllowance;
     procedure TestGrainlineAndNotches;
     procedure TestCutAndFold;
+    procedure TestConvertEdge;
     procedure TestAddVariable;
     procedure TestAddIsOneUndoStep;
     procedure TestAddRefusals;
@@ -971,6 +972,27 @@ begin
   Call('undo');
   Call('get_object', '{"name": "Front"}');
   AssertEquals('undone', 2, Answer.Get('notches', 0));
+end;
+
+// The piece keeps its edge, now a curve, and undo brings the line back
+procedure TTestAPI.TestConvertEdge;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
+  Call('convert_edge', '{"name": "Line_C_D", "to": "curve"}');
+  AssertEquals('curve', Answer.Get('type', ''));
+  AssertEquals('named for its type', 'Curve_C_D', Answer.Get('name', ''));
+  Call('get_object', '{"name": "Front"}');
+  AssertEquals('the piece is fine', 'valid', Answer.Get('state', ''));
+  Call('convert_edge', '{"name": "Curve_C_D", "to": "curve"}');
+  AssertEquals('already one', RpcRefused, ErrorCode);
+  Call('convert_edge', '{"name": "Curve_C_D", "to": "spiral"}');
+  AssertEquals('no such type', RpcInvalidParams, ErrorCode);
+  Call('convert_edge', '{"name": "Front", "to": "line"}');
+  AssertEquals('not an edge', RpcRefused, ErrorCode);
+  Call('undo');
+  Call('get_object', '{"name": "Line_C_D"}');
+  AssertEquals('back to a line', 'line', Answer.Get('type', ''));
 end;
 
 procedure TTestAPI.TestCutAndFold;

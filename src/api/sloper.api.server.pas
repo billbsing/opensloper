@@ -97,6 +97,7 @@ type
     function DoRemoveMarking(Params: TJSONObject): TJSONData;
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
+    function DoConvertEdge(Params: TJSONObject): TJSONData;
     function FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
     function FabricsToJSON: TJSONData;
     function DoAddFabric(Params: TJSONObject): TJSONData;
@@ -141,6 +142,8 @@ resourcestring
   rsApiRenderFormat = 'Format "%s" is not available; use svg';
   rsApiPieceExists = '%s already covers this region';
   rsApiNotAPiece = '%s is not a piece';
+  rsApiNotAnEdge = '%s is not an edge';
+  rsApiConvertEdge = 'Change edge type';
   rsApiNotInPiece = '%s is not part of %s';
   rsApiNotASeam = '%s is not a seam';
   rsApiBadSeamSide = 'Parameter "%s" must be a list of objects with a "piece" and an "edge"';
@@ -1554,6 +1557,29 @@ begin
   Result := AddedNode(Piece);
 end;
 
+// In place: the edge keeps its ID, so whatever used it still does
+function TApiServer.DoConvertEdge(Params: TJSONObject): TJSONData;
+var
+  Target: TEvalNode;
+  ToCurve: boolean;
+  Converted: TEdgeObject;
+begin
+  Target := FindTarget(Params);
+  if not (Target is TEdgeObject) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotAnEdge, [Target.DisplayName]));
+  if (Params = nil) or (Params.Find('to') = nil) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['to']));
+  ToCurve := ChoiceParam(Params, 'to', ['line', 'curve']) = 1;
+  FDocument.BeginChange(rsApiConvertEdge);
+  if ToCurve then
+    Converted := FDocument.Pattern.ConvertToCurve(TEdgeObject(Target))
+  else
+    Converted := FDocument.Pattern.ConvertToLine(TEdgeObject(Target));
+  if Converted = nil then
+    RefuseChange;
+  Result := AddedNode(Converted);
+end;
+
 function TApiServer.SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
 var
   List: TJSONData;
@@ -1718,6 +1744,7 @@ begin
     'remove_marking': Result := DoRemoveMarking(Params);
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
+    'convert_edge': Result := DoConvertEdge(Params);
     'list_fabrics': Result := FabricsToJSON;
     'add_fabric': Result := DoAddFabric(Params);
     'rename_fabric': Result := DoRenameFabric(Params);

@@ -146,6 +146,7 @@ type
     procedure RectangleClick(Sender: TObject);
     procedure OffsetClick(Sender: TObject);
     procedure RoundCornerClick(Sender: TObject);
+    procedure ConvertClick(Sender: TObject);
     procedure MarkingClick(Sender: TObject);
     procedure RemoveMarkingClick(Sender: TObject);
     procedure SuggestSeamsClick(Sender: TObject);
@@ -244,6 +245,8 @@ resourcestring
   rsMenuToolsOffsetLeft = 'O&ffset Edge Left';
   rsMenuToolsOffsetRight = 'Offset Edge Ri&ght';
   rsMenuToolsRoundCorner = 'Ro&und Corner';
+  rsMenuToolsToLine = 'Change to Li&ne';
+  rsMenuToolsToCurve = 'Change to Curv&e';
   rsMenuToolsHole = 'Mark &Hole';
   rsMenuToolsPlacement = 'Mark Placement Line';
   rsMenuToolsFoldLine = 'Mark Fold Line';
@@ -391,6 +394,7 @@ begin
   FProperties.Parent := PropertySheet;
   FProperties.Align := alClient;
   FProperties.Document := FDocument;
+  FProperties.OnMessage := @ListPanelMessage;
   FObjects := TObjectsPanel(AddTab(rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
@@ -787,6 +791,10 @@ begin
   AddCommand(NewAction(rsMenuToolsRoundCorner, aiRoundCorner, @RoundCornerClick));
   AddCommand(NewAction(rsMenuToolsOffsetLeft, aiOffsetLeft, @OffsetClick, 0, Ord(osLeft)));
   AddCommand(NewAction(rsMenuToolsOffsetRight, aiOffsetRight, @OffsetClick, 0, Ord(osRight)));
+  // Menu only: on the toolbar they would look like the Line and Curve tools
+  MenuTools.Add(NewLine);
+  AddMenuItem(MenuTools, NewAction(rsMenuToolsToLine, aiToLine, @ConvertClick, 0, Ord(False)));
+  AddMenuItem(MenuTools, NewAction(rsMenuToolsToCurve, aiToCurve, @ConvertClick, 0, Ord(True)));
   AddBreak;
   for Marking := Low(TMarkingKind) to High(TMarkingKind) do
     AddCommand(NewAction(MarkingCaptions[Marking], MarkingIcons[Marking], @MarkingClick, 0, Ord(Marking)));
@@ -818,6 +826,12 @@ end;
 procedure TMainForm.OffsetClick(Sender: TObject);
 begin
   FCanvas.OffsetSelection(TOffsetSide(TComponent(Sender).Tag));
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.ConvertClick(Sender: TObject);
+begin
+  FCanvas.ConvertSelection(TComponent(Sender).Tag = Ord(True));
   FCanvas.SetFocus;
 end;
 

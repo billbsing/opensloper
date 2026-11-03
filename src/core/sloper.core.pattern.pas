@@ -126,6 +126,8 @@ type
     // Node read itself; frees it either way
     function InstallFormula(Node: TEvalNode; const AField: string; NewFormula: TFormula): boolean;
     function ReplacePoint(Point, NewPoint: TPointObject; const Names, Texts: array of string): boolean;
+    function CheckConvertible(Edge: TEdgeObject): boolean;
+    function ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
     function AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
       const Names, Texts: array of string): boolean;
     function DerivedEdgeName(AEdge: TEdgeObject): string;
@@ -247,6 +249,14 @@ type
     function ConvertToFree(Point: TPointObject; const XText, YText: string): TFreePoint;
     function ConvertToBetween(Point: TPointObject; const FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
     function ConvertToAlongEdge(Point: TPointObject; const EdgeId: string; FromEnd: boolean; Mode: TAlongMode; const Value: string): TAlongEdgePoint;
+    // An edge changed between line and curve in place: its ID, role and place
+    // stay, so pieces, seams and formulas that use it go on using it, and a
+    // name the user gave it is kept. An arc becomes a line between two new
+    // points at its ends, offsets from its centre by its own formulas. A new
+    // curve starts straight, its handles a third of the way along. Nil with
+    // LastError set when refused.
+    function ConvertToLine(Edge: TEdgeObject): TLineObject;
+    function ConvertToCurve(Edge: TEdgeObject): TCurveObject;
     // Whether From reads Target, directly or through others
     function Reaches(From, Target: TEvalNode): boolean;
     function Rename(Node: TEvalNode; const NewName: string): boolean;
@@ -325,6 +335,12 @@ resourcestring
   rsPatternUsesItself = '%s cannot use itself';
   rsPatternRepeatSamePoint = 'A repeat needs two different points';
   rsPatternRepeatItem = '%s is part of a repeat, so it cannot be changed on its own';
+  rsPatternNotConvertible = '%s cannot be changed: only lines, curves and arcs can become a line or a curve';
+  rsPatternAlreadyLine = '%s is already a line';
+  rsPatternAlreadyCurve = '%s is already a curve';
+  rsPatternCircleNoEnds = '%s is a whole circle, so it has no ends to join with a line';
+  rsPatternOnlyLineToCurve = 'Only a line can become a curve, and %s is an arc';
+  rsPatternAngleInUse = '%s reads %s.angle, which only a line has, so it cannot become a curve';
   rsPatternCycle = '%s cannot use %s, because %s already uses %s';
   rsPatternInUse = '%s is used by %s';
   rsPatternNoField = '%s has no formula "%s"';
@@ -366,7 +382,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.Names;
+  Math, Sloper.Core.Names;
 
 const
   // Not translated: a name has to keep to the name rules
@@ -2252,6 +2268,140 @@ begin
   finally
     FreeAndNil(NewPoint);
   end;
+end;
+
+// Lines, curves and arcs the user drew; copies and parts follow other edges
+function TPattern.CheckConvertible(Edge: TEdgeObject): boolean;
+begin
+  if Edge is TEdgeCopy then
+    Exit(SetError(Format(rsPatternCopyOfTransform, [Edge.DisplayName, FindNode(TEdgeCopy(Edge).TransformKey).DisplayName])));
+  if Edge.ClassType = TCircleObject then
+    Exit(SetError(Format(rsPatternCircleNoEnds, [Edge.DisplayName])));
+  if (Edge.ClassType <> TLineObject) and (Edge.ClassType <> TCurveObject) and (Edge.ClassType <> TArcObject) then
+    Exit(SetError(Format(rsPatternNotConvertible, [Edge.DisplayName])));
+  Result := True;
+end;
+
+// As ReplacePoint, for an edge: NewEdge takes Edge's ID, place, role and name,
+// or a fresh derived name when Edge's was derived
+function TPattern.ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
+var
+  Key: string;
+  FieldIndex, Slot: integer;
+begin
+  Result := False;
+  try
+    for FieldIndex := 0 to High(Names) do
+      if not NewEdge.Field(Names[FieldIndex]).ParseStored(Texts[FieldIndex]) then
+      begin
+        SetError(NewEdge.Field(Names[FieldIndex]).ErrorMessage, Names[FieldIndex], NewEdge.Field(Names[FieldIndex]).ErrorPos);
+        Exit;
+      end;
+    for Key in NewEdge.InputKeys do
+      if not CheckNotInCircle(Edge, Key) then
+        Exit;
+    // The evaluator may hold the node; forget the old graph
+    FEvaluator.Rebuild(nil, FContext);
+    NewEdge.Role := Edge.Role;
+    NewEdge.NameIsDerived := Edge.NameIsDerived;
+    NewEdge.Name := Edge.Name;
+    Slot := FObjects.IndexOf(Edge);
+    FNodes.AddOrSetValue(Edge.Key, NewEdge);
+    // The list owns its objects, so this frees the old one
+    FObjects[Slot] := NewEdge;
+    if NewEdge.NameIsDerived then
+      NewEdge.Name := DerivedEdgeName(NewEdge);
+    NewEdge := nil;
+    OrderObjectsByInputs;
+    Result := True;
+  finally
+    FreeAndNil(NewEdge);
+  end;
+end;
+
+function TPattern.ConvertToLine(Edge: TEdgeObject): TLineObject;
+var
+  StartPoint, EndPoint: TOffsetPoint;
+  Radius: string;
+begin
+  Result := nil;
+  if not CheckConvertible(Edge) then
+    Exit;
+  if Edge is TLineObject then
+  begin
+    SetError(Format(rsPatternAlreadyLine, [Edge.DisplayName]));
+    Exit;
+  end;
+  if Edge is TArcObject then
+  begin
+    Radius := FormulaText(Edge, 'radius');
+    StartPoint := AddOffsetPoint('', TArcObject(Edge).Centre, omPolar, Radius, FormulaText(Edge, 'angle1'));
+    if StartPoint = nil then
+      Exit;
+    EndPoint := AddOffsetPoint('', TArcObject(Edge).Centre, omPolar, Radius, FormulaText(Edge, 'angle2'));
+    if EndPoint = nil then
+      Exit;
+    Result := TLineObject.Create(Edge.Key, StartPoint.Key, EndPoint.Key);
+  end
+  else
+    Result := TLineObject.Create(Edge.Key, Edge.StartKey, Edge.EndKey);
+  if not ReplaceEdge(Edge, Result, [], []) then
+    Result := nil;
+end;
+
+function TPattern.ConvertToCurve(Edge: TEdgeObject): TCurveObject;
+var
+  User: TEvalNode;
+  FieldIndex: integer;
+  Ref: TFormulaReference;
+  Direction, BackAngle, Handle: double;
+  Formats: TFormatSettings;
+
+  function Text(Value: double): string;
+  begin
+    Result := FloatToStr(RoundTo(Value, -1), Formats);
+  end;
+
+begin
+  Result := nil;
+  if not CheckConvertible(Edge) then
+    Exit;
+  if Edge is TCurveObject then
+  begin
+    SetError(Format(rsPatternAlreadyCurve, [Edge.DisplayName]));
+    Exit;
+  end;
+  if Edge is TArcObject then
+  begin
+    SetError(Format(rsPatternOnlyLineToCurve, [Edge.DisplayName]));
+    Exit;
+  end;
+  for User in UsersOf(Edge) do
+    for FieldIndex := 0 to User.FieldCount - 1 do
+      for Ref in User.Fields[FieldIndex].Formula.References do
+        if (ReferenceKey(Ref) = Edge.Key) and SameText(Ref.Prop, 'angle') then
+        begin
+          SetError(Format(rsPatternAngleInUse, [User.DisplayName, Edge.DisplayName]));
+          Exit;
+        end;
+  Formats := DefaultFormatSettings;
+  Formats.DecimalSeparator := '.';
+  // The handles are placed from where the line is now
+  if not Edge.HasResult then
+    Evaluate;
+  Direction := 0;
+  Handle := 0;
+  if Edge.HasResult then
+  begin
+    Direction := Edge.StartDirection;
+    Handle := Edge.Length / 3;
+  end;
+  // The end handle points back along the edge
+  BackAngle := FMod(Direction + 180, 360);
+  Result := TCurveObject.Create(Edge.Key, Edge.StartKey, Edge.EndKey);
+  if not ReplaceEdge(Edge, Result, ['angle1', 'length1', 'angle2', 'length2'],
+    [Text(Direction), Text(Handle), Text(BackAngle), Text(Handle)]) then
+    Result := nil;
 end;
 
 function TPattern.ConvertToFree(Point: TPointObject; const XText, YText: string): TFreePoint;

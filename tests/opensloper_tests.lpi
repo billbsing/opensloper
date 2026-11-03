@@ -77,6 +77,11 @@
         <UnitName Value="Sloper.Tests.IconSet"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.convertedge.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.ConvertEdge"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.seam.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Seam"/>
