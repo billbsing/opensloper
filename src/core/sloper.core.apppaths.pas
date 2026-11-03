@@ -46,6 +46,9 @@ type
     // or a folder up in the source tree; '' when it is not there
     class function CatalogueFile: string;
     class function CatalogueFileIn(const Folder: string): string;
+    // The toolbar and menu icons, found the same way; '' when they are not there
+    class function IconDir: string;
+    class function IconDirIn(const Folder: string): string;
     // Creates Dir if missing and returns it; folders are made on first use
     class function ForceDir(const Dir: string): string;
     // XDG rule: EnvValue when it is an absolute path, else Home + Fallback
@@ -64,6 +67,7 @@ const
   MeasurementsFolder = 'measurements';
   DataFolder = 'data';
   CatalogueFileName = 'measurement-catalogue.json';
+  IconFolder = 'icons';
   {$IFDEF WINDOWS}
   PublishFileName = 'opensloper-publish.exe';
   MeasurementsFileName = 'opensloper-measurements.exe';
@@ -208,6 +212,21 @@ begin
     Exit;
   Result := ExpandFileName(ConcatPaths([Folder, '..', DataFolder, CatalogueFileName]));
   if not FileExists(Result) then
+    Result := '';
+end;
+
+class function TAppPaths.IconDir: string;
+begin
+  Result := IconDirIn(ExeDir);
+end;
+
+class function TAppPaths.IconDirIn(const Folder: string): string;
+begin
+  Result := ConcatPaths([Folder, DataFolder, IconFolder]);
+  if DirectoryExists(Result) then
+    Exit;
+  Result := ExpandFileName(ConcatPaths([Folder, '..', DataFolder, IconFolder]));
+  if not DirectoryExists(Result) then
     Result := '';
 end;
 

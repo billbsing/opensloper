@@ -72,6 +72,11 @@
         <UnitName Value="Sloper.Tests.PatternView"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.iconset.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.IconSet"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.seam.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Seam"/>

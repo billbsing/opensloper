@@ -40,85 +40,69 @@ object MainForm: TMainForm
       Caption = '&File'
       object MenuFileNew: TMenuItem
         Caption = '&New'
-        OnClick = MenuFileNewClick
       end
       object MenuFileOpen: TMenuItem
         Caption = '&Open...'
-        OnClick = MenuFileOpenClick
       end
       object MenuFileSave: TMenuItem
         Caption = '&Save'
-        OnClick = MenuFileSaveClick
       end
       object MenuFileSaveAs: TMenuItem
         Caption = 'Save &As...'
-        OnClick = MenuFileSaveAsClick
       end
       object MenuFileSep1: TMenuItem
         Caption = '-'
       end
       object MenuFileMeasurements: TMenuItem
         Caption = '&Measurements...'
-        OnClick = MenuFileMeasurementsClick
       end
       object MenuFilePublish: TMenuItem
         Caption = '&Publish...'
-        OnClick = MenuFilePublishClick
       end
       object MenuFileExportDraft: TMenuItem
         Caption = 'E&xport Draft SVG...'
-        OnClick = MenuFileExportDraftClick
       end
       object MenuFileSep2: TMenuItem
         Caption = '-'
       end
       object MenuFileQuit: TMenuItem
         Caption = '&Quit'
-        OnClick = MenuFileQuitClick
       end
     end
     object MenuEdit: TMenuItem
       Caption = '&Edit'
       object MenuEditUndo: TMenuItem
         Caption = '&Undo'
-        OnClick = MenuEditUndoClick
       end
       object MenuEditRedo: TMenuItem
         Caption = '&Redo'
-        OnClick = MenuEditRedoClick
       end
       object MenuEditSep1: TMenuItem
         Caption = '-'
       end
       object MenuEditDelete: TMenuItem
         Caption = '&Delete'
-        OnClick = MenuEditDeleteClick
       end
     end
     object MenuView: TMenuItem
       Caption = '&View'
       object MenuViewZoomIn: TMenuItem
         Caption = 'Zoom &In'
-        OnClick = MenuViewZoomInClick
       end
       object MenuViewZoomOut: TMenuItem
         Caption = 'Zoom &Out'
-        OnClick = MenuViewZoomOutClick
       end
       object MenuViewFit: TMenuItem
         Caption = '&Fit Pattern'
-        OnClick = MenuViewFitClick
       end
       object MenuViewTrueSize: TMenuItem
         Caption = '&True Size'
-        OnClick = MenuViewTrueSizeClick
       end
     end
     object MenuHelp: TMenuItem
       Caption = '&Help'
       object MenuHelpAbout: TMenuItem
         Caption = '&About OpenSloper'
-        OnClick = MenuHelpAboutClick
       end
     end
   end

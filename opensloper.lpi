@@ -183,6 +183,16 @@
         <UnitName Value="Sloper.Core.Drag"/>
       </Unit>
       <Unit>
+        <Filename Value="src/ui/sloper.ui.iconset.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.IconSet"/>
+      </Unit>
+      <Unit>
+        <Filename Value="src/ui/sloper.ui.icons.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.Icons"/>
+      </Unit>
+      <Unit>
         <Filename Value="src/ui/sloper.ui.view.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.View"/>

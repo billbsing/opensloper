@@ -27,6 +27,7 @@ The project uses Lazarus/Free Pascal and is licensed GPLv3 or later.
 | Clipper2 | Polygon offsetting and booleans for seam allowance | Boost |
 | BGRABitmap | Antialiased canvas drawing, SVG | Modified LGPL |
 | fpvectorial (optional) | DXF/SVG/PDF export helpers | Modified LGPL |
+| Tabler Icons | Toolbar and menu icons, SVG in `data/icons` | MIT |
 
 Licence decisions:
 
@@ -410,6 +411,8 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
 - **Scroll bars** beside and below the canvas show where the view is, over the pattern with a margin round it and wherever the view has been panned to. They stay in place, greyed, when everything is showing, so that the canvas does not change size. After using one the keys go back to the canvas.
 - **Tools:** Select (S), Point (P), Line (L), Curve (C), Piece (K), Notch (T) and Seam (E), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
+- **Toolbars and icons:** every command is a `TAction` in one `TActionList`, shared by its menu item and toolbar button, so captions, shortcuts, checked and enabled states stay in step. A command bar runs along the top (New, Open, Save; Undo, Redo, Delete; the zooms; Measurements, Publish, Export Draft SVG), and the drafting tools run down the left of the canvas in the Tools menu's order, wrapping into a second column when the window is short. Tooltips name the command and its shortcut, and Undo and Redo name the step.
+- **Icons** are Tabler Icons 3.50.0 outline SVGs (MIT), kept unchanged in `data/icons` with their licence and found like the catalogue. `Sloper.UI.IconSet` lists the file for each command, and `Sloper.UI.Icons` draws them with BGRABitmap at the screen's scale: 24 px for toolbars, 16 px for menus, in the theme's text colour, with a grey set for disabled buttons. A missing folder leaves the toolbars showing captions; a missing file leaves its icon blank. Drafting commands with no close stock icon use the nearest one (Piece: polygon, Arc: rainbow, Notch: inverted triangle, Seam: needle and thread).
 - **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
   1. An existing point is reused.
   2. A crossing of two nearby edges becomes an intersect point, with its `pick`. An edge and its own split parts are not treated as crossing.
@@ -1100,7 +1103,7 @@ opensloper/
 │   ├── ui/                 forms, canvas, tools, snapping, panels
 │   ├── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
 │   └── api/                Automation API: JSON-RPC 2.0 over the document layer
-├── data/                   measurement catalogue and body figures, read at run time
+├── data/                   measurement catalogue, body figures and icons, read at run time
 ├── measurements/           opensloper-measurements: measurement files and size tables, using core
 ├── publish/                opensloper-publish: layouts and printing, using core + output
 ├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools

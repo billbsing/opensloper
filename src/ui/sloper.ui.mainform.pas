@@ -25,11 +25,11 @@ unit Sloper.UI.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, Sloper.Core.Geometry,
+  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams,
-  Sloper.UI.FabricsPanel, Sloper.Core.Transform;
+  Sloper.UI.FabricsPanel, Sloper.UI.IconSet, Sloper.Core.Transform;
 
 type
 
@@ -87,14 +87,19 @@ type
   private
     FDocument: TPatternDocument;
     FSettings: TAppSettings;
-    FLabelItems: array[TLabelMode] of TMenuItem;
+    FActions: TActionList;
+    // The same icons at toolbar and menu sizes, in TAppIcon order, and greyed
+    // for disabled buttons: a grey copy of a black icon is still black
+    FToolIcons, FDisabledIcons, FMenuIcons: TImageList;
+    FCommandBar, FToolBar: TToolBar;
+    FUndoAction, FRedoAction, FPieceFillsAction, FSideAction: TAction;
+    FToolActions: array[TCanvasTool] of TAction;
+    FLabelActions: array[TLabelMode] of TAction;
     FSidePanel: TPageControl;
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
     FFabrics: TFabricsPanel;
-    FPieceFillsItem: TMenuItem;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
-    FSideItem: TMenuItem;
     FObjects: TObjectsPanel;
     FVariables: TVariablesPanel;
     FMeasurements: TMeasurementsPanel;
@@ -104,15 +109,20 @@ type
     FChoosingVariable: boolean;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
-    // FSplitter: TSplitter;
-    FToolBar: TToolBar;
-    FToolButtons: array[TCanvasTool] of TToolButton;
-    FToolItems: array[TCanvasTool] of TMenuItem;
     FShown: boolean;
     procedure LoadSettings;
     procedure SaveSettings;
     procedure SetLabelMode(Mode: TLabelMode);
-    procedure CreateLabelMenu;
+    function NewAction(const ACaption: string; AIcon: TAppIcon; AHandler: TNotifyEvent; AShortCut: TShortCut = 0;
+      ATag: PtrInt = 0): TAction;
+    procedure SetActionHint(AAction: TAction);
+    function AddMenuItem(AParent: TMenuItem; AAction: TAction): TMenuItem;
+    procedure AddButton(Bar: TToolBar; AAction: TBasicAction; Grouped: boolean = False);
+    procedure AddDivider(Bar: TToolBar);
+    procedure CreateToolBars;
+    procedure ToolBarResize(Sender: TObject);
+    procedure CreateCommands;
+    procedure CreateViewCommands;
     procedure LabelModeClick(Sender: TObject);
     procedure PieceFillsClick(Sender: TObject);
     procedure CreateSidePanel;
@@ -128,7 +138,7 @@ type
     procedure MeasurementsNewSet(Sender: TObject);
     procedure MeasurementsEditSet(Sender: TObject);
     procedure MeasurementWatchTick(Sender: TObject);
-    procedure CreateTools;
+    procedure CreateToolCommands;
     procedure ToolClick(Sender: TObject);
     procedure SplitClick(Sender: TObject);
     procedure TransformClick(Sender: TObject);
@@ -162,7 +172,8 @@ var
 implementation
 
 uses
-  Math, process, Sloper.Core.Draft, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
+  Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.Draft, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
+  Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
   Sloper.Core.AppPaths, Sloper.Core.Measurements,
   Sloper.Core.PatternCheck, Sloper.Output.Layout;
 
@@ -244,12 +255,13 @@ resourcestring
   rsMenuToolsSuggest = 'Suggest Sea&ms...';
   rsNoSuggestions = 'No more seams to suggest';
   rsAddSuggestedSeams = 'Add seams';
-  rsToolKey = '%s (%s)';
+  rsHintKey = '%s (%s)';
   rsMenuHelp = '&Help';
   rsMenuHelpAbout = '&About OpenSloper';
   rsAboutText = '%s %s'#10#10 + 'Parametric sewing pattern drafting.'#10#10 + 'This program is free software: you can redistribute it and/or modify ' +
     'it under the terms of the GNU General Public License as published by ' + 'the Free Software Foundation, either version 3 of the License, or ' +
-    '(at your option) any later version.'#10#10 + 'This program comes with ABSOLUTELY NO WARRANTY.';
+    '(at your option) any later version.'#10#10 + 'This program comes with ABSOLUTELY NO WARRANTY.'#10#10 +
+    'Icons from Tabler Icons (tabler.io), MIT licence.';
   rsUntitled = 'Untitled';
   rsTitle = '%s%s - %s';
   rsPatternFilter = 'OpenSloper patterns (*.sloper)|*.sloper|All files|%s';
@@ -269,37 +281,9 @@ resourcestring
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
   MenuFile.Caption := rsMenuFile;
-  MenuFileNew.Caption := rsMenuFileNew;
-  MenuFileNew.ShortCut := ShortCut(VK_N, [ssModifier]);
-  MenuFileOpen.Caption := rsMenuFileOpen;
-  MenuFileOpen.ShortCut := ShortCut(VK_O, [ssModifier]);
-  MenuFileSave.Caption := rsMenuFileSave;
-  MenuFileSave.ShortCut := ShortCut(VK_S, [ssModifier]);
-  MenuFileSaveAs.Caption := rsMenuFileSaveAs;
-  MenuFileSaveAs.ShortCut := ShortCut(VK_S, [ssModifier, ssShift]);
-  MenuFileMeasurements.Caption := rsMenuFileMeasurements;
-  MenuFileMeasurements.ShortCut := ShortCut(VK_M, [ssModifier]);
-  MenuFilePublish.Caption := rsMenuFilePublish;
-  MenuFilePublish.ShortCut := ShortCut(VK_P, [ssModifier]);
-  MenuFileExportDraft.Caption := rsMenuFileExportDraft;
-  MenuFileQuit.Caption := rsMenuFileQuit;
-  MenuFileQuit.ShortCut := ShortCut(VK_Q, [ssModifier]);
   MenuEdit.Caption := rsMenuEdit;
-  MenuEditUndo.ShortCut := ShortCut(VK_Z, [ssModifier]);
-  MenuEditRedo.ShortCut := ShortCut(VK_Z, [ssModifier, ssShift]);
-  // The canvas handles the Delete key, so typing in a field can still delete text
-  MenuEditDelete.Caption := rsMenuEditDelete;
   MenuView.Caption := rsMenuView;
-  MenuViewZoomIn.Caption := rsMenuViewZoomIn;
-  MenuViewZoomIn.ShortCut := ShortCut(VK_OEM_PLUS, [ssModifier]);
-  MenuViewZoomOut.Caption := rsMenuViewZoomOut;
-  MenuViewZoomOut.ShortCut := ShortCut(VK_OEM_MINUS, [ssModifier]);
-  MenuViewFit.Caption := rsMenuViewFit;
-  MenuViewFit.ShortCut := ShortCut(VK_0, [ssModifier]);
-  MenuViewTrueSize.Caption := rsMenuViewTrueSize;
-  MenuViewTrueSize.ShortCut := ShortCut(VK_1, [ssModifier]);
   MenuHelp.Caption := rsMenuHelp;
-  MenuHelpAbout.Caption := rsMenuHelpAbout;
 
   OpenDialog.Filter := Format(rsPatternFilter, [AllFilesMask]);
   SaveDialog.Filter := OpenDialog.Filter;
@@ -310,17 +294,11 @@ begin
   MeasurementsDialog.InitialDir := OpenDialog.InitialDir;
 
   FDocument := TPatternDocument.Create;
-  CreateTools;
-  // FProperties := TPropertiesPanel.Create(Self);
-  // FProperties.Parent := Self;
-  // FProperties.Align := alRight;
-  // FProperties.Width := Scale96ToForm(280);
-  // FProperties.Document := FDocument;
-  // FSplitter := TSplitter.Create(Self);
-  // FSplitter.Parent := Self;
-  // FSplitter.Align := alRight;
-  // FSplitter.Left := FProperties.Left - FSplitter.Width;
+  CreateToolBars;
+  CreateCommands;
   CreateSidePanel;
+  CreateViewCommands;
+  CreateToolCommands;
   LoadSettings;
   FCanvasPanel := TPanel.Create(Self);
   FCanvasPanel.Parent := Self;
@@ -342,9 +320,8 @@ begin
   FCanvas.OnMessage := @CanvasMessage;
   FCanvas.OnToolChange := @CanvasToolChange;
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
-  CreateLabelMenu;
   SetLabelMode(FSettings.LabelMode);
-  FPieceFillsItem.Checked := FSettings.ShowPieceFills;
+  FPieceFillsAction.Checked := FSettings.ShowPieceFills;
   FCanvas.ShowPieceFills := FSettings.ShowPieceFills;
   SetSideShown(FSettings.ShowSidePanel);
   CanvasToolChange(nil);
@@ -381,7 +358,7 @@ end;
 procedure TMainForm.SetLabelMode(Mode: TLabelMode);
 begin
   FCanvas.LabelMode := Mode;
-  FLabelItems[Mode].Checked := True;
+  FLabelActions[Mode].Checked := True;
 end;
 
 // The tabs down the left; the list panels share one place
@@ -447,11 +424,6 @@ begin
   FSideSplitter.Parent := Self;
   FSideSplitter.Align := alRight;
   FSideSplitter.Left := FSidePanel.Left - FSideSplitter.Width;
-  FSideItem := TMenuItem.Create(MainMenu);
-  FSideItem.Caption := rsMenuViewSidePanel;
-  FSideItem.OnClick := @SideItemClick;
-  MenuView.Add(NewLine);
-  MenuView.Add(FSideItem);
 end;
 
 procedure TMainForm.SetSideShown(Shown: boolean);
@@ -461,7 +433,7 @@ begin
   // it and the canvas, or it docks on the far side of it
   FSideSplitter.Left := FSidePanel.Left - FSideSplitter.Width;
   FSideSplitter.Visible := Shown;
-  FSideItem.Checked := Shown;
+  FSideAction.Checked := Shown;
 end;
 
 procedure TMainForm.SideItemClick(Sender: TObject);
@@ -566,40 +538,183 @@ begin
     MessageDlg(Format(rsMeasurementsFailed, [FNewSetDialog.FileName, Err]), mtError, [mbOK], 0);
 end;
 
-// The label modes in the View menu; each item's Tag is its TLabelMode
-procedure TMainForm.CreateLabelMenu;
+// An action for a command, shared by its menu item and toolbar button
+function TMainForm.NewAction(const ACaption: string; AIcon: TAppIcon; AHandler: TNotifyEvent; AShortCut: TShortCut;
+  ATag: PtrInt): TAction;
+begin
+  Result := TAction.Create(FActions);
+  Result.ActionList := FActions;
+  Result.Caption := ACaption;
+  Result.ImageIndex := Ord(AIcon);
+  Result.ShortCut := AShortCut;
+  Result.Tag := ATag;
+  Result.OnExecute := AHandler;
+  SetActionHint(Result);
+end;
+
+// The tooltip: the caption without its accelerator or dots. The LCL adds
+// the shortcut itself.
+procedure TMainForm.SetActionHint(AAction: TAction);
+begin
+  AAction.Hint := StringReplace(StripHotkey(AAction.Caption), '...', '', []);
+end;
+
+function TMainForm.AddMenuItem(AParent: TMenuItem; AAction: TAction): TMenuItem;
+begin
+  Result := TMenuItem.Create(AParent);
+  Result.Action := AAction;
+  AParent.Add(Result);
+end;
+
+procedure TMainForm.AddButton(Bar: TToolBar; AAction: TBasicAction; Grouped: boolean);
 var
-  MenuLabels: TMenuItem;
+  Button: TToolButton;
+begin
+  Button := TToolButton.Create(Bar);
+  Button.Parent := Bar;
+  Button.Action := AAction;
+  if Grouped then
+  begin
+    Button.Style := tbsCheck;
+    Button.Grouped := True;
+  end;
+end;
+
+procedure TMainForm.AddDivider(Bar: TToolBar);
+var
+  Button: TToolButton;
+begin
+  Button := TToolButton.Create(Bar);
+  Button.Parent := Bar;
+  Button.Style := tbsDivider;
+end;
+
+// Commands along the top, drafting tools down the left. Without the icon
+// folder the buttons show their captions instead.
+procedure TMainForm.CreateToolBars;
+
+  function NewBar(AAlign: TAlign): TToolBar;
+  begin
+    Result := TToolBar.Create(Self);
+    Result.Parent := Self;
+    Result.Align := AAlign;
+    Result.Images := FToolIcons;
+    Result.DisabledImages := FDisabledIcons;
+    Result.ShowCaptions := not IconsFound;
+    Result.ShowHint := True;
+    Result.AutoSize := True;
+    Result.Wrapable := True;
+    if IconsFound then
+    begin
+      Result.ButtonWidth := FToolIcons.Width + Scale96ToForm(8);
+      Result.ButtonHeight := FToolIcons.Height + Scale96ToForm(8);
+    end;
+  end;
+
+begin
+  FToolIcons := CreateIconList(Self, Scale96ToForm(24), clWindowText);
+  FDisabledIcons := CreateIconList(Self, Scale96ToForm(24), clGrayText);
+  FMenuIcons := CreateIconList(Self, Scale96ToForm(16), clMenuText);
+  FActions := TActionList.Create(Self);
+  FActions.Images := FMenuIcons;
+  MainMenu.Images := FMenuIcons;
+  FCommandBar := NewBar(alTop);
+  FToolBar := NewBar(alLeft);
+  // Sized by hand, so a short window wraps the tools into another column
+  FToolBar.AutoSize := False;
+  FToolBar.Width := FToolBar.ButtonWidth + Scale96ToForm(6);
+  FToolBar.OnResize := @ToolBarResize;
+end;
+
+// As wide as the columns the buttons wrapped into
+procedure TMainForm.ToolBarResize(Sender: TObject);
+var
+  Index, Right: integer;
+begin
+  Right := 0;
+  for Index := 0 to FToolBar.ButtonCount - 1 do
+    Right := Max(Right, FToolBar.Buttons[Index].Left + FToolBar.Buttons[Index].Width);
+  Right := Right + FToolBar.Width - FToolBar.ClientWidth + Scale96ToForm(2);
+  if (Right > Scale96ToForm(8)) and (Right <> FToolBar.Width) then
+    FToolBar.Width := Right;
+end;
+
+// The File, Edit and View commands from the form, and the top toolbar
+procedure TMainForm.CreateCommands;
+begin
+  MenuFileNew.Action := NewAction(rsMenuFileNew, aiNew, @MenuFileNewClick, ShortCut(VK_N, [ssModifier]));
+  MenuFileOpen.Action := NewAction(rsMenuFileOpen, aiOpen, @MenuFileOpenClick, ShortCut(VK_O, [ssModifier]));
+  MenuFileSave.Action := NewAction(rsMenuFileSave, aiSave, @MenuFileSaveClick, ShortCut(VK_S, [ssModifier]));
+  MenuFileSaveAs.Action := NewAction(rsMenuFileSaveAs, aiSaveAs, @MenuFileSaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
+  MenuFileMeasurements.Action := NewAction(rsMenuFileMeasurements, aiMeasurements, @MenuFileMeasurementsClick,
+    ShortCut(VK_M, [ssModifier]));
+  MenuFilePublish.Action := NewAction(rsMenuFilePublish, aiPublish, @MenuFilePublishClick, ShortCut(VK_P, [ssModifier]));
+  MenuFileExportDraft.Action := NewAction(rsMenuFileExportDraft, aiExportDraft, @MenuFileExportDraftClick);
+  MenuFileQuit.Action := NewAction(rsMenuFileQuit, aiQuit, @MenuFileQuitClick, ShortCut(VK_Q, [ssModifier]));
+  FUndoAction := NewAction(rsMenuEditUndo, aiUndo, @MenuEditUndoClick, ShortCut(VK_Z, [ssModifier]));
+  MenuEditUndo.Action := FUndoAction;
+  FRedoAction := NewAction(rsMenuEditRedo, aiRedo, @MenuEditRedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
+  MenuEditRedo.Action := FRedoAction;
+  // The canvas handles the Delete key, so typing in a field can still delete text
+  MenuEditDelete.Action := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
+  MenuViewZoomIn.Action := NewAction(rsMenuViewZoomIn, aiZoomIn, @MenuViewZoomInClick, ShortCut(VK_OEM_PLUS, [ssModifier]));
+  MenuViewZoomOut.Action := NewAction(rsMenuViewZoomOut, aiZoomOut, @MenuViewZoomOutClick, ShortCut(VK_OEM_MINUS, [ssModifier]));
+  MenuViewFit.Action := NewAction(rsMenuViewFit, aiFit, @MenuViewFitClick, ShortCut(VK_0, [ssModifier]));
+  MenuViewTrueSize.Action := NewAction(rsMenuViewTrueSize, aiTrueSize, @MenuViewTrueSizeClick, ShortCut(VK_1, [ssModifier]));
+  MenuHelpAbout.Action := NewAction(rsMenuHelpAbout, aiAbout, @MenuHelpAboutClick);
+  AddButton(FCommandBar, MenuFileNew.Action);
+  AddButton(FCommandBar, MenuFileOpen.Action);
+  AddButton(FCommandBar, MenuFileSave.Action);
+  AddDivider(FCommandBar);
+  AddButton(FCommandBar, FUndoAction);
+  AddButton(FCommandBar, FRedoAction);
+  AddButton(FCommandBar, MenuEditDelete.Action);
+  AddDivider(FCommandBar);
+  AddButton(FCommandBar, MenuViewZoomIn.Action);
+  AddButton(FCommandBar, MenuViewZoomOut.Action);
+  AddButton(FCommandBar, MenuViewFit.Action);
+  AddButton(FCommandBar, MenuViewTrueSize.Action);
+  AddDivider(FCommandBar);
+  AddButton(FCommandBar, MenuFileMeasurements.Action);
+  AddButton(FCommandBar, MenuFilePublish.Action);
+  AddButton(FCommandBar, MenuFileExportDraft.Action);
+end;
+
+// The side panel, label and fill toggles at the end of the View menu; each
+// label action's Tag is its TLabelMode
+procedure TMainForm.CreateViewCommands;
+var
+  MenuLabels, Item: TMenuItem;
   Mode: TLabelMode;
   Captions: array[TLabelMode] of string;
 begin
   Captions[lmContextual] := rsLabelsContextual;
   Captions[lmAll] := rsLabelsAll;
   Captions[lmNone] := rsLabelsNone;
+  FSideAction := NewAction(rsMenuViewSidePanel, aiSidePanel, @SideItemClick);
+  MenuView.Add(NewLine);
+  AddMenuItem(MenuView, FSideAction);
   MenuLabels := TMenuItem.Create(MainMenu);
   MenuLabels.Caption := rsMenuViewLabels;
+  MenuLabels.ImageIndex := Ord(aiLabels);
   MenuView.Add(NewLine);
   MenuView.Add(MenuLabels);
   for Mode := Low(TLabelMode) to High(TLabelMode) do
   begin
-    FLabelItems[Mode] := TMenuItem.Create(MenuLabels);
-    FLabelItems[Mode].Caption := Captions[Mode];
-    FLabelItems[Mode].RadioItem := True;
-    FLabelItems[Mode].GroupIndex := 2;
-    FLabelItems[Mode].Tag := Ord(Mode);
-    FLabelItems[Mode].OnClick := @LabelModeClick;
-    MenuLabels.Add(FLabelItems[Mode]);
+    FLabelActions[Mode] := NewAction(Captions[Mode], aiLabels, @LabelModeClick, 0, Ord(Mode));
+    FLabelActions[Mode].ImageIndex := -1;
+    FLabelActions[Mode].GroupIndex := 2;
+    Item := AddMenuItem(MenuLabels, FLabelActions[Mode]);
+    Item.RadioItem := True;
   end;
-  FPieceFillsItem := TMenuItem.Create(MainMenu);
-  FPieceFillsItem.Caption := rsMenuViewPieceFills;
-  FPieceFillsItem.OnClick := @PieceFillsClick;
-  MenuView.Add(FPieceFillsItem);
+  FPieceFillsAction := NewAction(rsMenuViewPieceFills, aiPieceFills, @PieceFillsClick);
+  AddMenuItem(MenuView, FPieceFillsAction);
 end;
 
 procedure TMainForm.PieceFillsClick(Sender: TObject);
 begin
-  FPieceFillsItem.Checked := not FPieceFillsItem.Checked;
-  FCanvas.ShowPieceFills := FPieceFillsItem.Checked;
+  FPieceFillsAction.Checked := not FPieceFillsAction.Checked;
+  FCanvas.ShowPieceFills := FPieceFillsAction.Checked;
 end;
 
 procedure TMainForm.LabelModeClick(Sender: TObject);
@@ -607,10 +722,15 @@ begin
   SetLabelMode(TLabelMode(TComponent(Sender).Tag));
 end;
 
-// The toolbar and Tools menu; each item's Tag is its TCanvasTool
-procedure TMainForm.CreateTools;
+// The Tools menu and the toolbar down the left, in the same order. Each
+// action's Tag is its TCanvasTool, TMarkingKind, TTransformKind or
+// TOffsetSide, or Ord(True) for a whole circle.
+procedure TMainForm.CreateToolCommands;
 const
   Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'K', 'T', 'E');
+  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiPiece, aiNotch, aiSeam);
+  MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiFoldLine, aiStitchHoles);
+  TransformIcons: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
 var
   MenuTools, Item: TMenuItem;
   Tool: TCanvasTool;
@@ -619,6 +739,19 @@ var
   MarkingCaptions: array[TMarkingKind] of string;
   Marking: TMarkingKind;
   Kind: TTransformKind;
+
+  procedure AddCommand(AAction: TAction);
+  begin
+    AddMenuItem(MenuTools, AAction);
+    AddButton(FToolBar, AAction);
+  end;
+
+  procedure AddBreak;
+  begin
+    MenuTools.Add(NewLine);
+    AddDivider(FToolBar);
+  end;
+
 begin
   MarkingCaptions[mkHole] := rsMenuToolsHole;
   MarkingCaptions[mkPlacement] := rsMenuToolsPlacement;
@@ -634,102 +767,34 @@ begin
   Captions[ctPiece] := rsToolPiece;
   Captions[ctNotch] := rsToolNotch;
   Captions[ctSeam] := rsToolSeam;
-  FToolBar := TToolBar.Create(Self);
-  FToolBar.Parent := Self;
-  FToolBar.Align := alTop;
-  FToolBar.ShowCaptions := True;
-  FToolBar.List := True;
-  FToolBar.AutoSize := True;
   MenuTools := TMenuItem.Create(MainMenu);
   MenuTools.Caption := rsMenuTools;
   MainMenu.Items.Insert(MainMenu.Items.IndexOf(MenuHelp), MenuTools);
+  // The canvas reads the tool keys itself, so they are in the caption only
   for Tool := Low(TCanvasTool) to High(TCanvasTool) do
   begin
-    FToolButtons[Tool] := TToolButton.Create(FToolBar);
-    FToolButtons[Tool].Parent := FToolBar;
-    FToolButtons[Tool].Caption := Captions[Tool];
-    FToolButtons[Tool].Hint := Format(rsToolKey, [Captions[Tool], Keys[Tool]]);
-    FToolButtons[Tool].ShowHint := True;
-    FToolButtons[Tool].Style := tbsCheck;
-    FToolButtons[Tool].Grouped := True;
-    FToolButtons[Tool].Tag := Ord(Tool);
-    FToolButtons[Tool].OnClick := @ToolClick;
+    FToolActions[Tool] := NewAction(Format(rsHintKey, [Captions[Tool], Keys[Tool]]), ToolIcons[Tool], @ToolClick, 0, Ord(Tool));
+    FToolActions[Tool].GroupIndex := 1;
+    Item := AddMenuItem(MenuTools, FToolActions[Tool]);
+    Item.RadioItem := True;
+    AddButton(FToolBar, FToolActions[Tool], True);
   end;
-  for Tool := Low(TCanvasTool) to High(TCanvasTool) do
-  begin
-    FToolItems[Tool] := TMenuItem.Create(MenuTools);
-    FToolItems[Tool].Caption := Format(rsToolKey, [Captions[Tool], Keys[Tool]]);
-    FToolItems[Tool].RadioItem := True;
-    FToolItems[Tool].GroupIndex := 1;
-    FToolItems[Tool].Tag := Ord(Tool);
-    FToolItems[Tool].OnClick := @ToolClick;
-    MenuTools.Add(FToolItems[Tool]);
-  end;
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := '-';
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsSplit;
-  Item.OnClick := @SplitClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsCircle;
-  Item.Tag := Ord(True);
-  Item.OnClick := @RoundEdgeClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsArc;
-  Item.Tag := Ord(False);
-  Item.OnClick := @RoundEdgeClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsRectangle;
-  Item.OnClick := @RectangleClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsRoundCorner;
-  Item.OnClick := @RoundCornerClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsOffsetLeft;
-  Item.Tag := Ord(osLeft);
-  Item.OnClick := @OffsetClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsOffsetRight;
-  Item.Tag := Ord(osRight);
-  Item.OnClick := @OffsetClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := '-';
-  MenuTools.Add(Item);
+  AddBreak;
+  AddCommand(NewAction(rsMenuToolsSplit, aiSplit, @SplitClick));
+  AddCommand(NewAction(rsMenuToolsCircle, aiCircle, @RoundEdgeClick, 0, Ord(True)));
+  AddCommand(NewAction(rsMenuToolsArc, aiArc, @RoundEdgeClick, 0, Ord(False)));
+  AddCommand(NewAction(rsMenuToolsRectangle, aiRectangle, @RectangleClick));
+  AddCommand(NewAction(rsMenuToolsRoundCorner, aiRoundCorner, @RoundCornerClick));
+  AddCommand(NewAction(rsMenuToolsOffsetLeft, aiOffsetLeft, @OffsetClick, 0, Ord(osLeft)));
+  AddCommand(NewAction(rsMenuToolsOffsetRight, aiOffsetRight, @OffsetClick, 0, Ord(osRight)));
+  AddBreak;
   for Marking := Low(TMarkingKind) to High(TMarkingKind) do
-  begin
-    Item := TMenuItem.Create(MenuTools);
-    Item.Caption := MarkingCaptions[Marking];
-    Item.Tag := Ord(Marking);
-    Item.OnClick := @MarkingClick;
-    MenuTools.Add(Item);
-  end;
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsRemoveMarking;
-  Item.OnClick := @RemoveMarkingClick;
-  MenuTools.Add(Item);
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := '-';
-  MenuTools.Add(Item);
+    AddCommand(NewAction(MarkingCaptions[Marking], MarkingIcons[Marking], @MarkingClick, 0, Ord(Marking)));
+  AddCommand(NewAction(rsMenuToolsRemoveMarking, aiRemoveMarking, @RemoveMarkingClick));
+  AddBreak;
   for Kind := Low(TTransformKind) to High(TTransformKind) do
-  begin
-    Item := TMenuItem.Create(MenuTools);
-    Item.Caption := TransformCaptions[Kind];
-    Item.Tag := Ord(Kind);
-    Item.OnClick := @TransformClick;
-    MenuTools.Add(Item);
-  end;
-  Item := TMenuItem.Create(MenuTools);
-  Item.Caption := rsMenuToolsSuggest;
-  Item.OnClick := @SuggestSeamsClick;
-  MenuTools.Add(Item);
+    AddCommand(NewAction(TransformCaptions[Kind], TransformIcons[Kind], @TransformClick, 0, Ord(Kind)));
+  AddCommand(NewAction(rsMenuToolsSuggest, aiSuggestSeams, @SuggestSeamsClick));
 end;
 
 procedure TMainForm.MarkingClick(Sender: TObject);
@@ -818,10 +883,7 @@ var
   Tool: TCanvasTool;
 begin
   for Tool := Low(TCanvasTool) to High(TCanvasTool) do
-  begin
-    FToolButtons[Tool].Down := Tool = FCanvas.Tool;
-    FToolItems[Tool].Checked := Tool = FCanvas.Tool;
-  end;
+    FToolActions[Tool].Checked := Tool = FCanvas.Tool;
 end;
 
 procedure TMainForm.CanvasSelectionChange(Sender: TObject);
@@ -913,18 +975,21 @@ begin
   Caption := Format(rsTitle, [DisplayName, Mark, AppName]);
 end;
 
+// Undo and Redo name the step, in the menu and the tooltip
 procedure TMainForm.UpdateMenus;
 begin
-  MenuEditUndo.Enabled := FDocument.CanUndo;
+  FUndoAction.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
-    MenuEditUndo.Caption := Format(rsMenuEditUndoWhat, [FDocument.UndoDescription])
+    FUndoAction.Caption := Format(rsMenuEditUndoWhat, [FDocument.UndoDescription])
   else
-    MenuEditUndo.Caption := rsMenuEditUndo;
-  MenuEditRedo.Enabled := FDocument.CanRedo;
+    FUndoAction.Caption := rsMenuEditUndo;
+  SetActionHint(FUndoAction);
+  FRedoAction.Enabled := FDocument.CanRedo;
   if FDocument.CanRedo then
-    MenuEditRedo.Caption := Format(rsMenuEditRedoWhat, [FDocument.RedoDescription])
+    FRedoAction.Caption := Format(rsMenuEditRedoWhat, [FDocument.RedoDescription])
   else
-    MenuEditRedo.Caption := rsMenuEditRedo;
+    FRedoAction.Caption := rsMenuEditRedo;
+  SetActionHint(FRedoAction);
 end;
 
 procedure TMainForm.UpdateStatus;

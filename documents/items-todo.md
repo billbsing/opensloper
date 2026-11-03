@@ -20,11 +20,6 @@ These could not be tested properly during development.
 
 ## List of Changes
 
-#### UI Toolbars and icons:
-Add icons for all menu items.
-Move menu commands to TActionList.
-Create icon toolbars for new actions.
-
 #### Tool Merge Points
 This is simalar to inkscape join nodes, the user selects 2 or more points, then clicks on the tool.
 The new point name will take the lowest default name , or the first name that has been changed by the user.

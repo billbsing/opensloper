@@ -55,6 +55,7 @@ uses
   Sloper.Tests.Piece,
   Sloper.Tests.Seam,
   Sloper.Tests.PatternView,
+  Sloper.Tests.IconSet,
   Sloper.Tests.Fabrics,
   Sloper.Tests.Circles,
   Sloper.Tests.Accessories,
