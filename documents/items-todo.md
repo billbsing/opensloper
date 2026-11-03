@@ -20,13 +20,6 @@ These could not be tested properly during development.
 
 ## List of Changes
 
-#### UI Fix
-Fix UI splitter to go between the canvas and side panel. 
-
-#### Exceptions
-Getting a exception on exit, after creating an item, and setting a piece. On closing the app, do not save the design, and
-Exception EAccessViolation at Sloper.Document.PatternDocument:289
-
 #### Reduce Clutter
 Remove Draft, Draft Tabs.
 Remove Layouts, Layout panel.

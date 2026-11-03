@@ -421,7 +421,7 @@ begin
   FSidePanel.Parent := Self;
   FSidePanel.Align := alRight;
   FSidePanel.Width := Scale96ToForm(490);
-  FSidePanel.TabPosition:= tpLeft;
+  FSidePanel.TabPosition := tpLeft;
   PropertySheet := FSidePanel.AddTabSheet;
   PropertySheet.Caption := rsTabProperties;
   FProperties := TPropertiesPanel.Create(Self);
@@ -479,9 +479,10 @@ end;
 procedure TMainForm.SetSideShown(Shown: boolean);
 begin
   FSidePanel.Visible := Shown;
+  // Both dock on the right, so the splitter goes just before the panel, between
+  // it and the canvas, or it docks on the far side of it
+  FSideSplitter.Left := FSidePanel.Left - FSideSplitter.Width;
   FSideSplitter.Visible := Shown;
-  // The splitter belongs just after the panel, or it docks on the far side of it
-  FSideSplitter.Left := FSidePanel.Left + FSidePanel.Width;
   FSideItem.Checked := Shown;
 end;
 
@@ -889,6 +890,7 @@ begin
   // The canvas and panels listen to the document, so they let go first
   FCanvas.Document := nil;
   FLayers.Document := nil;
+  FFabrics.Document := nil;
   FDraftBar.Document := nil;
   if FGarment <> nil then
     FGarment.Document := nil;
