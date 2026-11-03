@@ -33,7 +33,8 @@ uses
 
 type
   // cmRefused: a drag was refused; the reason stays up until the button is released
-  TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging, cmRefused);
+  // cmBoxing: dragging a selection box from empty canvas or a piece
+  TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging, cmRefused, cmBoxing);
   // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
   // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
   // or removes a notch on a piece's seam line; ctSeam picks the edges of the
@@ -97,6 +98,7 @@ type
     procedure EndPicking;
     procedure MakeTransform(const Spec: TTransformSpec);
     procedure ToggleSelected(const Key: string);
+    procedure SelectBox(X, Y: integer; Adding: boolean);
     procedure DropMissingSelection;
     procedure StartDrag;
     procedure StartHandleDrag;
@@ -141,6 +143,7 @@ type
     procedure DrawHandles;
     procedure DrawLabels;
     procedure DrawSnap;
+    procedure DrawBox;
     procedure SetHorzBar(Value: TScrollBar);
     procedure SetVertBar(Value: TScrollBar);
     procedure BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: integer);
@@ -343,6 +346,11 @@ begin
   Result := BGRA(196, 48, 140);
 end;
 
+function BoxFill: TBGRAPixel;
+begin
+  Result := BGRA(37, 116, 214, 20);
+end;
+
 function PieceHoverTint: TBGRAPixel;
 begin
   Result := BGRA(37, 116, 214, 30);
@@ -526,6 +534,30 @@ begin
     FView.Fit(Bounds, ClientWidth, ClientHeight, FitMargin);
     Invalidate;
   end;
+end;
+
+// Everything wholly inside the box from the press to (X, Y); Adding keeps
+// what was selected, as Shift does for a click
+procedure TPatternCanvas.SelectBox(X, Y: integer; Adding: boolean);
+var
+  Corner1, Corner2: TVec2;
+  Box: TRect2;
+  Keys: TStringArray;
+  Key: string;
+begin
+  Corner1 := ModelAt(FPressPos.X, FPressPos.Y);
+  Corner2 := ModelAt(X, Y);
+  Box.MinX := Min(Corner1.X, Corner2.X);
+  Box.MaxX := Max(Corner1.X, Corner2.X);
+  Box.MinY := Min(Corner1.Y, Corner2.Y);
+  Box.MaxY := Max(Corner1.Y, Corner2.Y);
+  Keys := nil;
+  if Adding then
+    Keys := Copy(FSelection, 0, Length(FSelection));
+  for Key in ObjectsInBox(FDocument.Pattern, Box) do
+    if not Adding or not IsSelected(Key) then
+      Insert(Key, Keys, Length(Keys));
+  SetSelection(Keys);
 end;
 
 procedure TPatternCanvas.ToggleSelected(const Key: string);
@@ -1502,9 +1534,16 @@ begin
           StartDrag;
           if FMode = cmDragging then
             DragTo(X, Y);
+        end
+        else
+        begin
+          FMode := cmBoxing;
+          Invalidate;
         end;
     cmDragging:
       DragTo(X, Y);
+    cmBoxing:
+      Invalidate;
     cmIdle:
       if (FDocument <> nil) and UsesSnap then
         UpdateSnap(X, Y)
@@ -1538,6 +1577,11 @@ begin
       FDraggingHandle := False;
       if not IsSelected(FPressKey) then
         SetSelection([FPressKey]);
+    end;
+    cmBoxing:
+    begin
+      SelectBox(X, Y, ssShift in Shift);
+      Invalidate;
     end;
     cmPressed:
       // A click on a handle leaves the selection as it is
@@ -1585,6 +1629,11 @@ begin
     VK_ESCAPE:
       if FMode = cmDragging then
         CancelDrag
+      else if FMode = cmBoxing then
+      begin
+        FMode := cmIdle;
+        Invalidate;
+      end
       else if FPicking then
       begin
         EndPicking;
@@ -2135,6 +2184,23 @@ begin
   end;
 end;
 
+// The selection box, dotted over a faint tint
+procedure TPatternCanvas.DrawBox;
+var
+  X1, Y1, X2, Y2: single;
+begin
+  if FMode <> cmBoxing then
+    Exit;
+  X1 := Min(FPressPos.X, FLastPos.X) + 0.5;
+  X2 := Max(FPressPos.X, FLastPos.X) + 0.5;
+  Y1 := Min(FPressPos.Y, FLastPos.Y) + 0.5;
+  Y2 := Max(FPressPos.Y, FLastPos.Y) + 0.5;
+  FBitmap.FillRectAntialias(X1, Y1, X2, Y2, BoxFill);
+  FBitmap.PenStyle := psDot;
+  FBitmap.RectangleAntialias(X1, Y1, X2, Y2, SelectedInk, 1);
+  FBitmap.PenStyle := psSolid;
+end;
+
 procedure TPatternCanvas.Paint;
 begin
   if (FBitmap.Width <> ClientWidth) or (FBitmap.Height <> ClientHeight) then
@@ -2149,6 +2215,7 @@ begin
     DrawHandles;
     DrawLabels;
     DrawSnap;
+    DrawBox;
   end;
   FBitmap.Draw(Canvas, 0, 0, True);
   UpdateScrollBars;

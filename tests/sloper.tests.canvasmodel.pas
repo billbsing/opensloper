@@ -66,6 +66,8 @@ type
     procedure TestPolylineMiddle;
     procedure TestHandleAt;
     procedure TestPieceAt;
+    procedure TestObjectsInBox;
+    procedure TestObjectsInBoxPieceNeedsItsAllowance;
     procedure TestNotchTarget;
     procedure TestPieceChevrons;
     procedure TestPieceLabelledInAllMode;
@@ -524,6 +526,43 @@ begin
   AssertTrue('in the allowance', PieceAt(FPattern, Vec2(105, 50)) = Piece);
   AssertNull('outside', PieceAt(FPattern, Vec2(120, 50)));
   AssertPointsNear('middle', Vec2(50, 50), PieceMiddle(Piece));
+end;
+
+function Box(MinX, MinY, MaxX, MaxY: double): TRect2;
+begin
+  Result.MinX := MinX;
+  Result.MinY := MinY;
+  Result.MaxX := MaxX;
+  Result.MaxY := MaxY;
+end;
+
+function KeysText(const Keys: TStringArray): string;
+begin
+  Result := string.Join(',', Keys);
+end;
+
+// Wholly inside, as in Inkscape: an edge with one end out is left out
+procedure TTestCanvasModel.TestObjectsInBox;
+begin
+  Build;
+  FPattern.Evaluate;
+  AssertEquals('A, B and the line between', '1,2,4', KeysText(ObjectsInBox(FPattern, Box(-1, -1, 101, 1))));
+  AssertEquals('B alone', '2', KeysText(ObjectsInBox(FPattern, Box(90, -5, 110, 5))));
+  AssertEquals('everything', '1,2,3,4,5', KeysText(ObjectsInBox(FPattern, Box(-500, -500, 500, 500))));
+  AssertEquals('nothing', '', KeysText(ObjectsInBox(FPattern, Box(200, 200, 300, 300))));
+end;
+
+procedure TTestCanvasModel.TestObjectsInBoxPieceNeedsItsAllowance;
+var
+  Piece: TPieceObject;
+  Keys: TStringArray;
+begin
+  Piece := BuildPiece;
+  Keys := ObjectsInBox(FPattern, Box(-1, -1, 101, 101));
+  AssertEquals('points and edges, not the piece', 8, Length(Keys));
+  Keys := ObjectsInBox(FPattern, Box(-11, -11, 111, 111));
+  AssertEquals('the piece too', 9, Length(Keys));
+  AssertEquals('last, in pattern order', Piece.Key, Keys[8]);
 end;
 
 procedure TTestCanvasModel.TestPieceChevrons;

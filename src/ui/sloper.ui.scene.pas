@@ -59,6 +59,9 @@ function ShownObjects(Pattern: TPattern): TDraftObjectArray;
 function ShownPoints(Pattern: TPattern): TPointObjectArray;
 // The nearest point within Radius mm of At, or nil
 function PointAt(Pattern: TPattern; const At: TVec2; Radius: double): TPointObject;
+// Points, edges and pieces lying wholly inside Box, in model mm, in pattern
+// order; a repeat counts as its points
+function ObjectsInBox(Pattern: TPattern; const Box: TRect2): TStringArray;
 // The same for edges
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
 // The smallest piece whose cutting line contains At, or nil
@@ -213,6 +216,38 @@ begin
       Best := Offset;
       Result := TEdgeObject(DraftObject);
     end;
+  end;
+end;
+
+function ObjectsInBox(Pattern: TPattern; const Box: TRect2): TStringArray;
+
+  procedure Consider(DraftObject: TDraftObject);
+  var
+    Bounds: TRect2;
+    Empty: boolean;
+  begin
+    if not ((DraftObject is TPointObject) or (DraftObject is TEdgeObject) or (DraftObject is TPieceObject)) then
+      Exit;
+    Empty := True;
+    IncludeObject(Bounds, Empty, DraftObject);
+    if not Empty and (Bounds.MinX >= Box.MinX) and (Bounds.MaxX <= Box.MaxX) and (Bounds.MinY >= Box.MinY) and
+      (Bounds.MaxY <= Box.MaxY) then
+      Insert(DraftObject.Key, Result, Length(Result));
+  end;
+
+var
+  Index, Number: integer;
+  DraftObject: TDraftObject;
+begin
+  Result := nil;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if (DraftObject is TRepeatObject) and (TRepeatObject(DraftObject).Count > 0) then
+      for Number := 1 to TRepeatObject(DraftObject).Count do
+        Consider(TRepeatObject(DraftObject).Item(Number))
+    else
+      Consider(DraftObject);
   end;
 end;
 

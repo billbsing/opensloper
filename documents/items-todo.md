@@ -37,10 +37,6 @@ So Curve -> Line and Line -> Curve.
 #### Locking an object
 An object can be locked and the user can do any operation with this except the formular can still be run, and the object can still move based on the formular values.
 
-#### Multi object selection
-Currently youcan select using shift + click to select multiple objects
-Allow to drag accross empty canvas, and show a dotted box, that covers over the selected area. On mouse up select all objects in the box.
-
 #### Anotations
 Have the anotations appear at the highest Z-order , over the design. The user can view/hide anotations.
 Add, Edit, Delete, Move anotations in the design page.
