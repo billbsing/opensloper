@@ -52,8 +52,6 @@ A pattern is a graph of draft objects whose positions come from measurements, va
 | Piece | Closed path: ordered edge references, each with a reversed flag | Seam allowance (default + per edge), grainline, notches, internal markings, labels, fabric, cut count, fold line |
 | Fabric | A named fabric in the pattern (Main, Lining, Contrast, Interfacing) with a colour and fill style | Pieces are assigned a fabric; drives piece fills, the cut list, and later layout and 3D textures |
 | Seam | Pairing of the edges that are sewn together, with direction and expected ease | Made by the user, with suggestions from the app; drives seam-length checks and 3D export |
-| Draft | A drafting area within a pattern file, shown as a tab | E.g. bodice, sleeve, collar; drafts share measurements, variables and names |
-| Layer | Ordered group within a draft, for drawing order and visibility | E.g. original draft vs rotated dart; can be hidden or locked |
 | Layout | Pieces arranged on sheets for printing or plotting | Works on computed geometry only |
 | Annotation | Note, callout, title block or sheet note | Anchored to objects by ID so it follows measurement changes; may contain live fields |
 
@@ -71,7 +69,7 @@ Four layers, each depending only on the ones below; the core has no LCL dependen
 
 Layers (dependencies point down):
 
-- **UI (LCL):** canvas view (BGRABitmap, pan, zoom), interaction tools (select, add point, curve, piece), snapping engine (turns snaps into operations), panels (formulas, measurements, layers)
+- **UI (LCL):** canvas view (BGRABitmap, pan, zoom), interaction tools (select, add point, curve, piece), snapping engine (turns snaps into operations), panels (properties, objects, variables, measurements, fabrics)
 - **Output:** tiled PDF, SVG and DXF with line types for cutting machines, Blender export (later); reads computed geometry from the core
 - **Document:** TPatternDocument (owns the model), undo/redo commands, change notifications
 - **Core (pure Pascal, no LCL):** geometry, expressions, model, evaluator, piece builder (Clipper2 seam allowance), storage (JSON pattern and measurement files)
@@ -188,7 +186,7 @@ References are stored as IDs and shown as names, so renaming an object changes o
 
 **Formulas.** The user types names (`Line_A_B.length + @waist/4 + #ease`) with autocomplete. On commit the parser resolves each name and stores the ID form (`{12}.length + @waist/4 + {3}`): objects as `{id}.property`, variables as `{id}`, measurements by their stable key. Unknown names are rejected at entry. Formula fields, tooltips and error messages convert IDs back to current names for display.
 
-**IDs.** Positive integers from one counter per pattern file, like database keys, shared by every kind of object: variables, points, edges, pieces, fabrics, drafts, layers and annotations. The object's kind is in its `type`, so the ID carries no prefix.
+**IDs.** Positive integers from one counter per pattern file, like database keys, shared by every kind of object: variables, points, edges, pieces, fabrics and annotations. The object's kind is in its `type`, so the ID carries no prefix.
 
 - Each new object takes the counter's value and the counter goes up by one. It is saved in the file as `nextId` and only ever increases, so an ID that has been saved is never reused: not after deleting, undoing, saving or reopening. An ID handed out and undone before any save can come back after reopening; that is harmless, because no file refers to it.
 - This matters beyond the file: layouts refer to pieces by pattern and piece ID, so a reused ID would silently put a different piece in an old piece's place.
@@ -252,7 +250,7 @@ Nine point operations and six edge types cover basic bodice, skirt and trouser b
 **Conventions:**
 
 - Units in mm; angles in degrees, 0° pointing right, positive anticlockwise (as Valentina); the canvas flips y for screen drawing
-- Common fields on every object: `id`, `name`, `type`, `layer`, `notes`; `layer` is left out until a pattern has drafts of its own (see Draft tabs and layers)
+- Common fields on every object: `id`, `name`, `type`, `notes`
 - Readable properties: point `.x`, `.y`; every edge `.length`, `.angle1` (direction of the start handle) and `.angle2` (direction of the end handle, pointing back along the edge); straight edges also `.angle`
 - Functions: `sin cos tan asin acos atan2 sqrt abs min max round`
 
@@ -295,7 +293,7 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 
 | Object | Fields |
 | --- | --- |
-| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `markings[]` (hole, placement line, fold or score line, stitch holes); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `view` (`none`, `front`, `back` or `both`; see Garment view); `fabric` (fabric ID); `fill` (optional per-piece override) |
+| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `markings[]` (hole, placement line, fold or score line, stitch holes); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `fabric` (fabric ID); `fill` (optional per-piece override) |
 | Seam | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` (see Seams) |
 
 **Deferred to phase two:** bisector; tangent from a point to a curve. Circles, arcs and circle × circle are brought forward for accessories (see Accessories).
@@ -338,7 +336,7 @@ Uses: dart rotation, slash and spread, mirroring a half piece, and moving a trac
 1. Draw a slash line from the bust point to the side seam; split the side seam there.
 2. Select the outline between the shoulder dart and the slash.
 3. Rotate about the bust point by the dart angle: the shoulder dart closes, a side dart opens.
-4. Move the original edges that were rotated to a layer of their own and hide it. The copies are already on theirs, and the outline they join stays on the first layer, so hiding that would hide too much.
+4. Make the original edges that were rotated construction edges, so they no longer split the region the new outline encloses.
 5. Click inside the new outline to form the piece from original and rotated edges.
 
 Slash and spread repeats this: each slash rotates everything beyond it by the spread amount. A convenience Spread tool that generates the chain can come later.
@@ -347,23 +345,21 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 
 - Creating a transform and all copies is one undoable command
 - Deleting a source is refused while a copy uses it, as for any object. Deleting a transform takes its copies with it, unless something else uses them; a copy cannot be deleted alone, as with a repeat's points
-- Copies go on a new layer named after the transform, so they can be shown, hidden or deleted together
-- A transform and its copies live on the destination layer. Its properties offer the layer, and changing it moves them all. Only Move offers another draft, since rotate and mirror need to be seen against their originals; a transform may read sources on any draft, an exception to the rule on direct inputs, as for seams
 - From the app: select objects and choose Rotate, Mirror or Move on the Tools menu. Rotate then asks for a pivot and Mirror for two points or an edge. The transform starts with no movement and is selected, ready for the angle or distance to be typed as a formula. Copies are selected as a group through their transform
 - A live ghost preview while dragging, and snapping to angles of existing lines, are left for later
 - A copy is named once, from its source, and keeps that name if the source is renamed. It names no formula of its own, so its properties show what made it and the transform's formulas are edited on the transform
 
-**Code.** `Sloper.Core.Transform` holds `TTransformObject`, `TPointCopy` and `TEdgeCopy`, with `TPattern.AddTransform` expanding the sources and making the copies. The movement is a `TAffine2` from `Sloper.Core.Geometry`, which the Garment view shares. `add_transform` in the Automation API takes `type`, `sources`, `name`, `suffix`, `layer` and, by type, `pivot`, `angle`, `axis` (`edge`, or `a` and `b`, or `a` with `angle`), `dx` and `dy` or `length`, and `rotate`.
+**Code.** `Sloper.Core.Transform` holds `TTransformObject`, `TPointCopy` and `TEdgeCopy`, with `TPattern.AddTransform` expanding the sources and making the copies. The movement is a `TAffine2` from `Sloper.Core.Geometry`. `add_transform` in the Automation API takes `type`, `sources`, `name`, `suffix` and, by type, `pivot`, `angle`, `axis` (`edge`, or `a` and `b`, or `a` with `angle`), `dx` and `dy` or `length`, and `rotate`.
 - Rotate and move preserve lengths, giving a free check that seams are unchanged
 - Cut on fold is a piece property applied at output; Mirror is for geometry needed in the draft itself
 
 ```json
 { "id": 15, "type": "rotate", "name": "Dart to side",
   "sources": [7, 3, 9], "pivot": 14,
-  "angle": "{5}.angle - {6}.angle", "suffix": "_r1", "layer": 2 }
-{ "id": 16, "type": "pointCopy", "name": "A_r1", "transform": 15, "source": 7, "layer": 2 }
+  "angle": "{5}.angle - {6}.angle", "suffix": "_r1" }
+{ "id": 16, "type": "pointCopy", "name": "A_r1", "transform": 15, "source": 7 }
 { "id": 18, "type": "edgeCopy", "transform": 15, "source": 9, "start": 16, "end": 17,
-  "role": "outline", "layer": 2 }
+  "role": "outline" }
 ```
 
 A file lists a transform before its copies.
@@ -382,7 +378,7 @@ Inkscape itself was considered and rejected as the drawing tool: it stores absol
 
 This is construction-based (an explicit dependency graph), not constraint-based like FreeCAD's Sketcher, so no numerical solver is needed.
 
-**Borrowed from Inkscape:** node editor with draggable Bézier handles, smart snapping with visual hints, layers, smooth pan/zoom, and a properties panel where formulas for the selection are edited.
+**Borrowed from Inkscape:** node editor with draggable Bézier handles, smart snapping with visual hints, smooth pan/zoom, and a properties panel where formulas for the selection are edited.
 
 **Align and distribute.** An Align panel modelled on Inkscape's Align and Distribute dialog. Unlike Inkscape, which moves objects to new absolute positions, each action rewrites the selected points' definitions, so the arrangement holds when measurements change.
 
@@ -413,7 +409,6 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
 - **Scroll bars** beside and below the canvas show where the view is, over the pattern with a margin round it and wherever the view has been panned to. They stay in place, greyed, when everything is showing, so that the canvas does not change size. After using one the keys go back to the canvas.
-- **Layers:** Shift+Page Up and Shift+Page Down move the selection to the layer above or below. Objects on a locked layer can be selected from the objects list, to read them, but not moved or deleted.
 - **Tools:** Select (S), Point (P), Line (L), Curve (C), Piece (K), Notch (T) and Seam (E), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
 - **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
   1. An existing point is reused.
@@ -470,7 +465,7 @@ A seam records that edges are sewn together. It is its own object, not a propert
 
 The app cannot work seams out for itself. Equal lengths do not show that two edges belong together, a sleeve cap is meant to be longer than its armhole, and an edge shared by two pieces need not be sewn (a hem drawn once under a front and a back). So the user makes seams, and the app only suggests them.
 
-**The object.** `sideA[]` and `sideB[]` each list `piece` and `edge`, in order along the seam. A side can span pieces, so a sleeve cap can sew to a front and a back armhole, and a waistband to a front and a back. It can have gaps, so a waist can run either side of a dart. Both sides may use the same piece (dart legs, a sleeve's underarm), and the same edge (a centre back on a mirrored piece, where the lengths match by definition but 3D export still needs the pairing). Sides may be on different drafts, an exception to the rule on direct inputs; the seam lives on the draft of its side A. Several seams may use one edge, because a neckline can sew to both a collar and a facing.
+**The object.** `sideA[]` and `sideB[]` each list `piece` and `edge`, in order along the seam. A side can span pieces, so a sleeve cap can sew to a front and a back armhole, and a waistband to a front and a back. It can have gaps, so a waist can run either side of a dart. Both sides may use the same piece (dart legs, a sleeve's underarm), and the same edge (a centre back on a mirrored piece, where the lengths match by definition but 3D export still needs the pairing). Several seams may use one edge, because a neckline can sew to both a collar and a facing.
 
 - **Whole edges only**, as for pieces. A seam covering part of an edge needs the edge split first: select an edge and a point on it, then Tools → Split Edge, or `split_edge` in the Automation API. A piece keeps the edges it was made from, so splitting comes before making the piece; a piece that already exists has to be deleted and made again to use the parts.
 - **Direction.** Each edge runs the way its piece's clockwise path runs, and because of that, sewn edges normally run in opposite directions. So side B is paired against side A from its far end by default, and the user never chooses a direction. `reversed` flips this, for the cases the default gets wrong, mirrored pieces most likely.
@@ -480,81 +475,23 @@ The app cannot work seams out for itself. Equal lengths do not show that two edg
 
 **In the evaluator.** `TSeamObject` is a node whose inputs are its pieces, so it is blocked while one fails, and it follows a piece that moves to the end of the object list. Deleting a piece a seam uses is refused, as for an edge a piece uses. An edge that is not on the piece named beside it, or is that piece's fold edge, makes the seam invalid. The seam's fields are `ease` and `tolerance`. Seams are named `Seam`, `Seam2` and so on, and can be renamed. A seam has no place on the canvas of its own, so it has no label; it is selected from the objects list, where the Pieces filter shows it.
 
-**The Seam tool** (E). A click near a piece's edge adds that edge to the current side, and another click removes it; on an edge two pieces share, the side of the edge clicked picks the piece. Tab moves to side B, so a side can take in edges from several pieces, and Shift-Tab moves back. Each side keeps its colour and shows its running length, with the difference in the status bar. Enter makes the seam as one undo step, and it keeps the tool on for the next; Escape clears the sides, then returns to Select. Once draft tabs exist, clicks will work across them, so the sides can be built on two drafts.
+**The Seam tool** (E). A click near a piece's edge adds that edge to the current side, and another click removes it; on an edge two pieces share, the side of the edge clicked picks the piece. Tab moves to side B, so a side can take in edges from several pieces, and Shift-Tab moves back. Each side keeps its colour and shows its running length, with the difference in the status bar. Enter makes the seam as one undo step, and it keeps the tool on for the next; Escape clears the sides, then returns to Select.
 
 Selecting a seam highlights both sides in their colours with chevrons for direction. The properties show `ease`, `tolerance`, both lengths, the difference and a Flip button, which is one undo step.
 
 **Suggest seams** (Tools → Suggest Seams) lists likely pairs for the user to tick, with none ticked to begin with: edges shared by two pieces first, then edges on different pieces whose lengths are within 1 mm of each other. Fold edges and edges already in a seam are left out. Accepting the list is one undo step, and nothing is stored until then.
 
-## Draft tabs and layers
+## One canvas
 
-A pattern file holds one or more drafts, shown as tabs along the bottom of the canvas like sheets in a spreadsheet workbook, and each draft holds layers for drawing order and visibility.
+A pattern is one drafting area: every object is on the same canvas, drawn in pattern order with pieces under edges and edges under points. Among points, or among edges, the nearest to the cursor is picked.
 
-**Draft tabs.** Each draft is a separate drafting area in the same pattern file, such as Bodice, Sleeve and Collar, with its own canvas, origin and zoom. All drafts share the measurement set, the `#` variables and the undo history.
+**Drafts and layers were taken out** (2026-11-03), with the draft tabs, the Layers panel and the Garment view, to reduce clutter. Drafts held separate drafting areas (bodice, sleeve) as tabs in one file, and layers gave each draft a drawing order and hidden, locked and solo states. They added rules (direct inputs on the same draft, moving between layers, what shows versus what prints) for little use so far. Locking comes back per object (see `items-todo.md`).
 
-- The tab bar sits under the canvas. A `+` tab adds a draft, a double-click renames one, a right-click deletes it and dragging reorders. Deleting a draft is refused while objects on other drafts use its objects.
-- Fit, zoom to selection and the scroll bars work on the current draft only.
-- Undo and redo of a change on another draft switch to that draft, so the change is visible.
-- Sub-windows (one form per draft) were considered and rejected: they make the user manage windows and are the least portable part of the LCL. Seeing two drafts side by side can come later as a split view, a second canvas pane in the main window showing another tab.
+**View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. The canvas's zoom and centre are view state: saved in the pattern file under `view` (`{"zoom": 1.5, "centre": [120, -200]}`) once the canvas has shown the pattern, so it reopens as it was left, but left out of the undo snapshots and the modified flag. Undo keeps the view text aside and puts it back after replacing the pattern. The ID counter is also kept out of the undo snapshots but is not view state: it is saved at the top level as `nextId` (see Names and IDs).
 
-**Names are global.** Names are unique across all drafts, as now, so formulas need no qualifier and nothing changes in the formula engine. Auto-naming continues from the next free name across the whole pattern. Autocomplete and the objects panel show each object's draft beside its name, and the objects panel can filter by draft.
+**Older files.** A file written while patterns had drafts and layers still loads: its `drafts` list and each object's `layer` are passed over, so every object lands on the one canvas, hidden layers included, and the old `view` is ignored. The drafts' and layers' IDs stay retired, as the counter is kept above them. Saving writes the file without them.
 
-**References between drafts:**
-
-- Formulas may refer to objects on any draft, so a sleeve cap can use the bodice armhole's `.length`.
-- Direct inputs (a base point, an edge to intersect or split, a curve's end points) must be on the same draft, so every line on a canvas starts from something visible on it. Seams and transforms are the exceptions: a seam joins pieces that are often drafted apart, and a Move can copy from another draft.
-- To bring geometry to another draft, such as tracing a facing or yoke off the bodice, a Move transform takes a destination draft and makes parametric copies there. Transforms come after this step, so until then a second draft can read lengths from the first through formulas but cannot reuse its shapes.
-- Piece detection works within one draft.
-
-**Layers.** Each draft has an ordered list of layers; the order is the drawing order (z-order), as in Inkscape. Sublayers, blend modes, opacity and duplicating a layer are left out for now.
-
-- Every object belongs to exactly one layer. New objects go into the active layer, and selecting an object makes its layer the active one, so new points do not land on the wrong layer.
-- Move to layer is an undoable command, as are moving the selection to the layer above or below. It stays within one draft, since moving between drafts would break the rule on direct inputs.
-- A Layers tab in the side panel lists layers top first, each with a visible and a locked checkbox. Its buttons add and delete a layer and move it up or down, and a double-click renames it.
-- **Solo** shows only one layer, and turning it off brings back the others as they were.
-- **Hidden** means not drawn: objects on a hidden layer are still evaluated, because visible objects may depend on them, but they cannot be selected or snapped to.
-- **Locked** means visible but fixed: its points can be snapped to, but its objects cannot be selected, dragged or deleted. Useful for a finished block being built on.
-- Clicking follows the order: points win over edges, as now, and among points or among edges the topmost layer wins.
-- Piece detection uses visible outline edges only, so hiding the layer with the original dart lets the user click inside the rotated outline without the old edges splitting the region.
-- **Hiding never changes output.** A hidden layer is a working view, so the publish app, Garment View and exports still include its pieces; otherwise a piece could vanish from a print because a layer was left hidden. The one exception is exporting the draft itself, a picture of that working view rather than something to cut from (see Draft export).
-- Deleting a layer is refused while its objects are used elsewhere; a layer can be emptied with Move to layer first.
-- A new draft starts with one layer, `Draft`.
-
-**View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. Layer visibility, lock and solo, the active layer, the current tab and each draft's zoom and position are view state: saved in the pattern file under its own `view` member so the pattern reopens as it was left, but left out of the undo snapshots and the modified flag. The ID counter is also kept out of the undo snapshots but is not view state: it is saved at the top level as `nextId` (see Names and IDs). Draft and layer names, order and membership are part of the pattern and undoable.
-
-**In the file** (shape to be settled with the implementation):
-
-```json
-{
-  "format": "pattern",
-  "version": 1,
-  "nextId": 7,
-  "drafts": [
-    { "id": 1, "name": "Bodice",
-      "layers": [ { "id": 3, "name": "Draft" }, { "id": 4, "name": "Side dart" } ] },
-    { "id": 2, "name": "Sleeve",
-      "layers": [ { "id": 5, "name": "Draft" } ] }
-  ],
-  "objects": [
-    { "id": 6, "type": "freePoint", "name": "A", "layer": 3, "x": "0", "y": "0" }
-  ],
-  "view": {
-    "draft": 1,
-    "drafts": {
-      "1": { "activeLayer": 4, "zoom": 1.5, "centre": [120, -200],
-             "hidden": [], "locked": [3] }
-    }
-  }
-}
-```
-
-An object's draft is its layer's draft. The format version stays at 1. A pattern starts with one draft and one layer, both named `Draft`, which have no IDs and are not written to the file, so existing patterns load as they are and their IDs do not move. The first time a draft or layer is added, renamed, moved or deleted they take IDs from the counter, and from then on the file has `drafts`, `layer` and `view`. So a pattern with one unchanged layer has no saved view: hiding that layer lasts only as long as the session. Files from before integer IDs are not read.
-
-**Automation API.** `list_drafts`, `add_draft`, `add_layer`, `rename_draft`, `rename_layer`, `delete_draft`, `delete_layer`, `move_layer` and `move_to_layer`, with drafts and layers named by ID or name; a layer's name is looked up on the active draft. `set_active` chooses the draft and layer and sets `hidden` and `locked`, as view state with no undo step. `add_point` and `add_edge` take an optional `layer`, which becomes the active layer, and `render` takes `draft`.
-
-**Code.** `Sloper.Core.Drafts` holds drafts and layers, and `TPattern` answers `IsShown` and `IsPickable`, which the canvas, snapping and piece detection all go by, so none of them filters for itself. `ShownObjects` and `ShownPoints` in `Sloper.UI.Scene` give drawing order. Bounds and `render` go by the draft only, and the publish app, Garment View and exports read every piece. An object cannot take a direct input from another draft: `CheckPoint` and `CheckEdgeTarget` refuse it for the active draft, and seams skip that check. A file is not checked for this. The UI is `Sloper.UI.LayersPanel` and `Sloper.UI.DraftBar`. Undo keeps the view text aside and puts it back after replacing the pattern, then shows the draft of the first object that differs. Undoing the change that first gave the drafts IDs loses that draft's remembered zoom, as the keys go with it.
-
-The objects panel has a Draft column and filter. Not done yet: autocomplete showing an object's draft.
+**Code.** `TPattern.View` holds the zoom and centre; `TPatternCanvas.RestoreView` and `StoreView` read and write it. `Sloper.UI.Scene` gives the drawing order and picking. The Automation API's draft and layer methods and `set_active` are gone, as are `layer` on `add_point`, `add_edge` and `add_transform`, `draft` and `shown` on `render`, and `--draft` on `export-draft`.
 
 ## Links and problem display
 
@@ -695,7 +632,7 @@ Measurement file (`.slm`); values are in mm, keys follow the name rules and are 
 
 Keys from the measurement catalogue are preferred; custom keys follow the name rules.
 
-Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example shows `drafts`, `layer` and `view`, which a pattern with one unchanged draft and layer leaves out. The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
+Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example shows `view`, which is written once the canvas has shown the pattern. The format stays at version 1 until the first public release: while nobody else has pattern files, format changes such as integer IDs and drafts are made in place and the regression patterns are rebuilt.
 
 ```json
 {
@@ -706,23 +643,20 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
   "measurementFile": "bill.slm",
   "size": "",
   "nextId": 9,
-  "drafts": [
-    { "id": 1, "name": "Skirt", "layers": [ { "id": 2, "name": "Draft" } ] }
-  ],
   "variables": [
     { "id": 3, "name": "ease_waist", "formula": "20", "description": "" }
   ],
   "objects": [
-    { "id": 4, "type": "freePoint", "name": "A", "layer": 2, "x": "0", "y": "0" },
-    { "id": 5, "type": "offsetPoint", "name": "B", "layer": 2,
+    { "id": 4, "type": "freePoint", "name": "A", "x": "0", "y": "0" },
+    { "id": 5, "type": "offsetPoint", "name": "B",
       "base": 4, "mode": "polar", "length": "@waist/4 + {3}", "angle": "0" },
-    { "id": 6, "type": "line", "layer": 2, "start": 4, "end": 5, "role": "outline" }
+    { "id": 6, "type": "line", "start": 4, "end": 5, "role": "outline" }
   ],
   "fabrics": [
     { "id": 7, "name": "Main", "color": "#5B8DB8", "fill": "tint" },
     { "id": 8, "name": "Lining", "color": "#C9A227", "fill": "hatch" }
   ],
-  "view": { "draft": 1 }
+  "view": { "zoom": 1.5, "centre": [120, -200] }
 }
 ```
 
@@ -730,11 +664,11 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
 
 - `measurementFile` is the measurement set last used with the pattern, written with `/` separators and relative to the pattern's folder unless absolute. `MeasurementFilePath` turns it into a path; the core never loads it by itself. `size` names the size used from a size table, and is empty for a personal set.
 - `variables` and `objects` are in creation order. An object's direct inputs (`base`, `edge`, `start`, a path's node points and so on) must name an object earlier in the file. Creation order guarantees this, because inputs exist before the object and cannot be deleted while it uses them. Formulas may refer to any ID; a missing one shows as an error when evaluated.
-- IDs and references to them (`base`, `edge`, `layer`, `sources` and so on) are JSON numbers; in formula text a reference is the ID in braces (`{3}`).
-- Each object has `id`, `type`, `name` and, once a pattern has drafts of its own, `layer`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
+- IDs and references to them (`base`, `edge`, `sources` and so on) are JSON numbers; in formula text a reference is the ID in braces (`{3}`).
+- Each object has `id`, `type` and `name`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
-- Loading checks IDs (positive integers, unique across drafts, layers, variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
+- Loading checks IDs (positive integers, unique across variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
 
 | `type` | Members besides `id`, `type`, `name` |
 | --- | --- |
@@ -905,12 +839,11 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 
 ### Draft export
 
-File → Export Draft SVG… in the drafting app, and `opensloper-cli export-draft PATTERN [--draft=NAME] [--labels] [-m FILE] [-s SIZE] [-o FILE]`, write one draft as a true-scale SVG in millimetres: the construction itself, with its points, construction lines, curves and pieces, for teaching, documentation, review and marking up in Inkscape. It is not for cutting, which the publish app's SVG does from finished pieces and needs a layout; this needs only a draft, even an unfinished one. The drawing is `DraftToSVG`, as `render` uses.
+File → Export Draft SVG… in the drafting app, and `opensloper-cli export-draft PATTERN [--labels] [-m FILE] [-s SIZE] [-o FILE]`, write the draft as a true-scale SVG in millimetres: the construction itself, with its points, construction lines, curves and pieces, for teaching, documentation, review and marking up in Inkscape. It is not for cutting, which the publish app's SVG does from finished pieces and needs a layout; this needs only a draft, even an unfinished one. The drawing is `DraftToSVG`, as `render` uses.
 
-- It matches the screen: hidden layers and anything outside a solo layer are left out, and the sheet fits what remains. This is the exception to hiding never changing output. In the window it also follows View → Piece Fills, draws labels unless Labels is None, and takes the pattern as it stands, saved or not. On a contextual Labels setting it draws them all, since nothing is hovered in a file.
-- The CLI goes by the view saved in the file, on the draft it was left on unless `--draft` names one, with fills on and labels only with `--labels`. Problems are warnings: failing objects draw in their state colours, or are left out if they have never been computed, and the file is still written.
-- The suggested file is the pattern's name, with the draft's after it when there is more than one draft.
-- `render` takes `shown` for the same choice of what to draw.
+- It matches the screen. In the window it follows View → Piece Fills, draws labels unless Labels is None, and takes the pattern as it stands, saved or not. On a contextual Labels setting it draws them all, since nothing is hovered in a file.
+- The CLI draws with fills on and labels only with `--labels`. Problems are warnings: failing objects draw in their state colours, or are left out if they have never been computed, and the file is still written.
+- The suggested file is the pattern's name with `.svg`.
 
 ### Other exports and packing
 
@@ -963,7 +896,7 @@ Pieces are coloured by the fabric they are cut from, so colour carries meaning (
 
 **Cut list.** Built from the fabric assignments and each piece's cut settings, grouped by fabric, for example "Main: Front ×1 on fold, Back ×2 · Lining: Front ×1 on fold, Back ×2". Available as the `{cutlist}` live field for the title block or a sheet note. A layout with several patterns joins their cut lists.
 
-**Starting out.** Main is like the first draft and layer: it has no ID and is not written to the file until the fabric list is first changed, so existing files load as they are and their IDs do not move. The first add, rename, recolour or change of fill gives Main an ID and puts every piece on it. So until then a piece's empty `FabricKey` means Main, and afterwards it means no fabric, which a pattern reaches by choosing None or from a hand-written file. New pieces take the first fabric. Undoing that first change takes the ID back.
+**Starting out.** Main has no ID and is not written to the file until the fabric list is first changed, so existing files load as they are and their IDs do not move. The first add, rename, recolour or change of fill gives Main an ID and puts every piece on it. So until then a piece's empty `FabricKey` means Main, and afterwards it means no fabric, which a pattern reaches by choosing None or from a hand-written file. New pieces take the first fabric. Undoing that first change takes the ID back.
 
 **Choices made in building it:**
 
@@ -971,7 +904,7 @@ Pieces are coloured by the fabric they are cut from, so colour carries meaning (
 - The last fabric cannot be deleted.
 - New fabrics are named `Fabric`, `Fabric2` and so on, and take the first palette colour no fabric has.
 - A fabric's hatching angle goes by its place in the list (45°, 135°, 0°, 90°, then round again), so hatched fabrics differ on a black-and-white print.
-- The display toggle is View → Piece Fills, a setting rather than part of the pattern. It affects the drafting canvas only; the Garment view and the publish window always show fabric.
+- The display toggle is View → Piece Fills, a setting rather than part of the pattern. It affects the drafting canvas only; the publish window always shows fabric.
 
 **Code.** `Sloper.Core.Fabrics` holds fabrics, colours and `HatchLines`, and `TPattern` answers `FabricOf`, `PieceLook` (the fabric with any override worked out), `PieceCaption`, `CutList` and `FabricNames`, so canvas, exports and garment all ask it. Hatching is plain lines, computed on screen points on the canvas so its spacing holds at any zoom. The UI is `Sloper.UI.FabricsPanel`, a Fabrics tab with the cut list under it, and rows in the piece's properties. The Automation API has `list_fabrics` (with the cut list), `add_fabric`, `rename_fabric`, `set_fabric`, `delete_fabric`, `set_piece_fabric` (a `fabric`, or `none`) and `set_piece_fill` (`color`, `style`); fabrics are named by ID or name.
 
@@ -1046,13 +979,13 @@ Notes, callouts and a title block are first-class objects that print with the pa
 **Visibility:**
 
 - Each annotation is marked print and screen, or screen only (private drafting notes)
-- Annotations sit on layers like everything else, so a whole set can be hidden
+- The user can show or hide annotations as a whole
 - The print screen offers a title block template (position, which fields to show), placed once per print, with an optional copy on every tiled page
 
 **Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and pattern-space annotations are saved in the pattern file with everything else. Sheet-space annotations (title block, sheet notes) belong to a printed layout, so they are edited in the publish app and saved in the layout file.
 
 ```json
-{ "id": 20, "type": "callout", "layer": 8,
+{ "id": 20, "type": "callout",
   "text": "Ease cap between notches ({=Curve_SC.length} mm)",
   "anchor": { "edge": 7, "position": "0.5" },
   "box": { "dx": "40", "dy": "-25" },
@@ -1123,10 +1056,9 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2 |
-| Transforms | Each transform against hand-checked positions, curves and split parts exact, lengths kept by rotate and move, a failing source blocking only its copy, deleting as a group, copies across drafts, files |
-| Drafts and layers | Files without drafts load into one draft, view state stays out of undo and the modified flag, drawing order, hidden and locked layers in picking, snapping and piece detection, hiding leaves output alone, refused deletes, undo switching drafts |
-| Garment view | Joining along seams with direction and flips, which seams join, mirroring across the centre line, unjoined pieces, no centre line |
-| Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces and drafts, invalid and blocked states, suggestions |
+| Transforms | Each transform against hand-checked positions, curves and split parts exact, lengths kept by rotate and move, a failing source blocking only its copy, deleting as a group, files |
+| View and older files | The view is saved and stays out of undo and the modified flag; files with drafts and layers load onto one canvas with their IDs retired |
+| Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces, invalid and blocked states, suggestions |
 | Storage | Save → load → save produces identical JSON |
 | Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
 | Undo/redo | Execute then undo restores the exact previous state, including random command sequences |
@@ -1204,7 +1136,7 @@ Third-party and personal Pascal libraries are git submodules under `packages/`, 
 **Command-line tools** (using the LCL-free core and ConsoleTools):
 
 - `opensloper-cli export LAYOUT [--format=pdf|svg|dxf|machine-dxf] [--profile=NAME] [-o FILE]`: regenerate a layout's output after patterns or measurements change
-- `opensloper-cli export-draft PATTERN [--draft=NAME] [--labels] [-m FILE] [-s SIZE] [-o FILE]`: write a draft as SVG (see Draft export)
+- `opensloper-cli export-draft PATTERN [--labels] [-m FILE] [-s SIZE] [-o FILE]`: write the draft as SVG (see Draft export)
 - `opensloper-cli pack LAYOUT`: pack a layout's pieces and rewrite the file; exits with 1 when it refuses or nothing improves
 - `opensloper-cli check PATTERN [-m FILE] [-s SIZE] [--json]`: evaluate a pattern and report invalid objects, gaps and seam mismatches, usable in tests and CI. Implemented so far: errors, invalid objects and seam mismatches, one line each, with a count of the objects they block; `--json` prints the full report used by the regression tests. Without `-m` it uses the pattern's `measurementFile` and `size`. Exit codes: 0 no problems, 1 problems, 2 usage or file error
 - `opensloper-cli measurements list FILE` and `measurements set FILE KEY VALUE [--size SIZE] [--description TEXT]`: read and edit measurement files from scripts, through `Sloper.Core.Measurements` (see Measurements app)
@@ -1227,7 +1159,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_rectangle`, `round_corner`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `add_marking`, `remove_marking`, `set_cut`, `set_fold`, `set_view`, the draft and layer methods (see Draft tabs and layers), the fabric methods (see Fabrics), `add_transform`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type`, including `circleCirclePoint`, `circle` and `arc`, and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels`, `shown` (only what the canvas shows, see Draft export) and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_rectangle`, `round_corner`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `add_marking`, `remove_marking`, `set_cut`, `set_fold`, the fabric methods (see Fabrics), `add_transform`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type`, including `circleCirclePoint`, `circle` and `arc`, and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -1239,13 +1171,12 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `list_objects`, `get_object` | Names, IDs, operations, formulas (display form), computed values and state |
 | `add_point`, `add_edge`, `split_edge`, `add_variable`, `add_repeat` | Create objects with an operation and formula fields; a repeat's points are named like `Btn[3]` wherever a point is wanted |
 | `set_formula`, `rename`, `delete` | Edit existing objects |
-| `add_transform` | Rotate, mirror or move `sources` as copies, on a new layer unless `layer` is given |
+| `add_transform` | Rotate, mirror or move `sources` as copies |
 | `arrange` | Align or distribute points; points a formula drives are left and listed unless named in `replace` |
 | `create_piece` | Detect and create a piece from a position inside a region (`x`, `y`, optional `name` and `allowance`, default 10 mm) |
 | `set_edge_allowance` | Give one edge of a piece its own seam allowance, or clear it |
 | `set_grainline` | Set a piece's grainline: `angle`, `start` and `end` points, or `none` |
 | `set_cut`, `set_fold` | Set a piece's cut `count` and `mirrored`; set its fold `edge`, or `none` |
-| `set_view` | Set which garment view a piece shows in: `none`, `front`, `back` or `both` |
 | `list_fabrics`, `add_fabric`, `rename_fabric`, `set_fabric`, `delete_fabric` | The fabric list and the cut list; add, rename, recolour, change fill or delete a fabric |
 | `set_piece_fabric`, `set_piece_fill` | Assign a piece's `fabric`, or `none`; set its own `color` and `style` |
 | `add_rectangle`, `round_corner` | Add a rectangle from a `corner`; round the corner between two edges |
@@ -1254,7 +1185,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `add_seam`, `flip_seam`, `suggest_seams` | Add a seam from `sideA` and `sideB`, with optional `ease` and `tolerance`; flip its direction; list likely pairs without storing them |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
-| `render` | PNG or SVG of the draft or a piece, with options for labels and a region, or of a garment view with `garment` |
+| `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
 | `export` | A layout file as PDF, SVG, DXF or machine DXF to a given path; `format` and `profile` are optional |
 | `ui_state` (GUI only) | Selection, label mode, viewport, canvas snapshot |
 
@@ -1276,26 +1207,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ## Garment view
 
-A read-only window in the drafting app (View → Garment View, Ctrl/Cmd+G), kept above the main window, showing the finished garment flat, like a technical flat sketch, with a front and a back side by side. It draws front and back at one scale and updates as the pattern changes. It shows proportions and how the pieces go together, not fit or drape, and it comes before Blender because it needs no outside tools and no simulation.
-
-Everything is computed from the pattern (`Sloper.Core.Garment`, no LCL dependency, reading computed geometry). The only stored addition is `view` on a piece.
-
-**Which view.** The app cannot tell a front from a back, so each piece has a `view`, set in the properties and with `set_view`: `none` by default, `front`, `back` or `both`. A piece with no view is left out, and the window lists how many.
-
-**Building a view:**
-
-1. **Start.** The largest piece in the view stays where it was drafted.
-2. **Join.** Seams are followed outwards from it, longest first. Each new piece is moved and rotated so that the ends of its side of the seam meet the ends of the side already placed, using the seam's direction. It is flipped across the seam when it would otherwise lie over the piece it joins. A piece reached by two seams keeps the first; a mismatch at the second shows as a gap, which is useful.
-3. **Which seams.** A seam joins only when every piece on both its sides is in this view. So front and back are not joined to each other, and a sleeve whose one seam runs round a front and a back armhole does not join. Splitting the cap at the shoulder into two seams joins it in both views. A seam only places a piece when that piece is alone on its side, so a side spanning two unplaced pieces waits until they are placed. A piece that joins nothing is drawn beside the others, with whatever joins to it, and the window says so.
-4. **Complete it.** The joined pieces are a half garment when the view has a centre line: a piece's fold, or an edge seamed to itself (a centre back). The half is mirrored across that line, opening fold pieces and showing a left and a right, and the view is turned so the line is upright, keeping the side that was up. Only pieces on a fold or cut more than once are mirrored; a piece cut once shows once. With no centre line, the window says a mirrored piece shows one side only.
-
-**Drawing.** Outlines are the seam lines, not the cutting lines, since a finished garment has no allowance. Pieces are filled with a light tint of their fabric's colour, or hatched, with each edge as a line except a fold, so a fold piece reads as one whole piece. A seam's length difference is shared between its two ends. Darts stay open and are drawn as they are on the piece.
-
-**Limits.** Pieces only move and rotate; they never bend. So curved seams that differ show gaps or overlaps (a princess seam, a sleeve cap eased into an armhole), a flared skirt fans out with overlapping panels, and gathers do not show. A garment with no seams shows its pieces apart.
-
-**Export.** Export SVG in the window writes one true-scale file in millimetres with front and back side by side, top edges level, each under its title, in `data-side` groups. A view with nothing in it is left out, and the button is disabled when both are empty. It is drawn by `GarmentSheetToSVG` in `Sloper.Output.GarmentSVG`, and the file name starts as the pattern's with `-garment.svg`. It is a read-only output, so it is no undo step and does not modify the pattern.
-
-**Automation API.** `set_view` sets a piece's view, and `render` takes `garment` (`front` or `back`) for one view as SVG.
+Taken out on 2026-11-03, with drafts and layers, to reduce clutter (see One canvas). It was a read-only window (View → Garment View) showing the finished garment flat, front and back side by side: each piece had a `view` (`none`, `front`, `back` or `both`), and pieces in a view were joined along their seams, moved and rotated but never bent, then mirrored across a fold or a centre seam. It had an SVG export, `set_view` and `render` with `garment` in the Automation API. The code is in the git history before that date. A file that still gives a piece a `view` loads, and the member is dropped on saving. Seeing the finished garment is left to the Blender export.
 
 ## Accessories
 
@@ -1382,7 +1294,7 @@ Stitch hole spacing is a formula, and holes are spaced evenly between the ends w
 
 **Leather hides** come after these, as a step of their own: a hide's outline drawn by hand, with flaws marked as areas to avoid, and then traced over a photo in the publish window. Bounding boxes cannot honour an irregular outline, so packing onto a hide needs true shapes, and until then pieces are placed by hand and checked against the outline.
 
-**Not included.** Fashion drawing beyond the Garment view (illustration, colours, prints) is left to tools such as Inkscape and Krita; a pattern can keep a reference image. Hardware sizes (rings, buckles, zips) are entered as variables, not a catalogue; the Notions library in Future ideas would change that.
+**Not included.** Fashion drawing (illustration, colours, prints) is left to tools such as Inkscape and Krita; a pattern can keep a reference image. Hardware sizes (rings, buckles, zips) are entered as variables, not a catalogue; the Notions library in Future ideas would change that.
 
 ## 3D preview (later phase)
 
@@ -1426,9 +1338,9 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 10. Measurements app (done, with 72 measurements in the catalogue so far): measurement and size table editing; measurement editor with catalogue and body figure; import and export Valentina/Seamly2D measurement files
 11. Seams and seam-length checks (done, see Seams; the Check pattern overlay itself is not built yet, so a mismatch shows in the status bar, the Problems filter and `check`): seam object, Seam tool, Suggest seams, split command on the canvas
 12. SVG piece export and DXF-AAMA export, automatic packing in the publish app (done, see Other exports and packing; DXF untried on a real cutting system)
-13. Garment view: a flat front and back of the finished garment in the drafting app (done, see Garment view)
-14. Layers and draft tabs (done, see Draft tabs and layers)
-15. Transforms: move, rotate and mirror as parametric copies, into a chosen layer or draft (done, see Transforms; the ghost preview is left for later)
+13. Garment view: a flat front and back of the finished garment in the drafting app (done, then taken out; see Garment view)
+14. Layers and draft tabs (done, then taken out to keep to one canvas; see One canvas)
+15. Transforms: move, rotate and mirror as parametric copies (done, see Transforms; the ghost preview is left for later)
 16. Accessories: circles and arcs, rectangle tool, rounded corners, offset edges, internal markings, a default allowance per fabric (done, see Accessories; rounding curved corners is left for later)
 17. Cutting machine output (line types, profiles, machine DXF, opened-out fold pieces) and material sheets (fabric widths and boards, one fabric at a time) (done, see Accessories; untried on a real machine, and profiles are edited in the settings file, as there is no window for them yet)
 18. Leather hides: outlines drawn or traced from a photo, flaws, placing and packing on true shapes
@@ -1444,9 +1356,9 @@ Open questions:
 - [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
 - [x] Accessories: settled, fabric and leather accessories on the same core, with the additions in Accessories
 - [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
-- [x] Transforms: settled, copies of points and edges that follow one movement, on a new layer by default, with the ghost preview left for later; see Transforms
-- [x] Seeing the finished garment: settled, a flat Garment view comes first and Blender stays as a later step; see Garment view
+- [x] Transforms: settled, copies of points and edges that follow one movement, with the ghost preview left for later; see Transforms
+- [x] Seeing the finished garment: a flat Garment view was built and then taken out; Blender stays as a later step; see Garment view
 - [x] SVG, DXF and packing: settled, SVG follows the arrangement, DXF-AAMA writes one block per piece, packing works on bounding boxes; see Other exports and packing. DXF is untried on a real cutting system
 - [x] Cutting machines and material sheets: settled, profiles in the app settings with the layout naming one, pieces cut as they lie so quarter turns warn and fold pieces open out, hides split into their own step; see Accessories
 - [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
-- [x] Draft tabs and layers: settled, drafts as tabs within one pattern file, global names, ordered layers per draft; see Draft tabs and layers
+- [x] Draft tabs and layers: settled, then taken out: a pattern is one canvas; see One canvas

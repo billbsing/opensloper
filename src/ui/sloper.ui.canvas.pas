@@ -28,7 +28,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Drafts, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
+  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
   Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
@@ -76,8 +76,6 @@ type
     FHorzBar, FVertBar: TScrollBar;
     // A thumb is being dragged, so its bar is left alone until it lets go
     FThumbHeld: boolean;
-    // The draft FView belongs to
-    FViewDraftKey: string;
     // A transform waiting for its pivot or axis to be clicked
     FPicking: boolean;
     FPickKind: TTransformKind;
@@ -94,10 +92,7 @@ type
     function ObjectKeyAt(X, Y: integer): string;
     function IsSelected(const Key: string): boolean;
     procedure SetSelection(const Keys: TStringArray);
-    procedure StoreDraftView;
-    function SelectionIsLocked: boolean;
-    procedure DropHiddenSelection;
-    procedure MoveSelectionBy(Delta: integer);
+    procedure StoreView;
     procedure PickHere(X, Y: integer);
     procedure EndPicking;
     procedure MakeTransform(const Spec: TTransformSpec);
@@ -171,10 +166,8 @@ type
     // 1 mm on screen is 1 mm
     procedure ZoomTrueSize;
     procedure SelectNone;
-    // Switches to another draft, with its own zoom
-    procedure ShowDraft(Draft: TPatternDraft);
-    // The active draft as it was last seen, or fitted
-    procedure RestoreDraftView;
+    // The pattern as it was last seen, or fitted
+    procedure RestoreView;
     // Selects these objects, as a click on the canvas would
     procedure SelectObjects(const Keys: TStringArray);
     // Brings the selection into view at the current zoom
@@ -195,8 +188,6 @@ type
     procedure MarkSelection(Kind: TMarkingKind);
     // Removes the selected piece's markings on the point or edge selected with it
     procedure UnmarkSelection;
-    // Moves the selected objects to a layer, as one undo step
-    procedure MoveSelectionToLayer(Layer: TPatternLayer);
     // Deletes the selected objects, the dependents first; nothing when any is in use
     procedure DeleteSelection;
     // Splits the selected edge at the selected point; says why not otherwise
@@ -221,7 +212,6 @@ resourcestring
   rsCanvasMovePoint = 'Move point';
   rsCanvasMoveHandle = 'Move curve handle';
   rsCanvasNudge = 'Nudge';
-  rsCanvasMoveToLayer = 'Move to layer';
   rsCanvasTransform = 'Add %s';
   rsCanvasPickCentre = 'Select the point for its centre first';
   rsCanvasAddRound = 'Add circle or arc';
@@ -242,7 +232,6 @@ resourcestring
   rsCanvasPickPoint = 'Click a point';
   rsCanvasPickEdge = 'Click a straight edge or a point';
   rsCanvasNothingSelected = 'Select the points and edges to copy first';
-  rsCanvasLocked = 'The layer %s is locked';
   rsCanvasDelete = 'Delete';
   rsCanvasHover = '%s: %s';
   rsCanvasAddPoint = 'Add point';
@@ -430,11 +419,6 @@ begin
     FHasStart := False;
     FSnapShown := False;
   end;
-  if Changes * [dcView, dcObjectsReplaced] <> [] then
-    DropHiddenSelection;
-  // Switching tabs, or undo showing what it changed
-  if FDocument.Pattern.ActiveDraft.Key <> FViewDraftKey then
-    RestoreDraftView;
   Invalidate;
 end;
 
@@ -481,126 +465,45 @@ begin
   Result := False;
 end;
 
-// Picking something makes its layer the active one, so that what is drawn
-// next goes beside it
 procedure TPatternCanvas.SetSelection(const Keys: TStringArray);
-var
-  Node: TEvalNode;
 begin
   FSelection := Keys;
-  if (Keys <> nil) and (FDocument <> nil) then
-  begin
-    Node := FDocument.Pattern.FindNode(Keys[High(Keys)]);
-    if ((Node is TDraftObject) or (Node is TRepeatPoint)) and (FDocument.Pattern.LayerOf(Node) <> FDocument.Pattern.ActiveLayer) and
-      FDocument.Pattern.InActiveDraft(Node) then
-    begin
-      FDocument.Pattern.SelectLayer(FDocument.Pattern.LayerOf(Node));
-      FDocument.ViewChanged;
-    end;
-  end;
   Invalidate;
   if Assigned(FOnSelectionChange) then
     FOnSelectionChange(Self);
 end;
 
-// The list shows every draft, so a row can be on another one
 procedure TPatternCanvas.SelectObjects(const Keys: TStringArray);
-var
-  Node: TEvalNode;
 begin
-  if (Keys <> nil) and (FDocument <> nil) then
-  begin
-    Node := FDocument.Pattern.FindNode(Keys[0]);
-    if ((Node is TDraftObject) or (Node is TRepeatPoint)) and not FDocument.Pattern.InActiveDraft(Node) then
-      ShowDraft(FDocument.Pattern.DraftOf(Node));
-  end;
   SetSelection(Keys);
 end;
 
-procedure TPatternCanvas.ShowDraft(Draft: TPatternDraft);
-begin
-  if (FDocument = nil) or (FDocument.Pattern.ActiveDraft = Draft) then
-    Exit;
-  FDocument.Pattern.ActiveDraft := Draft;
-  SelectNone;
-  FHasStart := False;
-  FSnapShown := False;
-  FHoverKey := '';
-  FDocument.ViewChanged;
-end;
-
-procedure TPatternCanvas.RestoreDraftView;
-var
-  Draft: TPatternDraft;
+procedure TPatternCanvas.RestoreView;
 begin
   if FDocument = nil then
     Exit;
-  Draft := FDocument.Pattern.ActiveDraft;
-  FViewDraftKey := Draft.Key;
-  if Draft.HasView then
+  if FDocument.Pattern.View.HasView then
   begin
-    FView.Scale := Draft.Zoom;
-    FView.CentreOn(Vec2(Draft.CentreX, Draft.CentreY), ClientWidth, ClientHeight);
+    FView.Scale := FDocument.Pattern.View.Zoom;
+    FView.CentreOn(Vec2(FDocument.Pattern.View.CentreX, FDocument.Pattern.View.CentreY), ClientWidth, ClientHeight);
     Invalidate;
   end
   else
     ZoomToFit;
 end;
 
-// Kept on the draft, which is saved with the file and survives undo
-procedure TPatternCanvas.StoreDraftView;
+// Kept on the pattern, which saves it with the file and keeps it through undo
+procedure TPatternCanvas.StoreView;
 var
-  Draft: TPatternDraft;
   Centre: TVec2;
 begin
   if FDocument = nil then
     Exit;
-  Draft := FDocument.Pattern.ActiveDraft;
-  if Draft.Key <> FViewDraftKey then
-    Exit;
   Centre := FView.ToModel(Vec2(ClientWidth / 2, ClientHeight / 2));
-  Draft.HasView := True;
-  Draft.Zoom := FView.Scale;
-  Draft.CentreX := Centre.X;
-  Draft.CentreY := Centre.Y;
-end;
-
-// True, with a message, when any of the selection is on a locked layer
-function TPatternCanvas.SelectionIsLocked: boolean;
-var
-  Key: string;
-  Node: TEvalNode;
-begin
-  Result := False;
-  for Key in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if ((Node is TDraftObject) or (Node is TRepeatPoint)) and FDocument.Pattern.LayerOf(Node).Locked then
-    begin
-      ShowMessageText(Format(rsCanvasLocked, [FDocument.Pattern.LayerOf(Node).Name]));
-      Exit(True);
-    end;
-  end;
-end;
-
-// What no longer shows cannot stay selected
-procedure TPatternCanvas.DropHiddenSelection;
-var
-  Kept: TStringArray;
-  Key: string;
-  Node: TEvalNode;
-begin
-  Kept := nil;
-  for Key in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if not ((Node is TDraftObject) or (Node is TRepeatPoint)) or FDocument.Pattern.IsShown(Node) then
-      Insert(Key, Kept, Length(Kept));
-  end;
-  if Length(Kept) <> Length(FSelection) then
-    SetSelection(Kept);
-  if (FHoverKey <> '') and (FDocument.Pattern.FindNode(FHoverKey) <> nil) and not FDocument.Pattern.IsShown(FDocument.Pattern.FindNode(FHoverKey)) then
-    FHoverKey := '';
+  FDocument.Pattern.View.HasView := True;
+  FDocument.Pattern.View.Zoom := FView.Scale;
+  FDocument.Pattern.View.CentreX := Centre.X;
+  FDocument.Pattern.View.CentreY := Centre.Y;
 end;
 
 procedure TPatternCanvas.RevealSelection;
@@ -785,7 +688,7 @@ var
   Node: TEvalNode;
   Moved: boolean;
 begin
-  if (FDocument = nil) or (FSelection = nil) or SelectionIsLocked then
+  if (FDocument = nil) or (FSelection = nil) then
     Exit;
   FDocument.BeginChange(rsCanvasNudge);
   Moved := False;
@@ -812,7 +715,7 @@ var
   Index: integer;
   Node: TEvalNode;
 begin
-  if (FDocument = nil) or (FSelection = nil) or SelectionIsLocked then
+  if (FDocument = nil) or (FSelection = nil) then
     Exit;
   FDocument.BeginChange(rsCanvasDelete);
   // Later objects can use earlier ones, so delete from the end of the pattern
@@ -855,50 +758,6 @@ begin
     SetSelection([FirstKey, SecondKey])
   else
     ShowMessageText(Reason);
-end;
-
-procedure TPatternCanvas.MoveSelectionToLayer(Layer: TPatternLayer);
-var
-  Key, Reason, LayerKey: string;
-  Node: TEvalNode;
-  Done: boolean;
-  Found: TPatternDraft;
-begin
-  if (FDocument = nil) or (FSelection = nil) or SelectionIsLocked then
-    Exit;
-  FDocument.BeginChange(rsCanvasMoveToLayer);
-  // Going onto a first layer gives it a key, so that is read after
-  Done := True;
-  LayerKey := Layer.Key;
-  for Key in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if (Node is TDraftObject) or (Node is TRepeatPoint) then
-      Done := FDocument.Pattern.MoveToLayer(Node, Layer) and Done;
-  end;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Done) then
-  begin
-    LayerKey := Layer.Key;
-    FDocument.Pattern.SelectLayer(FDocument.Pattern.FindLayer(LayerKey, Found));
-    FDocument.ViewChanged;
-  end
-  else
-    ShowMessageText(Reason);
-end;
-
-// The layer above or below the active one, for what is selected
-procedure TPatternCanvas.MoveSelectionBy(Delta: integer);
-var
-  Draft: TPatternDraft;
-  Index: integer;
-begin
-  if FDocument = nil then
-    Exit;
-  Draft := FDocument.Pattern.ActiveDraft;
-  Index := Draft.IndexOfLayer(Draft.ActiveLayer) + Delta;
-  if (Index >= 0) and (Index < Draft.Layers.Count) then
-    MoveSelectionToLayer(Draft.Layers[Index]);
 end;
 
 { Transforms }
@@ -1400,7 +1259,7 @@ var
 begin
   Result := False;
   for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
-    if (FDocument.Pattern.Objects[Index] is TPieceObject) and FDocument.Pattern.IsPickable(FDocument.Pattern.Objects[Index]) then
+    if (FDocument.Pattern.Objects[Index] is TPieceObject) then
     begin
       Piece := TPieceObject(FDocument.Pattern.Objects[Index]);
       for Notch := High(Piece.NotchMarks) downto 0 do
@@ -1777,15 +1636,6 @@ begin
         Exit;
       SetLabelsHeld(True);
     end;
-    VK_PRIOR, VK_NEXT:
-    begin
-      if not (ssShift in Shift) then
-        Exit;
-      if Key = VK_PRIOR then
-        MoveSelectionBy(1)
-      else
-        MoveSelectionBy(-1);
-    end;
     VK_LEFT:
       Nudge(-Step, 0);
     VK_RIGHT:
@@ -1953,9 +1803,6 @@ var
 begin
   for Entry in Side do
   begin
-    // A side can run onto another draft
-    if not FDocument.Pattern.IsShown(FDocument.Pattern.FindNode(Entry.PieceKey)) then
-      Continue;
     Model := EdgePolyline(TEdgeObject(FDocument.Pattern.FindNode(Entry.EdgeKey)), FView.PixelsToMM(FlattenPixels));
     Screen := nil;
     SetLength(Screen, Length(Model));
@@ -2082,7 +1929,7 @@ var
   Shown: TDraftObjectArray;
   DraftObject: TDraftObject;
 begin
-  // Pieces under edges, edges under points, and each bottom layer first
+  // Pieces under edges, edges under points
   Shown := ShownObjects(FDocument.Pattern);
   for DraftObject in Shown do
     if (DraftObject is TPieceObject) and DraftObject.HasResult then
@@ -2305,7 +2152,7 @@ begin
   end;
   FBitmap.Draw(Canvas, 0, 0, True);
   UpdateScrollBars;
-  StoreDraftView;
+  StoreView;
 end;
 
 end.

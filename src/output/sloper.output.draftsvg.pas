@@ -31,10 +31,6 @@ uses
 type
   TDraftSVGOptions = record
     Labels: boolean;
-    // As the canvas shows it: hidden layers and everything outside a solo layer
-    // are left out. Hiding never changes output otherwise, but this is a
-    // picture of the working view.
-    ShownOnly: boolean;
     // Pieces are left unfilled, as with View -> Piece Fills off
     NoFills: boolean;
     // Show only this part of the draft, in model millimetres
@@ -44,8 +40,6 @@ type
 
 function DefaultDraftSVGOptions: TDraftSVGOptions;
 function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
-// A file name for one draft: the pattern's alone when it has only that draft
-function DraftSVGFileName(const PatternName, DraftName: string; DraftCount: integer): string;
 // A number as written in SVG
 function SVGNumber(Value: double): string;
 function EscapeXML(const Text: string): string;
@@ -71,7 +65,6 @@ const
   BlockedColor = '#e08000';
   // Share of the view's size between hatching lines
   HatchShare = 0.012;
-  SVGFileExtension = '.svg';
 
 type
   TDraftView = record
@@ -81,24 +74,6 @@ type
 function DefaultDraftSVGOptions: TDraftSVGOptions;
 begin
   Result := Default(TDraftSVGOptions);
-end;
-
-function DraftSVGFileName(const PatternName, DraftName: string; DraftCount: integer): string;
-const
-  SlashChars = ['/', '\'];
-var
-  Index: integer;
-  Safe: string;
-begin
-  Result := PatternName + SVGFileExtension;
-  if DraftCount < 2 then
-    Exit;
-  // A draft's name may hold anything, and must not start another folder
-  Safe := DraftName;
-  for Index := 1 to Length(Safe) do
-    if Safe[Index] in SlashChars then
-      Safe[Index] := '_';
-  Result := PatternName + '-' + Safe + SVGFileExtension;
 end;
 
 function SVGNumber(Value: double): string;
@@ -159,27 +134,6 @@ begin
     end;
 end;
 
-function IsDrawn(Pattern: TPattern; Node: TEvalNode; const Options: TDraftSVGOptions): boolean;
-begin
-  if Options.ShownOnly then
-    Result := Pattern.IsShown(Node)
-  else
-    Result := Pattern.InActiveDraft(Node);
-end;
-
-function ShownBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
-var
-  Index: integer;
-  Empty: boolean;
-begin
-  Bounds := Default(TRect2);
-  Empty := True;
-  for Index := 0 to Pattern.ObjectCount - 1 do
-    if Pattern.IsShown(Pattern.Objects[Index]) then
-      IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
-  Result := not Empty;
-end;
-
 // The part of the drawing shown, in SVG's y-down millimetres. Extent is the
 // longer side, which line widths and text sizes are shares of.
 function DraftView(Pattern: TPattern; const Options: TDraftSVGOptions): TDraftView;
@@ -191,8 +145,6 @@ begin
   Found := True;
   if Options.HasRegion then
     Bounds := Options.Region
-  else if Options.ShownOnly then
-    Found := ShownBounds(Pattern, Bounds)
   else
     Found := PatternBounds(Pattern, Bounds);
   if not Found then
@@ -326,19 +278,19 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult and IsDrawn(Pattern, DraftObject, Options) then
+    if (DraftObject is TPieceObject) and DraftObject.HasResult then
       Result := Result + PieceElement(Pattern, TPieceObject(DraftObject), View.Extent, Options.NoFills);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) and IsDrawn(Pattern, DraftObject, Options) then
+    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) then
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
   end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult and IsDrawn(Pattern, DraftObject, Options) then
+    if (DraftObject is TPieceObject) and DraftObject.HasResult then
     begin
       Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
       if Options.Labels then
@@ -346,7 +298,7 @@ begin
     end;
   end;
   for Point in Pattern.AllPoints do
-    if Point.HasResult and IsDrawn(Pattern, Point, Options) then
+    if Point.HasResult then
       Result := Result + PointElement(Point, View.Extent, Options.Labels);
   Result := Result + '</svg>' + #10;
 end;

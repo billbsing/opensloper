@@ -28,8 +28,8 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.GarmentWindow,
-  Sloper.UI.LayersPanel, Sloper.UI.FabricsPanel, Sloper.UI.DraftBar, Sloper.Core.Drafts, Sloper.Core.Transform;
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams,
+  Sloper.UI.FabricsPanel, Sloper.Core.Transform;
 
 type
 
@@ -91,11 +91,8 @@ type
     FSidePanel: TPageControl;
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
-    FGarment: TGarmentWindow;
-    FLayers: TLayersPanel;
     FFabrics: TFabricsPanel;
     FPieceFillsItem: TMenuItem;
-    FDraftBar: TDraftBar;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FSideItem: TMenuItem;
     FObjects: TObjectsPanel;
@@ -141,9 +138,6 @@ type
     procedure RoundCornerClick(Sender: TObject);
     procedure MarkingClick(Sender: TObject);
     procedure RemoveMarkingClick(Sender: TObject);
-    procedure GarmentClick(Sender: TObject);
-    procedure LayersMoveHere(Sender: TObject);
-    procedure DraftChosen(Sender: TObject; Draft: TPatternDraft);
     procedure SuggestSeamsClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
     procedure CanvasSelectionChange(Sender: TObject);
@@ -212,8 +206,6 @@ resourcestring
   rsMenuViewZoomOut = 'Zoom &Out';
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
-  rsMenuViewGarment = '&Garment View';
-  rsTabLayers = 'Layers';
   rsTabFabrics = 'Fabrics';
   rsMenuViewSidePanel = '&Side Panel';
   rsTabProperties = 'Properties';
@@ -334,11 +326,6 @@ begin
   FCanvasPanel.Parent := Self;
   FCanvasPanel.Align := alClient;
   FCanvasPanel.BevelOuter := bvNone;
-  FDraftBar := TDraftBar.Create(Self);
-  FDraftBar.Parent := FCanvasPanel;
-  FDraftBar.Align := alBottom;
-  FDraftBar.OnMessage := @ListPanelMessage;
-  FDraftBar.OnChoose := @DraftChosen;
   FCanvasHorzBar := TScrollBar.Create(Self);
   FCanvasHorzBar.Parent := FCanvasPanel;
   FCanvasHorzBar.Align := alBottom;
@@ -351,7 +338,6 @@ begin
   FCanvas.HorzBar := FCanvasHorzBar;
   FCanvas.VertBar := FCanvasVertBar;
   FCanvas.Document := FDocument;
-  FDraftBar.Document := FDocument;
   FCanvas.OnCursorMove := @CanvasCursorMove;
   FCanvas.OnMessage := @CanvasMessage;
   FCanvas.OnToolChange := @CanvasToolChange;
@@ -415,7 +401,7 @@ procedure TMainForm.CreateSidePanel;
   end;
 
 var
-  PropertySheet, AlignSheet, LayersSheet, FabricsSheet: TTabSheet;
+  PropertySheet, AlignSheet, FabricsSheet: TTabSheet;
 begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
@@ -447,14 +433,6 @@ begin
   FAlign.Document := FDocument;
   FAlign.OnMessage := @ListPanelMessage;
   FAlign.OnSelect := @AlignSelect;
-  LayersSheet := FSidePanel.AddTabSheet;
-  LayersSheet.Caption := rsTabLayers;
-  FLayers := TLayersPanel.Create(Self);
-  FLayers.Parent := LayersSheet;
-  FLayers.Align := alClient;
-  FLayers.Document := FDocument;
-  FLayers.OnMessage := @ListPanelMessage;
-  FLayers.OnMoveHere := @LayersMoveHere;
   FabricsSheet := FSidePanel.AddTabSheet;
   FabricsSheet.Caption := rsTabFabrics;
   FFabrics := TFabricsPanel.Create(Self);
@@ -591,7 +569,7 @@ end;
 // The label modes in the View menu; each item's Tag is its TLabelMode
 procedure TMainForm.CreateLabelMenu;
 var
-  MenuLabels, MenuGarment: TMenuItem;
+  MenuLabels: TMenuItem;
   Mode: TLabelMode;
   Captions: array[TLabelMode] of string;
 begin
@@ -600,11 +578,6 @@ begin
   Captions[lmNone] := rsLabelsNone;
   MenuLabels := TMenuItem.Create(MainMenu);
   MenuLabels.Caption := rsMenuViewLabels;
-  MenuGarment := TMenuItem.Create(MainMenu);
-  MenuGarment.Caption := rsMenuViewGarment;
-  MenuGarment.ShortCut := ShortCut(VK_G, [ssModifier]);
-  MenuGarment.OnClick := @GarmentClick;
-  MenuView.Add(MenuGarment);
   MenuView.Add(NewLine);
   MenuView.Add(MenuLabels);
   for Mode := Low(TLabelMode) to High(TLabelMode) do
@@ -759,27 +732,6 @@ begin
   MenuTools.Add(Item);
 end;
 
-procedure TMainForm.LayersMoveHere(Sender: TObject);
-begin
-  FCanvas.MoveSelectionToLayer(FDocument.Pattern.ActiveLayer);
-end;
-
-procedure TMainForm.DraftChosen(Sender: TObject; Draft: TPatternDraft);
-begin
-  FCanvas.ShowDraft(Draft);
-  FCanvas.SetFocus;
-end;
-
-procedure TMainForm.GarmentClick(Sender: TObject);
-begin
-  if FGarment = nil then
-  begin
-    FGarment := TGarmentWindow.CreateFor(Self);
-    FGarment.Document := FDocument;
-  end;
-  FGarment.ShowView;
-end;
-
 procedure TMainForm.MarkingClick(Sender: TObject);
 begin
   FCanvas.MarkSelection(TMarkingKind(TComponent(Sender).Tag));
@@ -889,11 +841,7 @@ begin
   FreeAndNil(FSettings);
   // The canvas and panels listen to the document, so they let go first
   FCanvas.Document := nil;
-  FLayers.Document := nil;
   FFabrics.Document := nil;
-  FDraftBar.Document := nil;
-  if FGarment <> nil then
-    FGarment.Document := nil;
   FProperties.Document := nil;
   FObjects.Document := nil;
   FVariables.Document := nil;
@@ -1019,7 +967,7 @@ begin
     Exit;
   end;
   FCanvas.SelectNone;
-  FCanvas.RestoreDraftView;
+  FCanvas.RestoreView;
   if FDocument.MeasurementError <> '' then
     MessageDlg(Format(rsMeasurementsMissing, [FDocument.MeasurementError]), mtWarning, [mbOK], 0);
 end;
@@ -1053,7 +1001,7 @@ begin
     Exit;
   FDocument.NewPattern;
   FCanvas.SelectNone;
-  FCanvas.RestoreDraftView;
+  FCanvas.RestoreView;
 end;
 
 procedure TMainForm.MenuFileOpenClick(Sender: TObject);
@@ -1084,7 +1032,7 @@ end;
 
 // The publish app reads saved files, so an unsaved pattern has to be saved,
 // and a modified one is offered the choice
-// The draft as it stands on screen, saved or not: its hidden layers, fills and labels
+// The pattern as it stands on screen, saved or not, with its fills and labels
 procedure TMainForm.MenuFileExportDraftClick(Sender: TObject);
 var
   Dialog: TSaveDialog;
@@ -1099,13 +1047,12 @@ begin
     Dialog.Filter := rsExportDraftFilter;
     Dialog.DefaultExt := 'svg';
     Dialog.Options := Dialog.Options + [ofOverwritePrompt];
-    Dialog.FileName := DraftSVGFileName(PatternName, FDocument.Pattern.ActiveDraft.Name, FDocument.Pattern.DraftCount);
+    Dialog.FileName := PatternName + '.svg';
     if FDocument.FileName <> '' then
       Dialog.InitialDir := ExtractFileDir(FDocument.FileName);
     if not Dialog.Execute then
       Exit;
     Options := DefaultDraftSVGOptions;
-    Options.ShownOnly := True;
     Options.NoFills := not FCanvas.ShowPieceFills;
     Options.Labels := FCanvas.LabelMode <> lmNone;
     if WriteTextFile(Dialog.FileName, DraftToSVG(FDocument.Pattern, Options), Reason) then

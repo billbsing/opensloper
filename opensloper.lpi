@@ -148,44 +148,14 @@
         <UnitName Value="Sloper.Core.SeamSuggest"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.garmentwindow.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.UI.GarmentWindow"/>
-      </Unit>
-      <Unit>
-        <Filename Value="src/ui/sloper.ui.layerspanel.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.UI.LayersPanel"/>
-      </Unit>
-      <Unit>
-        <Filename Value="src/ui/sloper.ui.draftbar.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.UI.DraftBar"/>
-      </Unit>
-      <Unit>
-        <Filename Value="src/ui/sloper.ui.garmentnotes.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.UI.GarmentNotes"/>
-      </Unit>
-      <Unit>
         <Filename Value="src/ui/sloper.ui.suggestseams.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.SuggestSeams"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.garment.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Core.Garment"/>
-      </Unit>
-      <Unit>
         <Filename Value="src/core/sloper.core.transform.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Transform"/>
-      </Unit>
-      <Unit>
-        <Filename Value="src/core/sloper.core.drafts.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Core.Drafts"/>
       </Unit>
       <Unit>
         <Filename Value="src/core/sloper.core.piecedetect.pas"/>

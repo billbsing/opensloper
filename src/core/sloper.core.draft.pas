@@ -75,8 +75,6 @@ type
   private
     FName: string;
   public
-    // The layer it is on; empty while the pattern has only its first layer
-    LayerKey: string;
     function DisplayName: string; override;
     function TypeName: string; virtual; abstract;
     // Readable properties in formulas, such as x or length (lower case)

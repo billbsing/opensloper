@@ -33,7 +33,6 @@ uses
   Sloper.Core.Version,
   Sloper.Core.JSON,
   Sloper.Core.Measurements,
-  Sloper.Core.Drafts,
   Sloper.Core.Pattern,
   Sloper.Core.PatternFile,
   Sloper.Core.PatternCheck,
@@ -57,7 +56,6 @@ resourcestring
   rsOptDescription = 'measurements set: the description; default: keep the one it has';
   rsOptJSON = 'check: print every computed value as JSON; measurements list: print the file';
   rsOptOutput = 'layout, export, export-draft: the file to write';
-  rsOptDraft = 'export-draft: the draft to export; default: the one the pattern was left on';
   rsOptLabels = 'export-draft: name the points and pieces';
   rsOptFormat = 'export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf';
   rsOptProfile = 'export: a machine profile from the settings, in place of the layout''s';
@@ -69,7 +67,6 @@ resourcestring
   rsCmdCheck = 'Evaluate a pattern and report problems';
   rsCmdExport = 'Export a layout file as PDF, SVG or DXF';
   rsCmdExportDraft = 'Export a pattern''s draft as SVG, as the drafting window shows it';
-  rsNoDraft = 'There is no draft called %s';
   rsCmdPack = 'Pack a layout''s pieces and rewrite the layout file';
   rsPacked = 'Packed %d copies in %s';
   rsPackedPages = 'Packed %d copies on %d pages in %s';
@@ -201,13 +198,11 @@ resourcestring
   end;
 
   // Starts a layout beside the pattern, with every piece placed in rows
-  // One draft as SVG. Layers hidden in the saved view stay hidden, so a file
-  // comes out as it looks in the drafting window.
-  function RunExportDraft(const PatternFile, MeasurementOption, SizeOption, DraftOption, OutputOption: string; WithLabels: boolean): integer;
+  // The drafting canvas as SVG
+  function RunExportDraft(const PatternFile, MeasurementOption, SizeOption, OutputOption: string; WithLabels: boolean): integer;
   var
     Pattern: TPattern;
     Measurements: TMeasurementSet;
-    Draft: TPatternDraft;
     Options: TDraftSVGOptions;
     MeasurementPath, Target, Err, Problem: string;
     BlockedCount: integer;
@@ -226,25 +221,13 @@ resourcestring
       end;
       if not UseMeasurements(Pattern, Measurements, PatternFile, MeasurementOption, SizeOption, MeasurementPath) then
         Exit(ExitFailure);
-      if DraftOption <> '' then
-      begin
-        Draft := Pattern.FindDraftNamed(DraftOption);
-        if Draft = nil then
-        begin
-          WriteLn(StdErr, Format(rsNoDraft, [DraftOption]));
-          Exit(ExitFailure);
-        end;
-        Pattern.ActiveDraft := Draft;
-      end;
       Pattern.Evaluate;
       Options := DefaultDraftSVGOptions;
-      Options.ShownOnly := True;
       Options.Labels := WithLabels;
       Target := OutputOption;
       if Target = '' then
         // ExtractFilePath keeps its separator, and is empty for a file in this folder
-        Target := ExtractFilePath(PatternFile) + DraftSVGFileName(ChangeFileExt(ExtractFileName(PatternFile), ''), Pattern.ActiveDraft.Name,
-          Pattern.DraftCount);
+        Target := ChangeFileExt(PatternFile, '.svg');
       if not WriteTextFile(Target, DraftToSVG(Pattern, Options), Err) then
       begin
         WriteLn(StdErr, Err);
@@ -522,7 +505,6 @@ begin
     Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
     Parser.AddOption('format', '', '--format', rsOptFormat, 'format');
     Parser.AddOption('profile', '', '--profile', rsOptProfile, 'name');
-    Parser.AddOption('draft', '', '--draft', rsOptDraft, 'name');
     Parser.AddOption('labels', '', '--labels', rsOptLabels, '', avSwitch);
     Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
     Command.AddChoice('check', rsCmdCheck);
@@ -602,7 +584,7 @@ begin
       ExitCode := RunPack(PatternFile)
     else if CommandName = 'export-draft' then
       ExitCode := RunExportDraft(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
-        Parser.GetOptionValueAsString('draft'), Parser.GetOptionValueAsString('output'), Parser.IsOption('labels'))
+        Parser.GetOptionValueAsString('output'), Parser.IsOption('labels'))
     else
       ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('format'),
         Parser.GetOptionValueAsString('profile'));

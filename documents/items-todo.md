@@ -20,11 +20,6 @@ These could not be tested properly during development.
 
 ## List of Changes
 
-#### Reduce Clutter
-Remove Draft, Draft Tabs.
-Remove Layouts, Layout panel.
-Remove Garment viewer
-
 #### UI Toolbars and icons:
 Add icons for all menu items.
 Move menu commands to TActionList.

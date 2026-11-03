@@ -29,7 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
-  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Drafts, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
+  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
   Sloper.Core.Transform;
 
 type
@@ -48,8 +48,13 @@ type
     // Move: Length and Angle when Polar, otherwise DX and DY
     Polar: boolean;
     Length, DX, DY: string;
-    // Where the copies go; nil makes a new layer named after the transform
-    Layer: TPatternLayer;
+  end;
+
+  // Where the canvas was left, saved with the pattern but outside undo
+  TPatternView = record
+    // Set once the canvas has shown the pattern
+    HasView: boolean;
+    Zoom, CentreX, CentreY: double;
   end;
 
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
@@ -76,9 +81,6 @@ type
     FLastErrorField: string;
     FLastErrorPos: integer;
     FNameExclude: TDraftObject;
-    FDrafts: TPatternDraftList;
-    FActiveDraft: TPatternDraft;
-    FSoloLayer: TPatternLayer;
     FFabrics: TPatternFabricList;
     procedure ResetFabrics;
     // Gives the first fabric an ID and puts every piece on it, ready to be
@@ -89,13 +91,6 @@ type
     function FreeFabricColor: string;
     function GetFabricCount: integer;
     function GetFabric(Index: integer): TPatternFabric;
-    procedure ResetDrafts;
-    // Gives the first draft and layer IDs, ready to be written to the file
-    procedure MakeDraftsExplicit;
-    function DraftNameTaken(const AName: string): boolean;
-    function LayerNameTaken(Draft: TPatternDraft; const AName: string): boolean;
-    function NextFreeLabel(const Base: string; Draft: TPatternDraft): string;
-    function DeleteObjectsOn(const Layers: TPatternLayerArray; const Subject: string): boolean;
     function DeleteNode(Node: TEvalNode): boolean;
     function DeleteTransform(Transform: TTransformObject): boolean;
     function CopiesOf(Transform: TTransformObject): TDraftObjectArray;
@@ -104,9 +99,6 @@ type
     function NextSuffix(Kind: TTransformKind): string;
     function BuildTransform(const Spec: TTransformSpec; const Sources: TStringArray): TTransformObject;
     procedure MakeCopies(Transform: TTransformObject; const Sources: TStringArray);
-    function GetDraftCount: integer;
-    function GetDraft(Index: integer): TPatternDraft;
-    function GetActiveLayer: TPatternLayer;
     procedure KeepIdsAbove(const Key: string);
     procedure AddVariableNode(Variable: TVariable);
     procedure AddObjectNode(DraftObject: TDraftObject);
@@ -143,6 +135,7 @@ type
     // The measurement file last used with the pattern, as the user chose it;
     // the document resolves it. Not loaded here.
     MeasurementFile: string;
+    View: TPatternView;
     constructor Create;
     destructor Destroy; override;
     procedure Clear;
@@ -267,20 +260,6 @@ type
     // A transform and a copy of each source, as one change. The copies start
     // where the formulas put them. Nil with LastError set when refused.
     function AddTransform(const Spec: TTransformSpec): TTransformObject;
-    // Drafts and layers. Changing them returns False when refused, with the
-    // reason in LastError. An empty name takes the next free one.
-    function AddDraft(const AName: string = ''): TPatternDraft;
-    function AddLayer(Draft: TPatternDraft; const AName: string = ''): TPatternLayer;
-    function RenameDraft(Draft: TPatternDraft; const NewName: string): boolean;
-    function RenameLayer(Draft: TPatternDraft; Layer: TPatternLayer; const NewName: string): boolean;
-    // Refused for the last one, and while anything elsewhere uses its objects
-    function DeleteDraft(Draft: TPatternDraft): boolean;
-    function DeleteLayer(Draft: TPatternDraft; Layer: TPatternLayer): boolean;
-    // Up the stack for a positive Delta; False at the end
-    function MoveLayer(Draft: TPatternDraft; Layer: TPatternLayer; Delta: integer): boolean;
-    function MoveDraft(Draft: TPatternDraft; NewIndex: integer): boolean;
-    // Within one draft, since inputs must stay on their object's draft
-    function MoveToLayer(Node: TEvalNode; Layer: TPatternLayer): boolean;
     // Fabrics. Changing them returns False when refused, with the reason in
     // LastError. An empty name or colour takes the next free one.
     function AddFabric(const AName: string = ''; const AColor: string = ''; AFill: TFabricFill = ffTint): TPatternFabric;
@@ -309,24 +288,6 @@ type
     function FabricNames: string;
     // For loaders: replaces the first fabric, unless a fabric was inserted already
     procedure InsertFabric(Fabric: TPatternFabric);
-    function FindDraft(const Key: string): TPatternDraft;
-    function FindDraftNamed(const AName: string): TPatternDraft;
-    function FindLayer(const Key: string; out Draft: TPatternDraft): TPatternLayer;
-    // Where a variable, a measurement or a virtual repeat point has no layer of
-    // its own these give the first draft's first layer
-    function LayerOf(Node: TEvalNode): TPatternLayer;
-    function DraftOf(Node: TEvalNode): TPatternDraft;
-    function InActiveDraft(Node: TEvalNode): boolean;
-    // On the active draft, on a layer that shows. The canvas goes by this, and
-    // the draft's SVG export, a picture of it: hiding a layer changes no other output.
-    function IsShown(Node: TEvalNode): boolean;
-    // Shown, and not on a locked layer
-    function IsPickable(Node: TEvalNode): boolean;
-    // Higher is nearer the top of its draft
-    function LayerRank(Node: TEvalNode): integer;
-    // For loaders: replaces the first draft, unless a draft was inserted already
-    procedure InsertDraft(Draft: TPatternDraft);
-    procedure SelectLayer(Layer: TPatternLayer);
     // Rebuilds the graph and computes everything
     procedure Evaluate;
     // Measurements the pattern uses (after Evaluate), then variables, then objects
@@ -351,13 +312,6 @@ type
     property ObjectCount: integer read GetObjectCount;
     property FabricCount: integer read GetFabricCount;
     property Fabrics[Index: integer]: TPatternFabric read GetFabric;
-    property DraftCount: integer read GetDraftCount;
-    property Drafts[Index: integer]: TPatternDraft read GetDraft;
-    // New objects go on its active layer
-    property ActiveDraft: TPatternDraft read FActiveDraft write FActiveDraft;
-    property ActiveLayer: TPatternLayer read GetActiveLayer;
-    // Shown alone, or nil
-    property SoloLayer: TPatternLayer read FSoloLayer write FSoloLayer;
     property Objects[Index: integer]: TDraftObject read GetObject;
     // The next ID to hand out. Loaders and undo may raise it; IDs are never reused.
     property NextId: integer read FNextId write FNextId;
@@ -387,11 +341,6 @@ resourcestring
   rsPatternCornerInPiece = '%s is part of %s; delete the piece first, then make it again after rounding the corner';
   rsPatternPieceRepeats = 'A piece cannot use %s twice';
   rsPatternNotInPiece = '%s is not part of %s';
-  rsPatternEmptyLabel = 'A draft or layer needs a name';
-  rsPatternDraftTaken = 'There is already a draft called %s';
-  rsPatternLayerTaken = 'This draft already has a layer called %s';
-  rsPatternLastDraft = 'A pattern needs at least one draft';
-  rsPatternLastLayer = 'A draft needs at least one layer';
   rsPatternFabricTaken = 'There is already a fabric called %s';
   rsPatternFabricBadColor = '%s is not a colour; use the form #5B8DB8';
   rsPatternLastFabric = 'A pattern needs at least one fabric';
@@ -403,11 +352,9 @@ resourcestring
   rsPatternCutGroup = '%s: %s';
   rsPatternNoFabric = 'No fabric';
   rsPatternObjectsInUse = '%s cannot be deleted: %s uses %s';
-  rsPatternOtherDraft = '%s is on another draft';
   rsPatternCopyOfTransform = '%s is a copy made by %s, so it changes with it';
   rsPatternTransformNothing = 'Select the points and edges to copy';
   rsPatternTransformNotCopyable = '%s cannot be copied: only points and edges can';
-  rsPatternTransformOtherDraft = 'Only a move can put its copies on another draft';
   rsPatternSeamEmptySide = 'Each side of a seam needs at least one edge';
   rsPatternSeamRepeats = 'A side of a seam cannot use %s of %s twice';
   rsPatternGrainSamePoint = 'The grainline needs two different points';
@@ -419,7 +366,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Names;
+  Sloper.Core.Names;
 
 const
   // Not translated: a name has to keep to the name rules
@@ -597,7 +544,6 @@ begin
   FResolver := TPatternResolver.Create(Self, True);
   FVariableResolver := TPatternResolver.Create(Self, False);
   FContext := TPatternContext.Create(Self);
-  FDrafts := TPatternDraftList.Create;
   FFabrics := TPatternFabricList.Create;
   Clear;
 end;
@@ -613,7 +559,6 @@ begin
   FreeAndNil(FResolver);
   FreeAndNil(FVariableResolver);
   FreeAndNil(FContext);
-  FreeAndNil(FDrafts);
   FreeAndNil(FFabrics);
   inherited Destroy;
 end;
@@ -629,7 +574,7 @@ begin
   FNextId := 1;
   Notes := '';
   MeasurementFile := '';
-  ResetDrafts;
+  View := Default(TPatternView);
   ResetFabrics;
 end;
 
@@ -807,14 +752,6 @@ begin
   Result := nil;
 end;
 
-function TPattern.FindDraftNamed(const AName: string): TPatternDraft;
-begin
-  for Result in FDrafts do
-    if SameName(Result.Name, AName) then
-      Exit;
-  Result := nil;
-end;
-
 function TPattern.FindFabricNamed(const AName: string): TPatternFabric;
 begin
   for Result in FFabrics do
@@ -944,269 +881,6 @@ begin
     FFabrics.Clear;
   FFabrics.Add(Fabric);
   KeepIdsAbove(Fabric.Key);
-end;
-
-procedure TPattern.ResetDrafts;
-begin
-  FSoloLayer := nil;
-  FDrafts.Clear;
-  FActiveDraft := TPatternDraft.Create('', DefaultDraftName);
-  FActiveDraft.AddLayer('', DefaultLayerName);
-  FDrafts.Add(FActiveDraft);
-end;
-
-function TPattern.GetDraftCount: integer;
-begin
-  Result := FDrafts.Count;
-end;
-
-function TPattern.GetDraft(Index: integer): TPatternDraft;
-begin
-  Result := FDrafts[Index];
-end;
-
-function TPattern.GetActiveLayer: TPatternLayer;
-begin
-  Result := FActiveDraft.ActiveLayer;
-end;
-
-procedure TPattern.MakeDraftsExplicit;
-var
-  Index: integer;
-begin
-  if FDrafts[0].Key <> '' then
-    Exit;
-  FDrafts[0].Key := IntToStr(FNextId);
-  Inc(FNextId);
-  FDrafts[0].Layers[0].Key := IntToStr(FNextId);
-  Inc(FNextId);
-  for Index := 0 to FObjects.Count - 1 do
-    Objects[Index].LayerKey := FDrafts[0].Layers[0].Key;
-end;
-
-function TPattern.DraftNameTaken(const AName: string): boolean;
-var
-  Draft: TPatternDraft;
-begin
-  Result := False;
-  for Draft in FDrafts do
-    if SameName(Draft.Name, AName) then
-      Exit(True);
-end;
-
-function TPattern.LayerNameTaken(Draft: TPatternDraft; const AName: string): boolean;
-var
-  Layer: TPatternLayer;
-begin
-  Result := False;
-  for Layer in Draft.Layers do
-    if SameName(Layer.Name, AName) then
-      Exit(True);
-end;
-
-// Draft2, Draft3 and so on; a layer when Draft is given, otherwise a draft
-function TPattern.NextFreeLabel(const Base: string; Draft: TPatternDraft): string;
-var
-  Number: integer;
-
-  function Taken(const AName: string): boolean;
-  begin
-    if Draft <> nil then
-      Result := LayerNameTaken(Draft, AName)
-    else
-      Result := DraftNameTaken(AName);
-  end;
-
-begin
-  Result := Base;
-  Number := 1;
-  while Taken(Result) do
-  begin
-    Inc(Number);
-    Result := Base + IntToStr(Number);
-  end;
-end;
-
-function TPattern.AddDraft(const AName: string): TPatternDraft;
-var
-  DraftName: string;
-begin
-  Result := nil;
-  DraftName := Trim(AName);
-  if DraftName = '' then
-    DraftName := NextFreeLabel(DefaultDraftName, nil)
-  else if DraftNameTaken(DraftName) then
-  begin
-    SetError(Format(rsPatternDraftTaken, [DraftName]));
-    Exit;
-  end;
-  MakeDraftsExplicit;
-  Result := TPatternDraft.Create(IntToStr(FNextId), DraftName);
-  Inc(FNextId);
-  Result.AddLayer(IntToStr(FNextId), DefaultLayerName);
-  Inc(FNextId);
-  FDrafts.Add(Result);
-end;
-
-function TPattern.AddLayer(Draft: TPatternDraft; const AName: string): TPatternLayer;
-var
-  LayerName: string;
-begin
-  Result := nil;
-  LayerName := Trim(AName);
-  if LayerName = '' then
-    LayerName := NextFreeLabel(DefaultLayerName, Draft)
-  else if LayerNameTaken(Draft, LayerName) then
-  begin
-    SetError(Format(rsPatternLayerTaken, [LayerName]));
-    Exit;
-  end;
-  MakeDraftsExplicit;
-  Result := Draft.AddLayer(IntToStr(FNextId), LayerName);
-  Inc(FNextId);
-end;
-
-function TPattern.RenameDraft(Draft: TPatternDraft; const NewName: string): boolean;
-begin
-  if Trim(NewName) = '' then
-    Exit(SetError(rsPatternEmptyLabel));
-  if not SameName(Draft.Name, Trim(NewName)) and DraftNameTaken(Trim(NewName)) then
-    Exit(SetError(Format(rsPatternDraftTaken, [Trim(NewName)])));
-  MakeDraftsExplicit;
-  Draft.Name := Trim(NewName);
-  Result := True;
-end;
-
-function TPattern.RenameLayer(Draft: TPatternDraft; Layer: TPatternLayer; const NewName: string): boolean;
-begin
-  if Trim(NewName) = '' then
-    Exit(SetError(rsPatternEmptyLabel));
-  if not SameName(Layer.Name, Trim(NewName)) and LayerNameTaken(Draft, Trim(NewName)) then
-    Exit(SetError(Format(rsPatternLayerTaken, [Trim(NewName)])));
-  MakeDraftsExplicit;
-  Layer.Name := Trim(NewName);
-  Result := True;
-end;
-
-// Takes out the objects on these layers. Anything else that uses one stops it,
-// which leaves the caller's change to be cancelled.
-function TPattern.DeleteObjectsOn(const Layers: TPatternLayerArray; const Subject: string): boolean;
-
-  function OnLayers(Node: TEvalNode): boolean;
-  var
-    Layer: TPatternLayer;
-  begin
-    Result := False;
-    for Layer in Layers do
-      if LayerOf(Node) = Layer then
-        Exit(True);
-  end;
-
-var
-  Index: integer;
-  Node, User: TEvalNode;
-  Removed: boolean;
-begin
-  for Index := 0 to FObjects.Count - 1 do
-    if OnLayers(Objects[Index]) then
-      for User in UsersOf(Objects[Index]) do
-        if not OnLayers(User) then
-          Exit(SetError(Format(rsPatternObjectsInUse, [Subject, User.DisplayName, Objects[Index].DisplayName])));
-  repeat
-    Removed := False;
-    for Index := FObjects.Count - 1 downto 0 do
-    begin
-      Node := Objects[Index];
-      if OnLayers(Node) and (Length(UsersOf(Node)) = 0) and DeleteNode(Node) then
-        Removed := True;
-    end;
-  until not Removed;
-  Result := True;
-end;
-
-function TPattern.DeleteDraft(Draft: TPatternDraft): boolean;
-var
-  Layers: TPatternLayerArray;
-  Layer: TPatternLayer;
-  Index: integer;
-begin
-  if FDrafts.Count = 1 then
-    Exit(SetError(rsPatternLastDraft));
-  Layers := nil;
-  for Layer in Draft.Layers do
-    Insert(Layer, Layers, Length(Layers));
-  if not DeleteObjectsOn(Layers, Draft.Name) then
-    Exit(False);
-  if (FSoloLayer <> nil) and (Draft.IndexOfLayer(FSoloLayer) >= 0) then
-    FSoloLayer := nil;
-  Index := FDrafts.IndexOf(Draft);
-  FDrafts.Remove(Draft);
-  if FActiveDraft = Draft then
-    FActiveDraft := FDrafts[Min(Index, FDrafts.Count - 1)];
-  Result := True;
-end;
-
-function TPattern.DeleteLayer(Draft: TPatternDraft; Layer: TPatternLayer): boolean;
-var
-  Index: integer;
-begin
-  if Draft.Layers.Count = 1 then
-    Exit(SetError(rsPatternLastLayer));
-  if not DeleteObjectsOn([Layer], Layer.Name) then
-    Exit(False);
-  if FSoloLayer = Layer then
-    FSoloLayer := nil;
-  Index := Draft.IndexOfLayer(Layer);
-  if Draft.ActiveLayer = Layer then
-    Draft.ActiveLayer := nil;
-  Draft.Layers.Remove(Layer);
-  if Draft.ActiveLayer = nil then
-    Draft.ActiveLayer := Draft.Layers[Min(Index, Draft.Layers.Count - 1)];
-  Result := True;
-end;
-
-function TPattern.MoveLayer(Draft: TPatternDraft; Layer: TPatternLayer; Delta: integer): boolean;
-var
-  Index: integer;
-begin
-  Index := Draft.IndexOfLayer(Layer);
-  Result := (Index + Delta >= 0) and (Index + Delta < Draft.Layers.Count);
-  if not Result then
-    Exit;
-  MakeDraftsExplicit;
-  Draft.Layers.Move(Index, Index + Delta);
-end;
-
-function TPattern.MoveDraft(Draft: TPatternDraft; NewIndex: integer): boolean;
-begin
-  Result := (NewIndex >= 0) and (NewIndex < FDrafts.Count);
-  if not Result then
-    Exit;
-  MakeDraftsExplicit;
-  FDrafts.Move(FDrafts.IndexOf(Draft), NewIndex);
-end;
-
-function TPattern.MoveToLayer(Node: TEvalNode; Layer: TPatternLayer): boolean;
-var
-  Draft: TPatternDraft;
-  Item: TDraftObject;
-begin
-  if Node is TRepeatPoint then
-    Node := TRepeatPoint(Node).Source;
-  // A transform and its copies go together
-  if CopyTransformKey(Node) <> '' then
-    Node := FindNode(CopyTransformKey(Node));
-  Draft := DraftOf(Node);
-  if not (Node is TDraftObject) then
-    Exit(SetError(Format(rsPatternOtherDraft, [Layer.Name])));
-  if (Draft.IndexOfLayer(Layer) < 0) and not ((Node is TTransformObject) and (TTransformObject(Node).Kind = tkMove)) then
-    Exit(SetError(Format(rsPatternOtherDraft, [Layer.Name])));
-  MakeDraftsExplicit;
-  TDraftObject(Node).LayerKey := Layer.Key;
-  if Node is TTransformObject then
-    for Item in CopiesOf(TTransformObject(Node)) do
-      Item.LayerKey := Layer.Key;
-  Result := True;
 end;
 
 // Every source once, points first, an edge bringing its ends. Virtual repeat
@@ -1372,7 +1046,6 @@ begin
       begin
         Point := TPointCopy.Create(CopyKey, Transform.Key, Key);
         Point.Name := FreeCopyName(Node.DisplayName, Transform.Suffix);
-        Point.LayerKey := Transform.LayerKey;
         AddObjectNode(Point);
         PointCopies.Add(Key, Point);
       end
@@ -1383,7 +1056,6 @@ begin
         Copied.Name := FreeCopyName(Edge.DisplayName, Transform.Suffix);
         Copied.NameIsDerived := False;
         Copied.Role := Edge.Role;
-        Copied.LayerKey := Transform.LayerKey;
         AddObjectNode(Copied);
       end;
     end;
@@ -1395,8 +1067,6 @@ end;
 function TPattern.AddTransform(const Spec: TTransformSpec): TTransformObject;
 var
   Expanded: TStringArray;
-  Layer: TPatternLayer;
-  Draft: TPatternDraft;
   Axis: TEvalNode;
 begin
   Result := nil;
@@ -1427,107 +1097,11 @@ begin
     SetError(Format(rsDraftNotAPoint, [Spec.AxisA]));
     Exit;
   end;
-  // A rotate or mirror stays with what it copies
-  Layer := Spec.Layer;
-  Draft := DraftOf(FindNode(Expanded[0]));
-  if (Layer <> nil) and (Spec.Kind <> tkMove) and (Draft.IndexOfLayer(Layer) < 0) then
-  begin
-    SetError(rsPatternTransformOtherDraft);
-    Exit;
-  end;
-  MakeDraftsExplicit;
   Result := BuildTransform(Spec, Expanded);
   if Result = nil then
     Exit;
-  if Layer = nil then
-  begin
-    FindLayer(FActiveDraft.ActiveLayer.Key, Draft);
-    if Spec.Kind <> tkMove then
-      Draft := DraftOf(FindNode(Expanded[0]));
-    Layer := AddLayer(Draft, NextFreeLabel(Result.Name, Draft));
-  end;
-  Result.LayerKey := Layer.Key;
   AddObjectNode(Result);
   MakeCopies(Result, Expanded);
-end;
-
-function TPattern.FindDraft(const Key: string): TPatternDraft;
-begin
-  for Result in FDrafts do
-    if Result.Key = Key then
-      Exit;
-  Result := nil;
-end;
-
-function TPattern.FindLayer(const Key: string; out Draft: TPatternDraft): TPatternLayer;
-begin
-  Result := nil;
-  for Draft in FDrafts do
-  begin
-    Result := Draft.FindLayer(Key);
-    if Result <> nil then
-      Exit;
-  end;
-  Draft := nil;
-end;
-
-function TPattern.LayerOf(Node: TEvalNode): TPatternLayer;
-var
-  Draft: TPatternDraft;
-begin
-  Result := nil;
-  if Node is TRepeatPoint then
-    Node := TRepeatPoint(Node).Source;
-  if Node is TDraftObject then
-    Result := FindLayer(TDraftObject(Node).LayerKey, Draft);
-  if Result = nil then
-    Result := FDrafts[0].Layers[0];
-end;
-
-function TPattern.DraftOf(Node: TEvalNode): TPatternDraft;
-begin
-  FindLayer(LayerOf(Node).Key, Result);
-end;
-
-function TPattern.InActiveDraft(Node: TEvalNode): boolean;
-begin
-  Result := DraftOf(Node) = FActiveDraft;
-end;
-
-function TPattern.IsShown(Node: TEvalNode): boolean;
-var
-  Layer: TPatternLayer;
-begin
-  Layer := LayerOf(Node);
-  Result := InActiveDraft(Node) and not Layer.Hidden and ((FSoloLayer = nil) or (FSoloLayer = Layer));
-end;
-
-function TPattern.IsPickable(Node: TEvalNode): boolean;
-begin
-  Result := IsShown(Node) and not LayerOf(Node).Locked;
-end;
-
-function TPattern.LayerRank(Node: TEvalNode): integer;
-begin
-  Result := DraftOf(Node).IndexOfLayer(LayerOf(Node));
-end;
-
-procedure TPattern.InsertDraft(Draft: TPatternDraft);
-begin
-  if FDrafts[0].Key = '' then
-    FDrafts.Clear;
-  FDrafts.Add(Draft);
-  FActiveDraft := FDrafts[0];
-  KeepIdsAbove(Draft.Key);
-end;
-
-procedure TPattern.SelectLayer(Layer: TPatternLayer);
-var
-  Draft: TPatternDraft;
-begin
-  for Draft in FDrafts do
-    if Draft.IndexOfLayer(Layer) >= 0 then
-      Draft.ActiveLayer := Layer;
 end;
 
 function TPattern.GetVariableCount: integer;
@@ -1594,9 +1168,6 @@ end;
 
 procedure TPattern.AddObjectNode(DraftObject: TDraftObject);
 begin
-  // A loaded object arrives with its layer
-  if DraftObject.LayerKey = '' then
-    DraftObject.LayerKey := FActiveDraft.ActiveLayer.Key;
   FObjects.Add(DraftObject);
   FNodes.Add(DraftObject.Key, DraftObject);
 end;
@@ -1705,8 +1276,6 @@ begin
     Exit(SetError(Format(rsPatternUnknownObject, [Id])));
   if not (Node is TPointObject) then
     Exit(SetError(Format(rsDraftNotAPoint, [Node.DisplayName])));
-  if not InActiveDraft(Node) then
-    Exit(SetError(Format(rsPatternOtherDraft, [Node.DisplayName])));
   // Its key is not an ID, so nothing may store it; UsePoint gives it one
   if (Node is TRepeatPoint) and TRepeatPoint(Node).IsVirtual then
     Exit(SetError(Format(rsPatternUnknownObject, [Id])));
@@ -1722,8 +1291,6 @@ begin
     Exit(SetError(Format(rsPatternUnknownObject, [Id])));
   if not (Node is TEdgeObject) then
     Exit(SetError(Format(rsDraftNotAnEdge, [Node.DisplayName])));
-  if not InActiveDraft(Node) then
-    Exit(SetError(Format(rsPatternOtherDraft, [Node.DisplayName])));
   Result := True;
 end;
 
@@ -2507,7 +2074,6 @@ begin
     Exit(SetError(Format(rsPatternUnknownObject, [Entry.PieceKey])));
   if not (Node is TPieceObject) then
     Exit(SetError(Format(rsSeamNotAPiece, [Node.DisplayName])));
-  // A seam may join pieces on different drafts
   if FindNode(Entry.EdgeKey) = nil then
     Exit(SetError(Format(rsPatternUnknownObject, [Entry.EdgeKey])));
   if not (FindNode(Entry.EdgeKey) is TEdgeObject) then
@@ -2676,7 +2242,6 @@ begin
     // The evaluator may hold the node; forget the old graph
     FEvaluator.Rebuild(nil, FContext);
     NewPoint.Name := Point.Name;
-    NewPoint.LayerKey := Point.LayerKey;
     Slot := FObjects.IndexOf(Point);
     FNodes.AddOrSetValue(Point.Key, NewPoint);
     // The list owns its objects, so this frees the old one

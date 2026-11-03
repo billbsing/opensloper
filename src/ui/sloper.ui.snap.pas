@@ -100,10 +100,9 @@ begin
   end;
 end;
 
-// A locked layer can still be snapped to; one that does not show cannot
 function IsUsable(Pattern: TPattern; DraftObject: TDraftObject): boolean;
 begin
-  Result := (DraftObject.State = esValid) and DraftObject.HasResult and Pattern.IsShown(DraftObject);
+  Result := (DraftObject.State = esValid) and DraftObject.HasResult;
 end;
 
 // Valid edges within Radius of At, in pattern order

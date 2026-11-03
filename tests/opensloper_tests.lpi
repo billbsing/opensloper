@@ -67,14 +67,9 @@
         <UnitName Value="Sloper.Tests.Transform"/>
       </Unit>
       <Unit>
-        <Filename Value="sloper.tests.layers.pas"/>
+        <Filename Value="sloper.tests.patternview.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Tests.Layers"/>
-      </Unit>
-      <Unit>
-        <Filename Value="sloper.tests.garment.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Tests.Garment"/>
+        <UnitName Value="Sloper.Tests.PatternView"/>
       </Unit>
       <Unit>
         <Filename Value="sloper.tests.seam.pas"/>

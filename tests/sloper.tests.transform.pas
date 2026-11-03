@@ -17,7 +17,7 @@
 }
 
 // Transforms: rotate, mirror and move, copies of points and edges, deleting as a
-// group, layers and drafts, and files.
+// group, and files.
 unit Sloper.Tests.Transform;
 
 {$mode ObjFPC}{$H+}
@@ -25,7 +25,7 @@ unit Sloper.Tests.Transform;
 interface
 
 uses
-  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Drafts,
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern,
   Sloper.Core.Draft, Sloper.Core.Transform, Sloper.Core.EvalTypes;
 
 type
@@ -66,17 +66,10 @@ type
     procedure TestRefusesNothing;
     procedure TestRefusesPiece;
     procedure TestFailingSourceBlocksOnlyItsCopy;
-    procedure TestNewLayerByDefault;
-    procedure TestChosenLayer;
-    procedure TestRotateStaysOnItsDraft;
-    procedure TestMoveToOtherDraft;
-    procedure TestMoveLayerTakesCopies;
-    procedure TestRotateCannotChangeDraft;
     procedure TestSourceInUseCannotBeDeleted;
     procedure TestCopyCannotBeDeletedAlone;
     procedure TestDeletingTransformTakesCopies;
     procedure TestDeletingTransformInUseRefused;
-    procedure TestDeletingLayerTakesTransform;
     procedure TestCopyCannotBeDragged;
     procedure TestCopyCannotBeConverted;
     procedure TestRoundTrip;
@@ -405,7 +398,6 @@ var
 begin
   A := Pt('A', 10, 0);
   Rotate([A.Key], Pt('P', 0, 0).Key, '90');
-  FPattern.SelectLayer(FPattern.LayerOf(FPattern.FindObject('A_r1')));
   Next := FPattern.AddOffsetPoint('N', FPattern.FindObject('A_r1').Key, omCartesian, '5', '0');
   AssertNotNull(FPattern.LastError, Next);
   FPattern.Evaluate;
@@ -483,101 +475,6 @@ begin
   AssertTrue('the transform', Transform.State = esValid);
 end;
 
-procedure TTestTransform.TestNewLayerByDefault;
-var
-  Transform: TTransformObject;
-begin
-  Transform := Rotate([Pt('A', 10, 0).Key], Pt('P', 0, 0).Key, '90');
-  AssertEquals('two layers', 2, FPattern.ActiveDraft.Layers.Count);
-  AssertEquals('named after it', Transform.Name, FPattern.LayerOf(Transform).Name);
-  AssertTrue('copies with it', FPattern.LayerOf(FPattern.FindObject('A_r1')) = FPattern.LayerOf(Transform));
-end;
-
-procedure TTestTransform.TestChosenLayer;
-var
-  Spec: TTransformSpec;
-  Layer: TPatternLayer;
-begin
-  Layer := FPattern.AddLayer(FPattern.ActiveDraft, 'Dart');
-  Spec := Default(TTransformSpec);
-  Spec.Kind := tkMove;
-  Spec.Sources := [Pt('A', 0, 0).Key];
-  Spec.DX := '1';
-  Spec.DY := '0';
-  Spec.Layer := Layer;
-  AssertNotNull(FPattern.LastError, FPattern.AddTransform(Spec));
-  AssertEquals('no new layer', 2, FPattern.ActiveDraft.Layers.Count);
-  AssertTrue('on it', FPattern.LayerOf(FPattern.FindObject('A_t1')) = Layer);
-end;
-
-procedure TTestTransform.TestRotateStaysOnItsDraft;
-var
-  Spec: TTransformSpec;
-  Sleeve: TPatternDraft;
-begin
-  Spec := Default(TTransformSpec);
-  Spec.Kind := tkRotate;
-  Spec.Sources := [Pt('A', 10, 0).Key];
-  Spec.Pivot := Pt('P', 0, 0).Key;
-  Spec.Angle := '90';
-  Sleeve := FPattern.AddDraft('Sleeve');
-  Spec.Layer := Sleeve.Layers[0];
-  AssertNull('refused', FPattern.AddTransform(Spec));
-  AssertEquals(rsPatternTransformOtherDraft, FPattern.LastError);
-end;
-
-// Tracing a yoke off the bodice onto its own draft
-procedure TTestTransform.TestMoveToOtherDraft;
-var
-  Spec: TTransformSpec;
-  Sleeve: TPatternDraft;
-  Line: TLineObject;
-begin
-  Line := FPattern.AddLine(Pt('A', 0, 0).Key, Pt('B', 100, 0).Key);
-  Sleeve := FPattern.AddDraft('Sleeve');
-  Spec := Default(TTransformSpec);
-  Spec.Kind := tkMove;
-  Spec.Sources := [Line.Key];
-  Spec.DX := '0';
-  Spec.DY := '0';
-  Spec.Layer := Sleeve.Layers[0];
-  AssertNotNull(FPattern.LastError, FPattern.AddTransform(Spec));
-  FPattern.Evaluate;
-  AssertEquals('on the other draft', 'Sleeve', FPattern.DraftOf(FPattern.FindObject('A_t1')).Name);
-  AssertNear('and it follows', 100, TEdgeObject(FPattern.FindObject(Line.Name + '_t1')).Length);
-  AssertTrue(FPattern.LastError, FPattern.SetFormula(FPattern.FindObject('B'), 'x', '200'));
-  FPattern.Evaluate;
-  AssertNear('across drafts', 200, TEdgeObject(FPattern.FindObject(Line.Name + '_t1')).Length);
-end;
-
-procedure TTestTransform.TestMoveLayerTakesCopies;
-var
-  Spec: TTransformSpec;
-  Transform: TTransformObject;
-  Sleeve: TPatternDraft;
-begin
-  Spec := Default(TTransformSpec);
-  Spec.Kind := tkMove;
-  Spec.Sources := [Pt('A', 0, 0).Key];
-  Spec.DX := '0';
-  Spec.DY := '0';
-  Transform := FPattern.AddTransform(Spec);
-  Sleeve := FPattern.AddDraft('Sleeve');
-  AssertTrue(FPattern.LastError, FPattern.MoveToLayer(FPattern.FindObject('A_t1'), Sleeve.Layers[0]));
-  AssertEquals('the transform', 'Sleeve', FPattern.DraftOf(Transform).Name);
-  AssertEquals('the copy', 'Sleeve', FPattern.DraftOf(FPattern.FindObject('A_t1')).Name);
-end;
-
-procedure TTestTransform.TestRotateCannotChangeDraft;
-var
-  Transform: TTransformObject;
-  Sleeve: TPatternDraft;
-begin
-  Transform := Rotate([Pt('A', 10, 0).Key], Pt('P', 0, 0).Key, '90');
-  Sleeve := FPattern.AddDraft('Sleeve');
-  AssertFalse('refused', FPattern.MoveToLayer(Transform, Sleeve.Layers[0]));
-end;
-
 procedure TTestTransform.TestSourceInUseCannotBeDeleted;
 var
   A: TFreePoint;
@@ -617,21 +514,9 @@ var
   Transform: TTransformObject;
 begin
   Transform := Rotate([Pt('A', 10, 0).Key], Pt('P', 0, 0).Key, '90');
-  FPattern.SelectLayer(FPattern.LayerOf(Transform));
   AssertNotNull(FPattern.LastError, FPattern.AddOffsetPoint('N', FPattern.FindObject('A_r1').Key, omCartesian, '5', '0'));
   AssertFalse('N uses the copy', FPattern.Delete(Transform));
   AssertNotNull('copy stays', FPattern.FindObject('A_r1'));
-end;
-
-procedure TTestTransform.TestDeletingLayerTakesTransform;
-var
-  Transform: TTransformObject;
-  Layer: TPatternLayer;
-begin
-  Transform := Rotate([Pt('A', 10, 0).Key], Pt('P', 0, 0).Key, '90');
-  Layer := FPattern.LayerOf(Transform);
-  AssertTrue(FPattern.LastError, FPattern.DeleteLayer(FPattern.ActiveDraft, Layer));
-  AssertEquals('A and P left', 2, FPattern.ObjectCount);
 end;
 
 procedure TTestTransform.TestCopyCannotBeDragged;
@@ -702,8 +587,7 @@ begin
   AssertEquals(Saved, SavePatternToText(FLoaded));
 end;
 
-// The dart example: a piece from an original edge and copied ones, with the
-// original layer's other edges out of the way
+// The dart example: a piece from an original edge and a copied one
 procedure TTestTransform.TestPieceFromOriginalAndCopy;
 var
   A, B, C: string;
@@ -719,7 +603,6 @@ begin
   Bottom := FPattern.AddLine(A, B, erOutline);
   Side := FPattern.AddLine(B, C, erOutline);
   Transform := Rotate([Bottom.Key], A, '90');
-  FPattern.SelectLayer(FPattern.ActiveDraft.Layers[0]);
   FPattern.Evaluate;
   Top := FPattern.AddLine(C, FPattern.FindObject('B_r1').Key, erOutline);
   AssertNotNull(FPattern.LastError, Top);

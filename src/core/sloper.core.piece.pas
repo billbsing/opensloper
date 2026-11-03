@@ -35,7 +35,6 @@ const
   DefaultPieceAllowance = '10';
   GrainAngleField = 'grainline.angle';
   // As written in pattern files and the Automation API
-  PieceViewNames: array[0..3] of string = ('none', 'front', 'back', 'both');
   DefaultGrainAngle = '90';
   // A point this close (in mm) to a piece's seam line can carry a notch
   NotchPointTolerance = 0.05;
@@ -50,8 +49,6 @@ const
   PieceJoinTolerance = 0.01;
 
 type
-  // Which view of the finished garment the piece shows in
-  TPieceView = (pvNone, pvFront, pvBack, pvBoth);
 
   TPieceEdge = record
     EdgeKey: string;
@@ -119,7 +116,6 @@ type
     FFoldEdgeKey: string;
     FFoldLine: TLine2;
     FFoldInwards: double;
-    FView: TPieceView;
     FFabricKey: string;
     FFillColor: string;
     FFillStyle: TPieceFillStyle;
@@ -195,7 +191,6 @@ type
     // Last good line of the fold, along its edge
     property FoldLine: TLine2 read FFoldLine;
     function OnFold: boolean;
-    property View: TPieceView read FView write FView;
     // The fabric it is cut from. While the pattern's first fabric has no ID,
     // '' is that fabric; once it has, '' is no fabric.
     property FabricKey: string read FFabricKey write FFabricKey;

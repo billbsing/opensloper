@@ -29,7 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Drafts, Sloper.Core.Transform, Sloper.Core.Pattern, Sloper.Core.Evaluator,
+  Sloper.Core.Transform, Sloper.Core.Pattern, Sloper.Core.Evaluator,
   Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
 type
@@ -80,14 +80,11 @@ type
     FFoldBox: TComboBox;
     // The edge of each fold choice; '' for none
     FFoldKeys: TStringArray;
-    FViewBox: TComboBox;
     // One choice per fabric, then none
     FFabricBox: TComboBox;
     FFillStyleBox: TComboBox;
     // From the fabric, the piece's own colour if it has one, then choosing one
     FFillColorBox: TComboBox;
-    FLayerBox: TComboBox;
-    FLayerKeys: TStringArray;
     FMadeByText: TGridLabel;
     FSideAText, FSideBText, FDifferenceText: TGridLabel;
     FEdits: array of TEdit;
@@ -147,13 +144,11 @@ type
     procedure RefreshPieceRows(Piece: TPieceObject);
     procedure CutChange(Sender: TObject);
     procedure FoldChange(Sender: TObject);
-    procedure ViewChange(Sender: TObject);
     procedure FabricChange(Sender: TObject);
     procedure FillStyleChange(Sender: TObject);
     procedure FillColorChange(Sender: TObject);
     procedure ChangePieceFill(const AColor: string; Style: TPieceFillStyle);
     procedure RefreshFabricRows(Piece: TPieceObject);
-    procedure LayerChange(Sender: TObject);
     procedure RefreshTransformRows(Node: TEvalNode);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
@@ -199,7 +194,6 @@ resourcestring
   rsPropCut = 'Cut';
   rsPropMirrored = 'Mirrored';
   rsPropFold = 'Fold';
-  rsPropView = 'View';
   rsPropFabric = 'Fabric';
   rsPropNoFabric = 'None';
   rsPropChangeFabric = 'Change fabric';
@@ -211,14 +205,6 @@ resourcestring
   rsPropChooseColor = 'Choose…';
   rsPropChangeFill = 'Change fill';
   rsPropMadeBy = 'Made by';
-  rsPropLayer = 'Layer';
-  rsPropLayerOfDraft = '%s: %s';
-  rsPropChangeLayer = 'Change layer';
-  rsPropViewNone = 'None';
-  rsPropViewFront = 'Front';
-  rsPropViewBack = 'Back';
-  rsPropViewBoth = 'Both';
-  rsPropChangeView = 'Change garment view';
   rsPropNoFold = 'None';
   rsPropChangeCut = 'Change cut';
   rsPropChangeFold = 'Change fold';
@@ -444,12 +430,9 @@ begin
   FMirrorBox := nil;
   FFoldBox := nil;
   FFoldKeys := nil;
-  FViewBox := nil;
   FFabricBox := nil;
   FFillStyleBox := nil;
   FFillColorBox := nil;
-  FLayerBox := nil;
-  FLayerKeys := nil;
   FMadeByText := nil;
   FSideAText := nil;
   FSideBText := nil;
@@ -666,12 +649,6 @@ begin
       AddSeamRows;
     if CopyTransformKey(Node) <> '' then
       FMadeByText := AddTextRow(rsPropMadeBy, '', RowGap);
-    if Node is TTransformObject then
-    begin
-      FLayerBox := TComboBox.Create(Self);
-      FLayerBox.Style := csDropDownList;
-      AddRow(rsPropLayer, FLayerBox, RowGap);
-    end;
     if Node is TPointObject then
       FResult := AddTextRow(rsPropPosition, '', Gap)
     else if Node is TEdgeObject then
@@ -990,15 +967,6 @@ begin
   end;
   FFoldBox.OnChange := @FoldChange;
   AddRow(rsPropFold, FFoldBox, RowGap);
-  FViewBox := TComboBox.Create(Self);
-  FViewBox.Style := csDropDownList;
-  // In the order of TPieceView
-  FViewBox.Items.Add(rsPropViewNone);
-  FViewBox.Items.Add(rsPropViewFront);
-  FViewBox.Items.Add(rsPropViewBack);
-  FViewBox.Items.Add(rsPropViewBoth);
-  FViewBox.OnChange := @ViewChange;
-  AddRow(rsPropView, FViewBox, RowGap);
   FFabricBox := TComboBox.Create(Self);
   FFabricBox.Style := csDropDownList;
   FFabricBox.OnChange := @FabricChange;
@@ -1026,7 +994,6 @@ begin
   try
     FCutEdit.Value := Piece.CutCount;
     FMirrorBox.Checked := Piece.Mirrored;
-    FViewBox.ItemIndex := Ord(Piece.View);
     RefreshFabricRows(Piece);
   finally
     FFillingPieceRows := False;
@@ -1156,77 +1123,10 @@ begin
   end;
 end;
 
-// The layers it could go on: a move may go to any draft, the others stay
 procedure TPropertiesPanel.RefreshTransformRows(Node: TEvalNode);
-var
-  Pattern: TPattern;
-  Index: integer;
-  Draft: TPatternDraft;
-  Layer: TPatternLayer;
 begin
   if FMadeByText <> nil then
     FMadeByText.Caption := FDocument.Pattern.FindNode(CopyTransformKey(Node)).DisplayName;
-  if FLayerBox = nil then
-    Exit;
-  Pattern := FDocument.Pattern;
-  FLayerBox.OnChange := nil;
-  try
-    FLayerBox.Items.Clear;
-    FLayerKeys := nil;
-    for Index := 0 to Pattern.DraftCount - 1 do
-    begin
-      Draft := Pattern.Drafts[Index];
-      if (TTransformObject(Node).Kind <> tkMove) and (Draft <> Pattern.DraftOf(Node)) then
-        Continue;
-      for Layer in Draft.Layers do
-      begin
-        FLayerBox.Items.Add(Format(rsPropLayerOfDraft, [Draft.Name, Layer.Name]));
-        Insert(Layer.Key, FLayerKeys, Length(FLayerKeys));
-        if Layer = Pattern.LayerOf(Node) then
-          FLayerBox.ItemIndex := High(FLayerKeys);
-      end;
-    end;
-  finally
-    FLayerBox.OnChange := @LayerChange;
-  end;
-end;
-
-procedure TPropertiesPanel.LayerChange(Sender: TObject);
-var
-  Node: TEvalNode;
-  Layer: TPatternLayer;
-  Found: TPatternDraft;
-begin
-  Node := FDocument.Pattern.FindNode(FKey);
-  if Node = nil then
-    Exit;
-  Layer := FDocument.Pattern.FindLayer(FLayerKeys[FLayerBox.ItemIndex], Found);
-  if (Layer = nil) or (Layer = FDocument.Pattern.LayerOf(Node)) then
-    Exit;
-  FCommitting := True;
-  try
-    FDocument.BeginChange(rsPropChangeLayer);
-    FDocument.Commit(FDocument.Pattern.MoveToLayer(Node, Layer));
-  finally
-    FCommitting := False;
-  end;
-end;
-
-procedure TPropertiesPanel.ViewChange(Sender: TObject);
-var
-  Node: TEvalNode;
-begin
-  Node := FDocument.Pattern.FindNode(FKey);
-  if not (Node is TPieceObject) or (Ord(TPieceObject(Node).View) = FViewBox.ItemIndex) then
-    Exit;
-  FCommitting := True;
-  try
-    FDocument.BeginChange(rsPropChangeView);
-    TPieceObject(Node).View := TPieceView(FViewBox.ItemIndex);
-    FDocument.EndChange;
-  finally
-    FCommitting := False;
-  end;
 end;
 
 procedure TPropertiesPanel.FoldChange(Sender: TObject);
