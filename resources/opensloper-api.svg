@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360" role="img" aria-label="OpenSloper API: dress form with API braces around connected points">
+<rect width="360" height="360" rx="80" fill="#1E2B3C"/>
+<g fill="#465A74">
+<ellipse cx="180" cy="44" rx="17" ry="6"/>
+<rect x="169" y="46" width="22" height="22"/>
+<path d="M168 64 C150 72 118 74 104 90 C96 100 98 122 104 140 C110 160 128 176 126 196 C124 214 104 230 106 250 C107 262 110 270 116 276 L244 276 C250 270 253 262 254 250 C256 230 236 214 234 196 C232 176 250 160 256 140 C262 122 264 100 256 90 C242 74 210 72 192 64 Z"/>
+<rect x="176" y="276" width="8" height="52"/>
+</g>
+<path d="M136 342 L180 326 L224 342" fill="none" stroke="#465A74" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="none" stroke="#5B7192" stroke-width="2.5">
+<path d="M180 66 V276"/>
+<path d="M126 196 C150 204 210 204 234 196"/>
+<path d="M140 80 C150 130 146 170 150 200 C152 230 140 255 142 276"/>
+<path d="M220 80 C210 130 214 170 210 200 C208 230 220 255 218 276"/>
+</g>
+<rect x="140" y="184" width="206" height="152" rx="22" fill="#0F1722"/>
+<g fill="none" stroke="#A58BF0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+<path d="M190 200 C174 200 174 210 174 224 V246 C174 254 169 260 160 260 C169 260 174 266 174 274 V296 C174 310 174 320 190 320"/>
+<path d="M296 200 C312 200 312 210 312 224 V246 C312 254 317 260 326 260 C317 260 312 266 312 274 V296 C312 310 312 320 296 320"/>
+</g>
+<g stroke="#C9D3DF" stroke-width="4" stroke-linecap="round">
+<line x1="214" y1="234" x2="272" y2="234"/>
+<line x1="214" y1="234" x2="243" y2="288"/>
+<line x1="272" y1="234" x2="243" y2="288"/>
+</g>
+<g fill="#E3E9F0" stroke="#A58BF0" stroke-width="5">
+<circle cx="214" cy="234" r="11"/>
+<circle cx="272" cy="234" r="11"/>
+<circle cx="243" cy="288" r="11"/>
+</g>
+</svg>
