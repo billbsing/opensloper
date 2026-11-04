@@ -20,17 +20,6 @@ These could not be tested properly during development.
 
 ## List of Changes
 
-#### Include Icons
-New icons in the resourcs folder for the apps.
-
-#### Exceptions
-After adding a Variable in the panel, we get
-EInvalidOperation in line customform.ing:1888
-
-#### Toolbar/Menu changes
-Rename Move tool to Clone tool, since this actually clones a design and makes a copy.
-Make the toolbar tooltips to appear above the cursor not below.
-
 #### Tool Merge Points
 This is simalar to inkscape join nodes, the user selects 2 or more points, then clicks on the tool.
 The new point name will take the lowest default name , or the first name that has been changed by the user.
