@@ -129,6 +129,8 @@ type
     function CheckConvertible(Edge: TEdgeObject): boolean;
     function ChooseKeptPoint(const Points: TPointObjectArray; const AName: string): TPointObject;
     function CheckMergeAway(const Points: TPointObjectArray; Kept: TPointObject; out Doomed: TDraftObjectArray): boolean;
+    function ConnectingEdges(Point: TPointObject): TDraftObjectArray;
+    function NextBrokenName(const Base: string; var Number: integer; Own: TDraftObject): string;
     procedure RedirectUsers(Point: TPointObject; const KeptKey: string; const Doomed: TDraftObjectArray);
     function ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
     function AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
@@ -267,6 +269,13 @@ type
     // placed from one of the others; then the first that is not. A copy or a
     // repeat's point can only be kept. Nil with LastError set when refused.
     function MergePoints(const Keys: array of string): TPointObject;
+    // The opposite of MergePoints: a point where several lines, curves or
+    // curve paths meet becomes one point for each of them. The point itself,
+    // renamed M1, stays with the first and with everything else that uses it;
+    // each other edge gets a new point M2, M3 … placed from it by dx 0, dy 0,
+    // so it follows the point until it is moved apart. The point first, nil
+    // with LastError set when refused.
+    function BreakPoint(Point: TPointObject): TPointObjectArray;
     // Whether From reads Target, directly or through others
     function Reaches(From, Target: TEvalNode): boolean;
     function Rename(Node: TEvalNode; const NewName: string): boolean;
@@ -357,6 +366,7 @@ resourcestring
   rsPatternMergeKeptReads = '%s is placed from %s, so %s cannot be merged into it';
   rsPatternMergeCopied = '%s is copied by %s, so it cannot be merged away';
   rsPatternMergeEdgeInUse = '%s runs between points being merged and is used by %s';
+  rsPatternBreakTooFew = '%s joins fewer than two lines or curves, so there is nothing to break';
   rsPatternCycle = '%s cannot use %s, because %s already uses %s';
   rsPatternInUse = '%s is used by %s';
   rsPatternNoField = '%s has no formula "%s"';
@@ -2665,6 +2675,86 @@ begin
   Result := TPointObject(FindNode(KeptKey));
   if not IsFixedPoint(Result) then
     Result.Name := NewName;
+  UpdateDerivedNames;
+  OrderObjectsByInputs;
+end;
+
+// Lines, curves and curve paths that pass through or end at Point, in list
+// order; derived edges follow their sources and are left out
+function TPattern.ConnectingEdges(Point: TPointObject): TDraftObjectArray;
+var
+  Index: integer;
+  Candidate: TDraftObject;
+  Key: string;
+begin
+  Result := nil;
+  for Index := 0 to FObjects.Count - 1 do
+  begin
+    Candidate := Objects[Index];
+    if (Candidate.ClassType <> TLineObject) and (Candidate.ClassType <> TCurveObject) and (Candidate.ClassType <> TCurvePathObject) then
+      Continue;
+    for Key in Candidate.InputKeys do
+      if Key = Point.Key then
+      begin
+        Insert(Candidate, Result, Length(Result));
+        Break;
+      end;
+  end;
+end;
+
+// Base followed by the next number from Number that no other object has
+function TPattern.NextBrokenName(const Base: string; var Number: integer; Own: TDraftObject): string;
+var
+  Taken: TDraftObject;
+begin
+  repeat
+    Result := Base + IntToStr(Number);
+    Inc(Number);
+    Taken := FindObject(Result);
+  until not Assigned(Taken) or (Taken = Own);
+end;
+
+function TPattern.BreakPoint(Point: TPointObject): TPointObjectArray;
+var
+  Edges: TDraftObjectArray;
+  Base: string;
+  Number, Index: integer;
+  Added: TOffsetPoint;
+begin
+  Result := nil;
+  if Point is TRepeatPoint then
+  begin
+    SetError(Format(rsPatternRepeatItem, [Point.DisplayName]));
+    Exit;
+  end;
+  if Point is TPointCopy then
+  begin
+    SetError(Format(rsPatternCopyOfTransform, [Point.DisplayName, FindNode(TPointCopy(Point).TransformKey).DisplayName]));
+    Exit;
+  end;
+  Edges := ConnectingEdges(Point);
+  if Length(Edges) < 2 then
+  begin
+    SetError(Format(rsPatternBreakTooFew, [Point.DisplayName]));
+    Exit;
+  end;
+  // A copy's number is replaced, as when copying: M2 breaks into M3, M4
+  Base := Point.Name;
+  while (Length(Base) > 1) and (Base[Length(Base)] in ['0'..'9']) do
+    System.Delete(Base, Length(Base), 1);
+  Number := 1;
+  Point.Name := NextBrokenName(Base, Number, Point);
+  Insert(Point, Result, 0);
+  for Index := 1 to High(Edges) do
+  begin
+    Added := AddOffsetPoint(NextBrokenName(Base, Number, nil), Point.Key, omCartesian, '0', '0');
+    if not Assigned(Added) then
+      Exit(nil);
+    Edges[Index].RedirectPoint(Point.Key, Added.Key);
+    Insert(TPointObject(Added), Result, Length(Result));
+  end;
+  // The evaluator may hold the old graph
+  FEvaluator.Rebuild(nil, FContext);
   UpdateDerivedNames;
   OrderObjectsByInputs;
 end;

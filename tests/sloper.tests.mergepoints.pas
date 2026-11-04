@@ -17,7 +17,8 @@
 }
 
 // Merging points into one: the name it takes, which definition stays, and
-// whatever used the others using it instead.
+// whatever used the others using it instead. Breaking a point into one for
+// each edge that meets there.
 unit Sloper.Tests.MergePoints;
 
 {$mode ObjFPC}{$H+}
@@ -49,6 +50,14 @@ type
     procedure TestCopiedPointRefused;
     procedure TestCopyIsKept;
     procedure TestSavesAndLoads;
+    procedure TestBreakGivesEachEdgeItsPoint;
+    procedure TestBrokenPointsFollowUntilMoved;
+    procedure TestBreakKeepsOtherUsers;
+    procedure TestBreakNamesSkipTaken;
+    procedure TestBreakCopyNumber;
+    procedure TestBreakPathCountsOnce;
+    procedure TestBreakTooFewRefused;
+    procedure TestBreakThenMergeRestores;
   end;
 
 implementation
@@ -282,6 +291,128 @@ begin
   finally
     FreeAndNil(Loaded);
   end;
+end;
+
+procedure TTestMergePoints.TestBreakGivesEachEdgeItsPoint;
+var
+  M, First, Second, Third: string;
+  Broken: TPointObjectArray;
+begin
+  M := Pt('M', 50, 0);
+  First := FPattern.AddLine(Pt('A', 0, 0), M).Key;
+  Second := FPattern.AddLine(M, Pt('B', 100, 0)).Key;
+  Third := FPattern.AddLine(M, Pt('C', 50, 50)).Key;
+  Broken := FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)));
+  AssertEquals(FPattern.LastError, 3, Length(Broken));
+  AssertEquals('the point stays first', M, Broken[0].Key);
+  AssertEquals('M1', Broken[0].Name);
+  AssertEquals('M2', Broken[1].Name);
+  AssertEquals('M3', Broken[2].Name);
+  AssertEquals('the first edge keeps it', M, TEdgeObject(FPattern.FindNode(First)).EndKey);
+  AssertEquals(Broken[1].Key, TEdgeObject(FPattern.FindNode(Second)).StartKey);
+  AssertEquals(Broken[2].Key, TEdgeObject(FPattern.FindNode(Third)).StartKey);
+  AssertEquals('names follow', 'Line_M2_B', FPattern.FindNode(Second).DisplayName);
+end;
+
+procedure TTestMergePoints.TestBrokenPointsFollowUntilMoved;
+var
+  M: string;
+  Broken: TPointObjectArray;
+begin
+  M := Pt('M', 50, 0);
+  FPattern.AddLine(Pt('A', 0, 0), M);
+  FPattern.AddLine(M, Pt('B', 100, 0));
+  Broken := FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)));
+  AssertEquals(FPattern.LastError, 2, Length(Broken));
+  AssertTrue('placed from M1', Broken[1] is TOffsetPoint);
+  AssertEquals(M, TOffsetPoint(Broken[1]).Base);
+  FPattern.Evaluate;
+  AssertPointsNear('at the same place', Vec2(50, 0), Broken[1].Position);
+  AssertTrue(FPattern.SetFormula(Broken[1], 'dx', '5'));
+  FPattern.Evaluate;
+  AssertPointsNear('moved apart', Vec2(55, 0), Broken[1].Position);
+end;
+
+// Points placed from it and formulas reading it stay with the point itself
+procedure TTestMergePoints.TestBreakKeepsOtherUsers;
+var
+  M, Reader: string;
+begin
+  M := Pt('M', 50, 0);
+  FPattern.AddLine(Pt('A', 0, 0), M);
+  FPattern.AddLine(M, Pt('B', 100, 0));
+  Reader := FPattern.AddOffsetPoint('R', M, omCartesian, 'M.x', '0').Key;
+  AssertEquals(FPattern.LastError, 2, Length(FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)))));
+  AssertEquals(M, TOffsetPoint(FPattern.FindNode(Reader)).Base);
+  AssertEquals('M1.x', FPattern.FormulaText(FPattern.FindNode(Reader), 'dx'));
+end;
+
+procedure TTestMergePoints.TestBreakNamesSkipTaken;
+var
+  M: string;
+  Broken: TPointObjectArray;
+begin
+  Pt('M2', 9, 9);
+  M := Pt('M', 50, 0);
+  FPattern.AddLine(Pt('A', 0, 0), M);
+  FPattern.AddLine(M, Pt('B', 100, 0));
+  Broken := FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)));
+  AssertEquals(FPattern.LastError, 2, Length(Broken));
+  AssertEquals('M1', Broken[0].Name);
+  AssertEquals('M2 is taken', 'M3', Broken[1].Name);
+end;
+
+procedure TTestMergePoints.TestBreakCopyNumber;
+var
+  M: string;
+  Broken: TPointObjectArray;
+begin
+  M := Pt('M1', 50, 0);
+  FPattern.AddLine(Pt('A', 0, 0), M);
+  FPattern.AddLine(M, Pt('B', 100, 0));
+  Broken := FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)));
+  AssertEquals(FPattern.LastError, 2, Length(Broken));
+  AssertEquals('keeps its own number', 'M1', Broken[0].Name);
+  AssertEquals('M2', Broken[1].Name);
+end;
+
+// A path through the point is one edge, so it keeps the point whole
+procedure TTestMergePoints.TestBreakPathCountsOnce;
+var
+  M: string;
+begin
+  M := Pt('M', 10, 0);
+  AssertNotNull(FPattern.LastError, FPattern.AddCurvePath([Pt('A', 0, 0), M, Pt('B', 30, 0)], ['0', '0', '0'], ['', '3', '3'],
+    ['3', '3', '']));
+  AssertEquals('one edge', 0, Length(FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)))));
+  FPattern.AddLine(M, Pt('C', 10, 50));
+  AssertEquals(FPattern.LastError, 2, Length(FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)))));
+end;
+
+procedure TTestMergePoints.TestBreakTooFewRefused;
+var
+  M: string;
+begin
+  M := Pt('M', 50, 0);
+  FPattern.AddLine(Pt('A', 0, 0), M);
+  AssertEquals('one edge', 0, Length(FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)))));
+  AssertTrue(FPattern.LastError, Pos('M', FPattern.LastError) > 0);
+  AssertEquals('not renamed', 'M', FPattern.FindNode(M).DisplayName);
+end;
+
+procedure TTestMergePoints.TestBreakThenMergeRestores;
+var
+  M, Second: string;
+  Broken: TPointObjectArray;
+begin
+  M := Pt('M', 50, 0);
+  FPattern.AddLine(Pt('A', 0, 0), M);
+  Second := FPattern.AddLine(M, Pt('B', 100, 0)).Key;
+  Broken := FPattern.BreakPoint(TPointObject(FPattern.FindNode(M)));
+  AssertEquals(FPattern.LastError, 2, Length(Broken));
+  AssertNotNull(FPattern.LastError, FPattern.MergePoints([Broken[0].Key, Broken[1].Key]));
+  AssertEquals('one point again', M, TEdgeObject(FPattern.FindNode(Second)).StartKey);
+  AssertEquals('M1', FPattern.FindNode(M).DisplayName);
 end;
 
 initialization

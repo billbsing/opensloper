@@ -99,6 +99,7 @@ type
     function DoSetFold(Params: TJSONObject): TJSONData;
     function DoConvertEdge(Params: TJSONObject): TJSONData;
     function DoMergePoints(Params: TJSONObject): TJSONData;
+    function DoBreakPoint(Params: TJSONObject): TJSONData;
     function FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
     function FabricsToJSON: TJSONData;
     function DoAddFabric(Params: TJSONObject): TJSONData;
@@ -146,6 +147,8 @@ resourcestring
   rsApiNotAnEdge = '%s is not an edge';
   rsApiConvertEdge = 'Change edge type';
   rsApiMergePoints = 'Merge points';
+  rsApiBreakPoint = 'Break point';
+  rsApiNotAPoint = '%s is not a point';
   rsApiNotInPiece = '%s is not part of %s';
   rsApiNotASeam = '%s is not a seam';
   rsApiBadSeamSide = 'Parameter "%s" must be a list of objects with a "piece" and an "edge"';
@@ -1594,6 +1597,39 @@ begin
   Result := AddedNode(FDocument.Pattern.MergePoints(Points));
 end;
 
+// The points it became, as points[], the point itself first
+function TApiServer.DoBreakPoint(Params: TJSONObject): TJSONData;
+var
+  Target: TEvalNode;
+  Broken: TPointObjectArray;
+  Keys: TStringArray;
+  Item: TPointObject;
+  Key: string;
+  List: TJSONArray;
+begin
+  Target := FindTarget(Params);
+  if not (Target is TPointObject) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotAPoint, [Target.DisplayName]));
+  FDocument.BeginChange(rsApiBreakPoint);
+  Broken := FDocument.Pattern.BreakPoint(TPointObject(Target));
+  if Length(Broken) = 0 then
+    RefuseChange;
+  Keys := nil;
+  for Item in Broken do
+    Insert(Item.Key, Keys, Length(Keys));
+  FDocument.EndChange;
+  Result := TJSONObject.Create;
+  try
+    List := TJSONArray.Create;
+    TJSONObject(Result).Add('points', List);
+    for Key in Keys do
+      List.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(Key)));
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
 function TApiServer.SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
 var
   List: TJSONData;
@@ -1760,6 +1796,7 @@ begin
     'set_fold': Result := DoSetFold(Params);
     'convert_edge': Result := DoConvertEdge(Params);
     'merge_points': Result := DoMergePoints(Params);
+    'break_point': Result := DoBreakPoint(Params);
     'list_fabrics': Result := FabricsToJSON;
     'add_fabric': Result := DoAddFabric(Params);
     'rename_fabric': Result := DoRenameFabric(Params);

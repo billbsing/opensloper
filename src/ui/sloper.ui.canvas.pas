@@ -191,6 +191,9 @@ type
     procedure ConvertSelection(ToCurve: boolean);
     // Merges the selected points into one, as one undo step, and selects it
     procedure MergeSelection;
+    // Breaks the selected point into one for each edge meeting there, as one
+    // undo step, and selects them
+    procedure BreakSelection;
     // Rounds the corner between the two selected edges
     procedure RoundSelectedCorner;
     // Adds a marking to the selected piece from the point or edge selected with it
@@ -233,6 +236,9 @@ resourcestring
   rsCanvasConvertToCurve = 'Change to curve';
   rsCanvasMergePoints = 'Merge points';
   rsCanvasMerged = 'Merged %d points into %s';
+  rsCanvasPickPointToBreak = 'Select the point to break first';
+  rsCanvasBreakPoint = 'Break point';
+  rsCanvasBroken = 'Broke %s into %d points';
   rsCanvasPickCornerEdges = 'Select the two straight edges that meet at the corner';
   rsCanvasRoundCorner = 'Round corner';
   rsCanvasPickHole = 'Select the piece and the point for the hole';
@@ -971,6 +977,41 @@ begin
   begin
     SetSelection([Key]);
     ShowMessageText(Format(rsCanvasMerged, [Length(Points), KeptName]));
+  end
+  else
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.BreakSelection;
+var
+  Node: TEvalNode;
+  Broken: TPointObjectArray;
+  Keys: TStringArray;
+  Item: TPointObject;
+  Reason, OldName: string;
+begin
+  if not Assigned(FDocument) then
+    Exit;
+  Node := nil;
+  if Length(FSelection) = 1 then
+    Node := FDocument.Pattern.FindNode(FSelection[0]);
+  if not (Node is TPointObject) then
+  begin
+    ShowMessageText(rsCanvasPickPointToBreak);
+    Exit;
+  end;
+  OldName := Node.DisplayName;
+  FDocument.BeginChange(rsCanvasBreakPoint);
+  Broken := FDocument.Pattern.BreakPoint(TPointObject(Node));
+  Keys := nil;
+  for Item in Broken do
+    Insert(Item.Key, Keys, Length(Keys));
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Length(Broken) > 0) then
+  begin
+    SetSelection(Keys);
+    ShowMessageText(Format(rsCanvasBroken, [OldName, Length(Keys)]));
   end
   else
     ShowMessageText(Reason);

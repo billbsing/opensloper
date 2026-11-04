@@ -34,6 +34,10 @@ Done 2026-11-04 (see Merging points in the design document; to test in the app):
 This is the opposite of tool merge, a single point is broken up into multiple points, depending on the number of connecting objects.
 The new point names, are the same as a copy so point 'M' -> 'M1, M2'.
 
+Done 2026-11-04 (see Breaking a point in the design document; to test in the app):
+- Tools → Break Point and the toolbar button; `break_point` in the Automation API.
+- The point keeps its ID and goes with the first edge; each other edge gets a new point at dx 0, dy 0 from it, to drag apart.
+
 #### Locking an object
 An object can be locked and the user can do any operation with this except the formular can still be run, and the object can still move based on the formular values.
 

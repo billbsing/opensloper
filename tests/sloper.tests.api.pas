@@ -115,6 +115,7 @@ type
     procedure TestCutAndFold;
     procedure TestConvertEdge;
     procedure TestMergePoints;
+    procedure TestBreakPoint;
     procedure TestAddVariable;
     procedure TestAddIsOneUndoStep;
     procedure TestAddRefusals;
@@ -1012,6 +1013,25 @@ begin
   AssertEquals('one point', RpcRefused, ErrorCode);
   Call('merge_points', '{}');
   AssertEquals('no points', RpcInvalidParams, ErrorCode);
+  Call('undo');
+  Call('get_object', '{"name": "A"}');
+  AssertEquals('undone', 'freePoint', Answer.Get('type', ''));
+end;
+
+procedure TTestAPI.TestBreakPoint;
+var
+  Points: TJSONArray;
+begin
+  AddSquare;
+  Call('break_point', '{"name": "A"}');
+  Points := Answer.Arrays['points'];
+  AssertEquals('one for each edge', 2, Points.Count);
+  AssertEquals('A1', TJSONObject(Points[0]).Get('name', ''));
+  AssertEquals('A2', TJSONObject(Points[1]).Get('name', ''));
+  Call('break_point', '{"name": "A2"}');
+  AssertEquals('one edge only', RpcRefused, ErrorCode);
+  Call('break_point', '{"name": "Line_A1_B"}');
+  AssertEquals('not a point', RpcRefused, ErrorCode);
   Call('undo');
   Call('get_object', '{"name": "A"}');
   AssertEquals('undone', 'freePoint', Answer.Get('type', ''));

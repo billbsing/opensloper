@@ -30,7 +30,7 @@ type
     aiZoomIn, aiZoomOut, aiFit, aiTrueSize, aiSidePanel, aiLabels, aiPieceFills, aiAbout,
     aiSelect, aiPoint, aiLine, aiCurve, aiPiece, aiNotch, aiSeam,
     aiSplit, aiCircle, aiArc, aiRectangle, aiRoundCorner, aiOffsetLeft, aiOffsetRight, aiToLine, aiToCurve,
-    aiMergePoints,
+    aiMergePoints, aiBreakPoint,
     aiHole, aiPlacement, aiFoldLine, aiStitchHoles, aiRemoveMarking,
     aiRotate, aiMirror, aiMove, aiSuggestSeams);
 
@@ -41,7 +41,7 @@ const
     'zoom-in', 'zoom-out', 'zoom-scan', 'zoom-reset', 'layout-sidebar-right', 'tag', 'bucket', 'info-circle',
     'pointer', 'point', 'line', 'vector-bezier', 'polygon', 'triangle-inverted', 'needle-thread',
     'scissors', 'circle', 'rainbow', 'rectangle', 'border-corner-rounded', 'arrow-bar-left', 'arrow-bar-right', 'line', 'vector-bezier',
-    'arrows-join',
+    'arrows-join', 'arrows-split',
     'circle-dot', 'line-dashed', 'fold', 'line-dotted', 'eraser',
     'rotate', 'flip-vertical', 'arrows-move', 'sparkles');
 
