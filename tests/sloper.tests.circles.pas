@@ -406,7 +406,7 @@ begin
   Path := nil;
   SetLength(Path, 1);
   Path[0].EdgeKey := Line.Key;
-  AssertTrue(FPattern.AddPiece('Bad', Path, '10') = nil);
+  AssertTrue(not Assigned(FPattern.AddPiece('Bad', Path, '10')));
   AssertEquals(rsPatternPieceTooShort, FPattern.LastError);
 end;
 

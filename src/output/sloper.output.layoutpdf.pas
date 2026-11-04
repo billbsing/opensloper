@@ -290,7 +290,7 @@ begin
   if not FLayout.Title.Enabled then
     Exit;
   Lines := FLayout.TitleLines(PageValues);
-  if Lines = nil then
+  if Length(Lines) = 0 then
     Exit;
   MeasureTitle(BoxWidth, BoxHeight);
   Box.MinX := Left;

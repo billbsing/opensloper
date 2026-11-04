@@ -292,7 +292,7 @@ end;
 
 function TMeasurementSet.GetSizeName: string;
 begin
-  if FSizes = nil then
+  if Length(FSizes) = 0 then
     Result := ''
   else
     Result := FSizes[FSizeIndex];
@@ -303,7 +303,7 @@ var
   Measurement: TMeasurement;
 begin
   Measurement := Find(Key);
-  if Measurement = nil then
+  if not Assigned(Measurement) then
     Result := -1
   else
     Result := FItems.IndexOf(Measurement);
@@ -323,7 +323,7 @@ var
 begin
   Measurement := Find(Key);
   Value := 0;
-  Result := (Measurement <> nil) and Measurement.HasValue;
+  Result := Assigned(Measurement) and Measurement.HasValue;
   if Result then
     Value := Measurement.Value;
 end;
@@ -336,7 +336,7 @@ begin
   if not CheckName(Key, ErrorMessage) then
     Exit(False);
   Existing := Find(Key);
-  if (Existing <> nil) and (Existing <> Exclude) then
+  if Assigned(Existing) and (Existing <> Exclude) then
   begin
     ErrorMessage := Format(rsNameTaken, [Key]);
     Exit(False);
@@ -431,7 +431,7 @@ var
 begin
   if not CheckSize(Size, -1, Msg) then
     raise EMeasurementError.Create(Msg);
-  if FSizes <> nil then
+  if Length(FSizes) > 0 then
     for Index := 0 to Count - 1 do
       SetLength(Items[Index].FCells, Length(Items[Index].FCells) + 1);
   SetLength(FSizes, Length(FSizes) + 1);
@@ -486,7 +486,7 @@ var
   Measurement: TMeasurement;
 begin
   Measurement := Find(Key);
-  if Measurement = nil then
+  if not Assigned(Measurement) then
     Result := Format(rsMeasurementNotInSet, [Key])
   else if Measurement.HasValue then
     Result := ''
@@ -507,7 +507,7 @@ begin
     Result.Add('units', 'mm');
     Result.Add('name', Name);
     Result.Add('notes', Notes);
-    if FSizes <> nil then
+    if Length(FSizes) > 0 then
     begin
       List := TJSONArray.Create;
       Result.Add('sizes', List);
@@ -521,7 +521,7 @@ begin
       Item := TJSONObject.Create;
       List.Add(Item);
       Item.Add('key', Items[Index].Key);
-      if FSizes = nil then
+      if Length(FSizes) = 0 then
         Item.Add('value', JSONFloat(Items[Index].Value))
       else
       begin
@@ -560,7 +560,7 @@ var
 begin
   ErrorMessage := '';
   List := Obj.Find('sizes');
-  if List = nil then
+  if not Assigned(List) then
     Exit(True);
   if List.JSONType <> jtArray then
   begin
@@ -588,7 +588,7 @@ var
   Index: integer;
 begin
   ErrorMessage := '';
-  if FSizes = nil then
+  if Length(FSizes) = 0 then
   begin
     Result := GetJSONNumber(Item, 'value', Value);
     if Result then
@@ -598,7 +598,7 @@ begin
     Exit;
   end;
   List := Item.Find('values');
-  if (List = nil) or (List.JSONType <> jtArray) or (List.Count <> SizeCount) then
+  if not Assigned(List) or (List.JSONType <> jtArray) or (List.Count <> SizeCount) then
   begin
     ErrorMessage := Format(rsMeasurementBadValues, [Measurement.Key, SizeCount]);
     Exit(False);
@@ -649,7 +649,7 @@ begin
     if not LoadSizes(Obj, ValueError) then
       Exit(Fail(ValueError));
     List := Obj.Find('measurements');
-    if (List = nil) or (List.JSONType <> jtArray) then
+    if not Assigned(List) or (List.JSONType <> jtArray) then
       Exit(Fail(rsMeasurementList));
     for Index := 0 to List.Count - 1 do
     begin
@@ -709,7 +709,7 @@ begin
       Exit;
     end;
     Existing := MeasurementSet.Find(Key);
-    if Existing = nil then
+    if not Assigned(Existing) then
     begin
       if not MeasurementSet.CheckKey(Key, nil, ErrorMessage) then
         Exit;
@@ -746,13 +746,13 @@ begin
     Item := Default(TMissingMeasurement);
     Item.Key := Key;
     Measurement := MeasurementSet.Find(Key);
-    if Measurement <> nil then
+    if Assigned(Measurement) then
     begin
       Item.Key := Measurement.Key;
       for Index := 0 to MeasurementSet.SizeCount - 1 do
         if not Measurement.HasValueFor(Index) then
           Insert(MeasurementSet.Sizes[Index], Item.Sizes, Length(Item.Sizes));
-      if Item.Sizes = nil then
+      if Length(Item.Sizes) = 0 then
         Continue;
     end;
     Insert(Item, Result, Length(Result));
@@ -827,7 +827,7 @@ var
 begin
   Result := '';
   Measurement := MeasurementSet.Find(Key);
-  if Measurement = nil then
+  if not Assigned(Measurement) then
     Exit;
   Lines := TStringList.Create;
   try
@@ -909,9 +909,9 @@ procedure MergeMeasurementSets(Base, Mine, Theirs: TMeasurementSet; const TakeTh
         Conflicts[High(Conflicts)] := Key;
       end;
     end;
-    if FromTheirs and (Theirs.Find(Key) <> nil) then
+    if FromTheirs and Assigned(Theirs.Find(Key)) then
       CopyMeasurement(Theirs, Key, Merged)
-    else if not FromTheirs and (Mine.Find(Key) <> nil) then
+    else if not FromTheirs and Assigned(Mine.Find(Key)) then
       CopyMeasurement(Mine, Key, Merged);
   end;
 
@@ -933,7 +933,7 @@ begin
     MergeKey(Theirs[Index].Key);
   // Keys they do not have: added here, or deleted there
   for Index := 0 to Mine.Count - 1 do
-    if Theirs.Find(Mine[Index].Key) = nil then
+    if not Assigned(Theirs.Find(Mine[Index].Key)) then
       MergeKey(Mine[Index].Key);
 end;
 

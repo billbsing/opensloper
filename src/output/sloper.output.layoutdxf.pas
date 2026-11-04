@@ -377,7 +377,7 @@ begin
     AddText(Format(rsDXFSize, [SizeName]));
   AddText(Format(rsDXFQuantity, [Piece.CutCount]));
   Fabric := Pattern.FabricOf(Piece);
-  if (Fabric <> nil) and (Fabric.Key <> '') then
+  if Assigned(Fabric) and (Fabric.Key <> '') then
     AddText(Format(rsDXFMaterial, [Fabric.Name]));
   Writer.EndBlock;
 end;
@@ -421,7 +421,7 @@ begin
         Continue;
       Seen.Add(Key);
       SizeName := '';
-      if Source.Measurements <> nil then
+      if Assigned(Source.Measurements) then
         SizeName := Source.Measurements.SizeName;
       BlockName := BlockNameFrom(Piece.DisplayName);
       if (Layout.Sources.Count > 1) and (SizeName <> '') then

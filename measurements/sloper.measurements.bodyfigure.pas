@@ -163,19 +163,19 @@ begin
     FBitmap.SetSize(Max(ClientWidth, 1), Max(ClientHeight, 1));
   FBitmap.Fill(Desk);
   FBitmap.FontQuality := fqFineAntialiasing;
-  if FCatalogue <> nil then
+  if Assigned(FCatalogue) then
   begin
     for View := Low(TCatalogueView) to High(TCatalogueView) do
-      if FCatalogue.Figures[View] <> nil then
+      if Assigned(FCatalogue.Figures[View]) then
         DrawView(View);
     for Key in FKeys do
     begin
       Entry := FCatalogue.Find(Key);
-      if Entry <> nil then
+      if Assigned(Entry) then
         DrawOverlay(Entry, OverlayInk, OverlayWidth);
     end;
     Entry := FCatalogue.Find(FHighlight);
-    if Entry <> nil then
+    if Assigned(Entry) then
       DrawOverlay(Entry, HighlightInk, HighlightWidth);
   end;
   FBitmap.Draw(Canvas, 0, 0, True);
@@ -189,13 +189,13 @@ var
   Entry: TCatalogueEntry;
 begin
   Result := '';
-  if FCatalogue = nil then
+  if not Assigned(FCatalogue) then
     Exit;
   Layout := LayoutFigures(ClientWidth, ClientHeight - CaptionRoom);
   if not ScreenToFigure(Layout, Vec2(X, Y), View, OnFigure) then
     Exit;
   Entry := FCatalogue.OverlayAt(View, OnFigure, HitPixels / Layout.Scale, FKeys);
-  if Entry <> nil then
+  if Assigned(Entry) then
     Result := Entry.Key;
 end;
 

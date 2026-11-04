@@ -299,7 +299,7 @@ end;
 
 function TPieceObject.HasOverride(PathIndex: integer): boolean;
 begin
-  Result := Field(OverrideField(PathIndex)) <> nil;
+  Result := Assigned(Field(OverrideField(PathIndex)));
 end;
 
 procedure TPieceObject.AddOverride(PathIndex: integer);
@@ -532,7 +532,7 @@ begin
     Points := TEdgeObject(Node).Flatten(CoarseFlatness);
     if FPath[Index].Reversed then
       Points := ReversedPoints(Points);
-    if (Previous <> nil) and not PointsNear(LastEnd, Points[0], PieceJoinTolerance) then
+    if Assigned(Previous) and not PointsNear(LastEnd, Points[0], PieceJoinTolerance) then
       Exit(Fail(esInvalid, Format(rsPieceGap, [Previous.DisplayName, Node.DisplayName])));
     // Each point of the edge but its last starts a segment of this width
     Added := Length(Outline);
@@ -545,7 +545,7 @@ begin
     end;
     LastEnd := Points[High(Points)];
     Previous := TEdgeObject(Node);
-    if First = nil then
+    if not Assigned(First) then
       First := Previous;
   end;
   if not PointsNear(LastEnd, Outline[0], PieceJoinTolerance) then
@@ -762,7 +762,7 @@ end;
 function TPieceObject.Perimeter: double;
 begin
   Result := 0;
-  if FOutline <> nil then
+  if Length(FOutline) > 0 then
     Result := PolylineLength(FOutline) + Distance(FOutline[High(FOutline)], FOutline[0]);
 end;
 

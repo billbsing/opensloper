@@ -148,7 +148,7 @@ begin
         FormatFloat(SeamFormat, Seam.Mismatch), FormatFloat(SeamFormat, Seam.Ease)]);
     end;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if (Pattern.Objects[Index] is TPieceObject) and (Pattern.FabricOf(TPieceObject(Pattern.Objects[Index])) = nil) then
+    if (Pattern.Objects[Index] is TPieceObject) and not Assigned(Pattern.FabricOf(TPieceObject(Pattern.Objects[Index]))) then
     begin
       SetLength(Result, Length(Result) + 1);
       Result[High(Result)] := Format(rsCheckNoFabric, [Pattern.Objects[Index].DisplayName]);

@@ -313,7 +313,7 @@ var
   Found: TStringArray;
 begin
   Result := fcSame;
-  if (FFileName = '') or FChangeOpen or (FConflicts <> nil) or not ReadTextFile(FFileName, Text, Err) or (Text = FBaseText) then
+  if (FFileName = '') or FChangeOpen or (Length(FConflicts) > 0) or not ReadTextFile(FFileName, Text, Err) or (Text = FBaseText) then
   begin
     FPendingText := '';
     Exit;
@@ -341,7 +341,7 @@ begin
   end;
   if not Merge(Text, nil, MergedText, Found) then
     Exit;
-  if Found <> nil then
+  if Length(Found) > 0 then
   begin
     FConflicts := Found;
     FConflictText := Text;
@@ -358,7 +358,7 @@ var
   MergedText, Err: string;
   Remaining: TStringArray;
 begin
-  if FConflicts = nil then
+  if Length(FConflicts) = 0 then
     Exit;
   FConflicts := nil;
   if not Merge(FConflictText, TakeTheirs, MergedText, Remaining) then
@@ -479,7 +479,7 @@ var
 begin
   Result := NewKeyStem;
   Number := 1;
-  while FSet.Find(Result) <> nil do
+  while Assigned(FSet.Find(Result)) do
   begin
     Inc(Number);
     Result := NewKeyStem + IntToStr(Number);

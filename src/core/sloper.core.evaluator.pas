@@ -305,7 +305,7 @@ begin
     for DepKey in Node.DependencyKeys do
     begin
       Dep := Context.FindNode(DepKey);
-      if Dep = nil then
+      if not Assigned(Dep) then
       begin
         if Node.FMissingKey = '' then
           Node.FMissingKey := DepKey;
@@ -364,7 +364,7 @@ begin
         BlockedBy := Dep;
         Break;
       end;
-    if BlockedBy <> nil then
+    if Assigned(BlockedBy) then
     begin
       Node.FState := esBlocked;
       Node.FMessage := Format(rsEvalBlocked, [BlockedBy.DisplayName]);
@@ -413,7 +413,7 @@ var
     for DepKey in Current.DependencyKeys do
     begin
       Dep := Context.FindNode(DepKey);
-      if Dep = nil then
+      if not Assigned(Dep) then
         Continue;
       if Dep = Target then
         Exit(True);

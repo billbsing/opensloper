@@ -116,7 +116,7 @@ var
 begin
   ErrorMessage := '';
   Fields := DragFields(Point);
-  if Fields = nil then
+  if Length(Fields) = 0 then
   begin
     ErrorMessage := Format(rsDragPlaced, [Point.DisplayName]);
     Exit(False);
@@ -205,7 +205,7 @@ var
   Node, NextNode: string;
 begin
   Result := nil;
-  if not Edge.HasResult or (Edge.Segments = nil) then
+  if not Edge.HasResult or (Length(Edge.Segments) = 0) then
     Exit;
   if Edge is TCurveObject then
   begin

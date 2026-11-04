@@ -552,11 +552,11 @@ begin
       Result.PatternName := Result.PatternName + ', ';
     Result.PatternName := Result.PatternName + ChangeFileExt(ExtractFileName(Source.PatternFile), '');
     SetName := '';
-    if Source.Measurements <> nil then
+    if Assigned(Source.Measurements) then
       SetName := Source.Measurements.Name;
     if SetName = '' then
       SetName := ChangeFileExt(ExtractFileName(Source.MeasurementPath), '');
-    if (Source.Measurements <> nil) and (Source.Measurements.SizeName <> '') then
+    if Assigned(Source.Measurements) and (Source.Measurements.SizeName <> '') then
       SetName := Format(rsLayoutSetAndSize, [SetName, Source.Measurements.SizeName]);
     if (SetName <> '') and (Pos(SetName, Result.MeasurementsName) = 0) then
     begin
@@ -564,7 +564,7 @@ begin
         Result.MeasurementsName := Result.MeasurementsName + ', ';
       Result.MeasurementsName := Result.MeasurementsName + SetName;
     end;
-    if Source.Pattern = nil then
+    if not Assigned(Source.Pattern) then
       Continue;
     if (Result.CutList <> '') and (Source.Pattern.CutList <> '') then
       Result.CutList := Result.CutList + ' · ';
@@ -745,7 +745,7 @@ begin
       Result.Add('allowTurns', True);
     if Output.Fabric <> '' then
       Result.Add('fabric', Output.Fabric);
-    if Output.ExcludedPages <> nil then
+    if Length(Output.ExcludedPages) > 0 then
     begin
       Excluded := TJSONArray.Create;
       Result.Add('excludedPages', Excluded);
@@ -802,7 +802,7 @@ begin
       Item.Add('rotation', Placement.Rotation);
       Item.Add('flipped', Placement.Flipped);
     end;
-    if Notes <> nil then
+    if Length(Notes) > 0 then
     begin
       List := TJSONArray.Create;
       Root.Add('sheetNotes', List);
@@ -846,7 +846,7 @@ end;
 // The GetJSON functions clear their result when a member is missing
 procedure ReadOptionalNumber(Item: TJSONObject; const AName: string; var Value: double);
 begin
-  if Item.Find(AName) <> nil then
+  if Assigned(Item.Find(AName)) then
     GetJSONNumber(Item, AName, Value);
 end;
 
@@ -887,7 +887,7 @@ begin
         Title.Corner := Corner;
   GetJSONBoolean(Item, 'everyPage', Title.EveryPage);
   List := Item.Find('fields');
-  if (List <> nil) and (List.JSONType = jtArray) then
+  if Assigned(List) and (List.JSONType = jtArray) then
     for Index := 0 to List.Count - 1 do
       if List.Items[Index].JSONType = jtString then
         Insert(List.Items[Index].AsString, Title.Fields, Length(Title.Fields));
@@ -923,11 +923,11 @@ begin
     Exit(False);
   end;
   Excluded := Item.Find('excludedPages');
-  if (Excluded <> nil) and (Excluded.JSONType = jtArray) then
+  if Assigned(Excluded) and (Excluded.JSONType = jtArray) then
     for Index := 0 to Excluded.Count - 1 do
       if Excluded.Items[Index].JSONType = jtString then
         Insert(Excluded.Items[Index].AsString, Output.ExcludedPages, Length(Output.ExcludedPages));
-  if (Item.Find('paper') <> nil) and GetJSONString(Item, 'paper', Output.Paper) and not PaperSize(Output.Paper,
+  if Assigned(Item.Find('paper')) and GetJSONString(Item, 'paper', Output.Paper) and not PaperSize(Output.Paper,
     Output.Tiles.PaperWidth, Output.Tiles.PaperHeight) then
     if not (GetJSONNumber(Item, 'paperWidth', Output.Tiles.PaperWidth) and GetJSONNumber(Item, 'paperHeight', Output.Tiles.PaperHeight)) then
     begin
@@ -1004,7 +1004,7 @@ begin
     GetJSONString(Root, 'name', Name);
 
     Data := Root.Find('sources');
-    if (Data = nil) or (Data.JSONType <> jtArray) then
+    if not Assigned(Data) or (Data.JSONType <> jtArray) then
       Exit(Fail(Format(rsLayoutList, ['sources'])));
     Top := 0;
     for Index := 0 to Data.Count - 1 do
@@ -1012,7 +1012,7 @@ begin
       if Data.Items[Index].JSONType <> jtObject then
         Exit(Fail(Format(rsLayoutList, ['sources'])));
       Item := TJSONObject(Data.Items[Index]);
-      if not GetJSONInteger(Item, 'id', Id) or (Id < 1) or (FindSourceById(FSources, Id) <> nil) or not GetJSONString(Item, 'pattern', TextValue) then
+      if not GetJSONInteger(Item, 'id', Id) or (Id < 1) or Assigned(FindSourceById(FSources, Id)) or not GetJSONString(Item, 'pattern', TextValue) then
         Exit(Fail(Format(rsLayoutBadSource, [Index + 1])));
       Source := TLayoutSource.Create;
       FSources.Add(Source);
@@ -1023,7 +1023,7 @@ begin
       Top := Max(Top, Id);
     end;
     FNextId := Top + 1;
-    if Root.Find('nextId') <> nil then
+    if Assigned(Root.Find('nextId')) then
     begin
       if not GetJSONInteger(Root, 'nextId', Saved) or (Saved < FNextId) then
         Exit(Fail(rsLayoutBadNextId));
@@ -1031,11 +1031,11 @@ begin
     end;
 
     Data := Root.Find('output');
-    if (Data <> nil) and (Data.JSONType = jtObject) and not ReadOutput(TJSONObject(Data), Output, TextValue) then
+    if Assigned(Data) and (Data.JSONType = jtObject) and not ReadOutput(TJSONObject(Data), Output, TextValue) then
       Exit(Fail(TextValue));
 
     Data := Root.Find('placements');
-    if Data <> nil then
+    if Assigned(Data) then
     begin
       if Data.JSONType <> jtArray then
         Exit(Fail(Format(rsLayoutList, ['placements'])));
@@ -1048,7 +1048,7 @@ begin
         if not GetJSONInteger(Item, 'source', Placement.SourceId) or not GetJSONInteger(Item, 'piece', PieceId) or not
           GetJSONNumber(Item, 'x', Placement.X) or not GetJSONNumber(Item, 'y', Placement.Y) then
           Exit(Fail(Format(rsLayoutBadPlacement, [Index + 1])));
-        if FindSourceById(FSources, Placement.SourceId) = nil then
+        if not Assigned(FindSourceById(FSources, Placement.SourceId)) then
           Exit(Fail(Format(rsLayoutUnknownSource, [Index + 1, Placement.SourceId])));
         Placement.PieceKey := IntToStr(PieceId);
         if not GetJSONInteger(Item, 'copy', Placement.Copy) then
@@ -1061,10 +1061,10 @@ begin
     end;
 
     Data := Root.Find('sheetNotes');
-    if (Data <> nil) and not ReadNotes(Data, Notes) then
+    if Assigned(Data) and not ReadNotes(Data, Notes) then
       Exit(Fail(Format(rsLayoutList, ['sheetNotes'])));
     Data := Root.Find('titleBlock');
-    if (Data <> nil) and (Data.JSONType = jtObject) then
+    if Assigned(Data) and (Data.JSONType = jtObject) then
       ReadTitle(TJSONObject(Data), Title);
     Result := True;
   finally
@@ -1110,7 +1110,7 @@ var
 begin
   Result := nil;
   for Source in FSources do
-    if Source.Pattern <> nil then
+    if Assigned(Source.Pattern) then
       for Index := 0 to Source.Pattern.ObjectCount - 1 do
         if Source.Pattern.Objects[Index] is TPieceObject then
         begin
@@ -1125,7 +1125,7 @@ begin
               Item.PieceKey := Piece.Key;
               Item.Copy := Copy;
               Item.Caption := Format(rsLayoutTrayItem, [Piece.DisplayName, Copy, Piece.CutCount]);
-              Item.CanPlace := (Piece.State = esValid) and (Piece.CutLine <> nil);
+              Item.CanPlace := (Piece.State = esValid) and (Length(Piece.CutLine) > 0);
               SetLength(Result, Length(Result) + 1);
               Result[High(Result)] := Item;
             end;
@@ -1138,7 +1138,7 @@ var
 begin
   Piece := nil;
   Source := FindSourceById(FSources, Placement.SourceId);
-  if (Source = nil) or (Source.Pattern = nil) then
+  if not Assigned(Source) or not Assigned(Source.Pattern) then
     Exit(False);
   Node := Source.Pattern.FindNode(Placement.PieceKey);
   Result := Node is TPieceObject;
@@ -1419,7 +1419,7 @@ begin
   SetLength(Result, Length(Placements));
   Count := 0;
   for Index := 0 to High(Placements) do
-    if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Piece.CutLine <> nil) and InFabric(Source, Piece) then
+    if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Length(Piece.CutLine) > 0) and InFabric(Source, Piece) then
     begin
       Result[Count] := PlaceShape(Piece, Placements[Index], OpensFolds);
       Result[Count].Placement := Index;
@@ -1442,7 +1442,7 @@ begin
   if Output.Fabric = '' then
     Exit(True);
   Fabric := Source.Pattern.FabricOf(Piece);
-  Result := (Fabric <> nil) and SameName(Fabric.Name, Output.Fabric);
+  Result := Assigned(Fabric) and SameName(Fabric.Name, Output.Fabric);
 end;
 
 function TLayout.UsableWidth: double;
@@ -1578,7 +1578,7 @@ begin
     Result[0].Area.MaxY := Extent.Y;
     if Output.Kind = okMaterial then
       Result[0].Area.MaxY := Max(Extent.Y, Output.MaterialLength);
-    Result[0].Blank := (Shapes = nil) and (Notes = nil);
+    Result[0].Blank := (Length(Shapes) = 0) and (Length(Notes) = 0);
     Exit;
   end;
   Result := TilePages(Extent, Output.Tiles, RowCount, ColumnCount);
@@ -1677,7 +1677,7 @@ var
     Named: TLayoutSource;
   begin
     for Named in FSources do
-      if (Named.Pattern <> nil) and (Named.Pattern.FindFabricNamed(Output.Fabric) <> nil) then
+      if Assigned(Named.Pattern) and Assigned(Named.Pattern.FindFabricNamed(Output.Fabric)) then
         Exit(True);
     Result := False;
   end;
@@ -1696,7 +1696,7 @@ begin
   for Placement in Placements do
   begin
     Source := FindSourceById(FSources, Placement.SourceId);
-    if (Source = nil) or (Source.Pattern = nil) or (Source.LoadError <> '') then
+    if not Assigned(Source) or not Assigned(Source.Pattern) or (Source.LoadError <> '') then
       Continue;
     if not FindPiece(Placement, Source, Piece) then
     begin
@@ -1726,10 +1726,10 @@ begin
     Result[High(Result)].Unplaced := True;
   end;
   for Source in FSources do
-    if (Source.Pattern <> nil) and (Source.LoadError = '') and not HasPieces(Source) then
+    if Assigned(Source.Pattern) and (Source.LoadError = '') and not HasPieces(Source) then
       Add(Format(rsLayoutNoPieces, [ExtractFileName(Source.PatternFile)]), False);
   // A source that failed already says why; this is for a sheet that would print blank
-  if AllRead and ((Placements = nil) or ((Output.Fabric <> '') and (PlacedPieces = nil))) then
+  if AllRead and ((Length(Placements) = 0) or ((Output.Fabric <> '') and (Length(PlacedPieces) = 0))) then
     Add(rsLayoutNothingPlaced, True);
   if AllRead and (Output.Fabric <> '') and not FabricExists then
     Add(Format(rsLayoutNoFabric, [Output.Fabric]), False);

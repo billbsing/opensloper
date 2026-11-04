@@ -177,7 +177,7 @@ var
   Node: TObject;
 begin
   Node := nil;
-  if (FDocument <> nil) and (FAnchor <> '') then
+  if Assigned(FDocument) and (FAnchor <> '') then
     Node := FDocument.Pattern.FindNode(FAnchor);
   if Node is TPointObject then
     FAnchorLabel.Caption := Format(rsAlignAnchorName, [TPointObject(Node).DisplayName])
@@ -213,9 +213,9 @@ begin
       Result.Edge := Key;
   end;
   case FRelativeBox.ItemIndex of
-    0: if Result.Points <> nil then
+    0: if Length(Result.Points) > 0 then
         Result.Reference := Result.Points[0];
-    1: if Result.Points <> nil then
+    1: if Length(Result.Points) > 0 then
         Result.Reference := Result.Points[High(Result.Points)];
     else
       Result.Reference := FAnchor;
@@ -267,7 +267,7 @@ var
   Replace: TStringArray;
   Err: string;
 begin
-  if (FDocument = nil) or FDocument.ChangeOpen then
+  if not Assigned(FDocument) or FDocument.ChangeOpen then
     Exit;
   Request := BuildRequest(AAction);
   if not PlanArrange(FDocument.Pattern, Request, Items, Err) then
@@ -291,10 +291,10 @@ var
   Pattern: TPattern;
   Err: string;
 begin
-  if (FDocument = nil) or FDocument.ChangeOpen then
+  if not Assigned(FDocument) or FDocument.ChangeOpen then
     Exit;
   Request := BuildRequest(aaDistribute);
-  if not ((Length(Request.Points) = 2) and (Request.Edge = '') or (Request.Points = nil) and (Request.Edge <> '')) then
+  if not ((Length(Request.Points) = 2) and (Request.Edge = '') or (Length(Request.Points) = 0) and (Request.Edge <> '')) then
   begin
     Say(rsRepeatNeeds);
     Exit;
@@ -306,13 +306,13 @@ begin
   else
     Added := Pattern.AddRepeatBetween('', Pattern.UsePoint(Request.Points[0]), Pattern.UsePoint(Request.Points[1]), DefaultRepeatCount, True);
   Err := Pattern.LastError;
-  if not FDocument.Commit(Added <> nil) then
+  if not FDocument.Commit(Assigned(Added)) then
   begin
     Say(Err);
     Exit;
   end;
   Added := TRepeatObject(Pattern.FindObject(Added.Name));
-  if Assigned(FOnSelect) and (Added.Item(1) <> nil) then
+  if Assigned(FOnSelect) and Assigned(Added.Item(1)) then
     FOnSelect(Self, Added.Item(1).Key);
 end;
 

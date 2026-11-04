@@ -86,7 +86,7 @@ end;
 
 function TTestOperations.Check(Obj: TObject): TObject;
 begin
-  if Obj = nil then
+  if not Assigned(Obj) then
     Fail('Refused: ' + FPattern.LastError);
   Result := Obj;
 end;

@@ -432,10 +432,10 @@ var
   Measurement: TMeasurement;
 begin
   Key := '';
-  if FPattern.Measurements = nil then
+  if not Assigned(FPattern.Measurements) then
     Exit(False);
   Measurement := FPattern.Measurements.Find(AName);
-  Result := Measurement <> nil;
+  Result := Assigned(Measurement);
   if Result then
     Key := Measurement.Key;
 end;
@@ -445,7 +445,7 @@ var
   Variable: TVariable;
 begin
   Variable := FPattern.FindVariable(AName);
-  Result := Variable <> nil;
+  Result := Assigned(Variable);
   if Result then
     Id := Variable.Key
   else
@@ -460,7 +460,7 @@ begin
   if not FAllowObjects then
     Exit(False);
   DraftObject := FPattern.FindObject(AName);
-  Result := DraftObject <> nil;
+  Result := Assigned(DraftObject);
   // Formulas are only parsed to be kept, so this is a repeat point's first use
   if Result then
     Id := FPattern.UsePoint(DraftObject.Key);
@@ -515,12 +515,12 @@ end;
 function TPatternContext.MeasurementValue(const Key: string; out Value: double): boolean;
 begin
   Value := 0;
-  Result := (FPattern.Measurements <> nil) and FPattern.Measurements.TryGetValue(Key, Value);
+  Result := Assigned(FPattern.Measurements) and FPattern.Measurements.TryGetValue(Key, Value);
 end;
 
 function TPatternContext.MeasurementProblem(const Key: string): string;
 begin
-  if FPattern.Measurements = nil then
+  if not Assigned(FPattern.Measurements) then
     Result := ''
   else
     Result := FPattern.Measurements.ValueProblem(Key);
@@ -784,13 +784,13 @@ end;
 procedure TPattern.SetPieceFabric(Piece: TPieceObject; Fabric: TPatternFabric);
 begin
   // The first fabric has a key to tell it from none only once it is explicit
-  if Fabric = nil then
+  if not Assigned(Fabric) then
     MakeFabricsExplicit;
-  if Fabric <> nil then
+  if Assigned(Fabric) then
     Piece.FabricKey := Fabric.Key
   else
     Piece.FabricKey := '';
-  if (Fabric <> nil) and Fabric.HasAllowance then
+  if Assigned(Fabric) and Fabric.HasAllowance then
     SetFormula(Piece, PieceAllowanceField, AllowanceText(Fabric));
 end;
 
@@ -809,7 +809,7 @@ var
 begin
   Result := Default(TPieceLook);
   Fabric := FabricOf(Piece);
-  if Fabric = nil then
+  if not Assigned(Fabric) then
     Exit;
   Result.Filled := True;
   Result.HatchAngle := FabricHatchAngle(FFabrics.IndexOf(Fabric));
@@ -830,7 +830,7 @@ var
 begin
   Result := Piece.CutCaption(Whole);
   Fabric := FabricOf(Piece);
-  if (Fabric <> nil) and (Fabric.Key <> '') then
+  if Assigned(Fabric) and (Fabric.Key <> '') then
     Result := Format(rsPatternPieceCaptionFabric, [Result, Fabric.Name]);
 end;
 
@@ -921,12 +921,12 @@ begin
   Points := nil;
   Edges := nil;
   Expanded := nil;
-  if Sources = nil then
+  if Length(Sources) = 0 then
     Exit(SetError(rsPatternTransformNothing));
   for Key in Sources do
   begin
     Node := FindNode(Key);
-    if Node = nil then
+    if not Assigned(Node) then
       Exit(SetError(Format(rsPatternUnknownObject, [Key])));
     if Node is TPointObject then
     begin
@@ -1114,7 +1114,7 @@ begin
     Exit;
   end;
   Result := BuildTransform(Spec, Expanded);
-  if Result = nil then
+  if not Assigned(Result) then
     Exit;
   AddObjectNode(Result);
   MakeCopies(Result, Expanded);
@@ -1220,7 +1220,7 @@ var
   Existing: TDraftObject;
 begin
   Existing := FindObject(AName);
-  Result := (Existing <> nil) and (Existing <> FNameExclude);
+  Result := Assigned(Existing) and (Existing <> FNameExclude);
 end;
 
 function TPattern.CheckObjectName(const AName: string; Exclude: TDraftObject;
@@ -1231,7 +1231,7 @@ begin
   if not CheckName(AName, ErrorMessage) then
     Exit(False);
   Existing := FindObject(AName);
-  if (Existing <> nil) and (Existing <> Exclude) then
+  if Assigned(Existing) and (Existing <> Exclude) then
   begin
     ErrorMessage := Format(rsNameTaken, [AName]);
     Exit(False);
@@ -1247,7 +1247,7 @@ begin
   if not CheckName(AName, ErrorMessage) then
     Exit(False);
   Existing := FindVariable(AName);
-  if (Existing <> nil) and (Existing <> Exclude) then
+  if Assigned(Existing) and (Existing <> Exclude) then
   begin
     ErrorMessage := Format(rsNameTaken, [AName]);
     Exit(False);
@@ -1288,7 +1288,7 @@ var
   Node: TEvalNode;
 begin
   Node := FindNode(Id);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit(SetError(Format(rsPatternUnknownObject, [Id])));
   if not (Node is TPointObject) then
     Exit(SetError(Format(rsDraftNotAPoint, [Node.DisplayName])));
@@ -1303,7 +1303,7 @@ var
   Node: TEvalNode;
 begin
   Node := FindNode(Id);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit(SetError(Format(rsPatternUnknownObject, [Id])));
   if not (Node is TEdgeObject) then
     Exit(SetError(Format(rsDraftNotAnEdge, [Node.DisplayName])));
@@ -1312,7 +1312,7 @@ end;
 
 function TPattern.VariableNameTaken(const AName: string): boolean;
 begin
-  Result := FindVariable(AName) <> nil;
+  Result := Assigned(FindVariable(AName));
 end;
 
 function TPattern.NewVariableName: string;
@@ -1474,7 +1474,7 @@ begin
       for Number := 1 to TRepeatObject(Objects[Index]).Count do
       begin
         Item := TRepeatObject(Objects[Index]).Item(Number);
-        if Item <> nil then
+        if Assigned(Item) then
           Insert(TPointObject(Item), Result, Length(Result));
       end;
 end;
@@ -1643,19 +1643,19 @@ begin
   Corner := FindNode(CornerId);
   CornerName := Corner.DisplayName;
   Across := AddOffsetPoint('', CornerId, omCartesian, Width, '0');
-  if Across = nil then
+  if not Assigned(Across) then
     Exit(False);
   Above := AddOffsetPoint('', CornerId, omCartesian, '0', Height);
-  if Above = nil then
+  if not Assigned(Above) then
     Exit(False);
   Opposite := AddOffsetPoint('', Across.Key, omCartesian, '0', Above.DisplayName + '.y - ' + CornerName + '.y');
-  if Opposite = nil then
+  if not Assigned(Opposite) then
     Exit(False);
   Edges[0] := AddLine(CornerId, Across.Key, Role);
   Edges[1] := AddLine(Across.Key, Opposite.Key, Role);
   Edges[2] := AddLine(Opposite.Key, Above.Key, Role);
   Edges[3] := AddLine(Above.Key, CornerId, Role);
-  Result := (Edges[0] <> nil) and (Edges[1] <> nil) and (Edges[2] <> nil) and (Edges[3] <> nil);
+  Result := Assigned(Edges[0]) and Assigned(Edges[1]) and Assigned(Edges[2]) and Assigned(Edges[3]);
 end;
 
 function TPattern.AddOffsetEdge(const EdgeId, Distance: string; Side: TOffsetSide; Role: TEdgeRole; const AName: string): TOffsetEdge;
@@ -2086,11 +2086,11 @@ var
   Node: TEvalNode;
 begin
   Node := FindNode(Entry.PieceKey);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit(SetError(Format(rsPatternUnknownObject, [Entry.PieceKey])));
   if not (Node is TPieceObject) then
     Exit(SetError(Format(rsSeamNotAPiece, [Node.DisplayName])));
-  if FindNode(Entry.EdgeKey) = nil then
+  if not Assigned(FindNode(Entry.EdgeKey)) then
     Exit(SetError(Format(rsPatternUnknownObject, [Entry.EdgeKey])));
   if not (FindNode(Entry.EdgeKey) is TEdgeObject) then
     Exit(SetError(Format(rsDraftNotAnEdge, [FindNode(Entry.EdgeKey).DisplayName])));
@@ -2103,7 +2103,7 @@ function TPattern.CheckSeamSide(const Side: TSeamSide): boolean;
 var
   Index, Other: integer;
 begin
-  if Side = nil then
+  if Length(Side) = 0 then
     Exit(SetError(rsPatternSeamEmptySide));
   for Index := 0 to High(Side) do
   begin
@@ -2160,7 +2160,7 @@ function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boole
 var
   NewFormula: TFormula;
 begin
-  if Node.Field(AField) = nil then
+  if not Assigned(Node.Field(AField)) then
     Exit(SetError(Format(rsPatternNoField, [Node.DisplayName, AField]), AField));
   NewFormula := TFormula.Create;
   if NewFormula.Parse(Text, ResolverFor(Node)) then
@@ -2173,7 +2173,7 @@ function TPattern.SetStoredFormula(Node: TEvalNode; const AField, Text: string):
 var
   NewFormula: TFormula;
 begin
-  if Node.Field(AField) = nil then
+  if not Assigned(Node.Field(AField)) then
     Exit(SetError(Format(rsPatternNoField, [Node.DisplayName, AField]), AField));
   NewFormula := TFormula.Create;
   if NewFormula.ParseStored(Text) then
@@ -2193,7 +2193,7 @@ begin
       Dep := FindNode(ReferenceKey(Ref));
       if Dep = Node then
         Exit(SetError(Format(rsPatternUsesItself, [Node.DisplayName]), AField));
-      if (Dep <> nil) and TEvaluator.Reaches(Dep, Node, FContext) then
+      if Assigned(Dep) and TEvaluator.Reaches(Dep, Node, FContext) then
         Exit(SetError(Format(rsPatternCycle, [Node.DisplayName, Dep.DisplayName,
           Dep.DisplayName, Node.DisplayName]), AField));
     end;
@@ -2219,7 +2219,7 @@ begin
   Dep := FindNode(Key);
   if Dep = Target then
     Exit(SetError(Format(rsPatternUsesItself, [Target.DisplayName])));
-  if (Dep <> nil) and TEvaluator.Reaches(Dep, Target, FContext) then
+  if Assigned(Dep) and TEvaluator.Reaches(Dep, Target, FContext) then
     Exit(SetError(Format(rsPatternCycle, [Target.DisplayName, Dep.DisplayName, Dep.DisplayName, Target.DisplayName])));
 end;
 
@@ -2336,10 +2336,10 @@ begin
   begin
     Radius := FormulaText(Edge, 'radius');
     StartPoint := AddOffsetPoint('', TArcObject(Edge).Centre, omPolar, Radius, FormulaText(Edge, 'angle1'));
-    if StartPoint = nil then
+    if not Assigned(StartPoint) then
       Exit;
     EndPoint := AddOffsetPoint('', TArcObject(Edge).Centre, omPolar, Radius, FormulaText(Edge, 'angle2'));
-    if EndPoint = nil then
+    if not Assigned(EndPoint) then
       Exit;
     Result := TLineObject.Create(Edge.Key, StartPoint.Key, EndPoint.Key);
   end

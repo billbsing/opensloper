@@ -565,14 +565,14 @@ begin
   if not FMissingPanel.Visible then
     Exit;
   FMissing := FDocument.Missing;
-  if FMissing = nil then
+  if Length(FMissing) = 0 then
     FMissingLabel.Caption := Format(rsMissingNone, [ExtractFileName(FDocument.PatternFile)])
   else
     FMissingLabel.Caption := Format(rsMissingSome, [ExtractFileName(FDocument.PatternFile)]);
   Lines := TStringList.Create;
   try
     for Item in FMissing do
-      if Item.Sizes = nil then
+      if Length(Item.Sizes) = 0 then
         Lines.Add(Format(rsMissingKey, [Item.Key]))
       else
         Lines.Add(Format(rsMissingSizes, [Item.Key, string.Join(', ', Item.Sizes)]));
@@ -601,13 +601,13 @@ begin
   if FMissingList.ItemIndex < 0 then
     Exit;
   Item := FMissing[FMissingList.ItemIndex];
-  if Item.Sizes <> nil then
+  if Length(Item.Sizes) > 0 then
     SelectCell(FDocument.Measurements.IndexOf(Item.Key), FirstValueColumn + FDocument.Measurements.IndexOfSize(Item.Sizes[0]))
   else
   begin
     Description := '';
     Entry := FCatalogue.Find(Item.Key);
-    if Entry <> nil then
+    if Assigned(Entry) then
       Description := Entry.Description;
     if not FDocument.AddKnown(Item.Key, Description, Reason) then
     begin
@@ -696,7 +696,7 @@ begin
   Lines := TStringList.Create;
   try
     for Entry in FCatalogue.Search(Group, FSearchEdit.Text) do
-      if FDocument.Measurements.Find(Entry.Key) = nil then
+      if not Assigned(FDocument.Measurements.Find(Entry.Key)) then
       begin
         Insert(Entry, FListed, Length(FListed));
         Lines.Add(Entry.Name);
@@ -740,7 +740,7 @@ begin
   FEntryInfo.Lines.BeginUpdate;
   try
     FEntryInfo.Clear;
-    if Entry = nil then
+    if not Assigned(Entry) then
       Exit;
     FEntryInfo.Lines.Add(Entry.Name);
     FEntryInfo.Lines.Add(Entry.Description);
@@ -757,7 +757,7 @@ var
   Entry: TCatalogueEntry;
 begin
   Entry := FCatalogue.Find(FDocument.Measurements[Index].Key);
-  Result := (Entry <> nil) and not Entry.InRange(Value);
+  Result := Assigned(Entry) and not Entry.InRange(Value);
   if Result then
     ShowStatus(Format(rsOutsideRange, [Entry.Key, FormatMeasure(Entry.RangeMin, FUnit), FormatMeasure(Entry.RangeMax, FUnit), MeasureUnitNames[FUnit]]));
 end;
@@ -806,7 +806,7 @@ begin
     Exit;
   Measurement := FDocument.Measurements[Index];
   Entry := FCatalogue.Find(Measurement.Key);
-  if (Entry <> nil) and Measurement.HasValueFor(Size) and not Entry.InRange(Measurement.ValueFor(Size)) then
+  if Assigned(Entry) and Measurement.HasValueFor(Size) and not Entry.InRange(Measurement.ValueFor(Size)) then
     FGrid.Canvas.Brush.Color := OutOfRangeColour;
 end;
 
@@ -1106,7 +1106,7 @@ end;
 procedure TMeasurementsForm.WatchTick(Sender: TObject);
 begin
   // Taking in a change now would lose what is being typed
-  if FAnswering or (FGrid.Editor <> nil) and (FGrid.Cells[FGrid.Col, FGrid.Row] <> FGrid.Editor.Caption) then
+  if FAnswering or Assigned(FGrid.Editor) and (FGrid.Cells[FGrid.Col, FGrid.Row] <> FGrid.Editor.Caption) then
     Exit;
   if FDocument.CheckPattern then
     ShowStatus(Format(rsPatternReread, [ExtractFileName(FDocument.PatternFile)]));
@@ -1271,7 +1271,7 @@ var
   var
     Line: string;
   begin
-    if Section = nil then
+    if Length(Section) = 0 then
       Exit;
     Lines.Add('');
     Lines.Add(Heading);
@@ -1349,7 +1349,7 @@ begin
       Exit;
     end;
     ShowStatus(Format(rsSaved, [Dialog.FileName]));
-    if Notes <> nil then
+    if Length(Notes) > 0 then
     begin
       Lines := TStringList.Create;
       Lines.AddStrings(Notes);

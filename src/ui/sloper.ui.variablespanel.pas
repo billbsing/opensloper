@@ -112,15 +112,15 @@ var
   Variable: TVariable;
   Key, Reason: string;
 begin
-  if Document = nil then
+  if not Assigned(Document) then
     Exit;
   Document.BeginChange(rsVariablesAddChange);
   Variable := Document.Pattern.AddVariable(Document.Pattern.NewVariableName, NewVariableFormula);
   Reason := Document.Pattern.LastError;
   Key := '';
-  if Variable <> nil then
+  if Assigned(Variable) then
     Key := Variable.Key;
-  Document.Commit(Variable <> nil);
+  Document.Commit(Assigned(Variable));
   if Key = '' then
   begin
     ShowMessageText(Reason);
@@ -142,10 +142,10 @@ var
   Reason: string;
   Done: boolean;
 begin
-  if (Document = nil) or (Selection = nil) then
+  if not Assigned(Document) or (Length(Selection) = 0) then
     Exit;
   Node := Document.Pattern.FindNode(Selection[0]);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit;
   Document.BeginChange(rsVariablesDeleteChange);
   Done := Document.Pattern.Delete(Node);

@@ -172,7 +172,7 @@ var
   Lining: TPatternFabric;
 begin
   Lining := FPattern.AddFabric('Lining');
-  AssertTrue(Lining <> nil);
+  AssertTrue(Assigned(Lining));
   AssertTrue(FPattern.FabricOf(AddSquare('Front', 0)) = FPattern.Fabrics[0]);
 end;
 
@@ -210,8 +210,8 @@ end;
 
 procedure TTestFabrics.TestNamesFollowNameRules;
 begin
-  AssertTrue(FPattern.AddFabric('2nd') = nil);
-  AssertTrue(FPattern.AddFabric('Inter facing') = nil);
+  AssertTrue(not Assigned(FPattern.AddFabric('2nd')));
+  AssertTrue(not Assigned(FPattern.AddFabric('Inter facing')));
   AssertFalse(FPattern.RenameFabric(FPattern.Fabrics[0], 'not a name'));
   AssertEquals('refused without changing', DefaultFabricName, FPattern.Fabrics[0].Name);
   AssertEquals('stays implicit', '', FPattern.Fabrics[0].Key);
@@ -219,7 +219,7 @@ end;
 
 procedure TTestFabrics.TestNamesAreUniqueIgnoringCase;
 begin
-  AssertTrue(FPattern.AddFabric('MAIN') = nil);
+  AssertTrue(not Assigned(FPattern.AddFabric('MAIN')));
   AssertTrue(FPattern.LastError <> '');
   AssertTrue('own name in another case', FPattern.RenameFabric(FPattern.Fabrics[0], 'MAIN'));
 end;
@@ -240,7 +240,7 @@ procedure TTestFabrics.TestRefusesBadColour;
 begin
   AssertFalse(FPattern.SetFabricColor(FPattern.Fabrics[0], 'blue'));
   AssertFalse(FPattern.SetFabricColor(FPattern.Fabrics[0], '#12345G'));
-  AssertTrue(FPattern.AddFabric('Lining', '#123') = nil);
+  AssertTrue(not Assigned(FPattern.AddFabric('Lining', '#123')));
   AssertFalse(FPattern.SetPieceFill(AddSquare('Front', 0), 'red', pfFabric));
 end;
 
@@ -277,12 +277,12 @@ begin
   AssertEquals('none at first', 0, Length(PatternProblems(FPattern, Blocked)));
   FPattern.SetPieceFabric(Piece, nil);
   AssertTrue('Main is explicit', FPattern.Fabrics[0].Key <> '');
-  AssertTrue(FPattern.FabricOf(Piece) = nil);
+  AssertTrue(not Assigned(FPattern.FabricOf(Piece)));
   AssertFalse(FPattern.PieceLook(Piece).Filled);
   Problems := PatternProblems(FPattern, Blocked);
   AssertEquals(1, Length(Problems));
   AssertEquals(Format(rsCheckNoFabric, ['Front']), Problems[0]);
-  AssertTrue('survives saving', Reloaded.FabricOf(TPieceObject(FLoaded.FindObject('Front'))) = nil);
+  AssertTrue('survives saving', not Assigned(Reloaded.FabricOf(TPieceObject(FLoaded.FindObject('Front')))));
 end;
 
 procedure TTestFabrics.TestLookComesFromFabric;
@@ -478,7 +478,7 @@ begin
     AssertTrue(Reason, LoadPatternFromText(Document.Pattern, SavePatternToText(FPattern), Reason));
     Document.Pattern.Evaluate;
     Document.BeginChange('add');
-    AssertTrue(Document.Commit(Document.Pattern.AddFabric('Lining') <> nil));
+    AssertTrue(Document.Commit(Assigned(Document.Pattern.AddFabric('Lining'))));
     AssertEquals(2, Document.Pattern.FabricCount);
     AssertTrue(Document.Undo);
     AssertEquals(1, Document.Pattern.FabricCount);

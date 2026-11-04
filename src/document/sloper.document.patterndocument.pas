@@ -20,7 +20,7 @@
 // and change notifications. Every user change goes through a change:
 
 //   Document.BeginChange(rsAddPoint);
-//   Document.Commit(Document.Pattern.AddFreePoint('', X, Y) <> nil);
+//   Document.Commit(Assigned(Document.Pattern.AddFreePoint('', X, Y)));
 
 // A change records the pattern's saved text before and after, so undo and
 // redo restore exactly the earlier definitions. Undo, redo and cancel load
@@ -496,7 +496,7 @@ begin
     Exit(False);
   end;
   Size := '';
-  if FMeasurements <> nil then
+  if Assigned(FMeasurements) then
     Size := FMeasurements.SizeName;
   if not ChangeMeasurementInFile(FMeasurementPath, Key, Value, Description, Change, ErrorMessage, Size) then
     Exit(False);
@@ -519,7 +519,7 @@ end;
 function TPatternDocument.SelectMeasurementSize(const Size: string): boolean;
 begin
   RequireNoChange;
-  Result := (FMeasurements <> nil) and FMeasurements.SelectSize(Size);
+  Result := Assigned(FMeasurements) and FMeasurements.SelectSize(Size);
   if not Result then
     Exit;
   FPattern.Evaluate;
@@ -549,7 +549,7 @@ begin
     if not NewSet.LoadFromText(Text, Reason) then
       Exit;
     Size := '';
-    if FMeasurements <> nil then
+    if Assigned(FMeasurements) then
       Size := FMeasurements.SizeName;
     NewSet.SelectSize(Size);
     SetMeasurementSet(NewSet, FMeasurementPath);
@@ -635,7 +635,7 @@ begin
   if FUndo.Count > 0 then
     Last := TPatternChange(FUndo.Last);
   // Never merge into the step the file was saved after: that state must stay reachable
-  if (MergeKey <> '') and (Last <> nil) and (Last.FMergeKey = MergeKey) and (FSavedCount <> FUndo.Count) and
+  if (MergeKey <> '') and Assigned(Last) and (Last.FMergeKey = MergeKey) and (FSavedCount <> FUndo.Count) and
     ((Time - Last.FTime) * SecsPerDay <= FMergeSeconds) then
   begin
     Last.FAfter := After;

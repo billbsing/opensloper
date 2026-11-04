@@ -393,7 +393,7 @@ begin
     ofEdges: Result := DraftObject is TEdgeObject;
     ofPieces: Result := (DraftObject is TPieceObject) or (DraftObject is TSeamObject);
     ofProblems: Result := (DraftObject.State <> esValid) or ((DraftObject is TSeamObject) and TSeamObject(DraftObject).OutOfTolerance) or
-        ((DraftObject is TPieceObject) and (Pattern.FabricOf(TPieceObject(DraftObject)) = nil));
+        ((DraftObject is TPieceObject) and not Assigned(Pattern.FabricOf(TPieceObject(DraftObject))));
     else
       Result := True;
   end;
@@ -414,7 +414,7 @@ var
   var
     Row: TObjectRow;
   begin
-    if DraftObject = nil then
+    if not Assigned(DraftObject) then
       Exit;
     Row := ObjectRow(Pattern, DraftObject);
     if not Matches(Row, LowerSearch) then
@@ -500,14 +500,14 @@ begin
   Result := nil;
   Count := 0;
   LowerSearch := LowerCase(Trim(Search));
-  if MeasurementSet <> nil then
+  if Assigned(MeasurementSet) then
     for Index := 0 to MeasurementSet.Count - 1 do
       if MeasurementSet[Index].HasValue then
         Add(MeasurementSet[Index].Key, FormatJSONFloat(MeasurementSet[Index].Value), MeasurementSet[Index].Description, False)
       else
         Add(MeasurementSet[Index].Key, '', MeasurementSet[Index].Description, False);
   for Key in PatternMeasurementKeys(Pattern) do
-    if (MeasurementSet = nil) or (MeasurementSet.Find(Key) = nil) then
+    if not Assigned(MeasurementSet) or not Assigned(MeasurementSet.Find(Key)) then
       Add(Key, '', '', True);
 end;
 

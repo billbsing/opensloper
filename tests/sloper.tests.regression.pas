@@ -63,8 +63,8 @@ var
   MemberName, ItemContext: string;
   ActualValue: TJSONData;
 begin
-  AssertTrue(Context + ' is a list', (Expected <> nil) and (Expected.JSONType = jtArray) and
-    (Actual <> nil) and (Actual.JSONType = jtArray));
+  AssertTrue(Context + ' is a list', (Assigned(Expected)) and (Expected.JSONType = jtArray) and
+    Assigned(Actual) and (Actual.JSONType = jtArray));
   AssertEquals(Context + ' count', Expected.Count, Actual.Count);
   for Index := 0 to Expected.Count - 1 do
   begin

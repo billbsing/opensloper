@@ -344,10 +344,10 @@ procedure TPropertiesPanel.SetDocument(ADocument: TPatternDocument);
 begin
   if FDocument = ADocument then
     Exit;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     FDocument.RemoveListener(@DocumentChanged);
   FDocument := ADocument;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     FDocument.AddListener(@DocumentChanged);
   FKey := '';
   FSelectionCount := 0;
@@ -371,7 +371,7 @@ var
   Node: TEvalNode;
 begin
   Result := Key;
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Node := FDocument.Pattern.FindNode(Key);
   if (Node is TRepeatPoint) and (TRepeatPoint(Node).Index = 1) then
@@ -382,7 +382,7 @@ procedure TPropertiesPanel.DocumentChanged(Document: TPatternDocument; Changes: 
 begin
   // A commit from one of our own fields notifies while its handler runs;
   // the controls stay, only their values change
-  if (FKey <> '') and (FDocument.Pattern.FindNode(FKey) = nil) then
+  if (FKey <> '') and not Assigned(FDocument.Pattern.FindNode(FKey)) then
   begin
     FKey := '';
     FSelectionCount := 0;
@@ -409,10 +409,10 @@ var
   Index: integer;
 begin
   Result := nil;
-  if (FDocument = nil) or (FKey = '') then
+  if not Assigned(FDocument) or (FKey = '') then
     Exit;
   Node := FDocument.Pattern.FindNode(FKey);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit;
   SetLength(Result, Node.FieldCount);
   for Index := 0 to Node.FieldCount - 1 do
@@ -423,12 +423,12 @@ procedure TPropertiesPanel.ClearControls;
 var
   Edit: TEdit;
 begin
-  if FCompleter <> nil then
+  if Assigned(FCompleter) then
     FCompleter.Hide;
   // Freeing a focused edit would run its exit handler and commit mid-rebuild
-  if FNameEdit <> nil then
+  if Assigned(FNameEdit) then
     FNameEdit.OnExit := nil;
-  if FDescriptionEdit <> nil then
+  if Assigned(FDescriptionEdit) then
     FDescriptionEdit.OnExit := nil;
   for Edit in FEdits do
     Edit.OnExit := nil;
@@ -464,7 +464,7 @@ end;
 // room: the next one anchors through it.
 procedure TPropertiesPanel.HangBelowLast(Control: TControl; SpaceAbove: integer);
 begin
-  if FLastControl = nil then
+  if not Assigned(FLastControl) then
   begin
     Control.AnchorSideTop.Control := Self;
     Control.AnchorSideTop.Side := asrTop;
@@ -528,7 +528,7 @@ begin
   NameLabel.AnchorSideBottom.Control := Value;
   NameLabel.AnchorSideBottom.Side := asrBottom;
   NameLabel.BorderSpacing.Left := Indent;
-  if FFirstRow = nil then
+  if not Assigned(FFirstRow) then
     FFirstRow := Value;
   FLastRow := Value;
 end;
@@ -572,7 +572,7 @@ end;
 
 procedure TPropertiesPanel.PositionDivider;
 begin
-  if FDivider <> nil then
+  if Assigned(FDivider) then
     FDivider.Left := Indent + NameColumnWidth(ColumnSpace, MinColumn, FNameShare);
 end;
 
@@ -620,9 +620,9 @@ begin
     ClearControls;
     FFieldNames := CurrentFieldNames;
     Node := nil;
-    if (FDocument <> nil) and (FKey <> '') then
+    if Assigned(FDocument) and (FKey <> '') then
       Node := FDocument.Pattern.FindNode(FKey);
-    if Node = nil then
+    if not Assigned(Node) then
     begin
       if FSelectionCount > 1 then
         AddLabel(Format(rsPropMany, [FSelectionCount]), Gap)
@@ -710,7 +710,7 @@ var
 begin
   Result := '';
   Node := FDocument.Pattern.FindNode(FKey);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit;
   if Edit.Tag = DescriptionTag then
     Result := TVariable(Node).Description
@@ -728,13 +728,13 @@ var
   Node: TEvalNode;
   Edit: TEdit;
 begin
-  if (FDocument = nil) or (FKey = '') then
+  if not Assigned(FDocument) or (FKey = '') then
     Exit;
   Node := FDocument.Pattern.FindNode(FKey);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit;
   // A field being typed in keeps its text, and the reason it was refused
-  if (FNameEdit <> nil) and not KeepsText(FNameEdit) then
+  if Assigned(FNameEdit) and not KeepsText(FNameEdit) then
   begin
     SetEditText(FNameEdit, OriginalText(FNameEdit));
     if not FCommitting then
@@ -747,25 +747,25 @@ begin
       if not FCommitting then
         ClearRefusal(Edit);
     end;
-  if (FDescriptionEdit <> nil) and not KeepsText(FDescriptionEdit) then
+  if Assigned(FDescriptionEdit) and not KeepsText(FDescriptionEdit) then
     SetEditText(FDescriptionEdit, OriginalText(FDescriptionEdit));
-  if FRoleBox <> nil then
+  if Assigned(FRoleBox) then
     FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
-  if FEndsBox <> nil then
+  if Assigned(FEndsBox) then
     FEndsBox.ItemIndex := Ord(not TRepeatObject(Node).IncludeEnds);
   if Node is TPieceObject then
     RefreshPieceRows(TPieceObject(Node));
   if Node is TSeamObject then
     RefreshSeamRows(TSeamObject(Node));
   RefreshTransformRows(Node);
-  if FResult <> nil then
+  if Assigned(FResult) then
     if Node is TDraftObject then
       FResult.Caption := ResultText(TDraftObject(Node))
     else
       FResult.Caption := '';
-  if (FResult <> nil) and (Node is TVariable) and (Node.State = esValid) then
+  if Assigned(FResult) and (Node is TVariable) and (Node.State = esValid) then
     FResult.Caption := RoundedText(TVariable(Node).Value, 4);
-  if (FProblem <> nil) and not FCommitting then
+  if Assigned(FProblem) and not FCommitting then
     if Node.State = esValid then
       FProblem.Caption := ''
     else
@@ -779,7 +779,7 @@ var
   ErrorPos: integer;
   Done: boolean;
 begin
-  if (FDocument = nil) or (FKey = '') then
+  if not Assigned(FDocument) or (FKey = '') then
     Exit;
   if Edit.Text = OriginalText(Edit) then
   begin
@@ -787,7 +787,7 @@ begin
     Exit;
   end;
   Node := FDocument.Pattern.FindNode(FKey);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit;
   if Edit.Tag = DescriptionTag then
     Description := rsPropChangeDescription
@@ -836,8 +836,8 @@ var
   Edit: TEdit;
 begin
   Edit := TEdit(Sender);
-  FSwallowEnterUp := (Key = VK_RETURN) and (FCompleter <> nil) and FCompleter.Visible;
-  if (FCompleter <> nil) and FCompleter.HandleKey(Key) then
+  FSwallowEnterUp := (Key = VK_RETURN) and Assigned(FCompleter) and FCompleter.Visible;
+  if Assigned(FCompleter) and FCompleter.HandleKey(Key) then
     Exit;
   case Key of
     VK_RETURN:
@@ -858,7 +858,7 @@ begin
         Key := 0;
       end;
     VK_LEFT, VK_RIGHT, VK_HOME, VK_END:
-      if FCompleter <> nil then
+      if Assigned(FCompleter) then
         FCompleter.Hide;
   end;
 end;
@@ -876,9 +876,9 @@ end;
 procedure TPropertiesPanel.EditExit(Sender: TObject);
 begin
   // A click on the suggestions comes back to the field
-  if (FCompleter <> nil) and FCompleter.HasMouse then
+  if Assigned(FCompleter) and FCompleter.HasMouse then
     Exit;
-  if FCompleter <> nil then
+  if Assigned(FCompleter) then
     FCompleter.Hide;
   CommitEdit(TEdit(Sender));
 end;
@@ -901,30 +901,30 @@ begin
   finally
     FSettingText := False;
   end;
-  if FCompleter <> nil then
+  if Assigned(FCompleter) then
     FCompleter.Hide;
 end;
 
 // The name and description fields are not formulas
 procedure TPropertiesPanel.UpdateCompletion(Edit: TEdit; Explicit: boolean);
 begin
-  if (Edit.Tag < 0) or (FDocument = nil) then
+  if (Edit.Tag < 0) or not Assigned(FDocument) then
     Exit;
-  if FCompleter = nil then
+  if not Assigned(FCompleter) then
     FCompleter := TFormulaCompleter.Create(Self);
   FCompleter.Update(Edit, FDocument.Pattern, FDocument.Pattern.FindNode(FKey), Explicit);
 end;
 
 procedure TPropertiesPanel.EditChange(Sender: TObject);
 begin
-  if FSettingText or not TEdit(Sender).Focused or ((FCompleter <> nil) and FCompleter.Setting) then
+  if FSettingText or not TEdit(Sender).Focused or (Assigned(FCompleter) and FCompleter.Setting) then
     Exit;
   UpdateCompletion(TEdit(Sender), False);
 end;
 
 procedure TPropertiesPanel.EditClick(Sender: TObject);
 begin
-  if FCompleter <> nil then
+  if Assigned(FCompleter) then
     FCompleter.Hide;
 end;
 
@@ -1154,7 +1154,7 @@ end;
 
 procedure TPropertiesPanel.RefreshTransformRows(Node: TEvalNode);
 begin
-  if FMadeByText <> nil then
+  if Assigned(FMadeByText) then
     FMadeByText.Caption := FDocument.Pattern.FindNode(CopyTransformKey(Node)).DisplayName;
 end;
 
@@ -1172,7 +1172,7 @@ var
   Wanted, Reason: string;
   Done: boolean;
 begin
-  if (FDocument = nil) or (FConvertKey = '') or (FTypeBox = nil) or (FConvertKey <> FKey) then
+  if not Assigned(FDocument) or (FConvertKey = '') or not Assigned(FTypeBox) or (FConvertKey <> FKey) then
     Exit;
   Node := FDocument.Pattern.FindNode(FConvertKey);
   FConvertKey := '';
@@ -1183,9 +1183,9 @@ begin
     Exit;
   FDocument.BeginChange(rsPropChangeType);
   if Wanted = rsTypeLine then
-    Done := FDocument.Pattern.ConvertToLine(TEdgeObject(Node)) <> nil
+    Done := Assigned(FDocument.Pattern.ConvertToLine(TEdgeObject(Node)))
   else
-    Done := FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)) <> nil;
+    Done := Assigned(FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)));
   Reason := FDocument.Pattern.LastError;
   if FDocument.Commit(Done) then
     Exit;
@@ -1218,7 +1218,7 @@ procedure TPropertiesPanel.AddRepeatRows(ARepeat: TRepeatObject);
     Node: TEvalNode;
   begin
     Node := FDocument.Pattern.FindNode(Key);
-    if Node = nil then
+    if not Assigned(Node) then
       Result := Key
     else
       Result := Node.DisplayName;

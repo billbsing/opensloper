@@ -161,7 +161,7 @@ var
 begin
   Result := '';
   Child := Parent.FindNode(unicodestring(TagName));
-  if Child <> nil then
+  if Assigned(Child) then
     Result := UTF8Encode(Child.TextContent);
 end;
 
@@ -199,7 +199,7 @@ var
 begin
   Result := Key;
   Number := 1;
-  while Measurements.Find(Result) <> nil do
+  while Assigned(Measurements.Find(Result)) do
   begin
     Inc(Number);
     Result := Key + IntToStr(Number);
@@ -218,7 +218,7 @@ begin
   if Description = '' then
     Description := AttributeOf(Item, 'full_name');
   Entry := Catalogue.FindTranslated(FormatSeamly2D, Name);
-  if Entry <> nil then
+  if Assigned(Entry) then
   begin
     Wanted := Entry.Key;
     if Description = '' then
@@ -234,11 +234,11 @@ begin
       Wanted := 'm_' + Wanted;
   end;
   Key := FreeKey(Measurements, Wanted);
-  if (Entry <> nil) and (Key = Wanted) then
+  if Assigned(Entry) and (Key = Wanted) then
     AddLine(Report.Translated, Name + ' -> ' + Key)
-  else if (Entry = nil) and (Key = Name) then
+  else if not Assigned(Entry) and (Key = Name) then
     AddLine(Report.Kept, Name)
-  else if (Entry = nil) and (Key = Custom) then
+  else if not Assigned(Entry) and (Key = Custom) then
     AddLine(Report.Kept, Name + ' -> ' + Key)
   else
     AddLine(Report.Corrected, Name + ' -> ' + Key);
@@ -402,21 +402,21 @@ begin
   Family := '';
   Given := '';
   Item := Root.FindNode('personal');
-  if Item <> nil then
+  if Assigned(Item) then
   begin
     Family := ChildText(Item, 'family-name');
     Given := ChildText(Item, 'given-name');
   end;
   Measurements.Name := Trim(Given + ' ' + Family);
   Item := Root.FindNode('body-measurements');
-  Result := Item <> nil;
+  Result := Assigned(Item);
   if not Result then
     Exit;
   Item := Item.FirstChild;
   Pending := nil;
   Values := TValueMap.Create;
   try
-    while Item <> nil do
+    while Assigned(Item) do
     begin
       if (Item is TDOMElement) and (Item.NodeName = 'm') then
       begin
@@ -479,13 +479,13 @@ begin
     Inc(Size, SizeStep);
   end;
   Item := Root.FindNode('body-measurements');
-  if Item = nil then
+  if not Assigned(Item) then
   begin
     ErrorMessage := rsSeamlyNotMeasurements;
     Exit;
   end;
   Item := Item.FirstChild;
-  while Item <> nil do
+  while Assigned(Item) do
   begin
     if (Item is TDOMElement) and (Item.NodeName = 'm') then
     begin
@@ -626,7 +626,7 @@ var
 begin
   Entry := Catalogue.Find(Measurement.Key);
   Result := '';
-  if Entry <> nil then
+  if Assigned(Entry) then
     Result := Entry.NameIn(FormatSeamly2D)
   else if Catalogue.IsKnownName(FormatSeamly2D, Measurement.Key) then
     Result := Measurement.Key;
@@ -653,7 +653,7 @@ var
 begin
   FullName := '';
   Entry := Catalogue.Find(Measurement.Key);
-  if Entry <> nil then
+  if Assigned(Entry) then
     FullName := Entry.Name;
   Result := '        <m name="' + EscapeXML(Name) + '" ' + Value + ' full_name="' + EscapeXML(FullName) + '" description="' +
     EscapeXML(Measurement.Description) + '"/>';

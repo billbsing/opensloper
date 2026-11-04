@@ -64,7 +64,7 @@ const
 
 procedure TFormulaCompleter.CreateList;
 begin
-  if FList <> nil then
+  if Assigned(FList) then
     Exit;
   FList := TListBox.Create(Self);
   FList.Visible := False;
@@ -97,7 +97,7 @@ begin
   FPattern := APattern;
   FNode := ANode;
   FCompletion := FormulaCompletion(APattern, ANode, AEdit.Text, AEdit.SelStart, Explicit);
-  if FCompletion.Items = nil then
+  if Length(FCompletion.Items) = 0 then
   begin
     Hide;
     Exit;
@@ -122,13 +122,13 @@ end;
 
 procedure TFormulaCompleter.Hide;
 begin
-  if FList <> nil then
+  if Assigned(FList) then
     FList.Visible := False;
 end;
 
 function TFormulaCompleter.GetVisible: boolean;
 begin
-  Result := (FList <> nil) and FList.Visible;
+  Result := Assigned(FList) and FList.Visible;
 end;
 
 function TFormulaCompleter.HasMouse: boolean;

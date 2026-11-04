@@ -163,7 +163,7 @@ end;
 
 procedure TPreviewCanvas.Refresh;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   FShapes := FDocument.Layout.PlacedPieces;
   FPages := FDocument.Layout.Pages(FShapes, FRowCount, FColumnCount);
@@ -275,7 +275,7 @@ begin
     FMode := pmPanning;
     Exit;
   end;
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   At := FView.ToLayout(Vec2(X, Y));
   // A page is often all piece, so right click reaches it whatever is on it
@@ -476,7 +476,7 @@ var
 begin
   if (FBitmap.Width <> ClientWidth) or (FBitmap.Height <> ClientHeight) then
     FBitmap.SetSize(Max(ClientWidth, 1), Max(ClientHeight, 1));
-  if FNeedsFit and (FPages <> nil) then
+  if FNeedsFit and (Length(FPages) > 0) then
   begin
     Whole := FPages[0].Area;
     for Page in FPages do
@@ -501,7 +501,7 @@ begin
       DrawPage(Page);
   for Shape in FShapes do
     DrawShape(Shape);
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     DrawNotes;
   FBitmap.Draw(Canvas, 0, 0, True);
 end;

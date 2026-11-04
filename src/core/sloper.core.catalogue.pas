@@ -265,7 +265,7 @@ begin
   for Key in Keys do
   begin
     Entry := Find(Key);
-    if (Entry = nil) or (Entry.View <> View) then
+    if not Assigned(Entry) or (Entry.View <> View) then
       Continue;
     Gap := DistanceToPath(Point, Entry.Overlay);
     if Gap <= Nearest then
@@ -283,7 +283,7 @@ var
   Pair: TJSONData;
 begin
   Path := nil;
-  Result := (Data <> nil) and (Data.JSONType = jtArray) and (Data.Count >= MinPoints);
+  Result := Assigned(Data) and (Data.JSONType = jtArray) and (Data.Count >= MinPoints);
   if not Result then
     Exit;
   SetLength(Path, Data.Count);
@@ -304,7 +304,7 @@ var
 begin
   ErrorMessage := '';
   Views := Obj.Find('figures');
-  if (Views = nil) or (Views.JSONType <> jtObject) then
+  if not Assigned(Views) or (Views.JSONType <> jtObject) then
   begin
     ErrorMessage := rsCatalogueNoFigures;
     Exit(False);
@@ -312,7 +312,7 @@ begin
   for View := Low(TCatalogueView) to High(TCatalogueView) do
   begin
     Paths := TJSONObject(Views).Find(ViewNames[View]);
-    if (Paths = nil) or (Paths.JSONType <> jtArray) or (Paths.Count = 0) then
+    if not Assigned(Paths) or (Paths.JSONType <> jtArray) or (Paths.Count = 0) then
     begin
       ErrorMessage := Format(rsCatalogueBadFigure, [ViewNames[View]]);
       Exit(False);
@@ -356,7 +356,7 @@ function TCatalogue.LoadEntry(Item: TJSONObject; out ErrorMessage: string): bool
     Index, NameIndex: integer;
   begin
     List := Item.Find('translations');
-    if (List = nil) or (List.JSONType <> jtObject) then
+    if not Assigned(List) or (List.JSONType <> jtObject) then
       Exit;
     SetLength(Entry.Translations, List.Count);
     for Index := 0 to List.Count - 1 do
@@ -380,7 +380,7 @@ begin
     Exit(Fail(rsCatalogueBadEntry));
   if not CheckName(Key, KeyError) then
     Exit(Fail(Format(rsCatalogueBadKey, [Key, KeyError])));
-  if Find(Key) <> nil then
+  if Assigned(Find(Key)) then
     Exit(Fail(Format(rsCatalogueDuplicate, [Key])));
   Known := False;
   for Candidate in CatalogueGroups do
@@ -400,7 +400,7 @@ begin
   if not ReadPath(Item.Find('overlay'), 2, Entry.Overlay) then
     Exit(Fail(Format(rsCatalogueBadOverlay, [Key])));
   Range := Item.Find('range');
-  if (Range = nil) or (Range.JSONType <> jtArray) or (Range.Count <> 2) or (Range.Items[0].JSONType <> jtNumber) or
+  if not Assigned(Range) or (Range.JSONType <> jtArray) or (Range.Count <> 2) or (Range.Items[0].JSONType <> jtNumber) or
     (Range.Items[1].JSONType <> jtNumber) or (Range.Items[0].AsFloat >= Range.Items[1].AsFloat) then
     Exit(Fail(Format(rsCatalogueBadRange, [Key])));
   Entry.RangeMin := Range.Items[0].AsFloat;
@@ -415,7 +415,7 @@ var
   Index, NameIndex: integer;
 begin
   List := Obj.Find('knownNames');
-  if (List = nil) or (List.JSONType <> jtObject) then
+  if not Assigned(List) or (List.JSONType <> jtObject) then
     Exit;
   SetLength(FKnownNames, List.Count);
   for Index := 0 to List.Count - 1 do
@@ -454,7 +454,7 @@ begin
       Exit(Fail(TextValue));
     LoadKnownNames(Obj);
     List := Obj.Find('measurements');
-    if (List = nil) or (List.JSONType <> jtArray) then
+    if not Assigned(List) or (List.JSONType <> jtArray) then
       Exit(Fail(rsCatalogueNoList));
     for Index := 0 to List.Count - 1 do
     begin

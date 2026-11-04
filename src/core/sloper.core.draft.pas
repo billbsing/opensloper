@@ -554,7 +554,7 @@ begin
   Result := Node is TPointObject;
   if Result then
     APosition := TPointObject(Node).Position
-  else if Node <> nil then
+  else if Assigned(Node) then
     Fail(esError, Format(rsDraftNotAPoint, [Node.DisplayName]))
   else
     Fail(esError, Format(rsDraftNotAPoint, [AKey]));
@@ -823,7 +823,7 @@ var
   Candidate: TRepeatPoint;
 begin
   Candidate := FindItem(AIndex);
-  Result := (Candidate <> nil) and not Candidate.IsVirtual;
+  Result := Assigned(Candidate) and not Candidate.IsVirtual;
 end;
 
 function TRepeatObject.UseItem(AIndex: integer; const NewKey: string): TRepeatPoint;
@@ -832,7 +832,7 @@ var
 begin
   Old := FindItem(AIndex);
   Result := TRepeatPoint.Create(NewKey, Self, AIndex);
-  if Old <> nil then
+  if Assigned(Old) then
   begin
     Result.FPosition := Old.FPosition;
     FItems.Remove(Old);
@@ -862,7 +862,7 @@ begin
   for Index := 1 to Count do
   begin
     Candidate := FindItem(Index);
-    if Candidate = nil then
+    if not Assigned(Candidate) then
     begin
       Candidate := TRepeatPoint.Create(Format('%s[%d]', [Key, Index]), Self, Index);
       FItems.Add(Candidate);
@@ -923,7 +923,7 @@ begin
       Ratio := (Index - 1) / Steps
     else
       Ratio := Index / Steps;
-    if Target <> nil then
+    if Assigned(Target) then
       FPositions[Index - 1] := Target.PointAtLength(Ratio * Target.Length)
     else
       FPositions[Index - 1] := First + (Last - First) * Ratio;
@@ -1078,7 +1078,7 @@ const
 var
   Points: TVec2Array;
 begin
-  if FSegments = nil then
+  if System.Length(FSegments) = 0 then
     Exit(False);
   Points := Flatten(1);
   Result := (System.Length(Points) > 2) and (Distance(Points[0], Points[High(Points)]) <= ClosedTolerance);
@@ -1665,7 +1665,7 @@ var
 
 begin
   SourceEdge := InputEdge(Context, FSource);
-  if SourceEdge = nil then
+  if not Assigned(SourceEdge) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FSource])));
   if not EvalField(Context, 'distance', Distance2) then
     Exit(esError);
@@ -1730,9 +1730,9 @@ begin
     Exit(Fail(esError, Format(rsDraftNotAPoint, [Vertex])));
   First := InputEdge(Context, FEdgeA);
   Second := InputEdge(Context, FEdgeB);
-  if First = nil then
+  if not Assigned(First) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeA])));
-  if Second = nil then
+  if not Assigned(Second) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeB])));
   if not EvalField(Context, 'radius', Radius) then
     Exit(esError);
@@ -1774,7 +1774,7 @@ var
   ArcEdge: TEdgeObject;
 begin
   ArcEdge := InputEdge(Context, FArc);
-  if ArcEdge = nil then
+  if not Assigned(ArcEdge) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FArc])));
   if FEnd = 1 then
     FPosition := ArcEdge.PointAtLength(0)
@@ -2100,9 +2100,9 @@ var
 begin
   First := InputEdge(Context, FEdgeA);
   Second := InputEdge(Context, FEdgeB);
-  if First = nil then
+  if not Assigned(First) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeA])));
-  if Second = nil then
+  if not Assigned(Second) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeB])));
   Crossings := CrossEdges(First, FExtendA, Second, FExtendB);
   if Length(Crossings) = 0 then
@@ -2144,7 +2144,7 @@ begin
   if not InputPoint(Context, FCentre, CentrePos) then
     Exit(esError);
   EdgeObject := InputEdge(Context, FEdge);
-  if EdgeObject = nil then
+  if not Assigned(EdgeObject) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdge])));
   if not EvalField(Context, 'radius', Radius) then
     Exit(esError);
@@ -2230,7 +2230,7 @@ begin
   if not InputPoint(Context, FSource, SourcePos) then
     Exit(esError);
   EdgeObject := InputEdge(Context, FEdge);
-  if EdgeObject = nil then
+  if not Assigned(EdgeObject) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdge])));
   SourceName := Context.FindNode(FSource).DisplayName;
 

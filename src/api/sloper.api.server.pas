@@ -194,14 +194,14 @@ end;
 
 function RequireString(Params: TJSONObject; const AName: string): string;
 begin
-  if (Params = nil) or not GetJSONString(Params, AName, Result) then
+  if not Assigned(Params) or not GetJSONString(Params, AName, Result) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
 end;
 
 function OptionalString(Params: TJSONObject; const AName: string): string;
 begin
   Result := '';
-  if (Params <> nil) and (Params.Find(AName) <> nil) then
+  if Assigned(Params) and Assigned(Params.Find(AName)) then
     Result := RequireString(Params, AName);
 end;
 
@@ -218,14 +218,14 @@ end;
 function OptionalFormula(Params: TJSONObject; const AName: string): string;
 begin
   Result := '';
-  if Params.Find(AName) <> nil then
+  if Assigned(Params.Find(AName)) then
     Result := FormulaParam(Params, AName);
 end;
 
 function BooleanParam(Params: TJSONObject; const AName: string): boolean;
 begin
   Result := False;
-  if (Params.Find(AName) <> nil) and not GetJSONBoolean(Params, AName, Result) then
+  if Assigned(Params.Find(AName)) and not GetJSONBoolean(Params, AName, Result) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
 end;
 
@@ -235,7 +235,7 @@ var
   Text: string;
 begin
   Result := 0;
-  if Params.Find(AName) = nil then
+  if not Assigned(Params.Find(AName)) then
     Exit;
   Text := RequireString(Params, AName);
   for Result := 0 to High(Choices) do
@@ -247,7 +247,7 @@ end;
 function PickParam(Params: TJSONObject): integer;
 begin
   Result := 1;
-  if (Params.Find('pick') <> nil) and not GetJSONInteger(Params, 'pick', Result) then
+  if Assigned(Params.Find('pick')) and not GetJSONInteger(Params, 'pick', Result) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['pick']));
 end;
 
@@ -350,7 +350,7 @@ begin
         Result.Add('cutCount', TPieceObject(Node).CutCount);
         Result.Add('mirrored', TPieceObject(Node).Mirrored);
         Result.Add('onFold', TPieceObject(Node).OnFold);
-        if Document.Pattern.FabricOf(TPieceObject(Node)) <> nil then
+        if Assigned(Document.Pattern.FabricOf(TPieceObject(Node))) then
           Result.Add('fabric', Document.Pattern.FabricOf(TPieceObject(Node)).Name);
         Result.Add('fillColor', TPieceObject(Node).FillColor);
         Result.Add('fillStyle', PieceFillNames[Ord(TPieceObject(Node).FillStyle)]);
@@ -415,7 +415,7 @@ begin
   if not GetJSONString(Params, AName, TargetName) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
   Target := FDocument.Pattern.FindObject(TargetName);
-  if Target = nil then
+  if not Assigned(Target) then
     raise EApiError.Create(RpcRefused, Format(rsApiUnknownName, [TargetName]));
   Result := FDocument.Pattern.UsePoint(Target.Key);
 end;
@@ -425,7 +425,7 @@ function TApiServer.AddedNode(Node: TEvalNode): TJSONData;
 var
   Key: string;
 begin
-  if Node = nil then
+  if not Assigned(Node) then
     RefuseChange;
   Key := Node.Key;
   FDocument.EndChange;
@@ -439,19 +439,19 @@ var
   TargetName: string;
 begin
   Result := nil;
-  if (Params <> nil) and GetJSONInteger(Params, 'id', Id) then
+  if Assigned(Params) and GetJSONInteger(Params, 'id', Id) then
   begin
     Result := FDocument.Pattern.FindNode(IntToStr(Id));
     if not ((Result is TDraftObject) or (Result is TVariable)) then
       raise EApiError.Create(RpcRefused, Format(rsApiUnknownId, [Id]));
     Exit;
   end;
-  if (Params = nil) or not GetJSONString(Params, 'name', TargetName) then
+  if not Assigned(Params) or not GetJSONString(Params, 'name', TargetName) then
     raise EApiError.Create(RpcInvalidParams, rsApiNoTarget);
   Result := FDocument.Pattern.FindObject(TargetName);
-  if Result = nil then
+  if not Assigned(Result) then
     Result := FDocument.Pattern.FindVariable(TargetName);
-  if Result = nil then
+  if not Assigned(Result) then
     raise EApiError.Create(RpcRefused, Format(rsApiUnknownName, [TargetName]));
 end;
 
@@ -506,7 +506,7 @@ begin
   try
     List := TJSONArray.Create;
     Info.Add('missing', List);
-    if FDocument.Measurements <> nil then
+    if Assigned(FDocument.Measurements) then
       Lacking := MissingMeasurements(PatternMeasurementKeys(FDocument.Pattern), FDocument.Measurements)
     else
     begin
@@ -541,7 +541,7 @@ begin
   CountText := FormulaParam(Params, 'count');
   RepeatName := OptionalString(Params, 'name');
   IncludeEnds := ChoiceParam(Params, 'ends', ['include', 'exclude']) = 0;
-  if Params.Find('edge') <> nil then
+  if Assigned(Params.Find('edge')) then
   begin
     First := Reference(Params, 'edge');
     FDocument.BeginChange(rsApiAddRepeat);
@@ -566,7 +566,7 @@ var
 begin
   Result := nil;
   List := Params.Find(AName);
-  if (List = nil) or (List.JSONType <> jtArray) then
+  if not Assigned(List) or (List.JSONType <> jtArray) then
     Exit;
   Holder := TJSONObject.Create;
   try
@@ -596,9 +596,9 @@ begin
   Request.Action := TArrangeAction(ChoiceParam(Params, 'action', ['alignVertical', 'alignHorizontal', 'distribute', 'distributeHorizontal',
     'distributeVertical', 'distributeAlongEdge']));
   Request.Points := ReferenceList(Params, 'points');
-  if Params.Find('reference') <> nil then
+  if Assigned(Params.Find('reference')) then
     Request.Reference := Reference(Params, 'reference');
-  if Params.Find('edge') <> nil then
+  if Assigned(Params.Find('edge')) then
     Request.Edge := Reference(Params, 'edge');
   Replace := ReferenceList(Params, 'replace');
   if not PlanArrange(FDocument.Pattern, Request, Items, Err) then
@@ -662,7 +662,7 @@ begin
   Info := TJSONObject.Create;
   try
     Info.Add('path', FDocument.MeasurementPath);
-    if (FDocument.Measurements <> nil) and (FDocument.Measurements.SizeCount > 0) then
+    if Assigned(FDocument.Measurements) and (FDocument.Measurements.SizeCount > 0) then
     begin
       Info.Add('size', FDocument.Measurements.SizeName);
       List := TJSONArray.Create;
@@ -672,7 +672,7 @@ begin
     end;
     List := TJSONArray.Create;
     Info.Add('measurements', List);
-    if FDocument.Measurements <> nil then
+    if Assigned(FDocument.Measurements) then
       for Index := 0 to FDocument.Measurements.Count - 1 do
       begin
         Item := TJSONObject.Create;
@@ -706,11 +706,11 @@ begin
   UseSize(OptionalString(Params, 'size'));
   Description := '';
   Existing := nil;
-  if FDocument.Measurements <> nil then
+  if Assigned(FDocument.Measurements) then
     Existing := FDocument.Measurements.Find(Key);
-  if Existing <> nil then
+  if Assigned(Existing) then
     Description := Existing.Description;
-  if Params.Find('description') <> nil then
+  if Assigned(Params.Find('description')) then
     Description := RequireString(Params, 'description');
   if not FDocument.ChangeMeasurement(Key, Value, Description, Change, Err) then
     raise EApiError.Create(RpcRefused, Err);
@@ -855,11 +855,11 @@ begin
   if (RenderFormat <> '') and (RenderFormat <> RenderFormatSVG) then
     raise EApiError.Create(RpcRefused, Format(rsApiRenderFormat, [RenderFormat]));
   Options := DefaultDraftSVGOptions;
-  if Params <> nil then
+  if Assigned(Params) then
   begin
     GetJSONBoolean(Params, 'labels', Options.Labels);
     Region := Params.Find('region');
-    if Region <> nil then
+    if Assigned(Region) then
     begin
       if Region.JSONType <> jtObject then
         raise EApiError.Create(RpcInvalidParams, rsApiBadRegion);
@@ -1061,7 +1061,7 @@ begin
     'curvePath':
     begin
       Nodes := Params.Find('nodes');
-      if (Nodes = nil) or (Nodes.JSONType <> jtArray) then
+      if not Assigned(Nodes) or (Nodes.JSONType <> jtArray) then
         raise EApiError.Create(RpcInvalidParams, rsApiBadNodes);
       NodeKeys := nil;
       Angles := nil;
@@ -1172,7 +1172,7 @@ begin
   if not DetectPiecePath(FDocument.Pattern, At, Path, Reason) then
     raise EApiError.Create(RpcRefused, Reason);
   Existing := PieceOnPath(FDocument.Pattern, Path);
-  if Existing <> nil then
+  if Assigned(Existing) then
     raise EApiError.Create(RpcRefused, Format(rsApiPieceExists, [Existing.DisplayName]));
   FDocument.BeginChange(Format(rsApiAdd, [PieceType]));
   Result := AddedNode(FDocument.Pattern.AddPiece(PieceName, Path, Allowance));
@@ -1202,7 +1202,7 @@ begin
     Exit(AddedNode(Piece));
   end;
   Angle := OptionalFormula(Params, 'angle');
-  if (Angle = '') and (Params.Find('start') = nil) then
+  if (Angle = '') and not Assigned(Params.Find('start')) then
     raise EApiError.Create(RpcInvalidParams, rsApiBadGrainline);
   if Angle <> '' then
   begin
@@ -1228,7 +1228,7 @@ var
   Done: boolean;
 begin
   Piece := TargetPiece(Params);
-  if Params.Find('point') <> nil then
+  if Assigned(Params.Find('point')) then
   begin
     Key := Reference(Params, 'point');
     FDocument.BeginChange(rsApiAddNotch);
@@ -1236,7 +1236,7 @@ begin
   end
   else
   begin
-    if (Params.Find('edge') = nil) or (Params.Find('position') = nil) then
+    if not Assigned(Params.Find('edge')) or not Assigned(Params.Find('position')) then
       raise EApiError.Create(RpcInvalidParams, rsApiBadNotch);
     Key := Reference(Params, 'edge');
     Position := FormulaParam(Params, 'position');
@@ -1257,7 +1257,7 @@ var
   Done: boolean;
 begin
   Piece := TargetPiece(Params);
-  if Params.Find('kind') = nil then
+  if not Assigned(Params.Find('kind')) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['kind']));
   Kind := TMarkingKind(ChoiceParam(Params, 'kind', MarkingKindNames));
   case Kind of
@@ -1326,9 +1326,9 @@ begin
   Piece := TargetPiece(Params);
   Count := Piece.CutCount;
   Mirrored := Piece.Mirrored;
-  if (Params.Find('count') <> nil) and not GetJSONInteger(Params, 'count', Count) then
+  if Assigned(Params.Find('count')) and not GetJSONInteger(Params, 'count', Count) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['count']));
-  if Params.Find('mirrored') <> nil then
+  if Assigned(Params.Find('mirrored')) then
     Mirrored := BooleanParam(Params, 'mirrored');
   FDocument.BeginChange(rsApiCut);
   if not FDocument.Pattern.SetCut(Piece, Count, Mirrored) then
@@ -1353,7 +1353,7 @@ begin
     Text := RequireString(Params, AName);
     Result := FDocument.Pattern.FindFabricNamed(Text);
   end;
-  if Result = nil then
+  if not Assigned(Result) then
     raise EApiError.Create(RpcRefused, Format(rsApiNoFabric, [Text]));
 end;
 
@@ -1394,9 +1394,9 @@ var
 begin
   FDocument.BeginChange(rsApiFabrics);
   Fill := ffTint;
-  if Params <> nil then
+  if Assigned(Params) then
     Fill := TFabricFill(ChoiceParam(Params, 'fill', FabricFillNames));
-  if FDocument.Pattern.AddFabric(OptionalString(Params, 'name'), OptionalString(Params, 'color'), Fill) = nil then
+  if not Assigned(FDocument.Pattern.AddFabric(OptionalString(Params, 'name'), OptionalString(Params, 'color'), Fill)) then
     RefuseChange;
   FDocument.EndChange;
   Result := FabricsToJSON;
@@ -1421,14 +1421,14 @@ var
 begin
   Fabric := FindFabricParam(Params, 'fabric');
   FDocument.BeginChange(rsApiFabrics);
-  if (Params.Find('color') <> nil) and not FDocument.Pattern.SetFabricColor(Fabric, RequireString(Params, 'color')) then
+  if Assigned(Params.Find('color')) and not FDocument.Pattern.SetFabricColor(Fabric, RequireString(Params, 'color')) then
     RefuseChange;
-  if Params.Find('fill') <> nil then
+  if Assigned(Params.Find('fill')) then
     FDocument.Pattern.SetFabricFill(Fabric, TFabricFill(ChoiceParam(Params, 'fill', FabricFillNames)));
-  if (Params.Find('allowance') <> nil) and not (GetJSONNumber(Params, 'allowance', Allowance) and
+  if Assigned(Params.Find('allowance')) and not (GetJSONNumber(Params, 'allowance', Allowance) and
     FDocument.Pattern.SetFabricAllowance(Fabric, True, Allowance)) then
     RefuseChange;
-  if (Params.Find('noAllowance') <> nil) and BooleanParam(Params, 'noAllowance') then
+  if Assigned(Params.Find('noAllowance')) and BooleanParam(Params, 'noAllowance') then
     FDocument.Pattern.SetFabricAllowance(Fabric, False, 0);
   FDocument.EndChange;
   Result := FabricsToJSON;
@@ -1453,9 +1453,9 @@ var
 begin
   Piece := TargetPiece(Params);
   Fabric := nil;
-  if Params.Find('fabric') <> nil then
+  if Assigned(Params.Find('fabric')) then
     Fabric := FindFabricParam(Params, 'fabric')
-  else if not ((Params.Find('none') <> nil) and BooleanParam(Params, 'none')) then
+  else if not (Assigned(Params.Find('none')) and BooleanParam(Params, 'none')) then
     raise EApiError.Create(RpcInvalidParams, rsApiFabricOrNone);
   FDocument.BeginChange(rsApiPieceFabric);
   FDocument.Pattern.SetPieceFabric(Piece, Fabric);
@@ -1471,9 +1471,9 @@ begin
   Piece := TargetPiece(Params);
   Color := Piece.FillColor;
   Style := Piece.FillStyle;
-  if Params.Find('color') <> nil then
+  if Assigned(Params.Find('color')) then
     Color := RequireString(Params, 'color');
-  if Params.Find('style') <> nil then
+  if Assigned(Params.Find('style')) then
     Style := TPieceFillStyle(ChoiceParam(Params, 'style', PieceFillNames));
   FDocument.BeginChange(rsApiPieceFill);
   if not FDocument.Pattern.SetPieceFill(Piece, Color, Style) then
@@ -1496,11 +1496,11 @@ var
 begin
   Spec := Default(TTransformSpec);
   Spec.Kind := TTransformKind(ChoiceParam(Params, 'type', ['rotate', 'mirror', 'move']));
-  if Params.Find('type') = nil then
+  if not Assigned(Params.Find('type')) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['type']));
   Spec.Name := OptionalString(Params, 'name');
   Spec.Suffix := OptionalString(Params, 'suffix');
-  if Params.Find('sources') = nil then
+  if not Assigned(Params.Find('sources')) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['sources']));
   Spec.Angle := FormulaOr('angle', '0');
   case Spec.Kind of
@@ -1509,24 +1509,24 @@ begin
     tkMirror:
     begin
       Axis := Params.Find('axis');
-      if (Axis = nil) or (Axis.JSONType <> jtObject) then
+      if not Assigned(Axis) or (Axis.JSONType <> jtObject) then
         raise EApiError.Create(RpcInvalidParams, rsApiBadAxis);
-      if TJSONObject(Axis).Find('edge') <> nil then
+      if Assigned(TJSONObject(Axis).Find('edge')) then
         Spec.AxisEdge := Reference(TJSONObject(Axis), 'edge')
       else
       begin
         Spec.AxisA := Reference(TJSONObject(Axis), 'a');
-        if TJSONObject(Axis).Find('b') <> nil then
+        if Assigned(TJSONObject(Axis).Find('b')) then
           Spec.AxisB := Reference(TJSONObject(Axis), 'b');
       end;
     end;
     tkMove:
     begin
-      Spec.Polar := Params.Find('length') <> nil;
+      Spec.Polar := Assigned(Params.Find('length'));
       Spec.Length := FormulaOr('length', '0');
       Spec.DX := FormulaOr('dx', '0');
       Spec.DY := FormulaOr('dy', '0');
-      if Params.Find('pivot') <> nil then
+      if Assigned(Params.Find('pivot')) then
       begin
         Spec.Pivot := Reference(Params, 'pivot');
         Spec.Rotate := FormulaOr('rotate', '0');
@@ -1547,7 +1547,7 @@ begin
   Edge := '';
   if not BooleanParam(Params, 'none') then
   begin
-    if Params.Find('edge') = nil then
+    if not Assigned(Params.Find('edge')) then
       raise EApiError.Create(RpcInvalidParams, rsApiBadFold);
     Edge := Reference(Params, 'edge');
   end;
@@ -1567,7 +1567,7 @@ begin
   Target := FindTarget(Params);
   if not (Target is TEdgeObject) then
     raise EApiError.Create(RpcRefused, Format(rsApiNotAnEdge, [Target.DisplayName]));
-  if (Params = nil) or (Params.Find('to') = nil) then
+  if not Assigned(Params) or not Assigned(Params.Find('to')) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['to']));
   ToCurve := ChoiceParam(Params, 'to', ['line', 'curve']) = 1;
   FDocument.BeginChange(rsApiConvertEdge);
@@ -1575,7 +1575,7 @@ begin
     Converted := FDocument.Pattern.ConvertToCurve(TEdgeObject(Target))
   else
     Converted := FDocument.Pattern.ConvertToLine(TEdgeObject(Target));
-  if Converted = nil then
+  if not Assigned(Converted) then
     RefuseChange;
   Result := AddedNode(Converted);
 end;
@@ -1587,7 +1587,7 @@ var
 begin
   Result := nil;
   List := Params.Find(AName);
-  if (List = nil) or (List.JSONType <> jtArray) then
+  if not Assigned(List) or (List.JSONType <> jtArray) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiBadSeamSide, [AName]));
   SetLength(Result, List.Count);
   for Index := 0 to List.Count - 1 do
@@ -1769,7 +1769,7 @@ begin
   Response := TJSONObject.Create;
   try
     Response.Add('jsonrpc', '2.0');
-    if Id <> nil then
+    if Assigned(Id) then
       Response.Add('id', Id.Clone)
     else
       Response.Add('id', TJSONNull.Create);
@@ -1806,11 +1806,11 @@ begin
     if not GetJSONString(Request, 'method', Method) then
       Exit(ErrorResponse(Id, RpcInvalidRequest, rsApiNotRequest, '', 0));
     ParamsData := Request.Find('params');
-    if (ParamsData <> nil) and (ParamsData.JSONType <> jtObject) then
+    if Assigned(ParamsData) and (ParamsData.JSONType <> jtObject) then
       Exit(ErrorResponse(Id, RpcInvalidParams, Format(rsApiMissingParam, ['params']), '', 0));
     // Methods read members straight from it, so a request without any gets an empty one
     OwnParams := nil;
-    if ParamsData = nil then
+    if not Assigned(ParamsData) then
     begin
       OwnParams := TJSONObject.Create;
       ParamsData := OwnParams;
@@ -1820,7 +1820,7 @@ begin
     try
       try
         Output := CallMethod(Method, Params);
-        if Id = nil then
+        if not Assigned(Id) then
           Exit('');
         Response := TJSONObject.Create;
         try

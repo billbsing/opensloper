@@ -445,7 +445,7 @@ begin
     Into.Add('ends', RepeatEndNames[0])
   else
     Into.Add('ends', RepeatEndNames[1]);
-  if ARepeat.UsedItems = nil then
+  if Length(ARepeat.UsedItems) = 0 then
     Exit;
   List := TJSONArray.Create;
   Into.Add('points', List);
@@ -591,9 +591,9 @@ begin
       Result.Add(PieceAllowanceField, DraftObject.Field(PieceAllowanceField).StoredText);
       if TPieceObject(DraftObject).GrainKind <> gkNone then
         Result.Add('grainline', SaveGrainline(TPieceObject(DraftObject)));
-      if TPieceObject(DraftObject).Notches <> nil then
+      if Length(TPieceObject(DraftObject).Notches) > 0 then
         Result.Add('notches', SaveNotches(TPieceObject(DraftObject)));
-      if TPieceObject(DraftObject).Markings <> nil then
+      if Length(TPieceObject(DraftObject).Markings) > 0 then
         Result.Add('markings', SaveMarkings(TPieceObject(DraftObject)));
       Result.Add('cut', SaveCut(TPieceObject(DraftObject)));
       if TPieceObject(DraftObject).OnFold then
@@ -667,11 +667,11 @@ var
   Zoom: double;
 begin
   Pattern.View := Default(TPatternView);
-  if (Data = nil) or (Data.JSONType <> jtObject) then
+  if not Assigned(Data) or (Data.JSONType <> jtObject) then
     Exit;
   Root := TJSONObject(Data);
   List := Root.Find('centre');
-  if GetJSONNumber(Root, 'zoom', Zoom) and (Zoom > 0) and (List <> nil) and (List.JSONType = jtArray) and (List.Count = 2) and
+  if GetJSONNumber(Root, 'zoom', Zoom) and (Zoom > 0) and Assigned(List) and (List.JSONType = jtArray) and (List.Count = 2) and
     (List.Items[0].JSONType = jtNumber) and (List.Items[1].JSONType = jtNumber) then
   begin
     Pattern.View.Zoom := Zoom;
@@ -785,7 +785,7 @@ begin
     Exit(Missing(AName));
   Key := IntToStr(Id);
   Node := FPattern.FindNode(Key);
-  if Node = nil then
+  if not Assigned(Node) then
     Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
   if WantEdge and not (Node is TEdgeObject) then
     Exit(Problem(Format(rsDraftNotAnEdge, [NodeLabel(Node)])));
@@ -798,7 +798,7 @@ end;
 function TPatternLoader.ReadBoolean(Item: TJSONObject; const AName: string; out Value: boolean): boolean;
 begin
   Value := False;
-  if Item.Find(AName) = nil then
+  if not Assigned(Item.Find(AName)) then
     Exit(True);
   if not GetJSONBoolean(Item, AName, Value) then
     Exit(Missing(AName));
@@ -813,7 +813,7 @@ var
   Index: integer;
 begin
   Choice := 0;
-  if Item.Find(AName) = nil then
+  if not Assigned(Item.Find(AName)) then
     Exit(True);
   if GetJSONString(Item, AName, Text) then
     for Index := 0 to High(Choices) do
@@ -829,7 +829,7 @@ end;
 function TPatternLoader.ReadPick(Item: TJSONObject; out Pick: integer): boolean;
 begin
   Pick := 1;
-  if Item.Find('pick') = nil then
+  if not Assigned(Item.Find('pick')) then
     Exit(True);
   if not GetJSONInteger(Item, 'pick', Pick) then
     Exit(Missing('pick'));
@@ -859,7 +859,7 @@ begin
   if not GetJSONInteger(Item, 'id', Value) or (Value < 1) then
     Exit(False);
   Id := IntToStr(Value);
-  Result := (Pattern.FindNode(Id) = nil) and (Pattern.FindFabric(Id) = nil);
+  Result := not Assigned(Pattern.FindNode(Id)) and not Assigned(Pattern.FindFabric(Id));
 end;
 
 function TPatternLoader.LoadVariables(Data: TJSONData): boolean;
@@ -869,7 +869,7 @@ var
   Id, VariableName, Text, Description, Msg: string;
   Variable: TVariable;
 begin
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if Data.JSONType <> jtArray then
     Exit(Fail(Format(rsPatternFileList, ['variables'])));
@@ -906,7 +906,7 @@ var
 begin
   Result := nil;
   Nodes := Item.Find('nodes');
-  if (Nodes = nil) or (Nodes.JSONType <> jtArray) then
+  if not Assigned(Nodes) or (Nodes.JSONType <> jtArray) then
   begin
     Missing('nodes');
     Exit;
@@ -958,12 +958,12 @@ var
   First, Second: string;
 begin
   Data := Item.Find('grainline');
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if Data.JSONType <> jtObject then
     Exit(Missing('grainline'));
   Grain := TJSONObject(Data);
-  if Grain.Find('angle') <> nil then
+  if Assigned(Grain.Find('angle')) then
   begin
     Piece.SetGrainKind(gkAngle);
     Exit(ReadFormula(Grain, 'angle', Piece, GrainAngleField));
@@ -986,7 +986,7 @@ var
   Kind: TMarkingKind;
 begin
   Data := Item.Find('markings');
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if Data.JSONType <> jtArray then
     Exit(Missing('markings'));
@@ -995,7 +995,7 @@ begin
     if Data.Items[Index].JSONType <> jtObject then
       Exit(Missing('markings'));
     Marking := TJSONObject(Data.Items[Index]);
-    if Marking.Find('kind') = nil then
+    if not Assigned(Marking.Find('kind')) then
       Exit(Missing('kind'));
     if not ReadChoice(Marking, 'kind', MarkingKindNames, Choice) then
       Exit(False);
@@ -1027,7 +1027,7 @@ var
   Key: string;
 begin
   Data := Item.Find('notches');
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if Data.JSONType <> jtArray then
     Exit(Missing('notches'));
@@ -1036,7 +1036,7 @@ begin
     if Data.Items[Index].JSONType <> jtObject then
       Exit(Missing('notches'));
     Notch := TJSONObject(Data.Items[Index]);
-    if Notch.Find('point') <> nil then
+    if Assigned(Notch.Find('point')) then
     begin
       if not ReadInput(Notch, 'point', False, Key) then
         Exit(False);
@@ -1063,13 +1063,13 @@ var
   Mirrored: boolean;
 begin
   Data := Item.Find('cut');
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if Data.JSONType <> jtObject then
     Exit(Missing('cut'));
   Cut := TJSONObject(Data);
   Count := 1;
-  if (Cut.Find('count') <> nil) and not GetJSONInteger(Cut, 'count', Count) then
+  if Assigned(Cut.Find('count')) and not GetJSONInteger(Cut, 'count', Count) then
     Exit(Missing('count'));
   if Count < 1 then
     Exit(Problem(rsPatternBadCutCount));
@@ -1085,9 +1085,9 @@ function TPatternLoader.ReadFabric(Item: TJSONObject; Piece: TPieceObject): bool
 var
   Id: integer;
 begin
-  if Item.Find('fabric') = nil then
+  if not Assigned(Item.Find('fabric')) then
     Exit(True);
-  if not GetJSONInteger(Item, 'fabric', Id) or (FPattern.FindFabric(IntToStr(Id)) = nil) then
+  if not GetJSONInteger(Item, 'fabric', Id) or not Assigned(FPattern.FindFabric(IntToStr(Id))) then
     Exit(Missing('fabric'));
   Piece.FabricKey := IntToStr(Id);
   Result := True;
@@ -1101,18 +1101,18 @@ var
   Choice: integer;
 begin
   Data := Item.Find('fill');
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if Data.JSONType <> jtObject then
     Exit(Missing('fill'));
   Fill := TJSONObject(Data);
-  if Fill.Find('color') <> nil then
+  if Assigned(Fill.Find('color')) then
   begin
     if not GetJSONString(Fill, 'color', Text) or not IsFabricColor(Text) then
       Exit(Missing('color'));
     Piece.FillColor := UpperCase(Text);
   end;
-  if Fill.Find('style') <> nil then
+  if Assigned(Fill.Find('style')) then
   begin
     if not ReadChoice(Fill, 'style', PieceFillNames, Choice) then
       Exit(False);
@@ -1125,7 +1125,7 @@ function TPatternLoader.ReadFold(Item: TJSONObject; Piece: TPieceObject): boolea
 var
   Key: string;
 begin
-  if Item.Find('foldEdge') = nil then
+  if not Assigned(Item.Find('foldEdge')) then
     Exit(True);
   if not ReadInput(Item, 'foldEdge', True, Key) then
     Exit(False);
@@ -1147,7 +1147,7 @@ var
 begin
   Result := nil;
   Entries := Item.Find('path');
-  if (Entries = nil) or (Entries.JSONType <> jtArray) then
+  if not Assigned(Entries) or (Entries.JSONType <> jtArray) then
   begin
     Missing('path');
     Exit;
@@ -1186,7 +1186,7 @@ begin
   for Index := 0 to High(Path) do
   begin
     Entry := TJSONObject(Entries.Items[Index]);
-    if Entry.Find(PieceAllowanceField) = nil then
+    if not Assigned(Entry.Find(PieceAllowanceField)) then
       Continue;
     Piece.AddOverride(Index);
     if not ReadFormula(Entry, PieceAllowanceField, Piece, Piece.OverrideField(Index)) then
@@ -1208,7 +1208,7 @@ var
 begin
   Side := nil;
   Entries := Item.Find(AName);
-  if (Entries = nil) or (Entries.JSONType <> jtArray) then
+  if not Assigned(Entries) or (Entries.JSONType <> jtArray) then
     Exit(Missing(AName));
   SetLength(Side, Entries.Count);
   for Index := 0 to Entries.Count - 1 do
@@ -1247,7 +1247,7 @@ var
 begin
   Sources := nil;
   List := Item.Find('sources');
-  if (List = nil) or (List.JSONType <> jtArray) or (List.Count = 0) then
+  if not Assigned(List) or (List.JSONType <> jtArray) or (List.Count = 0) then
     Exit(Missing('sources'));
   for Index := 0 to List.Count - 1 do
   begin
@@ -1255,7 +1255,7 @@ begin
       Exit(Missing('sources'));
     Key := IntToStr(List.Items[Index].AsInteger);
     Node := FPattern.FindNode(Key);
-    if Node = nil then
+    if not Assigned(Node) then
       Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
     if not (Node is TPointObject) and not (Node is TEdgeObject) then
       Exit(Problem(Format(rsPatternTransformNotCopyable, [NodeLabel(Node)])));
@@ -1304,7 +1304,7 @@ begin
         FreeAndNil(Result);
     tkMove:
     begin
-      if (Item.Find('pivot') <> nil) and not ReadInput(Item, 'pivot', False, First) then
+      if Assigned(Item.Find('pivot')) and not ReadInput(Item, 'pivot', False, First) then
       begin
         FreeAndNil(Result);
         Exit;
@@ -1316,14 +1316,14 @@ begin
     end;
     tkMirror:
     begin
-      if (Item.Find('axis') = nil) or (Item.Find('axis').JSONType <> jtObject) then
+      if not Assigned(Item.Find('axis')) or (Item.Find('axis').JSONType <> jtObject) then
       begin
         Missing('axis');
         FreeAndNil(Result);
         Exit;
       end;
       Axis := TJSONObject(Item.Find('axis'));
-      if Axis.Find('edge') <> nil then
+      if Assigned(Axis.Find('edge')) then
       begin
         if ReadInput(Axis, 'edge', True, First) then
           Transform.UseAxisEdge(First)
@@ -1332,7 +1332,7 @@ begin
       end
       else if not ReadInput(Axis, 'a', False, First) then
         FreeAndNil(Result)
-      else if Axis.Find('b') = nil then
+      else if not Assigned(Axis.Find('b')) then
         Transform.UseAxisAngle(First)
       else if ReadInput(Axis, 'b', False, Second) then
         Transform.UseAxisPoints(First, Second)
@@ -1390,7 +1390,7 @@ begin
   begin
     if not ReadChoice(Item, 'ends', RepeatEndNames, Choice) then
       Exit;
-    if Item.Find('edge') <> nil then
+    if Assigned(Item.Find('edge')) then
     begin
       if ReadInput(Item, 'edge', True, First) then
         Result := TRepeatObject.CreateOnEdge(FId, First, Choice = 0);
@@ -1507,7 +1507,7 @@ var
   Id: string;
 begin
   List := Item.Find('points');
-  if List = nil then
+  if not Assigned(List) then
     Exit(True);
   if List.JSONType <> jtArray then
     Exit(Fail(Format(rsPatternFileList, ['points'])));
@@ -1533,7 +1533,7 @@ var
   Id, AName, Color, Reason: string;
   Fabric: TPatternFabric;
 begin
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if (Data.JSONType <> jtArray) or (Data.Count = 0) then
     Exit(Fail(Format(rsPatternFileList, ['fabrics'])));
@@ -1546,13 +1546,13 @@ begin
       Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'fabrics'])));
     if not CheckName(AName, Reason) then
       Exit(Fail(Format(rsPatternFabricProblem, [Id, Reason])));
-    if (FPattern.FabricCount > 0) and (FPattern.Fabrics[0].Key <> '') and (FPattern.FindFabricNamed(AName) <> nil) then
+    if (FPattern.FabricCount > 0) and (FPattern.Fabrics[0].Key <> '') and Assigned(FPattern.FindFabricNamed(AName)) then
       Exit(Fail(Format(rsPatternFabricProblem, [Id, Format(rsPatternFabricTaken, [AName])])));
     if not GetJSONString(Item, 'color', Color) or not IsFabricColor(Color) then
       Exit(Fail(Format(rsPatternFabricProblem, [Id, Format(rsPatternFabricBadColor, [Color])])));
     FId := Id;
     Choice := 0;
-    if (Item.Find('fill') <> nil) and not ReadChoice(Item, 'fill', FabricFillNames, Choice) then
+    if Assigned(Item.Find('fill')) and not ReadChoice(Item, 'fill', FabricFillNames, Choice) then
       Exit(False);
     Fabric := TPatternFabric.Create;
     Fabric.Key := Id;
@@ -1560,7 +1560,7 @@ begin
     Fabric.Color := UpperCase(Color);
     Fabric.Fill := TFabricFill(Choice);
     FPattern.InsertFabric(Fabric);
-    if Item.Find('allowance') <> nil then
+    if Assigned(Item.Find('allowance')) then
     begin
       if not GetJSONNumber(Item, 'allowance', Fabric.Allowance) or (Fabric.Allowance < 0) then
         Exit(Missing('allowance'));
@@ -1586,7 +1586,7 @@ var
   Index, Inner: integer;
   Layers: TJSONData;
 begin
-  if (Data = nil) or (Data.JSONType <> jtArray) then
+  if not Assigned(Data) or (Data.JSONType <> jtArray) then
     Exit;
   for Index := 0 to Data.Count - 1 do
   begin
@@ -1594,7 +1594,7 @@ begin
     if Data.Items[Index].JSONType <> jtObject then
       Continue;
     Layers := TJSONObject(Data.Items[Index]).Find('layers');
-    if (Layers <> nil) and (Layers.JSONType = jtArray) then
+    if Assigned(Layers) and (Layers.JSONType = jtArray) then
       for Inner := 0 to Layers.Count - 1 do
         Retire(Layers.Items[Inner]);
   end;
@@ -1610,12 +1610,12 @@ begin
   if not GetJSONString(Item, 'type', TypeText) then
     Exit(Missing('type'));
   DraftObject := CreateObject(Item, TypeText);
-  if DraftObject = nil then
+  if not Assigned(DraftObject) then
     Exit(False);
   try
     // Points, pieces and seams need a name; an edge without one is named after its ends
     ObjectName := '';
-    HasName := Item.Find('name') <> nil;
+    HasName := Assigned(Item.Find('name'));
     if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) or (DraftObject is TSeamObject) or
       (DraftObject is TTransformObject) or (DraftObject is TRepeatObject) then
     begin
@@ -1651,7 +1651,7 @@ var
   Index: integer;
   Item: TJSONObject;
 begin
-  if Data = nil then
+  if not Assigned(Data) then
     Exit(True);
   if Data.JSONType <> jtArray then
     Exit(Fail(Format(rsPatternFileList, ['objects'])));
@@ -1689,7 +1689,7 @@ begin
       Exit(False);
     // Loading has put NextId above every ID; a saved counter may be higher,
     // because deleted IDs stay retired. Hand-written files may leave it out.
-    if Root.Find('nextId') <> nil then
+    if Assigned(Root.Find('nextId')) then
     begin
       if not GetJSONInteger(Root, 'nextId', NextId) or (NextId < FPattern.NextId) then
         Exit(Fail(rsPatternFileBadNextId));

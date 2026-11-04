@@ -530,7 +530,7 @@ procedure TMainForm.MeasurementsNewSet(Sender: TObject);
 var
   Err: string;
 begin
-  if FNewSetDialog = nil then
+  if not Assigned(FNewSetDialog) then
   begin
     FNewSetDialog := TSaveDialog.Create(Self);
     FNewSetDialog.Filter := MeasurementsDialog.Filter;
@@ -869,13 +869,13 @@ var
   SideA, SideB: TSeamSide;
 begin
   Suggestions := SuggestSeams(FDocument.Pattern);
-  if Suggestions = nil then
+  if Length(Suggestions) = 0 then
   begin
     CanvasMessage(Self, rsNoSuggestions);
     Exit;
   end;
   Chosen := ChooseSeams(Self, FDocument.Pattern, Suggestions);
-  if Chosen = nil then
+  if Length(Chosen) = 0 then
     Exit;
   FDocument.BeginChange(rsAddSuggestedSeams);
   Done := True;
@@ -883,7 +883,7 @@ begin
   begin
     SideA := [Item.First];
     SideB := [Item.Second];
-    Done := Done and (FDocument.Pattern.AddSeam('', SideA, SideB) <> nil);
+    Done := Done and Assigned(FDocument.Pattern.AddSeam('', SideA, SideB));
   end;
   FDocument.Commit(Done);
 end;
@@ -1018,7 +1018,7 @@ begin
     StatusBar.Panels[PanelProblems].Text := rsNoProblems
   else
     StatusBar.Panels[PanelProblems].Text := Format(rsProblems, [Length(Problems)]);
-  if FDocument.Measurements = nil then
+  if not Assigned(FDocument.Measurements) then
     StatusBar.Panels[PanelMeasurements].Text := rsNoMeasurements
   else if FDocument.Measurements.Name <> '' then
     StatusBar.Panels[PanelMeasurements].Text := FDocument.Measurements.Name

@@ -281,7 +281,7 @@ var
 begin
   Value := '';
   Data := Obj.Find(Name);
-  Result := (Data <> nil) and (Data.JSONType = jtString);
+  Result := Assigned(Data) and (Data.JSONType = jtString);
   if Result then
     Value := Data.AsString;
 end;
@@ -292,7 +292,7 @@ var
 begin
   Value := 0;
   Data := Obj.Find(Name);
-  Result := (Data <> nil) and (Data.JSONType = jtNumber);
+  Result := Assigned(Data) and (Data.JSONType = jtNumber);
   if Result then
     Value := Data.AsFloat;
 end;
@@ -303,7 +303,7 @@ var
 begin
   Value := 0;
   Data := Obj.Find(Name);
-  Result := (Data <> nil) and (Data.JSONType = jtNumber) and not (Data is TJSONFloatNumber);
+  Result := Assigned(Data) and (Data.JSONType = jtNumber) and not (Data is TJSONFloatNumber);
   if Result then
     Value := Data.AsInteger;
 end;
@@ -314,7 +314,7 @@ var
 begin
   Value := False;
   Data := Obj.Find(Name);
-  Result := (Data <> nil) and (Data.JSONType = jtBoolean);
+  Result := Assigned(Data) and (Data.JSONType = jtBoolean);
   if Result then
     Value := Data.AsBoolean;
 end;

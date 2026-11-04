@@ -105,7 +105,7 @@ begin
     Obj.Add('showSidePanel', ShowSidePanel);
     Obj.Add('showPieceFills', ShowPieceFills);
     Obj.Add('measureUnit', MeasureUnitNames[MeasureUnit]);
-    if MachineProfiles <> nil then
+    if Length(MachineProfiles) > 0 then
       Obj.Add('machineProfiles', MachineProfilesToJSON(MachineProfiles));
     Result := JSONToText(Obj);
   finally

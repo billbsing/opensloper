@@ -415,12 +415,12 @@ procedure TPatternCanvas.SetDocument(ADocument: TPatternDocument);
 begin
   if FDocument = ADocument then
     Exit;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     FDocument.RemoveListener(@DocumentChanged);
   FDocument := ADocument;
   FSelection := nil;
   FHoverKey := '';
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     FDocument.AddListener(@DocumentChanged);
   Invalidate;
 end;
@@ -457,16 +457,16 @@ var
   Piece: TPieceObject;
 begin
   Result := '';
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Point := PointAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius));
-  if Point <> nil then
+  if Assigned(Point) then
     Exit(Point.Key);
   Edge := EdgeAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(EdgeHitRadius));
-  if Edge <> nil then
+  if Assigned(Edge) then
     Exit(Edge.Key);
   Piece := PieceAt(FDocument.Pattern, ModelAt(X, Y));
-  if Piece <> nil then
+  if Assigned(Piece) then
     Result := Piece.Key;
 end;
 
@@ -495,7 +495,7 @@ end;
 
 procedure TPatternCanvas.RestoreView;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   if FDocument.Pattern.View.HasView then
   begin
@@ -512,7 +512,7 @@ procedure TPatternCanvas.StoreView;
 var
   Centre: TVec2;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Centre := FView.ToModel(Vec2(ClientWidth / 2, ClientHeight / 2));
   FDocument.Pattern.View.HasView := True;
@@ -525,7 +525,7 @@ procedure TPatternCanvas.RevealSelection;
 var
   Bounds: TRect2;
 begin
-  if (FDocument <> nil) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
+  if Assigned(FDocument) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
   begin
     FView.Reveal(Bounds, ClientWidth, ClientHeight, FitMargin);
     Invalidate;
@@ -536,7 +536,7 @@ procedure TPatternCanvas.ZoomToSelection;
 var
   Bounds: TRect2;
 begin
-  if (FDocument <> nil) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
+  if Assigned(FDocument) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
   begin
     FView.Fit(Bounds, ClientWidth, ClientHeight, FitMargin);
     Invalidate;
@@ -589,7 +589,7 @@ end;
 
 procedure TPatternCanvas.SelectNone;
 begin
-  if FSelection <> nil then
+  if Length(FSelection) > 0 then
     SetSelection(nil);
 end;
 
@@ -601,11 +601,11 @@ var
 begin
   Kept := nil;
   for Selected in FSelection do
-    if FDocument.Pattern.FindNode(Selected) <> nil then
+    if Assigned(FDocument.Pattern.FindNode(Selected)) then
       Insert(Selected, Kept, Length(Kept));
   if Length(Kept) <> Length(FSelection) then
     SetSelection(Kept);
-  if (FHoverKey <> '') and (FDocument.Pattern.FindNode(FHoverKey) = nil) then
+  if (FHoverKey <> '') and not Assigned(FDocument.Pattern.FindNode(FHoverKey)) then
     FHoverKey := '';
   FSeamA := ExistingSeamEntries(FDocument.Pattern, FSeamA);
   FSeamB := ExistingSeamEntries(FDocument.Pattern, FSeamB);
@@ -627,7 +627,7 @@ procedure TPatternCanvas.ZoomToFit;
 var
   Bounds: TRect2;
 begin
-  if (FDocument <> nil) and PatternBounds(FDocument.Pattern, Bounds) then
+  if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds) then
     FView.Fit(Bounds, ClientWidth, ClientHeight, FitMargin)
   else
     FView := DefaultView;
@@ -727,7 +727,7 @@ var
   Node: TEvalNode;
   Moved: boolean;
 begin
-  if (FDocument = nil) or (FSelection = nil) then
+  if not Assigned(FDocument) or (Length(FSelection) = 0) then
     Exit;
   FDocument.BeginChange(rsCanvasNudge);
   Moved := False;
@@ -754,7 +754,7 @@ var
   Index: integer;
   Node: TEvalNode;
 begin
-  if (FDocument = nil) or (FSelection = nil) then
+  if not Assigned(FDocument) or (Length(FSelection) = 0) then
     Exit;
   FDocument.BeginChange(rsCanvasDelete);
   // Later objects can use earlier ones, so delete from the end of the pattern
@@ -778,7 +778,7 @@ var
   First, Second: TSplitPart;
   Done: boolean;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   if not SplitFromSelection(FDocument.Pattern, FSelection, EdgeKey, PointKey, Reason) then
   begin
@@ -816,7 +816,7 @@ var
   Added: TEdgeObject;
   Key, Reason: string;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Node := nil;
   if Length(FSelection) = 1 then
@@ -832,10 +832,10 @@ begin
   else
     Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, '0', NewArcSweep, erOutline);
   Key := '';
-  if Added <> nil then
+  if Assigned(Added) then
     Key := Added.Key;
   Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Added <> nil) then
+  if FDocument.Commit(Assigned(Added)) then
     SetSelection([Key])
   else
     ShowMessageText(Reason);
@@ -849,7 +849,7 @@ var
   Key, Reason: string;
   Done: boolean;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Node := nil;
   if Length(FSelection) = 1 then
@@ -878,7 +878,7 @@ var
   Added: TOffsetEdge;
   Key, Reason: string;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Node := nil;
   if Length(FSelection) = 1 then
@@ -891,10 +891,10 @@ begin
   FDocument.BeginChange(rsCanvasAddOffset);
   Added := FDocument.Pattern.AddOffsetEdge(Node.Key, NewOffsetDistance, Side, erConstruction);
   Key := '';
-  if Added <> nil then
+  if Assigned(Added) then
     Key := Added.Key;
   Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Added <> nil) then
+  if FDocument.Commit(Assigned(Added)) then
     SetSelection([Key])
   else
     ShowMessageText(Reason);
@@ -908,13 +908,13 @@ var
   Edges: TStringArray;
   Done: boolean;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Edges := nil;
   for Key in FSelection do
     if FDocument.Pattern.FindNode(Key) is TEdgeObject then
       Insert(Key, Edges, Length(Edges));
-  if Edges = nil then
+  if Length(Edges) = 0 then
   begin
     ShowMessageText(rsCanvasPickEdgesToConvert);
     Exit;
@@ -929,9 +929,9 @@ begin
   begin
     Node := FDocument.Pattern.FindNode(Key);
     if ToCurve then
-      Done := FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)) <> nil
+      Done := Assigned(FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)))
     else
-      Done := FDocument.Pattern.ConvertToLine(TEdgeObject(Node)) <> nil;
+      Done := Assigned(FDocument.Pattern.ConvertToLine(TEdgeObject(Node)));
     if not Done then
       Break;
   end;
@@ -946,7 +946,7 @@ var
   Added: TCornerArc;
   Key, Reason: string;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   if (Length(FSelection) <> 2) or not (FDocument.Pattern.FindNode(FSelection[0]) is TEdgeObject) or not
     (FDocument.Pattern.FindNode(FSelection[1]) is TEdgeObject) then
@@ -957,10 +957,10 @@ begin
   FDocument.BeginChange(rsCanvasRoundCorner);
   Added := FDocument.Pattern.AddRoundCorner(FSelection[0], FSelection[1], NewCornerRadius);
   Key := '';
-  if Added <> nil then
+  if Assigned(Added) then
     Key := Added.Key;
   Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Added <> nil) then
+  if FDocument.Commit(Assigned(Added)) then
     SetSelection([Key])
   else
     ShowMessageText(Reason);
@@ -974,7 +974,7 @@ var
   Piece: TPieceObject;
   Done: boolean;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Piece := nil;
   Target := '';
@@ -986,7 +986,7 @@ begin
     else if ((Kind = mkHole) and (Node is TPointObject)) or ((Kind <> mkHole) and (Node is TEdgeObject)) then
       Target := Key;
   end;
-  if (Piece = nil) or (Target = '') or (Length(FSelection) <> 2) then
+  if not Assigned(Piece) or (Target = '') or (Length(FSelection) <> 2) then
   begin
     if Kind = mkHole then
       ShowMessageText(rsCanvasPickHole)
@@ -1015,7 +1015,7 @@ var
   Index: integer;
   Done: boolean;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   Piece := nil;
   Target := '';
@@ -1027,7 +1027,7 @@ begin
     else
       Target := Key;
   end;
-  if (Piece = nil) or (Target = '') then
+  if not Assigned(Piece) or (Target = '') then
   begin
     ShowMessageText(rsCanvasPickMarkingToRemove);
     Exit;
@@ -1046,9 +1046,9 @@ procedure TPatternCanvas.StartTransform(Kind: TTransformKind);
 var
   Spec: TTransformSpec;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
-  if FSelection = nil then
+  if Length(FSelection) = 0 then
   begin
     ShowMessageText(rsCanvasNothingSelected);
     Exit;
@@ -1083,10 +1083,10 @@ begin
   FDocument.BeginChange(Format(rsCanvasTransform, [Spec.Name]));
   Transform := FDocument.Pattern.AddTransform(Spec);
   Key := '';
-  if Transform <> nil then
+  if Assigned(Transform) then
     Key := Transform.Key;
   Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Transform <> nil) then
+  if FDocument.Commit(Assigned(Transform)) then
     SetSelection([Key])
   else
     ShowMessageText(Reason);
@@ -1106,7 +1106,7 @@ begin
   Spec.Sources := FPickSources;
   if FPickKind = tkRotate then
   begin
-    if Point = nil then
+    if not Assigned(Point) then
     begin
       ShowMessageText(rsCanvasPickPoint);
       Exit;
@@ -1115,7 +1115,7 @@ begin
     Spec.Angle := '0';
     MakeTransform(Spec);
   end
-  else if Point <> nil then
+  else if Assigned(Point) then
   begin
     if FPickFirst = '' then
     begin
@@ -1130,7 +1130,7 @@ begin
   else
   begin
     Edge := EdgeAt(FDocument.Pattern, At, FView.PixelsToMM(EdgeHitRadius));
-    if Edge = nil then
+    if not Assigned(Edge) then
     begin
       ShowMessageText(rsCanvasPickEdge);
       Exit;
@@ -1227,7 +1227,7 @@ end;
 function TPatternCanvas.ShownLabelKeys: TStringArray;
 begin
   Result := nil;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     Result := LabelKeys(FDocument.Pattern, ShownLabelMode, FSelection, FHoverKey, ToolLabelKeys);
 end;
 
@@ -1290,7 +1290,7 @@ begin
         RoundedText(Chord * HandleFraction, DragLengthDecimals), RoundedText(AngleBetween(EndPos, StartPos), DragAngleDecimals),
         RoundedText(Chord * HandleFraction, DragLengthDecimals), erOutline);
   Reason := FDocument.Pattern.LastError;
-  if not FDocument.Commit(Edge <> nil) then
+  if not FDocument.Commit(Assigned(Edge)) then
   begin
     ShowMessageText(Reason);
     FHasStart := False;
@@ -1319,7 +1319,7 @@ begin
     Exit;
   end;
   Existing := PieceOnPath(FDocument.Pattern, Path);
-  if Existing <> nil then
+  if Assigned(Existing) then
   begin
     ShowMessageText(Format(rsCanvasPieceExists, [Existing.DisplayName]));
     SetSelection([Existing.Key]);
@@ -1328,10 +1328,10 @@ begin
   FDocument.BeginChange(rsCanvasAddPiece);
   Piece := FDocument.Pattern.AddPiece('', Path, DefaultPieceAllowance);
   Key := '';
-  if Piece <> nil then
+  if Assigned(Piece) then
     Key := Piece.Key;
   Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Piece <> nil) then
+  if FDocument.Commit(Assigned(Piece)) then
     SetSelection([Key])
   else
     ShowMessageText(Reason);
@@ -1395,7 +1395,7 @@ end;
 
 function TPatternCanvas.PickingSeam: boolean;
 begin
-  Result := (FSeamA <> nil) or (FSeamB <> nil) or FSeamOnB;
+  Result := (Length(FSeamA) > 0) or (Length(FSeamB) > 0) or FSeamOnB;
 end;
 
 procedure TPatternCanvas.ClearSeamSides;
@@ -1451,7 +1451,7 @@ var
   Seam: TSeamObject;
   Key, Reason: string;
 begin
-  if (FSeamA = nil) or (FSeamB = nil) then
+  if (Length(FSeamA) = 0) or (Length(FSeamB) = 0) then
   begin
     ShowMessageText(rsCanvasSeamSides);
     Exit;
@@ -1459,10 +1459,10 @@ begin
   FDocument.BeginChange(rsCanvasAddSeam);
   Seam := FDocument.Pattern.AddSeam('', FSeamA, FSeamB);
   Key := '';
-  if Seam <> nil then
+  if Assigned(Seam) then
     Key := Seam.Key;
   Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Seam <> nil) then
+  if FDocument.Commit(Assigned(Seam)) then
   begin
     ClearSeamSides;
     SetSelection([Key]);
@@ -1512,7 +1512,7 @@ begin
     FMode := cmPanning;
     Exit;
   end;
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     Exit;
   if FPicking then
   begin
@@ -1599,9 +1599,9 @@ begin
     cmBoxing:
       Invalidate;
     cmIdle:
-      if (FDocument <> nil) and UsesSnap then
+      if Assigned(FDocument) and UsesSnap then
         UpdateSnap(X, Y)
-      else if (FDocument <> nil) and (FTool = ctSelect) then
+      else if Assigned(FDocument) and (FTool = ctSelect) then
       begin
         if UpdateHoverHandle(X, Y) then
           Invalidate;
@@ -1611,7 +1611,7 @@ begin
           FHoverKey := Key;
           Invalidate;
           Node := FDocument.Pattern.FindNode(Key);
-          if (Node <> nil) and (Node.State <> esValid) then
+          if Assigned(Node) and (Node.State <> esValid) then
             ShowMessageText(Format(rsCanvasHover, [Node.DisplayName, Node.Message]))
           else
             ShowMessageText('');
@@ -1852,7 +1852,7 @@ var
   LineColor: TBGRAPixel;
   LineWidth: single;
 begin
-  if Piece.CutLine = nil then
+  if Length(Piece.CutLine) = 0 then
     Exit;
   Screen := nil;
   Points := nil;
@@ -2102,7 +2102,7 @@ begin
     else
     begin
       Model := EdgePolyline(TEdgeObject(Node), FView.PixelsToMM(FlattenPixels));
-      if Model = nil then
+      if Length(Model) = 0 then
         Continue;
       Screen := FView.ToScreen(PolylineMiddle(Model));
       Screen := Vec2(Screen.X + 4, Screen.Y + 2);
@@ -2222,9 +2222,9 @@ var
   Bounds: TRect2;
   TopLeft, BottomRight: TVec2;
 begin
-  if (FHorzBar = nil) or (FVertBar = nil) or FThumbHeld then
+  if not Assigned(FHorzBar) or not Assigned(FVertBar) or FThumbHeld then
     Exit;
-  if (FDocument <> nil) and PatternBounds(FDocument.Pattern, Bounds) then
+  if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds) then
   begin
     TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MaxY));
     BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MinY));
@@ -2263,7 +2263,7 @@ begin
   FBitmap.FontHeight := LabelFontHeight;
   FBitmap.FontQuality := fqFineAntialiasing;
   DrawGrid;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
   begin
     DrawPattern;
     DrawHandles;

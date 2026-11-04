@@ -689,7 +689,7 @@ begin
   FFabricBox.Items.Clear;
   FFabricBox.Items.Add(rsFabricAll);
   for Source in Layout.Sources do
-    if Source.Pattern <> nil then
+    if Assigned(Source.Pattern) then
       for Index := 0 to Source.Pattern.FabricCount - 1 do
         if FFabricBox.Items.IndexOf(Source.Pattern.Fabrics[Index].Name) < 0 then
           FFabricBox.Items.Add(Source.Pattern.Fabrics[Index].Name);
@@ -713,7 +713,7 @@ begin
     for Source in FDocument.Layout.Sources do
     begin
       Entry := ExtractFileName(Source.PatternFile);
-      if (Source.Measurements <> nil) and (Source.Measurements.SizeName <> '') then
+      if Assigned(Source.Measurements) and (Source.Measurements.SizeName <> '') then
         Entry := Format(rsLayoutSetAndSize, [Entry, Source.Measurements.SizeName]);
       FSourceBox.Items.Add(Entry);
     end;
@@ -722,14 +722,14 @@ begin
   end;
   FSourceBox.ItemIndex := Min(Keep, FSourceBox.Items.Count - 1);
   Source := CurrentSource;
-  FRemoveSourceButton.Enabled := Source <> nil;
-  FChooseSetButton.Enabled := Source <> nil;
-  FPatternSetButton.Enabled := (Source <> nil) and (Source.MeasurementFile <> '');
+  FRemoveSourceButton.Enabled := Assigned(Source);
+  FChooseSetButton.Enabled := Assigned(Source);
+  FPatternSetButton.Enabled := Assigned(Source) and (Source.MeasurementFile <> '');
   FSourceSetLabel.Caption := rsNoSet;
-  if (Source <> nil) and (Source.MeasurementPath <> '') then
+  if Assigned(Source) and (Source.MeasurementPath <> '') then
     FSourceSetLabel.Caption := ExtractFileName(Source.MeasurementPath);
   FSizeBox.Items.Clear;
-  if (Source <> nil) and (Source.Measurements <> nil) then
+  if Assigned(Source) and Assigned(Source.Measurements) then
   begin
     for Index := 0 to Source.Measurements.SizeCount - 1 do
       FSizeBox.Items.Add(Source.Measurements.Sizes[Index]);
@@ -774,7 +774,7 @@ end;
 
 procedure TPublishForm.RemoveSourceClick(Sender: TObject);
 begin
-  if CurrentSource = nil then
+  if not Assigned(CurrentSource) then
     Exit;
   FPreview.Selected := -1;
   FDocument.BeginChange(rsRemovePatternChange);
@@ -787,7 +787,7 @@ var
   Source: TLayoutSource;
 begin
   Source := CurrentSource;
-  if Source = nil then
+  if not Assigned(Source) then
     Exit;
   FDocument.BeginChange(Description);
   Source.MeasurementFile := AMeasurementFile;
@@ -819,7 +819,7 @@ end;
 
 procedure TPublishForm.SizeChange(Sender: TObject);
 begin
-  if FRefreshing or (CurrentSource = nil) or (FSizeBox.ItemIndex < 0) then
+  if FRefreshing or not Assigned(CurrentSource) or (FSizeBox.ItemIndex < 0) then
     Exit;
   ChangeSource(rsSizeChange, CurrentSource.MeasurementFile, FSizeBox.Text);
 end;
@@ -877,7 +877,7 @@ begin
   try
     for Item in FTrayCopies do
       Lines.Add(Item.Caption);
-    if (Lines.Count = 0) and (FDocument.Layout.Placements = nil) then
+    if (Lines.Count = 0) and (Length(FDocument.Layout.Placements) = 0) then
       Lines.Add(rsTrayNoPieces)
     else if Lines.Count = 0 then
       Lines.Add(rsTrayEmpty);

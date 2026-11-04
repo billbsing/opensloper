@@ -315,7 +315,7 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (TEdgeObject(DraftObject).Segments <> nil) then
+    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (Length(TEdgeObject(DraftObject).Segments) > 0) then
     begin
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
       if Labelled(DraftObject) then

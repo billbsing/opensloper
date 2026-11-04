@@ -171,10 +171,10 @@ procedure TListPanel.SetDocument(ADocument: TPatternDocument);
 begin
   if FDocument = ADocument then
     Exit;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     FDocument.RemoveListener(@DocumentChanged);
   FDocument := ADocument;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     FDocument.AddListener(@DocumentChanged);
   if not (csDestroying in ComponentState) then
     Refresh;
@@ -195,7 +195,7 @@ procedure TListPanel.Refresh;
 var
   RowIndex, Column: integer;
 begin
-  if FDocument = nil then
+  if not Assigned(FDocument) then
     FRows := nil
   else
     FRows := BuildRows;
@@ -256,7 +256,7 @@ begin
     FAnchor := Keys[0];
   FUpdating := True;
   try
-    if Keys <> nil then
+    if Length(Keys) > 0 then
       for Index := 0 to High(FRows) do
         if FRows[Index].Key = Keys[High(Keys)] then
         begin
@@ -317,7 +317,7 @@ end;
 
 procedure TListPanel.GridDoubleClick(Sender: TObject);
 begin
-  if (FSelected <> nil) and Assigned(FOnZoom) then
+  if (Length(FSelected) > 0) and Assigned(FOnZoom) then
     FOnZoom(Self);
 end;
 

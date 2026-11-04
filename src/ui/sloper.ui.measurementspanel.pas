@@ -189,7 +189,7 @@ end;
 
 procedure TMeasurementsPanel.UpdateFileLabel;
 begin
-  if (Document = nil) or (Document.MeasurementPath = '') then
+  if not Assigned(Document) or (Document.MeasurementPath = '') then
     FFileLabel.Caption := rsMeasurementsNoSet
   else
     FFileLabel.Caption := ExtractFileName(Document.MeasurementPath);
@@ -202,7 +202,7 @@ var
   Sizes: TStringList;
   Index: integer;
 begin
-  FSizeBar.Visible := (Document <> nil) and (Document.Measurements <> nil) and (Document.Measurements.SizeCount > 0);
+  FSizeBar.Visible := Assigned(Document) and Assigned(Document.Measurements) and (Document.Measurements.SizeCount > 0);
   if not FSizeBar.Visible then
     Exit;
   Sizes := TStringList.Create;
@@ -219,7 +219,7 @@ end;
 
 procedure TMeasurementsPanel.SizeChange(Sender: TObject);
 begin
-  if (Document <> nil) and (FSizeBox.ItemIndex >= 0) then
+  if Assigned(Document) and (FSizeBox.ItemIndex >= 0) then
     Document.SelectMeasurementSize(FSizeBox.Items[FSizeBox.ItemIndex]);
 end;
 
@@ -263,14 +263,14 @@ begin
   FKeyEdit.Text := '';
   FValueEdit.Text := '';
   FDescriptionEdit.Text := '';
-  FKeyEdit.ReadOnly := Selection <> nil;
-  if Selection = nil then
+  FKeyEdit.ReadOnly := Length(Selection) > 0;
+  if Length(Selection) = 0 then
     Exit;
   FKeyEdit.Text := Selection[0];
   Measurement := nil;
-  if Document.Measurements <> nil then
+  if Assigned(Document.Measurements) then
     Measurement := Document.Measurements.Find(Selection[0]);
-  if Measurement <> nil then
+  if Assigned(Measurement) then
   begin
     if Measurement.HasValue then
       FValueEdit.Text := FormatJSONFloat(Measurement.Value);
@@ -290,7 +290,7 @@ var
   Key, Err: string;
   Change: TMeasurementChange;
 begin
-  if Document = nil then
+  if not Assigned(Document) then
     Exit;
   Key := Trim(FKeyEdit.Text);
   if not ParseValue(FValueEdit.Text, Value) then

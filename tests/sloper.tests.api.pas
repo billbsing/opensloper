@@ -211,7 +211,7 @@ end;
 
 function TTestAPI.Answer: TJSONObject;
 begin
-  if FReply.Find('result') = nil then
+  if not Assigned(FReply.Find('result')) then
     Fail('Expected a result: ' + FReply.AsJSON);
   Result := TJSONObject(FReply.Find('result'));
 end;
@@ -248,7 +248,7 @@ end;
 
 function TTestAPI.ErrorCode: integer;
 begin
-  if FReply.Find('error') = nil then
+  if not Assigned(FReply.Find('error')) then
     Fail('Expected an error: ' + FReply.AsJSON);
   Result := TJSONObject(FReply.Find('error')).Get('code', 0);
 end;

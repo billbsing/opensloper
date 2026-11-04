@@ -415,7 +415,7 @@ begin
   V := Pt('V', 100);
   Curve := FPattern.AddCurve(Pt('A'), V, '30', '30', '150', '30', erOutline);
   FPattern.Evaluate;
-  AssertTrue(FPattern.AddRoundCorner(Curve.Key, Line(V, Pt('B', 100, 100)).Key, '20') = nil);
+  AssertTrue(not Assigned(FPattern.AddRoundCorner(Curve.Key, Line(V, Pt('B', 100, 100)).Key, '20')));
   AssertEquals(Format(rsPatternCornerNotStraight, [Curve.Name]), FPattern.LastError);
 end;
 
@@ -426,7 +426,7 @@ begin
   First := Line(Pt('A'), Pt('B', 100));
   Second := Line(Pt('C', 200), Pt('D', 300));
   FPattern.Evaluate;
-  AssertTrue(FPattern.AddRoundCorner(First.Key, Second.Key, '20') = nil);
+  AssertTrue(not Assigned(FPattern.AddRoundCorner(First.Key, Second.Key, '20')));
   AssertEquals(Format(rsPatternCornerNotMeeting, [First.Name, Second.Name]), FPattern.LastError);
 end;
 
@@ -436,7 +436,7 @@ var
 begin
   Edges := Rectangle;
   PieceAt(50, 50);
-  AssertTrue(FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20') = nil);
+  AssertTrue(not Assigned(FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20')));
   AssertEquals(Format(rsPatternCornerInPiece, [Edges[0].Name, 'Panel']), FPattern.LastError);
 end;
 

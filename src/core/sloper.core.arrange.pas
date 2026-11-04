@@ -141,7 +141,7 @@ begin
   for Key in Keys do
   begin
     Point := PointNamed(Pattern, Key);
-    if Point <> nil then
+    if Assigned(Point) then
       Insert(Point, Result, Length(Result));
   end;
 end;
@@ -189,7 +189,7 @@ var
 begin
   ErrorMessage := '';
   Targets := nil;
-  if PointNamed(Pattern, Request.Reference) = nil then
+  if not Assigned(PointNamed(Pattern, Request.Reference)) then
   begin
     ErrorMessage := rsArrangeNoReference;
     Exit(False);
@@ -198,7 +198,7 @@ begin
   for Point in SelectedPoints(Pattern, Request.Points) do
     if Point.Key <> Request.Reference then
       AddTarget(Targets, Point, AxisReference(Request.Reference, Axis), '', [Request.Reference]);
-  Result := Targets <> nil;
+  Result := Length(Targets) > 0;
   if not Result then
     ErrorMessage := rsArrangeTooFewToAlign;
 end;
@@ -302,7 +302,7 @@ begin
   for Point in Points do
     if (Point.Key <> Edge.StartKey) and (Point.Key <> Edge.EndKey) then
       Insert(Point, Inner, Length(Inner));
-  if Inner = nil then
+  if not Assigned(Inner) then
   begin
     ErrorMessage := rsArrangeNothingOnEdge;
     Exit(False);
@@ -378,7 +378,7 @@ begin
   for Key in Target.Reads do
   begin
     Node := Pattern.FindNode(Key);
-    if (Node = Target.Point) or ((Node <> nil) and Pattern.Reaches(Node, Target.Point)) then
+    if (Node = Target.Point) or (Assigned(Node) and Pattern.Reaches(Node, Target.Point)) then
       Exit(True);
   end;
 end;
@@ -459,9 +459,9 @@ var
 begin
   case Request.Action of
     aaDistribute:
-      Exit(Pattern.ConvertToBetween(Target.Point, First.Key, Last.Key, amRatio, Target.Value) <> nil);
+      Exit(Assigned(Pattern.ConvertToBetween(Target.Point, First.Key, Last.Key, amRatio, Target.Value)));
     aaDistributeAlongEdge:
-      Exit(Pattern.ConvertToAlongEdge(Target.Point, Request.Edge, False, amRatio, Target.Value) <> nil);
+      Exit(Assigned(Pattern.ConvertToAlongEdge(Target.Point, Request.Edge, False, amRatio, Target.Value)));
   end;
   Axis := ActionAxis(Request.Action);
   FieldName := AxisFieldOf(Target.Point, Axis);
@@ -471,12 +471,12 @@ begin
   if Axis = axX then
   begin
     Other := FormatJSONFloat(Target.Point.Position.Y);
-    Result := Pattern.ConvertToFree(Target.Point, Target.Formula, Other) <> nil;
+    Result := Assigned(Pattern.ConvertToFree(Target.Point, Target.Formula, Other));
   end
   else
   begin
     Other := FormatJSONFloat(Target.Point.Position.X);
-    Result := Pattern.ConvertToFree(Target.Point, Other, Target.Formula) <> nil;
+    Result := Assigned(Pattern.ConvertToFree(Target.Point, Other, Target.Formula));
   end;
 end;
 

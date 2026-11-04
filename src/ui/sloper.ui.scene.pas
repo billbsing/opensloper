@@ -208,7 +208,7 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (TEdgeObject(DraftObject).Segments = nil) then
+    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (Length(TEdgeObject(DraftObject).Segments) = 0) then
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
     if Offset <= Best then
@@ -435,7 +435,7 @@ begin
     else if Node is TPointObject then
       Point := TPointObject(Node);
   end;
-  if (Edge = nil) or (Point = nil) or not Edge.HasResult or not Point.HasResult then
+  if not Assigned(Edge) or not Assigned(Point) or not Edge.HasResult or not Point.HasResult then
     Exit;
   Edge.Locate(Point.Position, Position, Gap);
   if Gap > NotchPointTolerance then
@@ -486,7 +486,7 @@ begin
     Exit;
   // A point on the edge keeps the notch with it as the edge changes
   Point := PointAt(Pattern, At, Radius);
-  if Point <> nil then
+  if Assigned(Point) then
   begin
     TEdgeObject(Pattern.FindNode(Target.EdgeKey)).Locate(Point.Position, Position, Gap);
     if Gap <= NotchPointTolerance then
@@ -569,7 +569,7 @@ begin
     begin
       Wanted.Add(Key);
       Node := Pattern.FindNode(Key);
-      if Node = nil then
+      if not Assigned(Node) then
         Continue;
       for Neighbour in Node.Deps do
         Wanted.Add(Neighbour.Key);

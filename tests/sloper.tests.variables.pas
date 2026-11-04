@@ -92,7 +92,7 @@ end;
 function TTestVariables.AddVar(const AName, Formula: string): TVariable;
 begin
   Result := FPattern.AddVariable(AName, Formula);
-  if Result = nil then
+  if not Assigned(Result) then
     Fail(Format('Adding #%s = %s failed: %s', [AName, Formula, FPattern.LastError]));
 end;
 

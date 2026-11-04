@@ -445,14 +445,14 @@ resourcestring
         Exit(ExitFailure);
       end;
       Lacking := MissingMeasurements(Keys, Measurements);
-      if Lacking = nil then
+      if Length(Lacking) = 0 then
       begin
         WriteLn(Format(rsNothingMissing, [ExtractFileName(FileName), ExtractFileName(PatternFile)]));
         Exit(0);
       end;
       WriteLn(Format(rsMissingCount, [ExtractFileName(FileName), Length(Lacking), ExtractFileName(PatternFile)]));
       for Item in Lacking do
-        if Item.Sizes = nil then
+        if Length(Item.Sizes) = 0 then
           WriteLn(Format(rsMissingKey, [Item.Key]))
         else
           WriteLn(Format(rsMissingSizes, [Item.Key, string.Join(', ', Item.Sizes)]));

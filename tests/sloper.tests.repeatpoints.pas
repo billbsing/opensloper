@@ -258,7 +258,7 @@ begin
   Before := FPattern.NextId;
   FPattern.Evaluate;
   AssertEquals('no IDs spent', Before, FPattern.NextId);
-  AssertTrue('nothing has one', Done.UsedItems = nil);
+  AssertTrue('nothing has one', Length(Done.UsedItems) = 0);
   AssertTrue(Done.Item(3).IsVirtual);
 end;
 

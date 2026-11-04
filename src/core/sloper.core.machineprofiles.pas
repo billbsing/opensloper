@@ -169,7 +169,7 @@ var
   AName: string;
 begin
   Result := nil;
-  if (Data = nil) or (Data.JSONType <> jtArray) then
+  if not Assigned(Data) or (Data.JSONType <> jtArray) then
     Exit;
   for Index := 0 to Data.Count - 1 do
   begin
@@ -181,11 +181,11 @@ begin
     Profile := StandardProfile;
     Profile.Name := AName;
     Lines := Item.Find('lines');
-    if (Lines <> nil) and (Lines.JSONType = jtObject) then
+    if Assigned(Lines) and (Lines.JSONType = jtObject) then
       for Kind := Low(TLineType) to High(TLineType) do
       begin
         Line := TJSONObject(Lines).Find(LineTypeNames[Kind]);
-        if (Line <> nil) and (Line.JSONType = jtObject) then
+        if Assigned(Line) and (Line.JSONType = jtObject) then
           ReadLine(TJSONObject(Line), Profile.Lines[Kind]);
       end;
     Insert(Profile, Result, Length(Result));

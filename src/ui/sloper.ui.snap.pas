@@ -242,7 +242,7 @@ begin
   Result.Position := At;
 
   Point := PointAt(Pattern, At, Radius);
-  if Point <> nil then
+  if Assigned(Point) then
   begin
     Result.Kind := snPoint;
     Result.Position := Point.Position;
@@ -253,7 +253,7 @@ begin
   Edges := NearbyEdges(Pattern, At, Radius);
   if FindCrossing(Pattern, Edges, At, Radius, Result) then
     Exit;
-  if Edges <> nil then
+  if Length(Edges) > 0 then
   begin
     SnapToEdge(Edges, At, Result);
     Exit;
@@ -276,7 +276,7 @@ var
   Node: TEvalNode;
 begin
   Node := Pattern.FindNode(Key);
-  if Node = nil then
+  if not Assigned(Node) then
     Result := Key
   else
     Result := Node.DisplayName;
@@ -333,7 +333,7 @@ begin
     else
       Added := Pattern.AddFreePoint('', RoundedText(Snap.Position.X, LengthDecimals), RoundedText(Snap.Position.Y, LengthDecimals));
   end;
-  if Added = nil then
+  if not Assigned(Added) then
     Result := ''
   else
     Result := Added.Key;

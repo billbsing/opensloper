@@ -197,10 +197,10 @@ end;
 
 procedure TFabricsPanel.SetDocument(ADocument: TPatternDocument);
 begin
-  if FDocument <> nil then
+  if Assigned(FDocument) then
     FDocument.RemoveListener(@DocumentChanged);
   FDocument := ADocument;
-  if FDocument <> nil then
+  if Assigned(FDocument) then
   begin
     FDocument.AddListener(@DocumentChanged);
     Refresh;
@@ -232,7 +232,7 @@ var
   Index: integer;
   Fabric: TPatternFabric;
 begin
-  if (FDocument = nil) or FRefreshing then
+  if not Assigned(FDocument) or FRefreshing then
     Exit;
   FRefreshing := True;
   try
@@ -261,7 +261,7 @@ procedure TFabricsPanel.GridPrepareCanvas(Sender: TObject; ACol, ARow: integer; 
 var
   Fabric: TFabricColor;
 begin
-  if (ACol <> ColumnColour) or (ARow < 1) or (FDocument = nil) or (ARow > FDocument.Pattern.FabricCount) then
+  if (ACol <> ColumnColour) or (ARow < 1) or not Assigned(FDocument) or (ARow > FDocument.Pattern.FabricCount) then
     Exit;
   Fabric := ParseFabricColor(FDocument.Pattern.Fabrics[ARow - 1].Color);
   FGrid.Canvas.Brush.Color := RGBToColor(Fabric.R, Fabric.G, Fabric.B);
@@ -274,7 +274,7 @@ var
   NewName, Reason: string;
 begin
   Fabric := CurrentFabric;
-  if Fabric = nil then
+  if not Assigned(Fabric) then
     Exit;
   if FGrid.Col = ColumnColour then
   begin
@@ -307,7 +307,7 @@ var
   Added: boolean;
 begin
   FDocument.BeginChange(rsFabricAdd);
-  Added := FDocument.Pattern.AddFabric <> nil;
+  Added := Assigned(FDocument.Pattern.AddFabric);
   FDocument.Commit(Added);
   if Added then
     FGrid.Row := FGrid.RowCount - 1;
@@ -317,7 +317,7 @@ procedure TFabricsPanel.DeleteClick(Sender: TObject);
 var
   Reason: string;
 begin
-  if CurrentFabric = nil then
+  if not Assigned(CurrentFabric) then
     Exit;
   FDocument.BeginChange(rsFabricRemove);
   Reason := '';
@@ -333,7 +333,7 @@ var
   Chosen: string;
 begin
   Fabric := CurrentFabric;
-  if Fabric = nil then
+  if not Assigned(Fabric) then
     Exit;
   Chosen := Fabric.Color;
   if not ChooseFabricColor(Self, Chosen) or (Chosen = Fabric.Color) then
@@ -349,7 +349,7 @@ var
   Fabric: TPatternFabric;
 begin
   Fabric := CurrentFabric;
-  if Fabric = nil then
+  if not Assigned(Fabric) then
     Exit;
   FDocument.BeginChange(rsFabricChangeFill);
   FDocument.Pattern.SetFabricFill(Fabric, Other[Fabric.Fill]);
@@ -363,7 +363,7 @@ var
   Value: double;
 begin
   Fabric := CurrentFabric;
-  if Fabric = nil then
+  if not Assigned(Fabric) then
     Exit;
   Entry := '';
   if Fabric.HasAllowance then

@@ -349,7 +349,7 @@ begin
   end;
   Layout.PlaceNewPieces;
   Items := ItemsFrom(Layout);
-  if Items = nil then
+  if Length(Items) = 0 then
   begin
     Result.Reason := rsPackNothing;
     Exit;

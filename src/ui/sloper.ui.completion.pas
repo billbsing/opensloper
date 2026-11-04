@@ -125,7 +125,7 @@ var
   Index: integer;
   Measurement: TMeasurement;
 begin
-  if Pattern.Measurements = nil then
+  if not Assigned(Pattern.Measurements) then
     Exit;
   for Index := 0 to Pattern.Measurements.Count - 1 do
   begin
@@ -245,7 +245,7 @@ begin
     '.':
     begin
       Owner := ObjectBeforeDot(Pattern, Node, Text, WordStart - 1);
-      if Owner <> nil then
+      if Assigned(Owner) then
         AddProperties(Found, Owner);
     end;
     else

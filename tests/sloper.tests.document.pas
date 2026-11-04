@@ -142,7 +142,7 @@ end;
 procedure TTestDocument.AddPoint(const AName, X: string);
 begin
   FDocument.BeginChange('Add point');
-  if not FDocument.Commit(FDocument.Pattern.AddFreePoint(AName, X, '0') <> nil) then
+  if not FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint(AName, X, '0'))) then
     Fail('Refused: ' + FDocument.Pattern.LastError);
 end;
 
@@ -230,7 +230,7 @@ procedure TTestDocument.TestRefusedEditAddsNothing;
 begin
   AddPoint('A', '10');
   FDocument.BeginChange('Add point');
-  AssertFalse('refused', FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '1', '0') <> nil));
+  AssertFalse('refused', FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '1', '0'))));
   AssertFalse('change closed', FDocument.ChangeOpen);
   FDocument.Undo;
   AssertFalse('only one step', FDocument.CanUndo);
@@ -464,7 +464,7 @@ begin
   FileName := ConcatPaths([FFolder, 'skirt.sloper']);
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   AssertNear('evaluated with the set', 180, PointX('A'));
   AssertTrue(Err, FDocument.SaveToFile(FileName, Err));
   AssertEquals('stored relative, with /', 'sets/bill.slm', FDocument.Pattern.MeasurementFile);
@@ -505,7 +505,7 @@ begin
   SetName := WriteSet('bill.slm', 720);
   AssertTrue(Err, FDocument.UseMeasurements(SetName, Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   AssertTrue(Err, FDocument.SaveToFile(FileName, Err));
   DeleteFile(SetName);
 
@@ -557,7 +557,7 @@ var
 begin
   AssertTrue(Err, FDocument.UseMeasurements(WriteTable, Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   AssertNear('first size', 100, PointX('A'));
   FChanges := nil;
   FDocument.AddListener(@Listen);
@@ -588,7 +588,7 @@ var
 begin
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   AssertFalse('no change', FDocument.CheckMeasurementFile);
   WriteSet('bill.slm', 800);
   AssertFalse('the first sight waits', FDocument.CheckMeasurementFile);
@@ -656,7 +656,7 @@ var
 begin
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   FChanges := nil;
   FDocument.AddListener(@Listen);
   AssertTrue(Err, FDocument.ChangeMeasurement('waist', 800, 'Waist', Change, Err));
@@ -675,7 +675,7 @@ var
 begin
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   AssertTrue(Err, FDocument.SaveToFile(ConcatPaths([FFolder, 'test.sloper']), Err));
   AssertFalse('saved', FDocument.Modified);
   AssertTrue(Err, FDocument.ChangeMeasurement('waist', 800, '', Change, Err));
@@ -692,7 +692,7 @@ var
 begin
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('other.slm', 800), Err));
   AssertTrue(Err, FDocument.ChangeMeasurement('chest', 960, '', Change, Err));
   AssertTrue('added', Change.Added);
@@ -714,7 +714,7 @@ var
 begin
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
   FDocument.BeginChange('Add point');
-  FDocument.Commit(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0') <> nil);
+  FDocument.Commit(Assigned(FDocument.Pattern.AddFreePoint('A', '@waist / 4', '0')));
   AssertTrue(Err, FDocument.UseMeasurements(WriteSet('other.slm', 800), Err));
   AssertTrue('modified', FDocument.Modified);
   AssertNear('new set', 200, PointX('A'));

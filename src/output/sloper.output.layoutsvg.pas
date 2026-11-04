@@ -98,12 +98,12 @@ begin
   case Kind of
     ltCut: Result := Format('<path d="%s"/>', [ClosedPath(Shape.CutLine)]);
     ltScore:
-      if Shape.ScoreLines <> nil then
+      if Length(Shape.ScoreLines) > 0 then
         Result := Format('<path d="%s"/>', [StrokesPath(Shape.ScoreLines)]);
     ltMark:
     begin
       Result := Format('<path d="%s"/>', [ClosedPath(Shape.SeamLine)]);
-      if Shape.MarkLines <> nil then
+      if Length(Shape.MarkLines) > 0 then
         Result := Result + Format('<path d="%s"/>', [StrokesPath(Shape.MarkLines)]);
     end;
     ltEngrave: Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s" stroke="none">%s</text>',

@@ -519,7 +519,7 @@ begin
     Finder.Build(Edges, True);
     Face := Finder.FaceAt(At);
     Closed := ClosedEdgeAt(Edges, At, ClosedSize);
-    if (Closed <> nil) and ((Face = nil) or (ClosedSize < Finder.FaceSize(Face))) then
+    if Assigned(Closed) and ((Length(Face) = 0) or (ClosedSize < Finder.FaceSize(Face))) then
     begin
       SetLength(Path, 1);
       Path[0].EdgeKey := Closed.Key;
@@ -527,7 +527,7 @@ begin
       Path[0].Reversed := SignedArea(Closed.Flatten(CurveStep / MinCurveSteps)) > 0;
       Exit(True);
     end;
-    if Face = nil then
+    if Length(Face) = 0 then
       Exit;
     Result := FacePath(Finder, Face, Path, ErrorMessage);
     if Result then
@@ -537,7 +537,7 @@ begin
     Finder := TFaceFinder.Create;
     Finder.Build(Edges, False);
     Face := Finder.CycleAt(At);
-    if Face <> nil then
+    if Length(Face) > 0 then
       Result := FacePath(Finder, Face, Path, WholeEdgeError);
   finally
     FreeAndNil(Finder);
