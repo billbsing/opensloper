@@ -12,7 +12,7 @@ PCP_ARGS=()
 
 case "$(uname -s)" in
   Darwin) WS="${LCL_WIDGETSET:-cocoa}" ;;
-  *)      WS="${LCL_WIDGETSET:-qt6}" ;;
+  *)      WS="${LCL_WIDGETSET:-qt5}" ;;
 esac
 
 git submodule update --init --recursive
