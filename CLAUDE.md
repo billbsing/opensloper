@@ -20,6 +20,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
 - `documents/` — internal development notes, the design document, `coding-standards.md`, `known-issues.md` and the GPL unit header (`gpl-header.txt`). `documents/web/` builds the read-only web copy of the design; decisions made on the web come back through the `sync-design` skill.
 - `docs/` — user manuals and help.
+- `design/` - `opensloper-design` main design app.
 
 ## Build and test
 
