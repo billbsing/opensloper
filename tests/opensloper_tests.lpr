@@ -57,6 +57,7 @@ uses
   Sloper.Tests.PatternView,
   Sloper.Tests.IconSet,
   Sloper.Tests.ConvertEdge,
+  Sloper.Tests.MergePoints,
   Sloper.Tests.Fabrics,
   Sloper.Tests.Circles,
   Sloper.Tests.Accessories,

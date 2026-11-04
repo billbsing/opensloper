@@ -130,6 +130,7 @@ type
   public
     constructor Create(const AKey: string; const APath: TPiecePath);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function TypeName: string; override;
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
@@ -260,6 +261,18 @@ begin
       System.Insert(FMarkings[Index].PointKey, Result, Length(Result))
     else
       System.Insert(FMarkings[Index].EdgeKey, Result, Length(Result));
+end;
+
+procedure TPieceObject.RedirectPoint(const OldKey, NewKey: string);
+var
+  Index: integer;
+begin
+  RedirectKey(FGrainStartKey, OldKey, NewKey);
+  RedirectKey(FGrainEndKey, OldKey, NewKey);
+  for Index := 0 to High(FNotches) do
+    RedirectKey(FNotches[Index].PointKey, OldKey, NewKey);
+  for Index := 0 to High(FMarkings) do
+    RedirectKey(FMarkings[Index].PointKey, OldKey, NewKey);
 end;
 
 function TPieceObject.TypeName: string;

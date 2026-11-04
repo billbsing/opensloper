@@ -127,6 +127,9 @@ type
     function InstallFormula(Node: TEvalNode; const AField: string; NewFormula: TFormula): boolean;
     function ReplacePoint(Point, NewPoint: TPointObject; const Names, Texts: array of string): boolean;
     function CheckConvertible(Edge: TEdgeObject): boolean;
+    function ChooseKeptPoint(const Points: TPointObjectArray; const AName: string): TPointObject;
+    function CheckMergeAway(const Points: TPointObjectArray; Kept: TPointObject; out Doomed: TDraftObjectArray): boolean;
+    procedure RedirectUsers(Point: TPointObject; const KeptKey: string; const Doomed: TDraftObjectArray);
     function ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
     function AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
       const Names, Texts: array of string): boolean;
@@ -257,6 +260,13 @@ type
     // LastError set when refused.
     function ConvertToLine(Edge: TEdgeObject): TLineObject;
     function ConvertToCurve(Edge: TEdgeObject): TCurveObject;
+    // Joins two or more points into one, as Inkscape joins nodes: one point's
+    // definition is kept, and whatever used the others uses it instead, then
+    // they are deleted, with any line or curve that ran between two of them.
+    // It takes MergedName of their names. Kept is the named point unless it is
+    // placed from one of the others; then the first that is not. A copy or a
+    // repeat's point can only be kept. Nil with LastError set when refused.
+    function MergePoints(const Keys: array of string): TPointObject;
     // Whether From reads Target, directly or through others
     function Reaches(From, Target: TEvalNode): boolean;
     function Rename(Node: TEvalNode; const NewName: string): boolean;
@@ -341,6 +351,12 @@ resourcestring
   rsPatternCircleNoEnds = '%s is a whole circle, so it has no ends to join with a line';
   rsPatternOnlyLineToCurve = 'Only a line can become a curve, and %s is an arc';
   rsPatternAngleInUse = '%s reads %s.angle, which only a line has, so it cannot become a curve';
+  rsPatternMergeTooFew = 'Select two or more points to merge';
+  rsPatternMergeNotPoint = '%s is not a point, so it cannot be merged';
+  rsPatternMergeTwoFixed = '%s and %s are copies or a repeat''s points, and only one point can be kept';
+  rsPatternMergeKeptReads = '%s is placed from %s, so %s cannot be merged into it';
+  rsPatternMergeCopied = '%s is copied by %s, so it cannot be merged away';
+  rsPatternMergeEdgeInUse = '%s runs between points being merged and is used by %s';
   rsPatternCycle = '%s cannot use %s, because %s already uses %s';
   rsPatternInUse = '%s is used by %s';
   rsPatternNoField = '%s has no formula "%s"';
@@ -2429,6 +2445,228 @@ begin
   Result := TAlongEdgePoint.Create(Point.Key, EdgeId, FromEnd, Mode);
   if not ReplacePoint(Point, Result, ['value'], [Value]) then
     Result := nil;
+end;
+
+function IndexOfObject(const Objects: TDraftObjectArray; DraftObject: TEvalNode): integer;
+var
+  Index: integer;
+begin
+  for Index := 0 to High(Objects) do
+    if Objects[Index] = DraftObject then
+      Exit(Index);
+  Result := -1;
+end;
+
+// A copy or a repeat's point follows something else, so it cannot be deleted
+function IsFixedPoint(Point: TPointObject): boolean;
+begin
+  Result := (Point is TPointCopy) or (Point is TRepeatPoint);
+end;
+
+// The point named AName when it reads none of the others, or else the first
+// that reads none of them; a fixed point has to be the one kept
+function TPattern.ChooseKeptPoint(const Points: TPointObjectArray; const AName: string): TPointObject;
+var
+  Point, Other, Fixed: TPointObject;
+
+  function ReadsAnother(Candidate: TPointObject): TPointObject;
+  var
+    Member: TPointObject;
+  begin
+    for Member in Points do
+      if (Member <> Candidate) and Reaches(Candidate, Member) then
+        Exit(Member);
+    Result := nil;
+  end;
+
+begin
+  Result := nil;
+  Fixed := nil;
+  for Point in Points do
+    if IsFixedPoint(Point) then
+    begin
+      if Assigned(Fixed) then
+      begin
+        SetError(Format(rsPatternMergeTwoFixed, [Fixed.DisplayName, Point.DisplayName]));
+        Exit;
+      end;
+      Fixed := Point;
+    end;
+  if Assigned(Fixed) then
+  begin
+    Other := ReadsAnother(Fixed);
+    if Assigned(Other) then
+      SetError(Format(rsPatternMergeKeptReads, [Fixed.DisplayName, Other.DisplayName, Other.DisplayName]))
+    else
+      Result := Fixed;
+    Exit;
+  end;
+  for Point in Points do
+    if SameName(Point.Name, AName) and not Assigned(ReadsAnother(Point)) then
+      Exit(Point);
+  for Point in Points do
+    if not Assigned(ReadsAnother(Point)) then
+      Exit(Point);
+end;
+
+// Doomed: the points to merge away, and lines and curves between two of the
+// points, which nothing else may use
+function TPattern.CheckMergeAway(const Points: TPointObjectArray; Kept: TPointObject; out Doomed: TDraftObjectArray): boolean;
+var
+  Point: TPointObject;
+  User: TEvalNode;
+  Index, NodeIndex: integer;
+  Edge: TEdgeObject;
+  Path: TCurvePathObject;
+
+  function InGroup(const Key: string): boolean;
+  var
+    Member: TPointObject;
+  begin
+    for Member in Points do
+      if Member.Key = Key then
+        Exit(True);
+    Result := False;
+  end;
+
+begin
+  Result := False;
+  Doomed := nil;
+  for Point in Points do
+    if Point <> Kept then
+    begin
+      for User in UsersOf(Point) do
+        if User is TPointCopy then
+          Exit(SetError(Format(rsPatternMergeCopied, [Point.DisplayName, FindNode(TPointCopy(User).TransformKey).DisplayName])));
+      Insert(Point, Doomed, Length(Doomed));
+    end;
+  for Index := 0 to FObjects.Count - 1 do
+  begin
+    if Objects[Index] is TCurvePathObject then
+    begin
+      Path := TCurvePathObject(Objects[Index]);
+      for NodeIndex := 1 to High(Path.NodeKeys) do
+        if InGroup(Path.NodeKeys[NodeIndex - 1]) and InGroup(Path.NodeKeys[NodeIndex]) then
+          Exit(SetError(rsPatternPathRepeats));
+    end;
+    if not ((Objects[Index].ClassType = TLineObject) or (Objects[Index].ClassType = TCurveObject)) then
+      Continue;
+    Edge := TEdgeObject(Objects[Index]);
+    if InGroup(Edge.StartKey) and InGroup(Edge.EndKey) then
+      Insert(Edge, Doomed, Length(Doomed));
+  end;
+  for Index := 0 to High(Doomed) do
+    if Doomed[Index] is TEdgeObject then
+      for User in UsersOf(Doomed[Index]) do
+        if IndexOfObject(Doomed, User) < 0 then
+          Exit(SetError(Format(rsPatternMergeEdgeInUse, [Doomed[Index].DisplayName, User.DisplayName])));
+  Result := True;
+end;
+
+// Every object but the doomed reads KeptKey instead of Point, in its inputs
+// and its formulas
+procedure TPattern.RedirectUsers(Point: TPointObject; const KeptKey: string; const Doomed: TDraftObjectArray);
+var
+  Node: TEvalNode;
+  Ref: TFormulaReference;
+  Index: integer;
+  Formula: TFormula;
+begin
+  for Node in AllNodes do
+  begin
+    if not (Node is TDraftObject) or (IndexOfObject(Doomed, Node) >= 0) then
+      Continue;
+    TDraftObject(Node).RedirectPoint(Point.Key, KeptKey);
+    for Index := 0 to Node.FieldCount - 1 do
+    begin
+      Formula := Node.Fields[Index].Formula;
+      for Ref in Formula.References do
+        if Ref.Id = Point.Key then
+        begin
+          // In stored form braces hold only IDs
+          Formula.ParseStored(StringReplace(Formula.StoredText, '{' + Point.Key + '}', '{' + KeptKey + '}', [rfReplaceAll]));
+          Break;
+        end;
+    end;
+  end;
+end;
+
+function TPattern.MergePoints(const Keys: array of string): TPointObject;
+var
+  Points: TPointObjectArray;
+  Names: TStringArray;
+  Doomed: TDraftObjectArray;
+  Key, KeptKey, NewName: string;
+  Node: TEvalNode;
+  Item: TDraftObject;
+  Deleted: boolean;
+  Index: integer;
+
+  function HasPoint(Candidate: TEvalNode): boolean;
+  var
+    Member: TPointObject;
+  begin
+    for Member in Points do
+      if Member = Candidate then
+        Exit(True);
+    Result := False;
+  end;
+
+begin
+  Result := nil;
+  Points := nil;
+  Names := nil;
+  for Key in Keys do
+  begin
+    Node := FindNode(Key);
+    if not Assigned(Node) then
+    begin
+      SetError(Format(rsPatternUnknownObject, [Key]));
+      Exit;
+    end;
+    if not (Node is TPointObject) then
+    begin
+      SetError(Format(rsPatternMergeNotPoint, [Node.DisplayName]));
+      Exit;
+    end;
+    if not HasPoint(Node) then
+    begin
+      Insert(TPointObject(Node), Points, Length(Points));
+      Insert(TPointObject(Node).Name, Names, Length(Names));
+    end;
+  end;
+  if Length(Points) < 2 then
+  begin
+    SetError(rsPatternMergeTooFew);
+    Exit;
+  end;
+  NewName := MergedName(Names);
+  Result := ChooseKeptPoint(Points, NewName);
+  if not Assigned(Result) or not CheckMergeAway(Points, Result, Doomed) then
+    Exit(nil);
+  // A repeat's point that nothing uses yet needs an ID before anything can
+  KeptKey := UsePoint(Result.Key);
+  // The evaluator may hold the nodes; forget the old graph
+  FEvaluator.Rebuild(nil, FContext);
+  for Item in Doomed do
+    if Item is TPointObject then
+      RedirectUsers(TPointObject(Item), KeptKey, Doomed);
+  // Doomed objects may read each other, so each goes once nothing does
+  repeat
+    Deleted := False;
+    for Index := High(Doomed) downto 0 do
+      if Length(UsersOf(Doomed[Index])) = 0 then
+      begin
+        DeleteNode(Doomed[Index]);
+        System.Delete(Doomed, Index, 1);
+        Deleted := True;
+      end;
+  until not Deleted;
+  Result := TPointObject(FindNode(KeptKey));
+  if not IsFixedPoint(Result) then
+    Result.Name := NewName;
+  UpdateDerivedNames;
+  OrderObjectsByInputs;
 end;
 
 procedure TPattern.UpdateDerivedNames;

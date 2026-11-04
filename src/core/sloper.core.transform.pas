@@ -62,6 +62,7 @@ type
     procedure UseAxisAngle(const AKeyA: string);
     procedure UseMove(APolar: boolean; const APivotKey: string);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function TypeName: string; override;
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
@@ -182,6 +183,14 @@ begin
   Add(FAxisEdgeKey);
   Add(FAxisAKey);
   Add(FAxisBKey);
+end;
+
+// Not its sources: a copy cannot change what it is a copy of
+procedure TTransformObject.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FPivotKey, OldKey, NewKey);
+  RedirectKey(FAxisAKey, OldKey, NewKey);
+  RedirectKey(FAxisBKey, OldKey, NewKey);
 end;
 
 function TTransformObject.TypeName: string;

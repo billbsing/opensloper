@@ -114,6 +114,7 @@ type
     procedure TestGrainlineAndNotches;
     procedure TestCutAndFold;
     procedure TestConvertEdge;
+    procedure TestMergePoints;
     procedure TestAddVariable;
     procedure TestAddIsOneUndoStep;
     procedure TestAddRefusals;
@@ -993,6 +994,27 @@ begin
   Call('undo');
   Call('get_object', '{"name": "Line_C_D"}');
   AssertEquals('back to a line', 'line', Answer.Get('type', ''));
+end;
+
+// The line from Corner now starts at the kept point, under the user's name
+procedure TTestAPI.TestMergePoints;
+begin
+  AddSquare;
+  Call('add_point', '{"type": "freePoint", "name": "Corner", "x": 1, "y": 0}');
+  Call('add_edge', '{"type": "line", "start": "Corner", "end": "C"}');
+  Call('merge_points', '{"points": ["A", "Corner"]}');
+  AssertEquals('the user''s name', 'Corner', Answer.Get('name', ''));
+  Call('get_object', '{"name": "Line_Corner_C"}');
+  AssertEquals('the line stays', 'line', Answer.Get('type', ''));
+  Call('get_object', '{"name": "A"}');
+  AssertEquals('A is merged away', RpcRefused, ErrorCode);
+  Call('merge_points', '{"points": ["B"]}');
+  AssertEquals('one point', RpcRefused, ErrorCode);
+  Call('merge_points', '{}');
+  AssertEquals('no points', RpcInvalidParams, ErrorCode);
+  Call('undo');
+  Call('get_object', '{"name": "A"}');
+  AssertEquals('undone', 'freePoint', Answer.Get('type', ''));
 end;
 
 procedure TTestAPI.TestCutAndFold;

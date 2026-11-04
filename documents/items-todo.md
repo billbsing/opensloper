@@ -26,6 +26,10 @@ The new point name will take the lowest default name , or the first name that ha
 So point names 'M, N, O' -> 'M'.
 Point names 'M, MyNode, O' -> MyNode
 
+Done 2026-11-04 (see Merging points in the design document; to test in the app):
+- Tools → Merge Points and the toolbar button; `merge_points` in the Automation API.
+- The kept point keeps one definition; users of the others move to it, and a line between two of them is deleted.
+
 #### Tool Break Points
 This is the opposite of tool merge, a single point is broken up into multiple points, depending on the number of connecting objects.
 The new point names, are the same as a copy so point 'M' -> 'M1, M2'.

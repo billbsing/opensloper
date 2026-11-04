@@ -81,6 +81,9 @@ type
     function HasProperty(const Prop: string): boolean; virtual; abstract;
     // Value of a property from the last good result
     function PropertyValue(const Prop: string): double; virtual; abstract;
+    // Reads the point NewKey wherever it read the point OldKey, as when points
+    // are merged; formulas are changed separately
+    procedure RedirectPoint(const OldKey, NewKey: string); virtual;
     property Name: string read FName write FName;
   end;
 
@@ -116,6 +119,7 @@ type
   public
     constructor Create(const AKey, ABase: string; AMode: TOffsetMode);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function Compute(Context: TEvalContext): TEvalState; override;
     property Base: string read FBase;
     property Mode: TOffsetMode read FMode;
@@ -145,6 +149,7 @@ type
   public
     constructor Create(const AKey, APointA, APointB: string; AMode: TAlongMode);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function Compute(Context: TEvalContext): TEvalState; override;
     property PointA: string read FA;
     property PointB: string read FB;
@@ -191,6 +196,7 @@ type
     constructor CreateOnEdge(const AKey, AEdge: string; AIncludeEnds: boolean);
     destructor Destroy; override;
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function Compute(Context: TEvalContext): TEvalState; override;
     function TypeName: string; override;
     function HasProperty(const Prop: string): boolean; override;
@@ -229,6 +235,7 @@ type
     NameIsDerived: boolean;
     constructor Create(const AKey, AStart, AEnd: string);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     // Every edge has length, angle1 (direction of its start handle) and
     // angle2 (direction of its end handle, pointing back along the edge)
     function HasProperty(const Prop: string): boolean; override;
@@ -331,6 +338,7 @@ type
   public
     constructor Create(const AKey: string; const ANodeKeys: array of string);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function TypeName: string; override;
     function NamePrefix: string; override;
     function Compute(Context: TEvalContext): TEvalState; override;
@@ -352,6 +360,7 @@ type
     constructor Create(const AKey, ASource, APoint: string; APart: integer;
       const ASourceStart, ASourceEnd: string; AStraight: boolean; const APrefix: string);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function TypeName: string; override;
     function NamePrefix: string; override;
     function HasProperty(const Prop: string): boolean; override;
@@ -391,6 +400,7 @@ type
   public
     constructor Create(const AKey, ACentre, AEdge: string; AExtend: boolean; APick: integer);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function Compute(Context: TEvalContext): TEvalState; override;
     property Centre: string read FCentre;
     property Edge: string read FEdge;
@@ -460,6 +470,7 @@ type
   public
     constructor Create(const AKey, ACentreA, ACentreB: string; APick: integer);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function Compute(Context: TEvalContext): TEvalState; override;
     property CentreA: string read FCentreA;
     property CentreB: string read FCentreB;
@@ -475,6 +486,7 @@ type
     constructor Create(const AKey, ASource, AEdge: string; ADirection: TProjectDirection;
       AExtend: boolean);
     function InputKeys: TStringArray; override;
+    procedure RedirectPoint(const OldKey, NewKey: string); override;
     function Compute(Context: TEvalContext): TEvalState; override;
     property Source: string read FSource;
     property Edge: string read FEdge;
@@ -484,6 +496,8 @@ type
 
 // True for a line, or a part of one: straight, with the angle property
 function IsStraightEdge(Edge: TEdgeObject): boolean;
+// Sets Key to NewKey when it is OldKey
+procedure RedirectKey(var Key: string; const OldKey, NewKey: string);
 // Part 1 or 2 of Source split at the point with key APoint
 function NewSplitPart(const AKey: string; Source: TEdgeObject; const APoint: string; APart: integer): TSplitPart;
 
@@ -540,6 +554,16 @@ end;
 function TDraftObject.DisplayName: string;
 begin
   Result := FName;
+end;
+
+procedure TDraftObject.RedirectPoint(const OldKey, NewKey: string);
+begin
+end;
+
+procedure RedirectKey(var Key: string; const OldKey, NewKey: string);
+begin
+  if Key = OldKey then
+    Key := NewKey;
 end;
 
 { TPointObject }
@@ -623,6 +647,11 @@ begin
   Result[0] := FBase;
 end;
 
+procedure TOffsetPoint.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FBase, OldKey, NewKey);
+end;
+
 function TOffsetPoint.Compute(Context: TEvalContext): TEvalState;
 var
   BasePos: TVec2;
@@ -662,6 +691,12 @@ begin
   SetLength(Result, 2);
   Result[0] := FA;
   Result[1] := FB;
+end;
+
+procedure TBetweenPoint.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FA, OldKey, NewKey);
+  RedirectKey(FB, OldKey, NewKey);
 end;
 
 function TBetweenPoint.Compute(Context: TEvalContext): TEvalState;
@@ -774,6 +809,12 @@ begin
     Result[0] := FFirst;
     Result[1] := FLast;
   end;
+end;
+
+procedure TRepeatObject.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FFirst, OldKey, NewKey);
+  RedirectKey(FLast, OldKey, NewKey);
 end;
 
 function TRepeatObject.Count: integer;
@@ -1050,6 +1091,12 @@ begin
   SetLength(Result, 2);
   Result[0] := FStartKey;
   Result[1] := FEndKey;
+end;
+
+procedure TEdgeObject.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FStartKey, OldKey, NewKey);
+  RedirectKey(FEndKey, OldKey, NewKey);
 end;
 
 function TEdgeObject.HasProperty(const Prop: string): boolean;
@@ -1565,6 +1612,12 @@ begin
   Result := [FCentreA, FCentreB];
 end;
 
+procedure TCircleCirclePoint.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FCentreA, OldKey, NewKey);
+  RedirectKey(FCentreB, OldKey, NewKey);
+end;
+
 function TCircleCirclePoint.Compute(Context: TEvalContext): TEvalState;
 var
   PosA, PosB, First, Second: TVec2;
@@ -1829,6 +1882,15 @@ begin
   Result := Copy(FNodeKeys);
 end;
 
+procedure TCurvePathObject.RedirectPoint(const OldKey, NewKey: string);
+var
+  Index: integer;
+begin
+  inherited RedirectPoint(OldKey, NewKey);
+  for Index := 0 to High(FNodeKeys) do
+    RedirectKey(FNodeKeys[Index], OldKey, NewKey);
+end;
+
 function TCurvePathObject.TypeName: string;
 begin
   Result := 'path';
@@ -1911,6 +1973,12 @@ begin
   SetLength(Result, 2);
   Result[0] := FSource;
   Result[1] := FPoint;
+end;
+
+procedure TSplitPart.RedirectPoint(const OldKey, NewKey: string);
+begin
+  inherited RedirectPoint(OldKey, NewKey);
+  RedirectKey(FPoint, OldKey, NewKey);
 end;
 
 function TSplitPart.TypeName: string;
@@ -2134,6 +2202,11 @@ begin
   Result[1] := FEdge;
 end;
 
+procedure TCircleEdgePoint.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FCentre, OldKey, NewKey);
+end;
+
 function TCircleEdgePoint.Compute(Context: TEvalContext): TEvalState;
 var
   CentrePos: TVec2;
@@ -2179,6 +2252,11 @@ begin
   SetLength(Result, 2);
   Result[0] := FSource;
   Result[1] := FEdge;
+end;
+
+procedure TProjectPoint.RedirectPoint(const OldKey, NewKey: string);
+begin
+  RedirectKey(FSource, OldKey, NewKey);
 end;
 
 // Feet of perpendiculars from SourcePos onto the pieces

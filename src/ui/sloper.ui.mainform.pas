@@ -141,6 +141,7 @@ type
     procedure CreateToolCommands;
     procedure ToolClick(Sender: TObject);
     procedure SplitClick(Sender: TObject);
+    procedure MergeClick(Sender: TObject);
     procedure TransformClick(Sender: TObject);
     procedure RoundEdgeClick(Sender: TObject);
     procedure RectangleClick(Sender: TObject);
@@ -247,6 +248,7 @@ resourcestring
   rsMenuToolsRoundCorner = 'Ro&und Corner';
   rsMenuToolsToLine = 'Change to Li&ne';
   rsMenuToolsToCurve = 'Change to Curv&e';
+  rsMenuToolsMerge = 'Merge &Points';
   rsMenuToolsHole = 'Mark &Hole';
   rsMenuToolsPlacement = 'Mark Placement Line';
   rsMenuToolsFoldLine = 'Mark Fold Line';
@@ -798,6 +800,8 @@ begin
   AddMenuItem(MenuTools, NewAction(rsMenuToolsToLine, aiToLine, @ConvertClick, 0, Ord(False)));
   AddMenuItem(MenuTools, NewAction(rsMenuToolsToCurve, aiToCurve, @ConvertClick, 0, Ord(True)));
   AddBreak;
+  AddCommand(NewAction(rsMenuToolsMerge, aiMergePoints, @MergeClick));
+  AddBreak;
   for Marking := Low(TMarkingKind) to High(TMarkingKind) do
     AddCommand(NewAction(MarkingCaptions[Marking], MarkingIcons[Marking], @MarkingClick, 0, Ord(Marking)));
   AddCommand(NewAction(rsMenuToolsRemoveMarking, aiRemoveMarking, @RemoveMarkingClick));
@@ -834,6 +838,12 @@ end;
 procedure TMainForm.ConvertClick(Sender: TObject);
 begin
   FCanvas.ConvertSelection(TComponent(Sender).Tag = Ord(True));
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.MergeClick(Sender: TObject);
+begin
+  FCanvas.MergeSelection;
   FCanvas.SetFocus;
 end;
 

@@ -98,6 +98,7 @@ type
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
     function DoConvertEdge(Params: TJSONObject): TJSONData;
+    function DoMergePoints(Params: TJSONObject): TJSONData;
     function FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
     function FabricsToJSON: TJSONData;
     function DoAddFabric(Params: TJSONObject): TJSONData;
@@ -144,6 +145,7 @@ resourcestring
   rsApiNotAPiece = '%s is not a piece';
   rsApiNotAnEdge = '%s is not an edge';
   rsApiConvertEdge = 'Change edge type';
+  rsApiMergePoints = 'Merge points';
   rsApiNotInPiece = '%s is not part of %s';
   rsApiNotASeam = '%s is not a seam';
   rsApiBadSeamSide = 'Parameter "%s" must be a list of objects with a "piece" and an "edge"';
@@ -1580,6 +1582,18 @@ begin
   Result := AddedNode(Converted);
 end;
 
+// The point kept, under the merged name
+function TApiServer.DoMergePoints(Params: TJSONObject): TJSONData;
+var
+  Points: TStringArray;
+begin
+  if not Assigned(Params) or not Assigned(Params.Find('points')) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['points']));
+  Points := ReferenceList(Params, 'points');
+  FDocument.BeginChange(rsApiMergePoints);
+  Result := AddedNode(FDocument.Pattern.MergePoints(Points));
+end;
+
 function TApiServer.SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
 var
   List: TJSONData;
@@ -1745,6 +1759,7 @@ begin
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
     'convert_edge': Result := DoConvertEdge(Params);
+    'merge_points': Result := DoMergePoints(Params);
     'list_fabrics': Result := FabricsToJSON;
     'add_fabric': Result := DoAddFabric(Params);
     'rename_fabric': Result := DoRenameFabric(Params);

@@ -49,6 +49,13 @@ function NextFreeName(const Name: string; IsTaken: TNameTakenFunc): string;
 // AA to AZ, BA to ZZ, then AAA. Skips taken and reserved names. Never has
 // digits, so a trailing number always means a copy.
 function NextAutoName(IsTaken: TNameTakenFunc): string;
+// A name the app could have made: an automatic name, perhaps with a copy
+// number (M, AB, M2, M1). Any other name is taken to be the user's.
+function IsMadeName(const Name: string): boolean;
+// The name merged points keep: the first one the user gave, in order, or else
+// the lowest made name, counting as NextAutoName does (M, MyNode, O gives
+// MyNode; M, N, O gives M; Z before AA, M before M2)
+function MergedName(const Names: array of string): string;
 // An ID as text: a positive integer in plain decimal (12, not 012 or 0),
 // small enough for an integer
 function IsIdText(const Text: string): boolean;
@@ -170,6 +177,61 @@ begin
       Exit;
     Inc(Index);
   until False;
+end;
+
+// Splits a made name into its letters and copy number, 0 for none
+procedure SplitMadeName(const Name: string; out Letters: string; out Number: integer);
+var
+  Index: integer;
+begin
+  Index := Length(Name);
+  while (Index > 0) and (Name[Index] in ['0'..'9']) do
+    Dec(Index);
+  Letters := Copy(Name, 1, Index);
+  Number := StrToIntDef(Copy(Name, Index + 1, MaxInt), 0);
+end;
+
+function IsMadeName(const Name: string): boolean;
+var
+  Letters: string;
+  Number, Index: integer;
+begin
+  SplitMadeName(Name, Letters, Number);
+  // A copy number never starts with 0
+  if (Letters = '') or ((Letters <> Name) and (Name[Length(Letters) + 1] = '0')) then
+    Exit(False);
+  for Index := 1 to Length(Letters) do
+    if not (Letters[Index] in ['A'..'Z']) then
+      Exit(False);
+  Result := True;
+end;
+
+// Below zero when First comes before Second in the order names are made
+function CompareMadeNames(const First, Second: string): integer;
+var
+  FirstLetters, SecondLetters: string;
+  FirstNumber, SecondNumber: integer;
+begin
+  SplitMadeName(First, FirstLetters, FirstNumber);
+  SplitMadeName(Second, SecondLetters, SecondNumber);
+  Result := Length(FirstLetters) - Length(SecondLetters);
+  if Result = 0 then
+    Result := CompareStr(FirstLetters, SecondLetters);
+  if Result = 0 then
+    Result := FirstNumber - SecondNumber;
+end;
+
+function MergedName(const Names: array of string): string;
+var
+  Candidate: string;
+begin
+  Result := '';
+  for Candidate in Names do
+    if not IsMadeName(Candidate) then
+      Exit(Candidate);
+  for Candidate in Names do
+    if (Result = '') or (CompareMadeNames(Candidate, Result) < 0) then
+      Result := Candidate;
 end;
 
 end.

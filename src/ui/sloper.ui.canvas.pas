@@ -189,6 +189,8 @@ type
     procedure OffsetSelection(Side: TOffsetSide);
     // Changes the selected edges to lines or curves in place, as one undo step
     procedure ConvertSelection(ToCurve: boolean);
+    // Merges the selected points into one, as one undo step, and selects it
+    procedure MergeSelection;
     // Rounds the corner between the two selected edges
     procedure RoundSelectedCorner;
     // Adds a marking to the selected piece from the point or edge selected with it
@@ -229,6 +231,8 @@ resourcestring
   rsCanvasPickEdgesToConvert = 'Select the edges to change first';
   rsCanvasConvertToLine = 'Change to line';
   rsCanvasConvertToCurve = 'Change to curve';
+  rsCanvasMergePoints = 'Merge points';
+  rsCanvasMerged = 'Merged %d points into %s';
   rsCanvasPickCornerEdges = 'Select the two straight edges that meet at the corner';
   rsCanvasRoundCorner = 'Round corner';
   rsCanvasPickHole = 'Select the piece and the point for the hole';
@@ -937,6 +941,38 @@ begin
   end;
   Reason := FDocument.Pattern.LastError;
   if not FDocument.Commit(Done) then
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.MergeSelection;
+var
+  Kept: TPointObject;
+  Key, Reason, KeptName: string;
+  Points: TStringArray;
+begin
+  if not Assigned(FDocument) then
+    Exit;
+  Points := nil;
+  for Key in FSelection do
+    if FDocument.Pattern.FindNode(Key) is TPointObject then
+      Insert(Key, Points, Length(Points));
+  FDocument.BeginChange(rsCanvasMergePoints);
+  Kept := FDocument.Pattern.MergePoints(Points);
+  Key := '';
+  KeptName := '';
+  if Assigned(Kept) then
+  begin
+    Key := Kept.Key;
+    KeptName := Kept.Name;
+  end;
+  Reason := FDocument.Pattern.LastError;
+  if FDocument.Commit(Assigned(Kept)) then
+  begin
+    SetSelection([Key]);
+    ShowMessageText(Format(rsCanvasMerged, [Length(Points), KeptName]));
+  end
+  else
     ShowMessageText(Reason);
   Invalidate;
 end;
