@@ -12,6 +12,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/output/` — PDF, SVG, DXF and Blender exporters; read computed geometry only.
 - `src/api/` — the Automation API (JSON-RPC 2.0). Depends only on the document and core; every edit goes through document commands.
 - `measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
+- `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources.
 - `data/` — files the apps read at run time: the measurement catalogue and its body figures, and the Tabler toolbar icons (`data/icons`, MIT).
 - `cli/` — `opensloper-cli` (export, export-draft, layout, check, measurements, serve), built on the core and ConsoleTools.
 - `tests/` — FPCUnit test project and regression patterns.
@@ -36,7 +37,7 @@ Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa.
 ## Conventions
 
 - Every source unit starts with the GPLv3 header. Code translated from Valentina or Seamly2D keeps their copyright line.
-- Internal units are millimetres; angles are degrees, 0° pointing right, positive anticlockwise.
+- Internal units are millimetres: geometry, computed state and exports. Formula numbers are in the pattern's unit (mm, cm or in), converted where they become geometry (see Pattern units in the design). Angles are degrees, 0° pointing right, positive anticlockwise.
 - Only definitions (operations, references, formula strings) are saved and undone; computed geometry is always derived.
 - Objects are referenced by stable integer IDs (`12`, `7`), never reused; names are for display only. Formulas are stored in ID form and shown with names.
 - Names: letters, digits and underscore, not starting with a digit; unique per namespace; compared case-insensitively. Copies get the next free number appended directly (`A` → `A2`).

@@ -885,7 +885,8 @@ end;
 
 procedure TPropertiesPanel.FocusName;
 begin
-  if FNameEdit <> nil then
+  // A hidden tab or side panel cannot take the focus, and SetFocus would raise
+  if Assigned(FNameEdit) and FNameEdit.CanFocus then
   begin
     FNameEdit.SetFocus;
     FNameEdit.SelectAll;

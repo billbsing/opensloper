@@ -485,6 +485,8 @@ end;
 
 procedure TMainForm.VariablesAdded(Sender: TObject);
 begin
+  // The name is edited in the properties, which share the side panel with the list
+  FSidePanel.ActivePage := FProperties.Parent as TTabSheet;
   FProperties.FocusName;
 end;
 

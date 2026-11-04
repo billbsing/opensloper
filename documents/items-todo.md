@@ -20,6 +20,9 @@ These could not be tested properly during development.
 
 ## List of Changes
 
+#### Include Icons
+New icons in the resourcs folder for the apps.
+
 #### Exceptions
 After adding a Variable in the panel, we get
 EInvalidOperation in line customform.ing:1888
@@ -59,6 +62,12 @@ Circle and Rectangle, drawing tools, do not need to select a point first. After 
 New prefrences dialog to record users preferences, accross measurement, design and publish, all apps use the same dialog form.
 Tabs for specific opitons. 
 At the moment add the units the user wishes to use mm, cm or inch
+
+Decided 2026-11-04 (see Pattern units in the design document; not started):
+- Each pattern has one unit; every number in its formulas is in that unit, so `A + 400` is 400 in in an inch pattern and the `2` in `(A * 2) + 400` needs no label.
+- The preference sets the unit for new patterns and the measurements app's display; it never changes an existing pattern.
+- Tools → Convert Pattern Units… rewrites only numbers that are lengths, working out each number's role from where it sits, and lists undecided ones for the user.
+- Numbers may carry a suffix (`400mm`, `2in`), which pins their meaning.
 
 
 

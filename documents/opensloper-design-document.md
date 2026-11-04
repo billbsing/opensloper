@@ -244,13 +244,37 @@ TFormula = class
 end;
 ```
 
+## Pattern units
+
+Decided 2026-11-04; not built yet (every file is `"units": "mm"` today).
+
+**A pattern has one unit, mm, cm or inches, and every number in its formulas is in that unit.** In an inch pattern `@waist/4 + 1` adds one inch. The unit is the pattern file's `units` field, chosen when the pattern is made; the default for new patterns comes from Preferences. Changing the preference never changes an existing pattern.
+
+**Formulas are worked out in the pattern unit.** Every length a formula reads arrives in that unit: measurements (files keep storing mm and are converted as they are read), `#` variables, and object properties such as `.x`, `.y` and `.length`. A plain number therefore needs no label: in `(@waist * 2) + 400` the `2` and the `400` are just numbers, and the result is right whether either was meant as a count or a length, because the whole sum is in one unit. Angles are degrees in every pattern and never converted. Where a result becomes geometry (a free point's `x`, an offset's `length`, an allowance, a radius) it is scaled to mm, so **geometry, the evaluator's computed state, the canvas and all exports stay in mm**, as before.
+
+**What the user sees.** The properties panel, the status bar, snapping read-outs and drag rounding use the pattern unit (drags round to 0.1 mm, 0.1 cm or 0.01 in). The starting values of new objects (allowance, circle radius, rectangle size, marking sizes) are given per unit, so an inch pattern starts with round inch values rather than converted millimetres. In the Automation API, formulas and variable values are in the pattern unit, while positions and lengths in `check` reports and the `render` region stay in mm. A Seamly2D/Valentina pattern keeps its own unit when imported.
+
+**Unit suffixes.** A number may carry a unit, `400mm`, `1.5cm` or `2in`, and is then converted to the pattern unit when evaluated. Names cannot start with a digit, so `2in` cannot be mistaken for a name. A suffixed number keeps its meaning in any pattern and is never rewritten by a conversion.
+
+**Converting a pattern** (Tools → Convert Pattern Units…). This is the one place where the role of each number matters, because only lengths are rewritten (`400` mm → `15.75` in) and counts, ratios and angles are not. Each plain number's role is worked out from where it sits:
+
+- The field it is in says what the whole formula is: a length (`x`, `length`, `allowance`, `radius`), an angle, or a plain number (`count`, a ratio along an edge).
+- Operands of `+`, `-`, `min` and `max` share a role, so in `@waist + 400` the `400` is a length.
+- In `*`, a number multiplying a length is a plain number (`@waist * 2`); in `/`, a length divided by a number is a length and a length divided by a length is a plain number.
+- Arguments of `sin`, `cos`, `tan` and results of `asin`, `acos`, `atan2` are angles; `sqrt` halves a length's power, as in `sqrt(a^2 + b^2)`.
+- A `#` variable takes its role from its uses; uses that disagree make it undecided.
+
+Numbers whose role cannot be settled (`400 * 2` in a length field, a variable used both ways) are listed for the user to mark as length or number before the conversion runs. The conversion is one undo step, rounds converted lengths to the new unit's drag precision, and leaves suffixed numbers alone. Geometry does not move, apart from that rounding.
+
+**Code.** `Sloper.Core.Units` holds the unit type, names and scale factors, shared with the measurement code's `TMeasureUnit`. The formula context supplies lengths in the pattern unit and each length field converts its result to mm; the role analysis for conversion works on the parsed expression tree, in the core.
+
 ## Operation set
 
 Nine point operations and six edge types cover basic bodice, skirt and trouser blocks; circles, arcs, rounded corners and offset edges are added for accessories (see Accessories); many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
 
 **Conventions:**
 
-- Units in mm; angles in degrees, 0° pointing right, positive anticlockwise (as Valentina); the canvas flips y for screen drawing
+- Geometry in mm; formula numbers in the pattern's unit (see Pattern units); angles in degrees, 0° pointing right, positive anticlockwise (as Valentina); the canvas flips y for screen drawing
 - Common fields on every object: `id`, `name`, `type`, `notes`
 - Readable properties: point `.x`, `.y`; every edge `.length`, `.angle1` (direction of the start handle) and `.angle2` (direction of the end handle, pointing back along the edge); straight edges also `.angle`
 - Functions: `sin cos tan asin acos atan2 sqrt abs min max round`
@@ -609,7 +633,7 @@ JSON rules:
 
 - Top-level `format` and `version` fields from the first file
 - Stable IDs for every object; references by ID
-- Formulas stored as strings, evaluated on load
+- Formulas stored as strings, evaluated on load; a pattern's `units` (`mm`, `cm` or `in`) is the unit of its formula numbers (see Pattern units), while measurement and layout files always store mm
 - Consistent key order and pretty-printing on save: two-space indent, `"key": value`, LF line ends, numbers in the shortest form that reads back exactly (`720`, `432.5`), `.` as decimal point
 - Text is UTF-8; every program lists `Sloper.Core.CodePage` first so non-ASCII names and notes survive
 - Measurements in separate files from patterns
@@ -1112,6 +1136,7 @@ opensloper/
 │   ├── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
 │   └── api/                Automation API: JSON-RPC 2.0 over the document layer
 ├── data/                   measurement catalogue, body figures and icons, read at run time
+├── resources/              branding: app icons and the API logo (SVG), for builds, docs and other resources
 ├── measurements/           opensloper-measurements: measurement files and size tables, using core
 ├── publish/                opensloper-publish: layouts and printing, using core + output
 ├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
@@ -1374,3 +1399,4 @@ Open questions:
 - [x] Cutting machines and material sheets: settled, profiles in the app settings with the layout naming one, pieces cut as they lie so quarter turns warn and fold pieces open out, hides split into their own step; see Accessories
 - [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
 - [x] Draft tabs and layers: settled, then taken out: a pattern is one canvas; see One canvas
+- [x] Units: settled, each pattern has one unit and its formula numbers are in it; Preferences sets the default for new patterns; Convert Pattern Units rewrites only the numbers that are lengths; see Pattern units
