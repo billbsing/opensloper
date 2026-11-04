@@ -18,14 +18,14 @@
 <g clip-path="url(#measure-tile)">
 <rect x="-10" y="236" width="380" height="34" fill="#F2B134"/>
 <path d="M10 236 v8 M20 236 v8 M30 236 v8 M40 236 v15 M50 236 v8 M60 236 v8 M70 236 v8 M80 236 v8 M90 236 v15 M100 236 v8 M110 236 v8 M120 236 v8 M130 236 v8 M140 236 v15 M150 236 v8 M160 236 v8 M170 236 v8 M180 236 v8 M190 236 v15 M200 236 v8 M210 236 v8 M220 236 v8 M230 236 v8 M240 236 v15 M250 236 v8 M260 236 v8 M270 236 v8 M280 236 v8 M290 236 v15 M300 236 v8 M310 236 v8 M320 236 v8 M330 236 v8 M340 236 v15 M350 236 v8" fill="none" stroke="#1E2B3C" stroke-width="2.5"/>
-<g fill="#1E2B3C" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle">
-<text x="40" y="265">10</text>
-<text x="90" y="265">20</text>
-<text x="140" y="265">30</text>
-<text x="190" y="265">40</text>
-<text x="240" y="265">50</text>
-<text x="290" y="265">60</text>
-<text x="340" y="265">70</text>
+<g fill="none" stroke="#1E2B3C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+<g transform="translate(34.2,265)"><path d="M2.5 -8 V0 M1 -6.5 L2.5 -8"/><ellipse cx="9.1" cy="-4" rx="2.5" ry="4"/></g>
+<g transform="translate(84.2,265)"><path d="M0.3 -6.2 C0.6 -7.6 1.6 -8 2.6 -8 C3.9 -8 4.8 -7.1 4.8 -5.9 C4.8 -4.4 3.6 -3.4 0.2 0 H5"/><ellipse cx="9.1" cy="-4" rx="2.5" ry="4"/></g>
+<g transform="translate(134.2,265)"><path d="M0.4 -7.4 C1 -7.9 1.8 -8 2.5 -8 C3.8 -8 4.6 -7.2 4.6 -6.1 C4.6 -5 3.7 -4.3 2.4 -4.3 C3.9 -4.3 5 -3.4 5 -2.1 C5 -0.8 3.9 0 2.5 0 C1.6 0 0.8 -0.3 0.2 -0.9"/><ellipse cx="9.1" cy="-4" rx="2.5" ry="4"/></g>
+<g transform="translate(184.2,265)"><path d="M3.8 0 V-8 L0 -2.4 H5.2"/><ellipse cx="9.1" cy="-4" rx="2.5" ry="4"/></g>
+<g transform="translate(234.2,265)"><path d="M4.6 -8 H1 L0.6 -4.4 C1.2 -4.9 2 -5.1 2.7 -5.1 C4.1 -5.1 5 -4.1 5 -2.6 C5 -1 3.9 0 2.5 0 C1.6 0 0.8 -0.3 0.2 -0.9"/><ellipse cx="9.1" cy="-4" rx="2.5" ry="4"/></g>
+<g transform="translate(284.2,265)"><path d="M4.4 -7.6 C3.9 -7.9 3.3 -8 2.7 -8 C1 -8 0 -6.3 0 -3.6 C0 -1.2 1 0 2.5 0 C4 0 5 -1 5 -2.5 C5 -4 4 -5 2.6 -5 C1.4 -5 0.4 -4.3 0 -3.2"/><ellipse cx="9.1" cy="-4" rx="2.5" ry="4"/></g>
+<g transform="translate(334.2,265)"><path d="M0 -8 H5 L1.8 0"/><ellipse cx="9.1" cy="-4" rx="2.5" ry="4"/></g>
 </g>
 </g>
 </svg>

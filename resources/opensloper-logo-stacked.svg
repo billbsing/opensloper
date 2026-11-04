@@ -14,10 +14,12 @@
 <path d="M140 80 C150 130 146 170 150 200 C152 230 140 255 142 276"/>
 <path d="M220 80 C210 130 214 170 210 200 C208 230 220 255 218 276"/>
 </g>
-<rect x="112" y="189" width="34" height="14" fill="#F2B134"/>
-<rect x="146" y="189" width="34" height="14" fill="#3FB8A9"/>
-<rect x="180" y="189" width="34" height="14" fill="#F06A4E"/>
-<rect x="214" y="189" width="34" height="14" fill="#A58BF0"/>
+<path d="M174 210 C194 210 208 198 212 178 L298 194 C292 220 302 242 326 250 L332 336 L174 336 Z" fill="#0F1722" opacity="0.4"/>
+<path d="M168 204 C188 204 202 192 206 172 L292 188 C286 214 296 236 320 244 L326 330 L168 330 Z" fill="#F4EFE3"/>
+<path d="M178 213 C195 211 208 200 214 183 L282 196 C279 221 289 242 311 251 L316 320 L178 320 Z" fill="none" stroke="#465A74" stroke-width="2.5" stroke-dasharray="6 5"/>
+<path d="M226 222 V302 M218 232 L226 222 L234 232 M218 292 L226 302 L234 292" fill="none" stroke="#1E2B3C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M254 330 L266 268 L278 330" fill="none" stroke="#1E2B3C" stroke-width="3" stroke-linejoin="round"/>
+<path d="M324 284 L316 290 L325 296" fill="none" stroke="#1E2B3C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
 <g transform="translate(28,300) scale(1.2)" fill="none" stroke-linecap="round" stroke-linejoin="round">
 <g transform="translate(29,80)" stroke="#465A74" stroke-width="9">
