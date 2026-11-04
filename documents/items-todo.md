@@ -38,9 +38,6 @@ Done 2026-11-04 (see Breaking a point in the design document; to test in the app
 - Tools → Break Point and the toolbar button; `break_point` in the Automation API.
 - The point keeps its ID and goes with the first edge; each other edge gets a new point at dx 0, dy 0 from it, to drag apart.
 
-#### Locking an object
-An object can be locked and the user can do any operation with this except the formular can still be run, and the object can still move based on the formular values.
-
 #### Anotations
 Have the anotations appear at the highest Z-order , over the design. The user can view/hide anotations.
 Add, Edit, Delete, Move anotations in the design page.
@@ -59,6 +56,8 @@ Circle and Rectangle, drawing tools, do not need to select a point first. After 
 New prefrences dialog to record users preferences, accross measurement, design and publish, all apps use the same dialog form.
 Tabs for specific opitons for the different apps. 
 At the moment add the units the user wishes to use mm, cm or inch
+For Design - set the background grid size in current units, save each size for the different units, instead of converting when units change.
+
 
 Decided 2026-11-04 (see Pattern units in the design document; not started):
 - Each pattern has one unit; every number in its formulas is in that unit, so `A + 400` is 400 in in an inch pattern and the `2` in `(A * 2) + 400` needs no label.
@@ -75,7 +74,7 @@ On the measurement panel, have a 'test' slider, that the user can slide left or 
 The fields are re-enabled only when the test slider is moved back to the center.
 
 #### Design Canvas Ruler
-Show a ruler Up and Left of the canvas in the current unit, with the cursor as a line on the rulers. Similar to Inkscape.
+Show a ruler Top and Left of the canvas in the current units, with the cursor as a line on the rulers. Similar to Inkscape. Show the units on the ruler, in a prominant color, if there is space.
 
 #### Measurement App
 Need to change to toolbar and icons.
@@ -87,11 +86,19 @@ Need to add basic toolbar and icons.
 Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
 
 #### File Format Standards
-For future claude access to create new patterns and measurements, do we need to create storage file standards as part of the documents folder.
+For future claude creating new patterns and measurements, do we need to create storage file standards as part of the documents folder.
 Each store file type has currently a version number, and the JSON specification, so that claude can read/write measurement, design and  publish files.
 
 #### Build script
 Can we determin if Qt6 is available, if so build with qt6, else build with Qt5.
+
+#### Apps, Maintenance, Design & Publish
+Add Menu item Open Recent -> list of last open files
+
+## Future Road Map Changes
+
+#### Locking an object
+An object can be locked and the user can not do any operation with this except the formular can still be run, and the object can still set it's value based on the formular values.
 
 
 
