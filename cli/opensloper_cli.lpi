@@ -9,7 +9,7 @@
         <MainUnitHasScaledStatement Value="False"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <Title Value="opensloper-cli"/>
+      <Title Value="opensloper_cli"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
     </General>
@@ -38,7 +38,7 @@
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="opensloper-cli"/>
+      <Filename Value="opensloper_cli"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>

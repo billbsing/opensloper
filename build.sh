@@ -18,6 +18,6 @@ esac
 git submodule update --init --recursive
 
 "$LAZBUILD" "${PCP_ARGS[@]}" -q cli/opensloper_cli.lpi "$@"
-"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" opensloper.lpi "$@"
-"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" publish/opensloper-publish.lpi "$@"
-"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" measurements/opensloper-measurements.lpi "$@"
+"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" design/opensloper_design.lpi "$@"
+"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" publish/opensloper_publish.lpi "$@"
+"$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" measurements/opensloper_measurements.lpi "$@"

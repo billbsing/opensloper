@@ -25,11 +25,11 @@
     <RequiredPackages>
       <Item>
         <PackageName Value="OSClipper2"/>
-        <DefaultFilename Value="src/core/clipper2/osclipper2.lpk" Prefer="True"/>
+        <DefaultFilename Value="../src/core/clipper2/osclipper2.lpk" Prefer="True"/>
       </Item>
       <Item>
         <PackageName Value="BGRABitmapPack"/>
-        <DefaultFilename Value="packages/bgrabitmap/bgrabitmap/bgrabitmappack.lpk" Prefer="True"/>
+        <DefaultFilename Value="../packages/bgrabitmap/bgrabitmap/bgrabitmappack.lpk" Prefer="True"/>
       </Item>
       <Item>
         <PackageName Value="LCL"/>
@@ -37,11 +37,11 @@
     </RequiredPackages>
     <Units>
       <Unit>
-        <Filename Value="opensloper.lpr"/>
+        <Filename Value="opensloper_design.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.mainform.pas"/>
+        <Filename Value="../src/ui/sloper.ui.mainform.pas"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="MainForm"/>
         <HasResources Value="True"/>
@@ -49,232 +49,232 @@
         <UnitName Value="Sloper.UI.MainForm"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.version.pas"/>
+        <Filename Value="../src/core/sloper.core.version.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Version"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.geometry.pas"/>
+        <Filename Value="../src/core/sloper.core.geometry.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Geometry"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.apppaths.pas"/>
+        <Filename Value="../src/core/sloper.core.apppaths.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.AppPaths"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.numeric.pas"/>
+        <Filename Value="../src/core/sloper.core.numeric.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Numeric"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.bezier.pas"/>
+        <Filename Value="../src/core/sloper.core.bezier.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Bezier"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.names.pas"/>
+        <Filename Value="../src/core/sloper.core.names.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Names"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.formulalexer.pas"/>
+        <Filename Value="../src/core/sloper.core.formulalexer.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.FormulaLexer"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.formula.pas"/>
+        <Filename Value="../src/core/sloper.core.formula.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Formula"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.json.pas"/>
+        <Filename Value="../src/core/sloper.core.json.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.JSON"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.evaltypes.pas"/>
+        <Filename Value="../src/core/sloper.core.evaltypes.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.EvalTypes"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.measurements.pas"/>
+        <Filename Value="../src/core/sloper.core.measurements.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Measurements"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.variables.pas"/>
+        <Filename Value="../src/core/sloper.core.variables.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Variables"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.codepage.pas"/>
+        <Filename Value="../src/core/sloper.core.codepage.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.CodePage"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.evaluator.pas"/>
+        <Filename Value="../src/core/sloper.core.evaluator.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Evaluator"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.draft.pas"/>
+        <Filename Value="../src/core/sloper.core.draft.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Draft"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.pattern.pas"/>
+        <Filename Value="../src/core/sloper.core.pattern.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Pattern"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.seamallowance.pas"/>
+        <Filename Value="../src/core/sloper.core.seamallowance.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.SeamAllowance"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.piece.pas"/>
+        <Filename Value="../src/core/sloper.core.piece.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Piece"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.seam.pas"/>
+        <Filename Value="../src/core/sloper.core.seam.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Seam"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.seamsuggest.pas"/>
+        <Filename Value="../src/core/sloper.core.seamsuggest.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.SeamSuggest"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.suggestseams.pas"/>
+        <Filename Value="../src/ui/sloper.ui.suggestseams.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.SuggestSeams"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.transform.pas"/>
+        <Filename Value="../src/core/sloper.core.transform.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Transform"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.piecedetect.pas"/>
+        <Filename Value="../src/core/sloper.core.piecedetect.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.PieceDetect"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.patternfile.pas"/>
+        <Filename Value="../src/core/sloper.core.patternfile.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.PatternFile"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.patterncheck.pas"/>
+        <Filename Value="../src/core/sloper.core.patterncheck.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.PatternCheck"/>
       </Unit>
       <Unit>
-        <Filename Value="src/document/sloper.document.patterndocument.pas"/>
+        <Filename Value="../src/document/sloper.document.patterndocument.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Document.PatternDocument"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.drag.pas"/>
+        <Filename Value="../src/core/sloper.core.drag.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Drag"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.iconset.pas"/>
+        <Filename Value="../src/ui/sloper.ui.iconset.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.IconSet"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.icons.pas"/>
+        <Filename Value="../src/ui/sloper.ui.icons.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Icons"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.view.pas"/>
+        <Filename Value="../src/ui/sloper.ui.view.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.View"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.scene.pas"/>
+        <Filename Value="../src/ui/sloper.ui.scene.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Scene"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.canvas.pas"/>
+        <Filename Value="../src/ui/sloper.ui.canvas.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Canvas"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.snap.pas"/>
+        <Filename Value="../src/ui/sloper.ui.snap.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Snap"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.properties.pas"/>
+        <Filename Value="../src/ui/sloper.ui.properties.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Properties"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.settings.pas"/>
+        <Filename Value="../src/core/sloper.core.settings.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Settings"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.gridcolumns.pas"/>
+        <Filename Value="../src/ui/sloper.ui.gridcolumns.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.GridColumns"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.objectlist.pas"/>
+        <Filename Value="../src/ui/sloper.ui.objectlist.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.ObjectList"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.objectspanel.pas"/>
+        <Filename Value="../src/ui/sloper.ui.objectspanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.ObjectsPanel"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.completion.pas"/>
+        <Filename Value="../src/ui/sloper.ui.completion.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Completion"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.formulacompleter.pas"/>
+        <Filename Value="../src/ui/sloper.ui.formulacompleter.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.FormulaCompleter"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.alignpanel.pas"/>
+        <Filename Value="../src/ui/sloper.ui.alignpanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.AlignPanel"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.listpanel.pas"/>
+        <Filename Value="../src/ui/sloper.ui.listpanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.ListPanel"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.variablespanel.pas"/>
+        <Filename Value="../src/ui/sloper.ui.variablespanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.VariablesPanel"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.measurementspanel.pas"/>
+        <Filename Value="../src/ui/sloper.ui.measurementspanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.MeasurementsPanel"/>
       </Unit>
       <Unit>
-        <Filename Value="src/core/sloper.core.fabrics.pas"/>
+        <Filename Value="../src/core/sloper.core.fabrics.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Fabrics"/>
       </Unit>
       <Unit>
-        <Filename Value="src/ui/sloper.ui.fabricspanel.pas"/>
+        <Filename Value="../src/ui/sloper.ui.fabricspanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.FabricsPanel"/>
       </Unit>
@@ -283,11 +283,11 @@
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="opensloper"/>
+      <Filename Value="opensloper_design"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="src/core;src/document;src/ui;src/output"/>
+      <OtherUnitFiles Value="../src/core;../src/document;../src/ui;../src/output"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>
