@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenSloper
+GenericName=Sewing Pattern Drafting
+Comment=Draft parametric sewing patterns from body measurements
+Exec=opensloper %f
+Icon=opensloper-design
+Terminal=false
+Categories=Graphics;Engineering;
+StartupWMClass=opensloper

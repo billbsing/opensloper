@@ -31,6 +31,9 @@ uses
   Sloper.UI.HintPlacement,
   Sloper.Measurements.MainForm;
 
+  // The application icon, from opensloper-measurements.ico
+  {$R *.res}
+
 var
   MeasurementsForm: TMeasurementsForm;
 

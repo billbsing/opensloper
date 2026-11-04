@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenSloper Measurements
+GenericName=Body Measurements
+Comment=Record body measurements and size tables for OpenSloper patterns
+Exec=opensloper-measurements %f
+Icon=opensloper-measure
+Terminal=false
+Categories=Graphics;Engineering;
+StartupWMClass=opensloper-measurements

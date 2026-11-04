@@ -12,6 +12,7 @@
       <Title Value="OpenSloper Measurements"/>
       <Scaled Value="True"/>
       <ResourceType Value="res"/>
+      <Icon Value="0"/>
     </General>
     <BuildModes>
       <Item Name="Default" Default="True"/>

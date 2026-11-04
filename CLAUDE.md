@@ -12,7 +12,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/output/` — PDF, SVG, DXF and Blender exporters; read computed geometry only.
 - `src/api/` — the Automation API (JSON-RPC 2.0). Depends only on the document and core; every edit goes through document commands.
 - `measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
-- `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources.
+- `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources; `make-icons.sh` regenerates the apps' `.ico` files after an SVG changes, and `linux/` holds the `.desktop` entries.
 - `data/` — files the apps read at run time: the measurement catalogue and its body figures, and the Tabler toolbar icons (`data/icons`, MIT).
 - `cli/` — `opensloper-cli` (export, export-draft, layout, check, measurements, serve), built on the core and ConsoleTools.
 - `tests/` — FPCUnit test project and regression patterns.

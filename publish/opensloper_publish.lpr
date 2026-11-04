@@ -31,6 +31,9 @@ uses
   Sloper.UI.HintPlacement,
   Sloper.Publish.MainForm;
 
+  // The application icon, from opensloper-publish.ico
+  {$R *.res}
+
 var
   PublishForm: TPublishForm;
 

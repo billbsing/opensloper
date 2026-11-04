@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenSloper Publish
+GenericName=Pattern Layout and Printing
+Comment=Lay out finished pattern pieces and print or export them
+Exec=opensloper-publish %f
+Icon=opensloper-publish
+Terminal=false
+Categories=Graphics;Engineering;
+StartupWMClass=opensloper-publish

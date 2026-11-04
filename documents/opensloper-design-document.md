@@ -1071,6 +1071,8 @@ Development is on Linux with the Qt widgetset, testing on macOS, and Windows def
 - Canvas and mouse handling tested on Qt and Cocoa early, including Retina scaling
 - Optional GitHub Actions builds on Linux, macOS and Windows on every push, so Windows keeps compiling untested
 
+**App icons.** The SVGs in `resources/` are the masters: Design, Measure and Publish for the three GUI apps, and the API logo for the docs, since the CLI has none. `resources/make-icons.sh` turns each app's SVG into the `.ico` beside its `.lpi` (bitmaps up to 128 px and a PNG at 256 px, because the LCL's resource loader rejects smaller PNG entries). lazbuild puts that file in the program's resources as `MAINICON`, which the LCL uses as the window icon on every platform; the generated `.ico` files are committed, and the copies lazbuild writes under the `.lpr` name are ignored. For Linux desktops, `resources/linux/` has a `.desktop` entry per app, naming its icon (`opensloper-design`, `opensloper-measure`, `opensloper-publish`) and its window class, so a package installs the SVGs as `share/icons/hicolor/scalable/apps/<name>.svg`. A macOS `.icns` for the `.app` bundle is left for packaging.
+
 **Deferred until a community release:** packaging the Qt bindings library, macOS code signing and notarisation, Windows builds and `sqlite3.dll`, and GitHub Actions CI. During personal use, only the portable-code practices above apply.
 
 ## Testing
