@@ -8,7 +8,7 @@ Early development: project skeleton, geometry basics and the test suite are in p
 
 ## Development
 
-To clone this project, you must use --recursive, since this project contains submodules that are used in the build process
+To clone this project, you must use `--recursive`, since this project contains submodules that are used in the build process
 
 To build we suggest you first install Lazarus/Free Pascal using [fpcupdeluxe](https://github.com/LongDirtyAnimAlf/fpcupdeluxe).
 
