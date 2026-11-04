@@ -8,7 +8,7 @@ Early development: project skeleton, geometry basics and the test suite are in p
 
 ## Development
 
-To clone this project, you must use `--recursive`, since this project contains submodules that are used in the build process
+To clone this project, you must use `--recursive`, since this project contains submodules that are used in the build process.
 
 To build we suggest you first install Lazarus/Free Pascal using [fpcupdeluxe](https://github.com/LongDirtyAnimAlf/fpcupdeluxe).
 
@@ -20,7 +20,7 @@ cd opensloper
 
 ## Building
 
-Requires Lazarus with FPC 3.2.0 or later. Linux uses the Qt5 widgetset (`libQt5Pas`); macOS uses Cocoa.
+Requires Lazarus with FPC 3.2.0 or later. Linux uses the Qt6 widgetset (`libQt6Pas`); macOS uses Cocoa.
 
 ```
 git submodule update --init --recursive
