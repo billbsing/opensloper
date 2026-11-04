@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360" role="img" aria-label="OpenSloper Measure: dress form with a tape measure">
+<rect width="360" height="360" rx="80" fill="#1E2B3C"/>
+<g fill="#465A74">
+<ellipse cx="180" cy="44" rx="17" ry="6"/>
+<rect x="169" y="46" width="22" height="22"/>
+<path d="M168 64 C150 72 118 74 104 90 C96 100 98 122 104 140 C110 160 128 176 126 196 C124 214 104 230 106 250 C107 262 110 270 116 276 L244 276 C250 270 253 262 254 250 C256 230 236 214 234 196 C232 176 250 160 256 140 C262 122 264 100 256 90 C242 74 210 72 192 64 Z"/>
+<rect x="176" y="276" width="8" height="52"/>
+</g>
+<path d="M136 342 L180 326 L224 342" fill="none" stroke="#465A74" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="none" stroke="#5B7192" stroke-width="2.5">
+<path d="M180 66 V276"/>
+<path d="M126 196 C150 204 210 204 234 196"/>
+<path d="M140 80 C150 130 146 170 150 200 C152 230 140 255 142 276"/>
+<path d="M220 80 C210 130 214 170 210 200 C208 230 220 255 218 276"/>
+</g>
+<clipPath id="measure-tile"><rect width="360" height="360" rx="80"/></clipPath>
+<g clip-path="url(#measure-tile)">
+<rect x="-10" y="236" width="380" height="34" fill="#F2B134"/>
+<path d="M10 236 v8 M20 236 v8 M30 236 v8 M40 236 v15 M50 236 v8 M60 236 v8 M70 236 v8 M80 236 v8 M90 236 v15 M100 236 v8 M110 236 v8 M120 236 v8 M130 236 v8 M140 236 v15 M150 236 v8 M160 236 v8 M170 236 v8 M180 236 v8 M190 236 v15 M200 236 v8 M210 236 v8 M220 236 v8 M230 236 v8 M240 236 v15 M250 236 v8 M260 236 v8 M270 236 v8 M280 236 v8 M290 236 v15 M300 236 v8 M310 236 v8 M320 236 v8 M330 236 v8 M340 236 v15 M350 236 v8" fill="none" stroke="#1E2B3C" stroke-width="2.5"/>
+<g fill="#1E2B3C" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle">
+<text x="40" y="265">10</text>
+<text x="90" y="265">20</text>
+<text x="140" y="265">30</text>
+<text x="190" y="265">40</text>
+<text x="240" y="265">50</text>
+<text x="290" y="265">60</text>
+<text x="340" y="265">70</text>
+</g>
+</g>
+</svg>
