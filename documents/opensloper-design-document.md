@@ -35,6 +35,7 @@ Licence decisions:
 - `LICENSE` file at the repo root with the full GPLv3 text; a standard GPL header in every unit.
 - Code translated from Valentina or Seamly2D keeps their copyright line alongside the project's.
 - An About box shows the licence and no-warranty notice.
+- User documentation in `docs/` is licensed CC BY-SA 4.0 (see Documentation).
 
 Practices from day one: git repository, internal units in mm, UI text in `resourcestring` sections for translation, and occasional builds on a second OS.
 
@@ -1120,7 +1121,44 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 - Every bug gets a failing test before the fix
 - UI kept thin: forms call into the document and core layers
 - End-to-end checks drive `opensloper-cli serve` through the Automation API and inspect render output, instead of GUI automation tools such as xdotool
+- `run-tests.sh` also builds the documentation in strict mode, so broken links fail (once the site is set up)
 - `run-tests.sh` before each commit, optionally via a git pre-commit hook; the same script becomes the CI step on public release
+
+## Documentation
+
+User documentation is written in Markdown in `docs/` and built into a static site with Zensical, published with GitHub Pages and shipped offline with the apps.
+
+**Tool.** Zensical, the successor to Material for MkDocs from the same team, MIT licensed. It reads `mkdocs.yml`, so the site is configured in one `docs/mkdocs.yml`. Pages stay plain Markdown with only common extensions (admonitions, tables, code blocks), so moving to another generator (MkDocs, mdBook) later means rewriting the navigation, not the pages. Zensical runs at build time only; it is not linked into or shipped with the apps, so its licence places no conditions on OpenSloper.
+
+**Licence.** The manuals are licensed CC BY-SA 4.0, stated in `docs/LICENSE`; code remains GPLv3 or later. The theme's CSS and JavaScript in the built site keep their MIT notice.
+
+**Structure:** one site for all the tools, since they share concepts.
+
+| Section | Contents |
+| --- | --- |
+| Getting started | Installing; the apps and how files flow between them (measurements → patterns → layouts) |
+| Tutorials | Worked projects from start to finish: skirt block, moving a dart, tote bag, leather card wallet |
+| Measure | Measurement files, size tables, importing Valentina/Seamly2D files |
+| Design | Drafting, operations, transforms, pieces, seams |
+| Publish | Layouts, tiled and large-format printing, cutting machine output |
+| Reference | Formula syntax and functions, every operation and its fields, file formats, keyboard shortcuts |
+| API | `opensloper-cli` commands and the Automation API methods |
+
+Pages are written by task ("Add a size", "Rotate a dart"), not by menu. Each app's section uses that app's icon.
+
+**Kept accurate by generating what can be generated:**
+
+- Tutorial patterns live in `docs/examples/` and their illustrations are drawn with `opensloper-cli render`, so pictures follow the app. A script (`docs/build-images.sh`) rebuilds them; the same patterns also serve as regression patterns.
+- Reference pages that come from code (operations and their fields, formula functions, CLI help) are written by the CLI, for example `opensloper-cli doc operations`, so the code is the single source of truth. Generated pages are marked as such and never edited by hand.
+- `run-tests.sh` builds the docs in strict mode, so broken links and missing pages fail the build.
+
+**In the apps:**
+
+- F1 and the Help menu open the page for the current tool or dialog, through a small table of help IDs to page paths.
+- An offline copy of the built site ships with each app and opens in the browser; the website is the fallback.
+- Translation and versioned documentation wait until the community release.
+
+**Folders:** `docs/` is the user documentation (this section); `documents/` stays for internal development notes, including this design document. Developer documentation of the Pascal units (for example with PasDoc) is left until someone else needs to read the code.
 
 ## Repository layout
 
@@ -1153,7 +1191,7 @@ opensloper/
 │   ├── bgrabitmap/
 │   └── console-tools/
 ├── documents/              internal development: design document, known issues, Claude notes
-└── docs/                   user manuals and help; can be published with GitHub Pages
+└── docs/                   user manuals (Zensical: mkdocs.yml, examples/, LICENSE); published with GitHub Pages
 ```
 
 `.gitignore` for Lazarus: `lib/`, `backup/`, `*.ppu`, `*.o`, `*.compiled`, `*.lps` (per-user session files), `*.res` if generated, and built executables.
@@ -1408,4 +1446,5 @@ Open questions:
 - [x] Cutting machines and material sheets: settled, profiles in the app settings with the layout naming one, pieces cut as they lie so quarter turns warn and fold pieces open out, hides split into their own step; see Accessories
 - [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
 - [x] Draft tabs and layers: settled, then taken out: a pattern is one canvas; see One canvas
+- [x] Documentation: settled, Markdown in `docs/` built with Zensical, CC BY-SA 4.0; see Documentation
 - [x] Units: settled, each pattern has one unit and its formula numbers are in it; Preferences sets the default for new patterns; Convert Pattern Units rewrites only the numbers that are lengths; see Pattern units
