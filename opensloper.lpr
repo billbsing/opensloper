@@ -28,6 +28,7 @@ uses
   Interfaces,
   Forms,
   Sloper.Core.Version,
+  Sloper.UI.HintPlacement,
   Sloper.UI.MainForm;
 
   {$R *.res}
@@ -37,6 +38,7 @@ begin
   Application.Title := AppName;
   Application.Scaled := True;
   Application.Initialize;
+  PlaceHintsAboveCursor;
   Application.CreateForm(TMainForm, MainForm);
   Application.Run;
 end.

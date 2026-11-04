@@ -28,6 +28,7 @@ uses
   Sloper.Core.CodePage,
   Interfaces,
   Forms,
+  Sloper.UI.HintPlacement,
   Sloper.Publish.MainForm;
 
 var
@@ -39,6 +40,7 @@ begin
   Application.Title := rsPublishTitle;
   Application.Scaled := True;
   Application.Initialize;
+  PlaceHintsAboveCursor;
   Application.CreateForm(TPublishForm, PublishForm);
   Application.Run;
 end.
