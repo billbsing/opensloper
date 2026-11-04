@@ -57,7 +57,7 @@ Circle and Rectangle, drawing tools, do not need to select a point first. After 
 
 #### Preferences
 New prefrences dialog to record users preferences, accross measurement, design and publish, all apps use the same dialog form.
-Tabs for specific opitons. 
+Tabs for specific opitons for the different apps. 
 At the moment add the units the user wishes to use mm, cm or inch
 
 Decided 2026-11-04 (see Pattern units in the design document; not started):
@@ -67,12 +67,15 @@ Decided 2026-11-04 (see Pattern units in the design document; not started):
 - Numbers may carry a suffix (`400mm`, `2in`), which pins their meaning.
 
 #### Claude MCP integration
-Need to store the claude api code in the preferences for claude access to the app.
-Also need to work out how claude is going to communicate to the user for changes to the design, does claude need to find what objects are selected from the API?
+Need to store the claude api code in the preferences form for claude to access the app.
+Also need to work out how claude is going to communicate to the user for changes to the design, does claude need to find what design objects are selected from the API?
 
 #### Measurement Panel Test size tool
 On the measurement panel, have a 'test' slider, that the user can slide left or right. When slide left all of the measurements are decreased by 1%, up to 20%, and the opposite for right move +1% per step up to 20%. If the sizes change the design changes size if the measurements are being used, and the measurement fields are disabled. 
 The fields are re-enabled only when the test slider is moved back to the center.
+
+#### Design Canvas Ruler
+Show a ruler Up and Left of the canvas in the current unit, with the cursor as a line on the rulers. Similar to Inkscape.
 
 #### Measurement App
 Need to change to toolbar and icons.
@@ -80,7 +83,12 @@ Need to change to toolbar and icons.
 #### Publish App
 Need to add basic toolbar and icons.
 
+#### Documents
+Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
 
+#### File Format Standards
+For future claude access to create new patterns and measurements, do we need to create storage file standards as part of the documents folder.
+Each store file type has currently a version number, and the JSON specification, so that claude can read/write measurement, design and  publish files.
 
 
 

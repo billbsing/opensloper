@@ -1430,21 +1430,3 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 18. Leather hides: outlines drawn or traced from a photo, flaws, placing and packing on true shapes
 19. Blender export for 3D preview
 
-Open questions:
-
-- [x] Evaluator details: settled, see Evaluator
-- [x] Operation set: settled, see Operation set, including transforms
-- [x] Expression engine: settled, our own recursive-descent parser behind TFormula (TFPExpressionParser was dropped after a probe); see Formula engine
-- [x] Project name: settled, OpenSloper (opensloper.com available; reserve domain and GitHub name; file extensions .sloper for patterns, .slm for measurements)
-- [x] Undo granularity: settled, see Key design decisions item 7
-- [x] Publishing: settled, a separate publish app with layout files that take one or more patterns; see Publish app
-- [x] Accessories: settled, fabric and leather accessories on the same core, with the additions in Accessories
-- [x] Measurements: settled, a separate measurements app; one file format for personal sets and size tables; small edits from the drafting app through the shared core unit; see Measurements app
-- [x] Transforms: settled, copies of points and edges that follow one movement, with the ghost preview left for later; see Transforms
-- [x] Seeing the finished garment: a flat Garment view was built and then taken out; Blender stays as a later step; see Garment view
-- [x] SVG, DXF and packing: settled, SVG follows the arrangement, DXF-AAMA writes one block per piece, packing works on bounding boxes; see Other exports and packing. DXF is untried on a real cutting system
-- [x] Cutting machines and material sheets: settled, profiles in the app settings with the layout naming one, pieces cut as they lie so quarter turns warn and fold pieces open out, hides split into their own step; see Accessories
-- [x] Seams: settled, a separate object made with the Seam tool, with suggestions from the app and no change to edge roles; see Seams
-- [x] Draft tabs and layers: settled, then taken out: a pattern is one canvas; see One canvas
-- [x] Documentation: settled, Markdown in `docs/` built with Zensical, CC BY-SA 4.0; see Documentation
-- [x] Units: settled, each pattern has one unit and its formula numbers are in it; Preferences sets the default for new patterns; Convert Pattern Units rewrites only the numbers that are lengths; see Pattern units
