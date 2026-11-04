@@ -20,7 +20,7 @@ cd opensloper
 
 ## Building
 
-Requires Lazarus with FPC 3.2.0 or later. Linux uses the Qt6 widgetset (`libQt6Pas`); macOS uses Cocoa.
+Requires Lazarus with FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset (`libQt5Pas`, `libQt6Pas`); macOS uses Cocoa.
 
 ```
 git submodule update --init --recursive

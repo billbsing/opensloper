@@ -90,6 +90,8 @@ Cleanup up the opensloper-design-document.md, after many iterations it is gettin
 For future claude access to create new patterns and measurements, do we need to create storage file standards as part of the documents folder.
 Each store file type has currently a version number, and the JSON specification, so that claude can read/write measurement, design and  publish files.
 
+#### Build script
+Can we determin if Qt6 is available, if so build with qt6, else build with Qt5.
 
 
 
