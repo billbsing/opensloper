@@ -370,7 +370,7 @@ Slash and spread repeats this: each slash rotates everything beyond it by the sp
 
 - Creating a transform and all copies is one undoable command
 - Deleting a source is refused while a copy uses it, as for any object. Deleting a transform takes its copies with it, unless something else uses them; a copy cannot be deleted alone, as with a repeat's points
-- From the app: select objects and choose Rotate, Mirror or Move on the Tools menu. Rotate then asks for a pivot and Mirror for two points or an edge. The transform starts with no movement and is selected, ready for the angle or distance to be typed as a formula. Copies are selected as a group through their transform
+- From the app: select objects and choose Rotate Copy, Mirror Copy or Move Copy on the Tools menu, named so that each says it makes copies and leaves the sources where they are. Rotate Copy then asks for a pivot and Mirror Copy for two points or an edge. The transform starts with no movement and is selected, ready for the angle or distance to be typed as a formula. Copies are selected as a group through their transform
 - A live ghost preview while dragging, and snapping to angles of existing lines, are left for later
 - A copy is named once, from its source, and keeps that name if the source is renamed. It names no formula of its own, so its properties show what made it and the transform's formulas are edited on the transform
 

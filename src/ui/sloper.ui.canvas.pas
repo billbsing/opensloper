@@ -236,9 +236,9 @@ resourcestring
   rsCanvasPickMarkingToRemove = 'Select the piece and the point or edge of the marking to remove';
   rsCanvasAddMarking = 'Add marking';
   rsCanvasRemoveMarking = 'Remove marking';
-  rsCanvasPickPivot = 'Rotate: click the point to turn about; Escape cancels';
-  rsCanvasPickAxis = 'Mirror: click a straight edge, or the first of two points; Escape cancels';
-  rsCanvasPickSecond = 'Mirror: click the second point; Escape cancels';
+  rsCanvasPickPivot = 'Rotate Copy: click the point to turn about; Escape cancels';
+  rsCanvasPickAxis = 'Mirror Copy: click a straight edge, or the first of two points; Escape cancels';
+  rsCanvasPickSecond = 'Mirror Copy: click the second point; Escape cancels';
   rsCanvasPickPoint = 'Click a point';
   rsCanvasPickEdge = 'Click a straight edge or a point';
   rsCanvasNothingSelected = 'Select the points and edges to copy first';

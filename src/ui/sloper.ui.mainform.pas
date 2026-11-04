@@ -252,9 +252,9 @@ resourcestring
   rsMenuToolsFoldLine = 'Mark Fold Line';
   rsMenuToolsStitch = 'Mark Stitch Holes';
   rsMenuToolsRemoveMarking = 'Remove Marking';
-  rsMenuToolsRotate = '&Rotate...';
-  rsMenuToolsMirror = 'M&irror...';
-  rsMenuToolsMove = 'Mo&ve...';
+  rsMenuToolsRotate = '&Rotate Copy...';
+  rsMenuToolsMirror = 'M&irror Copy...';
+  rsMenuToolsMove = 'Mo&ve Copy...';
   rsMenuToolsSuggest = 'Suggest Sea&ms...';
   rsNoSuggestions = 'No more seams to suggest';
   rsAddSuggestedSeams = 'Add seams';
