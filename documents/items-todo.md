@@ -66,7 +66,19 @@ Decided 2026-11-04 (see Pattern units in the design document; not started):
 - Tools → Convert Pattern Units… rewrites only numbers that are lengths, working out each number's role from where it sits, and lists undecided ones for the user.
 - Numbers may carry a suffix (`400mm`, `2in`), which pins their meaning.
 
+#### Claude MCP integration
+Need to store the claude api code in the preferences for claude access to the app.
+Also need to work out how claude is going to communicate to the user for changes to the design, does claude need to find what objects are selected from the API?
 
+#### Measurement Panel Test size tool
+On the measurement panel, have a 'test' slider, that the user can slide left or right. When slide left all of the measurements are decreased by 1%, up to 20%, and the opposite for right move +1% per step up to 20%. If the sizes change the design changes size if the measurements are being used, and the measurement fields are disabled. 
+The fields are re-enabled only when the test slider is moved back to the center.
+
+#### Measurement App
+Need to change to toolbar and icons.
+
+#### Publish App
+Need to add basic toolbar and icons.
 
 
 
