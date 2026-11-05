@@ -515,8 +515,12 @@ Seamly2D and Valentina use a two-step workflow: draw the line in draft mode, the
 | Stitch | Topstitching or internal seam line | Yes, with its piece |
 | Fold | Fold or pleat line | Yes, with its piece |
 | Cut | Slit or internal cut | Yes, with its piece |
+| Skive line | Extent of thinning at a leather edge (planned) | Yes, with its piece |
+| Edge finish | How far edge paint, burnishing or binding runs (planned) | Yes, with its piece |
 
 **As built.** `TEdgeRole` has the six roles; `MarkingRoles` are the last four. On the canvas and in draft SVG each marking role has its own colour (placement blue, stitch green, fold purple, cut teal, since red and orange mean problems there) and dash, drawn at a fixed size on screen. On paper (PDF, the publish app's plain SVG and its preview) they are black: placement thin and solid, stitch in 1 mm dashes (shorter than the seam line's 2 mm), fold dash-dot, and cut solid at the cutting line's width (`RoleDashes` in `Sloper.Core.Draft`). For machines, fold lines are score lines, cut lines are cut with the cutting line, and placement and stitch lines are marks; DXF-AAMA writes them all on layer 8. The publish app's SVG puts each in a group of class `line-placement`, `line-stitch` and so on.
+
+**Planned roles.** Skive line and Edge finish join `MarkingRoles`, making six, and are assigned to pieces like the others. On the canvas, skive line is brown in long dashes and edge finish is grey and dotted, keeping clear of red and orange. On paper they are black: skive line thin in 4 mm dashes, edge finish dotted. For machines both are marks, and DXF-AAMA writes them on layer 8 with the other marking lines. The publish app's SVG groups them as `line-skive` and `line-edge-finish`.
 
 ### Point markers
 
@@ -584,28 +588,49 @@ Markings created before their piece exists are assigned when the piece is create
 
 Planned 2026-11-05, not built yet. Marking roles say what a line means, like KiCad's fixed technical layers (silkscreen, edge cuts): the list is the app's, not the file's, so output settings can rely on it. New roles are added to the built-in list, never defined per pattern.
 
-**More roles for leather.** Skive line (the extent of thinning at an edge) and Edge finish (how far edge paint, burnishing or binding runs) join the marking roles, beside the stitch holes already among the markings (see Accessories).
+**More roles for leather.** Skive line and Edge finish (see Planned roles under Edge roles), beside the stitch holes already among the markings (see Accessories).
 
 **Styles.** Each role keeps its built-in colour, dash and weight (see As built under Edge roles), chosen so that every role can be shown at once and read at a glance. Users can override them in Preferences, but the defaults should be distinct enough that few need to. Where lines coincide, each role has a draw priority, and the higher one is drawn on top, alongside the screen-only offset that shows there is more than one.
 
-**Marking visibility panel.** A dockable panel lists every marking role with a visibility checkbox and its style swatch, with show all, hide all, solo (show only this role) and saved presets such as "Seams only" or "Leather".
+**Role visibility panel.** A dockable panel lists Construction and every marking role, each with a visibility checkbox and its style swatch. It also has show all, hide all, solo (show only this role) and saved presets such as "Seams only" or "Leather". Outline is not listed, because pieces are made from it and it is always shown.
 
-- It changes the view only. Hidden markings are still stored and still print; the drafting app never drops a marking because it is hidden.
-- Which roles are visible is a view setting, not pattern data, so it is not undone.
-- A hidden marking cannot be picked on the canvas, though it can still be selected in the Objects panel.
+- It changes the view only. Hidden lines are still stored, evaluated and printed; the drafting app never drops a line because it is hidden.
+- A hidden line is not drawn, picked, snapped to or labelled, and it drops out of the click-again cycling for coincident lines. It can still be selected in the Objects panel, which shows it while it is selected. The status bar shows how many roles are hidden, so nothing seems to vanish without a reason.
+- Its problems are still reported, so a hidden marking line outside its piece still shows in the Problems filter and `check`.
+- **Where it is kept.** Which roles are hidden is view state, saved in the pattern's `view` as `hiddenRoles` and kept out of undo and the modified flag, like zoom and centre. The member is left out when every role is shown. Presets are the user's, not the pattern's, so they live in Preferences (`rolePresets` in `settings.json`), each a name and a list of hidden roles.
+- **Draft export** follows the screen, as it does for labels and fills, so a draft SVG leaves out hidden roles. `render` in the Automation API takes an optional `hiddenRoles` list.
 
-**Output chosen in the publish app.** The drafting app stores every marking, and the publish app decides which reach the output. Machine profiles already switch line types on and off for cutters (see Cutting machines under Accessories); output profiles extend the same idea to paper, listing the roles and marks to include, with optional style overrides. Profiles are reusable, and a layout can change profile without any change to the pattern:
+```json
+"view": { "zoom": 1.5, "centre": [120, -200], "hiddenRoles": ["construction"] }
+```
 
-| Profile | Included |
-| --- | --- |
-| Home printing | Cutting line, seam line, folds, notches, grainline, labels |
-| Plotter or laser cutter | Cutting line only; stitch holes as an optional separate pass |
-| Leather | Cutting line, stitch holes, skive line, edge finish; no seam allowance |
-| Instructions sheet | Seam lines, stitch, folds; no cutting lines |
+**Output chosen in the publish app.** The drafting app stores every marking, and the publish app decides which reach the output. Machine profiles already switch line types on and off for cutters (see Cutting machines under Accessories); output profiles do the same for what a piece shows, on any output.
+
+- **Where they live.** Output profiles describe a kind of print, not a pattern, so they live in `settings.json` beside the machine profiles, and the CLI reads them too. A layout stores only the profile's name, as `outputProfile` in `output`. A layout without one prints everything, as now. A name not in the settings is a blocking problem for that layout's exports, never a quiet fallback, since a print missing its stitch lines would be cut and sewn wrongly.
+- **What a profile lists.** `roles`: the marking roles to include. `marks`: the piece's other marks to include, from `seamLine`, `notches`, `grainline`, `foldBracket`, `labels`, `holes` and `stitchHoles`. `allowance`: `keep`, or `none` (see below). Optional `styles`: colour, dash and width for each role, for paper only. The cutting line is always included, since it is the piece.
+- **Order.** The output profile applies first. With a machine profile, its line-type switches then decide what is left. So a profile says what the job needs, and a machine profile says what the machine can do.
+- **Seam allowance.** `allowance` `none` cuts on the seam line, as leather usually is. It changes the piece's outline, not just what is drawn, so the preview, overlap checks, packing and every export use the seam line as the cutting line, and placements give its top left, as for opened-out fold pieces. The seam line itself is not drawn, since it is the cutting line. Pieces whose allowances are already zero look the same either way.
+- **Built-in profiles.** The four below ship with the app and can be copied, but not changed, so a layout naming one always prints the same. Profiles are edited in the settings file until there is a window for them, as machine profiles are.
+
+| Profile | `roles` | `marks` | `allowance` |
+| --- | --- | --- | --- |
+| Home printing | All | All | Keep |
+| Plotter or laser cutter | Cut | Holes, stitch holes | Keep |
+| Leather | Stitch, cut, skive line, edge finish | Notches, grainline, labels, holes, stitch holes | None |
+| Instructions sheet | Placement, stitch, fold | Seam line, notches, labels | Keep |
+
+```json
+"outputProfiles": [
+  { "name": "Leather",
+    "roles": ["stitch", "cut", "skive", "edgeFinish"],
+    "marks": ["notches", "grainline", "labels", "holes", "stitchHoles"],
+    "allowance": "none" }
+]
+```
 
 **Open questions:**
 
-- Should grainlines, labels and buttonhole marks become marking roles too, or stay as their own objects?
+- Should buttonhole marks become a marking role, or wait for point markers (button position)? Grainlines and labels stay their own objects, switched by a profile's `marks`.
 - Should a profile send roles to separate files or passes (one file per laser operation)?
 - What values does each leather marking need (hole spacing and size, skive width and depth)? This joins the question below on where point markers keep theirs.
 
@@ -954,7 +979,7 @@ Printer calibration is neither: it belongs to the user's printer, so it is a pre
     { "id": 3, "pattern": "top.sloper", "measurementFile": "sizes.slm", "size": "38" }
   ],
   "output": { "kind": "tiled", "paper": "A4", "margin": 6, "overlap": 10,
-              "marks": "diamond" },
+              "marks": "diamond", "outputProfile": "Home printing" },
   "placements": [
     { "source": 1, "piece": 42, "copy": 1, "x": 120, "y": 40,
       "rotation": 0, "flipped": false }
@@ -989,6 +1014,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Sheet notes.** `sheetNotes` lists `text`, `x`, `y` and `size` (points): plain text in layout space, one or more lines, with `{pattern.name}`, `{measurements.name}`, `{layout.name}`, `{date}`, `{page}`, `{pages}`, `{cutlist}` and `{fabrics}` filled in when printed (the cover counts as page 1). A note makes the page it is on print, even with no piece there, and extends the page grid. It prints on every tile it reaches. In the window a note is selected and dragged like a piece, and lies over them; the Notes tab holds the note's text and size and the title block. A note over a piece is a warning. Text width is an estimate, since the PDF uses Helvetica unembedded, so these checks are approximate.
 - **Patterns tab.** Lists the layout's sources, with Add pattern and Remove pattern, and for the selected one its measurement file (Choose measurements, or Use the pattern's own) and its size when the file is a size table. A pattern can be added twice, in two sizes. Paths are stored relative to the layout. New pieces wait in the tray. Removing a source removes its placements, and every change here is one undo step. Choosing another measurement file starts on its first size.
 - **Marks.** `marks` is `diamond`, `halfCircle` or `none`, set on the Output tab. Each page prints a half circle on its own side of the overlap's middle, flat side out, so that two overlaid sheets make a circle.
+- **Output profile** (planned, see Visibility, styles and output under Markings). The Output tab chooses one from the settings, or None for everything. Changing it is one undo step, and the preview follows it.
 - **Custom paper.** Choosing Custom on the Output tab opens the width and height fields, and the layout saves `paperWidth` and `paperHeight`, as for any paper name it does not know. A size that cannot print is left alone while it is being typed, since 400 passes through 4, and goes back to the last good one on leaving the field.
 - **Piece fill.** `fill` in `output` is `none`, which is left out of the file, `tint`, a light tint of each piece's colour under the lines of paper and large-format PDFs, or `hatch`, grey lines 6 mm apart at each fabric's angle, for black-and-white printers, set on the Output tab. Either choice applies to every piece for that print, whatever its fabric's own fill style, and a piece with no fabric stays unfilled. It does nothing on projector output, which is dark, and not in SVG or DXF. The window's preview always tints pieces, in their fabric's colour.
 - Not done yet: bold, italic, alignment and boxes in notes, and `{=Line_A_B.length}` fields, which come with pattern-space annotations.
@@ -1234,6 +1260,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected; offset edge (lines, curves, chains of edges, both sides, invalid when the offset collapses) |
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2; automatic marking assignment (single piece, overlapping pieces, none, moved outside after a measurement change) |
+| Markings | Hidden roles kept out of undo and draft export; output profiles include and leave out roles and marks; machine profile applied after the output profile; `allowance` `none` cuts on the seam line in preview, packing and every export; an unknown profile name blocks export |
 | Transforms | Each transform against hand-checked positions, curves and split parts exact, lengths kept by rotate and move, a failing source blocking only its copy, deleting as a group, files |
 | View and older files | The view is saved and stays out of undo and the modified flag; files with drafts and layers load onto one canvas with their IDs retired |
 | Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces, invalid and blocked states, suggestions |
@@ -1576,3 +1603,4 @@ Further work agreed but not yet designed in detail or placed in the numbered ste
 - **Claude integration.** Building on Automation API phase 2: the Claude API key is stored in Preferences so Claude can reach the app. Open question: how Claude tells the user about the changes it makes to the design, and whether the API needs to report which objects are selected so Claude can work on them.
 - **Fabric needed.** Estimate from the design the fabric it needs: the area in square millimetres and the minimum width and length. Given the width of the supplier's fabric, work out the actual length to buy, and warn when the design is too big to cut from a single piece of fabric.
 - **G-code export.** Export the pattern as a G-code file for CNC machines, from the publish app.
+- **Marking visibility and output profiles.** The role visibility panel and presets in the drafting app, the two leather roles, and output profiles in the publish app (see Visibility, styles and output under Markings).
