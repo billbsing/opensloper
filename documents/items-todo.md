@@ -20,30 +20,6 @@ These could not be tested properly during development.
 
 ## List of Changes
 
-#### documents/web
-Remove web folder in documents, the sync process to web cluade is too much. Remove sync process, and later when we publish this repo, claude web can read directly.
-I have already removed skills in .claude/... 
-
-Done 2026-11-05: `documents/web` removed, and its mention in `CLAUDE.md`.
-
-#### Tool Merge Points
-This is simalar to inkscape join nodes, the user selects 2 or more points, then clicks on the tool.
-The new point name will take the lowest default name , or the first name that has been changed by the user.
-So point names 'M, N, O' -> 'M'.
-Point names 'M, MyNode, O' -> MyNode
-
-Done 2026-11-04 (see Merging points in the design document; to test in the app):
-- Tools → Merge Points and the toolbar button; `merge_points` in the Automation API.
-- The kept point keeps one definition; users of the others move to it, and a line between two of them is deleted.
-
-#### Tool Break Points
-This is the opposite of tool merge, a single point is broken up into multiple points, depending on the number of connecting objects.
-The new point names, are the same as a copy so point 'M' -> 'M1, M2'.
-
-Done 2026-11-04 (see Breaking a point in the design document; to test in the app):
-- Tools → Break Point and the toolbar button; `break_point` in the Automation API.
-- The point keeps its ID and goes with the first edge; each other edge gets a new point at dx 0, dy 0 from it, to drag apart.
-
 #### Anotations
 Have the anotations appear at the highest Z-order , over the design. The user can view/hide anotations.
 Add, Edit, Delete, Move anotations in the design page.
@@ -59,6 +35,7 @@ New prefrences dialog to record users preferences, accross measurement, design a
 Tabs for specific opitons for the different apps. 
 At the moment add the units the user wishes to use mm, cm or inch
 For Design - set the background grid size in current units, save each size for the different units, instead of converting when units change.
+For Publish - printer calibration (across and down), set once for the user's printer instead of in each layout; see Publish - printing question below.
 
 
 Decided 2026-11-04 (see Pattern units in the design document; not started):
@@ -67,28 +44,12 @@ Decided 2026-11-04 (see Pattern units in the design document; not started):
 - Tools → Convert Pattern Units… rewrites only numbers that are lengths, working out each number's role from where it sits, and lists undecided ones for the user.
 - Numbers may carry a suffix (`400mm`, `2in`), which pins their meaning.
 
-#### Claude MCP integration
-Need to store the claude api code in the preferences form for claude to access the app.
-Also need to work out how claude is going to communicate to the user for changes to the design, does claude need to find what design objects are selected from the API?
-
 #### Measurement Panel Test size tool
 On the measurement panel, have a 'test' slider, that the user can slide left or right. When slide left all of the measurements are decreased by 1%, up to 20%, and the opposite for right move +1% per step up to 20%. If the sizes change the design changes size if the measurements are being used, and the measurement fields are disabled. 
 The fields are re-enabled only when the test slider is moved back to the center.
 
 #### Design Canvas Ruler
 Show a ruler Top and Left of the canvas in the current units, with the cursor as a line on the rulers. Similar to Inkscape. Show the units on the ruler, in a prominant color, if there is space.
-
-#### Measurement App
-Add Menus and toolbar to ActionList.
-Need to change to toolbar and icons.
-
-Done 2026-11-05: the measurements app's menus run on actions (`Sloper.UI.Commands`), with a command bar of Tabler icons along the top; tried on Xvfb.
-
-#### Publish App
-Add Menus and toolbar to ActionList.
-Need to add basic toolbar and icons.
-
-Done 2026-11-05: the publish app's menus run on actions (`Sloper.UI.Commands`), with a command bar of Tabler icons along the top; tried on Xvfb.
 
 #### Documents
 Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
@@ -97,22 +58,15 @@ Cleanup up the opensloper-design-document.md, after many iterations it is gettin
 For future claude creating new patterns and measurements, do we need to create storage file standards as part of the documents folder.
 Each store file type has currently a version number, and the JSON specification, so that claude can read/write measurement, design and  publish files.
 
-#### Build script
-Can we determin if Qt6 is available, if so build with qt6, else build with Qt5.
-
-Done 2026-11-05: `build.sh` uses qt6 when `libQt6Pas` (the Lazarus Qt6 bindings) is installed, else qt5; `LCL_WIDGETSET` still overrides. This machine has Qt6 but not libQt6Pas, so it builds qt5.
-
-#### Apps, Maintenance, Design & Publish
-Add Menu item Open Recent -> list of last open files
-
-Done 2026-11-05 (see the Config paragraph on Open Recent in the design document): in all three apps, after Open; tried in each app on Xvfb.
-
 #### Publish - printing question
 How to adjust the print size if the square block is not 10x10.
 
-#### Remove Alignment
-The alignment tool is not correct in the panel, can we remove (hide) the allignment tool and panel
+Answered 2026-11-05: the Output tab already has Calibration across and Calibration down, which scale everything drawn at true size, test square included. A square that measures 98.5 mm across needs 100 / 98.5 = 1.015.
 
-Done 2026-11-05: the Align tab is hidden (one line in `sloper.ui.mainform.pas`); `arrange` and `add_repeat` stay in the Automation API. Add repeat was only on that tab, so repeats can't be added in the app until it comes back or the button moves.
+To do, with Preferences:
+- Move calibration to the Publish tab of Preferences (`settings.json`), since it belongs to the printer, not the pattern. This matches the design document's folder table, which already lists printer calibration under Config.
+- Let the user type the measured size of the test square (across and down) and work out the factors, rather than entering them by hand.
+- Decide what happens to the `calibrationX` / `calibrationY` already saved in layout files: read them as an override, or drop them on load.
+
 
 
