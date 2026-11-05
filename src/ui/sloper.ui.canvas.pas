@@ -29,7 +29,7 @@ interface
 uses
   Classes, SysUtils, Controls, StdCtrls, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
-  Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
+  Sloper.Core.Measurements, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
 
 type
   // cmRefused: a drag was refused; the reason stays up until the button is released
@@ -72,6 +72,9 @@ type
     FSeamOnB: boolean;
     FLabelMode: TLabelMode;
     FShowPieceFills: boolean;
+    // The grid's spacing, in GridUnit
+    FGridStep: double;
+    FGridUnit: TMeasureUnit;
     // The hold-for-all-labels key is down
     FLabelsHeld: boolean;
     FHorzBar, FVertBar: TScrollBar;
@@ -223,6 +226,8 @@ type
     property OnToolChange: TNotifyEvent read FOnToolChange write FOnToolChange;
     property LabelMode: TLabelMode read FLabelMode write SetLabelMode;
     property ShowPieceFills: boolean read FShowPieceFills write SetShowPieceFills;
+    // The grid's spacing in AUnit, from the preferences
+    procedure SetGrid(Step: double; AUnit: TMeasureUnit);
     // Scroll bars to keep in step with the view
     property HorzBar: TScrollBar read FHorzBar write SetHorzBar;
     property VertBar: TScrollBar read FVertBar write SetVertBar;
@@ -285,7 +290,8 @@ resourcestring
 implementation
 
 uses
-  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect, Sloper.UI.Scene;
+  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect, Sloper.UI.Scene,
+  Sloper.UI.RulerTicks;
 
 const
   // A new circle or arc, as a starting point for typing the real values
@@ -416,6 +422,8 @@ begin
   inherited Create(AOwner);
   FView := DefaultView;
   FShowPieceFills := True;
+  FGridUnit := muMillimetre;
+  FGridStep := DefaultGridSteps[muMillimetre];
   FBitmap := TBGRABitmap.Create(1, 1);
   TabStop := True;
   DoubleBuffered := False;
@@ -1293,6 +1301,15 @@ begin
   Invalidate;
 end;
 
+procedure TPatternCanvas.SetGrid(Step: double; AUnit: TMeasureUnit);
+begin
+  if Step <= 0 then
+    Exit;
+  FGridStep := Step;
+  FGridUnit := AUnit;
+  Invalidate;
+end;
+
 procedure TPatternCanvas.SetLabelsHeld(Value: boolean);
 begin
   if Value = FLabelsHeld then
@@ -1868,48 +1885,43 @@ end;
 
 { Drawing }
 
+// Counted in whole steps from the origin, so major lines stay put and long
+// grids gather no rounding
 procedure TPatternCanvas.DrawGrid;
-const
-  Steps: array[0..9] of double = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000);
-  MinSpacing = 10;
 var
-  Step, Major, Coord: double;
-  Index: integer;
-  TopLeft, BottomRight, Screen: TVec2;
+  Spacing: TRulerSpacing;
+  StepMm, Screen: double;
+  PerMajor, First, Last, Index: int64;
+  TopLeft, BottomRight: TVec2;
   LineColor: TBGRAPixel;
 begin
-  Step := Steps[High(Steps)];
-  for Index := 0 to High(Steps) do
-    if Steps[Index] * FView.Scale >= MinSpacing then
-    begin
-      Step := Steps[Index];
-      Break;
-    end;
-  Major := Step * 10;
+  Spacing := GridSpacing(FView.Scale * MillimetresPerUnit[FGridUnit], FGridStep, FGridUnit);
+  StepMm := Spacing.Minor * MillimetresPerUnit[FGridUnit];
+  PerMajor := Max(1, Round(Spacing.Labelled / Spacing.Minor));
   TopLeft := ModelAt(0, 0);
   BottomRight := ModelAt(ClientWidth, ClientHeight);
 
-  Coord := Floor(TopLeft.X / Step) * Step;
-  while Coord <= BottomRight.X do
+  First := Floor64(TopLeft.X / StepMm);
+  Last := Ceil64(BottomRight.X / StepMm);
+  for Index := First to Last do
   begin
-    Screen := FView.ToScreen(Vec2(Coord, 0));
-    if Abs(Coord / Major - Round(Coord / Major)) < 1e-9 then
+    if Index mod PerMajor = 0 then
       LineColor := GridMajor
     else
       LineColor := GridMinor;
-    FBitmap.DrawVertLine(Round(Screen.X), 0, ClientHeight, LineColor);
-    Coord := Coord + Step;
+    Screen := FView.ToScreen(Vec2(Index * StepMm, 0)).X;
+    FBitmap.DrawVertLine(Round(Screen), 0, ClientHeight, LineColor);
   end;
-  Coord := Floor(TopLeft.Y / Step) * Step;
-  while Coord <= BottomRight.Y do
+  First := Floor64(TopLeft.Y / StepMm);
+  Last := Ceil64(BottomRight.Y / StepMm);
+  for Index := First to Last do
   begin
-    Screen := FView.ToScreen(Vec2(0, Coord));
-    if Abs(Coord / Major - Round(Coord / Major)) < 1e-9 then
+    if Index mod PerMajor = 0 then
       LineColor := GridMajor
     else
       LineColor := GridMinor;
-    FBitmap.DrawHorizLine(0, Round(Screen.Y), ClientWidth, LineColor);
-    Coord := Coord + Step;
+    Screen := FView.ToScreen(Vec2(0, Index * StepMm)).Y;
+    FBitmap.DrawHorizLine(0, Round(Screen), ClientWidth, LineColor);
   end;
 end;
 

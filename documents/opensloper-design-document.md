@@ -428,7 +428,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 
 **Canvas so far** (`Sloper.UI.Canvas`, with the LCL-free `Sloper.UI.View`, `Sloper.UI.Scene` and `Sloper.Core.Drag`):
 
-- **Drawing:** BGRABitmap on an adaptive mm grid. Outline edges are solid ink; construction edges are thin, grey and dashed. Errors are red and blocked objects orange. Failing objects are faded at their last good result, and objects never computed are not drawn.
+- **Drawing:** BGRABitmap on a grid in the user's unit, at the spacing set in Preferences (see Preferences). Outline edges are solid ink; construction edges are thin, grey and dashed. Errors are red and blocked objects orange. Failing objects are faded at their last good result, and objects never computed are not drawn.
 - **Navigation:** the wheel scrolls and Shift+wheel scrolls sideways. Ctrl/Cmd+wheel zooms about the cursor. Middle-drag or Space+drag pans. Ctrl/Cmd+0 fits the pattern and Ctrl/Cmd+1 shows it at true size (the screen's pixels per inch).
 - **Selection:** click selects a point or edge (points win when they overlap) and Shift adds. Hover highlights, and shows a failing object's message in the status bar. A drag that starts on empty canvas or a piece, not on a point or handle, draws a dotted box; on release everything wholly inside it is selected, as in Inkscape (points, edges, and pieces whose cutting line fits), and Shift adds to the selection. Escape cancels the box. `ObjectsInBox` in `Sloper.UI.Scene` does the choosing.
 - **Dragging points:** only fields that are plain numbers change (free x/y, offset length/angle or dx/dy, along-edge value), rounded to 0.1 mm, 0.1° or 0.0001. A point placed by a formula or by other objects is refused, with the reason shown until the mouse button is released. One drag is one undo step; Escape cancels it.
@@ -444,7 +444,7 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Tools:** Select (S), Point (P), Line (L), Curve (C), Piece (K), Notch (T) and Seam (E), from the toolbar, the Tools menu or the keys. Escape stops a line, then returns to Select.
 - **Toolbars and icons:** every command is a `TAction` in one `TActionList`, shared by its menu item and toolbar button, so captions, shortcuts, checked and enabled states stay in step. A command bar runs along the top (New, Open, Save; Undo, Redo, Delete; the zooms; Measurements, Publish, Export Draft SVG), and the drafting tools run down the left of the canvas in the Tools menu's order, wrapping into a second column when the window is short. The measurements and publish apps work the same way through `TCommandSet` (`Sloper.UI.Commands`), each with a command bar along the top: measurements has New, Open, Save; Undo, Redo; Import, Export; Check Against Pattern, and publish has Open, Save; Undo, Redo; Fit Pages, Reload Patterns; Export PDF, SVG, DXF and Machine DXF. Tooltips name the command and its shortcut, and Undo and Redo name the step. In all three GUI apps tooltips appear above the pointer, so they do not cover the buttons it is moving to, and drop below it only at the top of the screen (`Sloper.UI.HintPlacement`, which the publish and measurements apps take from `src/ui`).
 - **Icons** are Tabler Icons 3.50.0 outline SVGs (MIT), kept unchanged in `data/icons` with their licence and found like the catalogue. `Sloper.UI.IconSet` lists the file for each command, and `Sloper.UI.Icons` draws them with BGRABitmap at the screen's scale: 24 px for toolbars, 16 px for menus, in the theme's text colour, with a grey set for disabled buttons. A missing folder leaves the toolbars showing captions; a missing file leaves its icon blank. Drafting commands with no close stock icon use the nearest one (Piece: polygon, Arc: rainbow, Notch: inverted triangle, Seam: needle and thread, DXF export: file-vector, machine DXF export: cut, Check Against Pattern: file-search).
-- **Rulers** run along the top and left of the canvas, as in Inkscape (View → Rulers, Ctrl+R, kept in `settings.json`). They line up pixel for pixel with the canvas, the left one counting down the screen as model y does, and a red line on each follows the pointer. Ticks come as close as stays readable (at least 6 px apart, numbers at least 50 px): 1, 2 and 5 steps in mm and cm, and halves down to sixteenths in inches, with a longer tick halfway between numbers (`Sloper.UI.RulerTicks`, tested without the LCL). The corner square names the unit in blue. Until patterns have units of their own (see Pattern units) the rulers show millimetres; they then follow the pattern's unit
+- **Rulers** run along the top and left of the canvas, as in Inkscape (View → Rulers, Ctrl+R, kept in `settings.json`). They line up pixel for pixel with the canvas, the left one counting down the screen as model y does, and a red line on each follows the pointer. Ticks come as close as stays readable (at least 6 px apart, numbers at least 50 px): 1, 2 and 5 steps in mm and cm, and halves down to sixteenths in inches, with a longer tick halfway between numbers (`Sloper.UI.RulerTicks`, tested without the LCL). The corner square names the unit in blue. Until patterns have units of their own (see Pattern units) the rulers, like the grid and the cursor position in the status bar, use the unit in Preferences; they then follow the pattern's unit
 - **Snapping** (`Sloper.UI.Snap`): within 8 pixels of the cursor, in this order:
   1. An existing point is reused.
   2. A crossing of two nearby edges becomes an intersect point, with its `pick`. An edge and its own split parts are not treated as crossing.
@@ -804,7 +804,9 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
 | Draft geometry, formulas, variables | Which patterns and measurement sets to use |
 | Pieces: outline, seam allowance, grainline, notches, piece labels, cut count | Placement of each piece copy: position, rotation, flip |
 | Pattern-space annotations (notes, callouts) | Sheet-space annotations (title block, sheet notes) |
-|  | Paper, margins, overlap, marks, calibration, output kind |
+|  | Paper, margins, overlap, marks, output kind |
+
+Printer calibration is neither: it belongs to the user's printer, so it is a preference (see Preferences).
 
 **One or more patterns from the start.** A layout lists its sources, each a pattern file with a measurement set. Different patterns can share a layout (a skirt and a top cut from the same fabric).
 
@@ -834,7 +836,7 @@ Publishing is a separate application, `opensloper-publish`, as KiCad splits sche
     { "id": 3, "pattern": "top.sloper", "measurementFile": "sizes.slm", "size": "38" }
   ],
   "output": { "kind": "tiled", "paper": "A4", "margin": 6, "overlap": 10,
-              "marks": "diamond", "calibrationX": 1, "calibrationY": 1 },
+              "marks": "diamond" },
   "placements": [
     { "source": 1, "piece": 42, "copy": 1, "x": 120, "y": 40,
       "rotation": 0, "flipped": false }
@@ -854,7 +856,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Layout space** is millimetres from the top left, y down. A placement gives the top left of the piece's cutting line after any rotation and flip (flip first), so it stays put when the piece grows.
 - **New pieces** are placed in plain rows up to 1 m wide, 10 mm apart. This is a starting point; Pack Pieces does the packing. Even-numbered copies of a mirrored piece start flipped.
 - **Problems.** A missing or unreadable file, a deleted piece, a failing piece and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, a pattern with no pieces, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. A source's `size` must be in its measurement file; with none given, a size table uses its first size. The title block names the size.
-- **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration scales everything drawn at true size, including the test square.
+- **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration (from Preferences) scales everything drawn at true size, including the test square.
 - **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Material sheets and layouts with a machine profile open it out to a whole piece instead (see Accessories).
 - **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font. Annotations will add TrueType embedding for their chosen fonts (see Annotations).
 - **The window** (`Sloper.Publish.MainForm`, `Sloper.Publish.PreviewCanvas`, with the LCL-free `Sloper.Output.Preview`) is one screen: the pages with the pieces on them, and beside them four tabs (Pieces: turn, flip, pack, the tray; Patterns: the sources; Output: paper settings and the exports; Notes: title block and sheet notes) above an always-visible problems list. It takes a `.slayout`, or a `.sloper` to start a layout for. A page's printable area is drawn white, and grey when blank. Click selects a piece and dragging moves it, on a 0.5 mm grid, as one undo step; Escape cancels. The wheel zooms about the cursor; middle-drag or Space+drag pans.
@@ -960,7 +962,7 @@ The publish app (see Publish app) prints patterns directly at true scale, with n
 
 - Test square on the first page (10 cm, or 4 in for Letter) to check with a ruler
 - Clear "print at 100% / actual size" reminder in the PDF
-- Optional x/y printer calibration factors for printers that are consistently slightly off
+- Optional x/y printer calibration factors for printers that are consistently slightly off, set once in Preferences for the user's printer
 
 **Layout before printing:**
 
@@ -980,7 +982,7 @@ The publish app (see Publish app) prints patterns directly at true scale, with n
 
 - Large live preview: pieces on the page grid, page labels visible, blank pages greyed out
 - Pieces dragged on the preview and turned with Turn 90°; page count updates as you move them
-- Settings in a side panel (paper, margins, overlap, marks, calibration), with the preview updating instantly
+- Settings in a side panel (paper, margins, overlap, marks), with the preview updating instantly
 - Click a page to include or exclude it, e.g. to reprint one damaged sheet
 - Settings saved in the layout file, so reprinting after a measurement change is one click
 - One button each for tiled PDF, large-format PDF and projector PDF
@@ -1035,6 +1037,18 @@ Notes, callouts and a title block are first-class objects that print with the pa
   "size": "4mm", "print": true }
 ```
 
+## Preferences
+
+Built 2026-11-05. Edit → Preferences… (Ctrl/Cmd+,) opens the same dialog in all three apps (`Sloper.UI.Preferences`), on the tab for the app: General in the measurements app, Design in the drafting app, Publish in the publish app. OK saves straight to `settings.json` (`TPreferences` in `Sloper.Core.Settings`); Cancel changes nothing. The other apps read the preferences when they start, so a change shows in an app already open only after it is restarted.
+
+| Tab | Setting | Stored as |
+| --- | --- | --- |
+| General | Unit: mm, cm or in. The measurements app shows values in it (its Show in box changes the same preference), and the drafting app's rulers, grid and cursor position use it. New patterns will take it as their unit once Pattern units is built; it never changes an existing pattern | `measureUnit` |
+| Design | Grid spacing, one per unit, each in that unit's own numbers (default 5 mm, 0.5 cm, ⅛ in), so switching units never turns ⅛ in into 3.175 mm. Major lines every ten steps, or every inch when the step divides one. Zoomed out until lines would be under 10 px apart, the grid steps up through multiples of the spacing (inch fractions double through ¼ and ½ first), so every line still lies on the set spacing (`GridSpacing` in `Sloper.UI.RulerTicks`) | `gridSteps` (`mm`, `cm`, `in`) |
+| Publish | Printer calibration across and down, 0.5 to 2. **Work Out Factors** takes the test square's side as measured on a print (10 cm or 4 in, typed in the chosen unit) and sets each factor to `current × expected ÷ measured`, since the square was printed with the current factors (`CorrectedCalibration`) | `calibrationX`, `calibrationY` |
+
+**Calibration is the printer's, not the layout's.** Layout files no longer carry `calibrationX` / `calibrationY`; older files' values are ignored when read and not written back. `TLayout.Calibration` is set from the preferences when a layout is loaded by the publish app, the CLI or the Automation API, like `MachineProfiles`, and is never saved or undone with the layout.
+
 ## File locations
 
 OpenSloper follows each platform's conventions and never writes app files into the home folder root, unlike Seamly2D.
@@ -1055,7 +1069,7 @@ On Linux, `XDG_*_HOME` environment variables are respected when set.
 **Implementation:**
 
 - One `TAppPaths` unit provides `ConfigDir`, `DataDir`, `StateDir`, `CacheDir` and `DefaultDocumentsDir`; no other code builds paths
-- App settings live in `settings.json` (`TAppPaths.SettingsFile`, read and written by `Sloper.Core.Settings`), saved when the app closes. A missing file is a first run; an unreadable one leaves the defaults, without troubling the user, since it only arranges the window
+- App settings live in `settings.json` (`TAppPaths.SettingsFile`, read and written by `Sloper.Core.Settings`). The three apps share the file and run side by side, so every save reads it again first and changes only its own part: the drafting app writes its window arrangement when it closes, and Preferences and the measurements app's unit box write the preferences at once (`SaveUserPreferences`). A missing file is a first run. An unreadable one leaves the defaults; the window arrangement is then written over it without troubling the user, while saving preferences refuses and says why, rather than lose a newer version's file
 - File → Open Recent lists the last 10 files each app opened or saved: patterns in the design app, measurement files in the measurements app, layouts in the publish app (a pattern that starts a new layout is not listed; the layout is, once saved). The lists live in `recent-files.json` in the state folder (`TAppPaths.RecentFilesFile`, `Sloper.Core.RecentFiles`), one per app. The apps run side by side, so each change reads the file, changes its own list and writes it straight back, instead of keeping a copy that would overwrite the others'. A missing file is taken off the list when it is chosen, with a message; `Sloper.UI.RecentMenu` builds the submenu for all three apps
 - `GetAppConfigDir` covers config on Linux and Windows; macOS and the XDG data and cache folders may need small custom code
 - `Application.Title` and the app name are set early so library calls use `opensloper`

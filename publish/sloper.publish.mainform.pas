@@ -52,8 +52,8 @@ type
     FSourceBox: TListBox;
     FSourceSetLabel: TLabel;
     FRemoveSourceButton, FChooseSetButton, FPatternSetButton: TButton;
-    FPaperWidthEdit, FPaperHeightEdit, FRollEdit, FMaterialWidthEdit, FMaterialLengthEdit, FMarginEdit, FOverlapEdit, FCalibrationXEdit,
-    FCalibrationYEdit: TFloatSpinEdit;
+    FPaperWidthEdit, FPaperHeightEdit, FRollEdit, FMaterialWidthEdit, FMaterialLengthEdit, FMarginEdit,
+    FOverlapEdit: TFloatSpinEdit;
     FTray, FProblems: TListBox;
     // What each tray line stands for
     FTrayCopies: TUnplacedCopyArray;
@@ -88,6 +88,7 @@ type
     procedure DocumentChanged(Sender: TObject);
     procedure SelectionChanged(Sender: TObject);
     procedure RefreshControls;
+    procedure PreferencesClick(Sender: TObject);
     procedure WatchTick(Sender: TObject);
     procedure RefreshProblems;
     procedure RefreshTray;
@@ -145,6 +146,7 @@ resourcestring
   rsMenuUndo = '&Undo';
   rsMenuUndoNamed = '&Undo %s';
   rsMenuRedo = '&Redo';
+  rsMenuPreferences = 'Pre&ferences...';
   rsMenuView = '&View';
   rsMenuFit = '&Fit Pages';
   rsMenuReload = '&Reload Patterns';
@@ -162,8 +164,6 @@ resourcestring
   rsPaper = 'Paper';
   rsMargin = 'Margin (mm)';
   rsOverlap = 'Overlap (mm)';
-  rsCalibrationX = 'Calibration across';
-  rsCalibrationY = 'Calibration down';
   rsTray = 'Unplaced: drag onto the pages';
   rsTrayEmpty = 'Every piece is placed';
   rsTrayNoPieces = 'No pieces to place';
@@ -255,7 +255,8 @@ resourcestring
 implementation
 
 uses
-  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.RecentFiles, Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.Output.LayoutExport,
+  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.RecentFiles, Sloper.Core.Settings, Sloper.UI.IconSet,
+  Sloper.UI.Preferences, Sloper.Output.LayoutExport,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
@@ -271,10 +272,8 @@ const
   ProblemsHeight = 110;
   WatchMilliseconds = 1000;
   SpinDecimals = 1;
-  CalibrationDecimals = 3;
   MaxMillimetres = 100;
   MaxRollWidth = 2000;
-  MaxCalibration = 2;
   PatternExtension = '.sloper';
   // The last is the size typed in
   PaperNames: array[0..3] of string = ('A4', 'A3', 'Letter', CustomPaper);
@@ -291,6 +290,7 @@ begin
   OnCloseQuery := @CloseAsked;
   FDocument := TLayoutDocument.Create;
   FDocument.Layout.MachineProfiles := UserMachineProfiles;
+  FDocument.Layout.Calibration := UserCalibration;
   FDocument.OnChange := @DocumentChanged;
   BuildMenu;
   FStatus := TStatusBar.Create(Self);
@@ -391,6 +391,8 @@ begin
   Group := AddMenu(rsMenuEdit);
   FCommands.AddMenuItem(Group, FUndoAction);
   FCommands.AddMenuItem(Group, FRedoAction);
+  Group.AddSeparator;
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuPreferences, aiPreferences, @PreferencesClick, ShortCut(VK_OEM_COMMA, [ssModifier])));
   Group := AddMenu(rsMenuView);
   FCommands.AddMenuItem(Group, FitAction);
   FCommands.AddMenuItem(Group, ReloadAction);
@@ -632,8 +634,6 @@ begin
   FPaperHeightEdit.OnExit := @PaperEditExit;
   FMarginEdit := AddSpin(rsMargin, MaxMillimetres, 1, SpinDecimals);
   FOverlapEdit := AddSpin(rsOverlap, MaxMillimetres, 1, SpinDecimals);
-  FCalibrationXEdit := AddSpin(rsCalibrationX, MaxCalibration, 0.001, CalibrationDecimals);
-  FCalibrationYEdit := AddSpin(rsCalibrationY, MaxCalibration, 0.001, CalibrationDecimals);
   FMarksBox := AddChoice(rsMarks);
   // In the order of TLayoutMarks
   FMarksBox.Items.Add(rsMarksDiamond);
@@ -1025,8 +1025,6 @@ begin
     RefreshPatternsTab;
     FMarginEdit.Value := Layout.Output.Tiles.Margin;
     FOverlapEdit.Value := Layout.Output.Tiles.Overlap;
-    FCalibrationXEdit.Value := Layout.Output.CalibrationX;
-    FCalibrationYEdit.Value := Layout.Output.CalibrationY;
     RefreshNotesTab;
   finally
     FRefreshing := False;
@@ -1102,15 +1100,12 @@ begin
     Output.Profile := '';
   Output.Tiles.Margin := FMarginEdit.Value;
   Output.Tiles.Overlap := FOverlapEdit.Value;
-  Output.CalibrationX := FCalibrationXEdit.Value;
-  Output.CalibrationY := FCalibrationYEdit.Value;
   // Page names mean other sheets once the grid moves
   if (Output.Paper <> Before.Paper) or (Output.Tiles.PaperWidth <> Before.Tiles.PaperWidth) or
     (Output.Tiles.PaperHeight <> Before.Tiles.PaperHeight) or (Output.Tiles.Margin <> Before.Tiles.Margin) or (Output.Tiles.Overlap <> Before.Tiles.Overlap) or
     (Output.Kind <> Before.Kind) then
     Output.ExcludedPages := nil;
-  if not TilesAreUsable(Output.Tiles) or (Output.RollWidth <= 2 * Output.Tiles.Margin) or (Output.MaterialWidth <= 0) or (Output.CalibrationX <= 0) or
-    (Output.CalibrationY <= 0) then
+  if not TilesAreUsable(Output.Tiles) or (Output.RollWidth <= 2 * Output.Tiles.Margin) or (Output.MaterialWidth <= 0) then
   begin
     ShowStatus(rsLayoutNoPrintArea);
     // "400" passes through "4" on the way, so a typed size is left to finish
@@ -1317,6 +1312,16 @@ begin
   FDocument.BeginChange(rsFlipChange);
   FDocument.Layout.Placements[Index].Flipped := not FDocument.Layout.Placements[Index].Flipped;
   FDocument.EndChange;
+end;
+
+procedure TPublishForm.PreferencesClick(Sender: TObject);
+var
+  Preferences: TPreferences;
+begin
+  if not EditPreferences(Self, ptPublish, Preferences) then
+    Exit;
+  // Only printing reads it, so nothing on screen changes
+  FDocument.Layout.Calibration := Preferences.Calibration;
 end;
 
 end.

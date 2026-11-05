@@ -46,12 +46,18 @@ type
     procedure TestSidePanelRoundTrip;
     procedure TestRulersRoundTrip;
     procedure TestUnknownLabelModeIsIgnored;
+    procedure TestPreferenceDefaults;
+    procedure TestPreferencesRoundTrip;
+    procedure TestUnusablePreferencesAreIgnored;
+    procedure TestSavingPreferencesKeepsTheRest;
+    procedure TestSavingPreferencesLeavesUnreadableFile;
+    procedure TestCorrectedCalibration;
   end;
 
 implementation
 
 uses
-  SysUtils;
+  SysUtils, Sloper.Core.Measurements, Sloper.Core.JSON;
 
 procedure TTestSettings.SetUp;
 begin
@@ -217,6 +223,108 @@ begin
   FSettings.NameColumnShare := 0.3;
   AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1}', Err));
   AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+end;
+
+procedure TTestSettings.TestPreferenceDefaults;
+var
+  AUnit: TMeasureUnit;
+begin
+  AssertTrue('unit', FSettings.Preferences.MeasureUnit = muMillimetre);
+  for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
+    AssertNear(MeasureUnitNames[AUnit], DefaultGridSteps[AUnit], FSettings.Preferences.GridSteps[AUnit]);
+  AssertNear('across', 1, FSettings.Preferences.Calibration.X);
+  AssertNear('down', 1, FSettings.Preferences.Calibration.Y);
+end;
+
+procedure TTestSettings.TestPreferencesRoundTrip;
+var
+  Other: TAppSettings;
+  Err: string;
+begin
+  FSettings.Preferences.MeasureUnit := muInch;
+  FSettings.Preferences.GridSteps[muMillimetre] := 2;
+  FSettings.Preferences.GridSteps[muCentimetre] := 1;
+  FSettings.Preferences.GridSteps[muInch] := 0.25;
+  FSettings.Preferences.Calibration.X := 1.015;
+  FSettings.Preferences.Calibration.Y := 0.99;
+  Other := TAppSettings.Create;
+  try
+    AssertTrue(Err, Other.LoadFromText(FSettings.SaveToText, Err));
+    AssertTrue('unit', Other.Preferences.MeasureUnit = muInch);
+    AssertNear('mm grid', 2, Other.Preferences.GridSteps[muMillimetre]);
+    AssertNear('cm grid', 1, Other.Preferences.GridSteps[muCentimetre]);
+    AssertNear('inch grid', 0.25, Other.Preferences.GridSteps[muInch]);
+    AssertNear('across', 1.015, Other.Preferences.Calibration.X);
+    AssertNear('down', 0.99, Other.Preferences.Calibration.Y);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestSettings.TestUnusablePreferencesAreIgnored;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "measureUnit": "furlong",' +
+    ' "gridSteps": {"mm": -1, "cm": 500, "in": 0.5}, "calibrationX": 1.02}', Err));
+  AssertTrue('unit', FSettings.Preferences.MeasureUnit = muMillimetre);
+  AssertNear('negative', DefaultGridSteps[muMillimetre], FSettings.Preferences.GridSteps[muMillimetre]);
+  AssertNear('too large', DefaultGridSteps[muCentimetre], FSettings.Preferences.GridSteps[muCentimetre]);
+  AssertNear('usable', 0.5, FSettings.Preferences.GridSteps[muInch]);
+  AssertNear('only one factor', 1, FSettings.Preferences.Calibration.X);
+  AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "calibrationX": 0, "calibrationY": 1}', Err));
+  AssertNear('zero', 1, FSettings.Preferences.Calibration.X);
+end;
+
+procedure TTestSettings.TestSavingPreferencesKeepsTheRest;
+var
+  FileName, Err: string;
+  Preferences: TPreferences;
+begin
+  FileName := GetTempFileName(GetTempDir, 'oss');
+  try
+    FSettings.NameColumnShare := 0.3;
+    FSettings.ShowRulers := False;
+    AssertTrue(Err, FSettings.SaveToFile(FileName, Err));
+    Preferences := DefaultPreferences;
+    Preferences.MeasureUnit := muCentimetre;
+    Preferences.Calibration.X := 1.01;
+    AssertTrue(Err, SavePreferencesToFile(FileName, Preferences, Err));
+    AssertTrue(Err, FSettings.LoadFromFile(FileName, Err));
+    AssertNear('share kept', 0.3, FSettings.NameColumnShare);
+    AssertFalse('rulers kept', FSettings.ShowRulers);
+    AssertTrue('unit', FSettings.Preferences.MeasureUnit = muCentimetre);
+    AssertNear('across', 1.01, FSettings.Preferences.Calibration.X);
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestSettings.TestSavingPreferencesLeavesUnreadableFile;
+const
+  Newer = '{"format": "opensloper-settings", "version": 999}';
+var
+  FileName, Err, Text: string;
+begin
+  FileName := GetTempFileName(GetTempDir, 'oss');
+  try
+    AssertTrue(Err, WriteTextFile(FileName, Newer, Err));
+    AssertFalse('refused', SavePreferencesToFile(FileName, DefaultPreferences, Err));
+    AssertTrue('says why', Err <> '');
+    AssertTrue(Err, ReadTextFile(FileName, Text, Err));
+    AssertEquals('untouched', Newer, Text);
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestSettings.TestCorrectedCalibration;
+begin
+  // A 10 cm square printed 98.5 mm with no correction
+  AssertNear('first time', 100 / 98.5, CorrectedCalibration(1, 100, 98.5));
+  // Printed with 1.01 and still 1 % short: the new factor builds on the old
+  AssertNear('again', 1.01 * 100 / 99, CorrectedCalibration(1.01, 100, 99));
+  AssertNear('nothing measured', 1.02, CorrectedCalibration(1.02, 100, 0));
 end;
 
 initialization

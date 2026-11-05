@@ -40,7 +40,7 @@ function ExportLayoutPDF(Layout: TLayout; const FileName: string; out ErrorMessa
 
 resourcestring
   rsPDFPrintFullSize = 'Print at 100% / actual size. Do not "fit to page".';
-  rsPDFCheckSquare = 'This square must measure %s. If it does not, set the calibration factors.';
+  rsPDFCheckSquare = 'This square must measure %s. If it does not, set the printer calibration in Preferences.';
   rsPDFPages = '%d pages to print, %d blank, %d left out';
   rsPDFProjectorFit = 'Set the projector so that this square measures %s on the fabric.';
   rsPDFProjectorZoom = 'Show at 100%, then adjust the projector, not the viewer.';
@@ -48,12 +48,12 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Output.PDFWriter, Sloper.Output.Tiling;
+  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Settings, Sloper.Output.PDFWriter, Sloper.Output.Tiling;
 
 const
   CoverMargin = 15;
-  TestSquareSide = 100;
-  LetterTestSquareSide = 101.6;
+  TestSquareSide = MetricTestSquareSide;
+  LetterTestSquareSide = InchTestSquareSide;
   MapCell = 12;
   CaptionSize = 9;
   PieceLabelSize = 11;
@@ -128,8 +128,8 @@ end;
 // consistently a little off, so it scales everything drawn at true size.
 function TLayoutPrinter.PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
 begin
-  Result.X := FOrigin.X + (P.X - Page.Area.MinX) * FLayout.Output.CalibrationX;
-  Result.Y := FOrigin.Y + (P.Y - Page.Area.MinY) * FLayout.Output.CalibrationY;
+  Result.X := FOrigin.X + (P.X - Page.Area.MinX) * FLayout.Calibration.X;
+  Result.Y := FOrigin.Y + (P.Y - Page.Area.MinY) * FLayout.Calibration.Y;
 end;
 
 function TLayoutPrinter.PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
@@ -190,8 +190,8 @@ begin
     FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFCheckSquare, [Width]));
   Square.MinX := Left;
   Square.MinY := Top + CheckSquareTop;
-  Square.MaxX := Square.MinX + Side * FLayout.Output.CalibrationX;
-  Square.MaxY := Square.MinY + Side * FLayout.Output.CalibrationY;
+  Square.MaxX := Square.MinX + Side * FLayout.Calibration.X;
+  Square.MaxY := Square.MinY + Side * FLayout.Calibration.Y;
   FWriter.Rectangle(Square);
   Result := Square.MaxY;
 end;
@@ -248,7 +248,7 @@ begin
   FWriter.SetLineWidth(FMarkWidth);
   DrawCheckBlock(Margin, Margin);
   // Beside the test square, clear of the pieces
-  DrawTitle(Margin + LetterTestSquareSide * FLayout.Output.CalibrationX + TitleGap, Margin + CheckSquareTop, False);
+  DrawTitle(Margin + LetterTestSquareSide * FLayout.Calibration.X + TitleGap, Margin + CheckSquareTop, False);
   FOrigin := Vec2(Margin, Bottom);
   Printable.MinX := Margin;
   Printable.MinY := Bottom;
@@ -547,12 +547,12 @@ begin
   else if Layout.Output.Kind = okMaterial then
     Result := Layout.Output.MaterialWidth + 2 * Layout.Output.Tiles.Margin
   else
-    Result := Max(MinProjectorWidth, 2 * Layout.Output.Tiles.Margin + PageWidth * Layout.Output.CalibrationX);
+    Result := Max(MinProjectorWidth, 2 * Layout.Output.Tiles.Margin + PageWidth * Layout.Calibration.X);
 end;
 
 function LargeSheetLength(Layout: TLayout; const PageHeight: double): double;
 begin
-  Result := 2 * Layout.Output.Tiles.Margin + LargeHeaderHeight + PageHeight * Layout.Output.CalibrationY;
+  Result := 2 * Layout.Output.Tiles.Margin + LargeHeaderHeight + PageHeight * Layout.Calibration.Y;
 end;
 
 function LayoutToPDF(Layout: TLayout): rawbytestring;

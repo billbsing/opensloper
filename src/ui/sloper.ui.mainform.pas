@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
-  Sloper.UI.FabricsPanel, Sloper.UI.IconSet, Sloper.Core.Transform;
+  Sloper.UI.FabricsPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform;
 
 type
 
@@ -87,6 +87,8 @@ type
   private
     FDocument: TPatternDocument;
     FSettings: TAppSettings;
+    // Shared with the other apps, and changed through Edit → Preferences
+    FPreferences: TPreferences;
     FRecent: TRecentMenu;
     FActions: TActionList;
     // The same icons at toolbar and menu sizes, in TAppIcon order, and greyed
@@ -116,6 +118,8 @@ type
     FShown: boolean;
     procedure LoadSettings;
     procedure SaveSettings;
+    procedure ApplyPreferences;
+    procedure PreferencesClick(Sender: TObject);
     procedure SetLabelMode(Mode: TLabelMode);
     function NewAction(const ACaption: string; AIcon: TAppIcon; AHandler: TNotifyEvent; AShortCut: TShortCut = 0;
       ATag: PtrInt = 0): TAction;
@@ -225,6 +229,7 @@ resourcestring
   rsMenuEditRedo = '&Redo';
   rsMenuEditRedoWhat = '&Redo %s';
   rsMenuEditDelete = '&Delete';
+  rsMenuEditPreferences = 'Pre&ferences...';
   rsMenuView = '&View';
   rsMenuViewZoomIn = 'Zoom &In';
   rsMenuViewZoomOut = 'Zoom &Out';
@@ -289,7 +294,7 @@ resourcestring
   rsSaveFailed = 'Could not save %s:'#10'%s';
   rsMeasurementsFailed = 'Could not use %s:'#10'%s';
   rsMeasurementsMissing = 'The pattern opened, but its measurements could not be loaded:'#10'%s';
-  rsCursorAt = 'x %.1f   y %.1f mm';
+  rsCursorAt = 'x %s   y %s %s';
   rsNoProblems = 'No problems';
   rsProblems = 'Problems: %d';
   rsNoMeasurements = 'No measurement set';
@@ -347,6 +352,7 @@ begin
   FCanvas.ShowPieceFills := FSettings.ShowPieceFills;
   SetSideShown(FSettings.ShowSidePanel);
   SetRulersShown(FSettings.ShowRulers);
+  ApplyPreferences;
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
   StatusBar.OnResize := @StatusBarResize;
@@ -364,12 +370,16 @@ begin
   FSettings := TAppSettings.Create;
   FSettings.LoadFromFile(TAppPaths.SettingsFile, Err);
   FProperties.NameShare := FSettings.NameColumnShare;
+  FPreferences := FSettings.Preferences;
 end;
 
+// Read again first, so that what the other apps saved in the same file while
+// this one was open stays: only this window's own arrangement is written
 procedure TMainForm.SaveSettings;
 var
   Err: string;
 begin
+  FSettings.LoadFromFile(TAppPaths.SettingsFile, Err);
   FSettings.NameColumnShare := FProperties.NameShare;
   FSettings.LabelMode := FCanvas.LabelMode;
   FSettings.ShowPieceFills := FCanvas.ShowPieceFills;
@@ -377,6 +387,29 @@ begin
   FSettings.ShowRulers := FRulersAction.Checked;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
+end;
+
+// Rulers, grid and cursor position are in the user's unit until patterns have
+// units of their own
+procedure TMainForm.ApplyPreferences;
+var
+  AUnit: TMeasureUnit;
+begin
+  AUnit := FPreferences.MeasureUnit;
+  FHorzRuler.MeasureUnit := AUnit;
+  FVertRuler.MeasureUnit := AUnit;
+  FRulerCorner.MeasureUnit := AUnit;
+  FCanvas.SetGrid(FPreferences.GridSteps[AUnit], AUnit);
+end;
+
+procedure TMainForm.PreferencesClick(Sender: TObject);
+var
+  Preferences: TPreferences;
+begin
+  if not EditPreferences(Self, ptDesign, Preferences) then
+    Exit;
+  FPreferences := Preferences;
+  ApplyPreferences;
 end;
 
 procedure TMainForm.SetLabelMode(Mode: TLabelMode);
@@ -686,6 +719,8 @@ begin
   MenuEditRedo.Action := FRedoAction;
   // The canvas handles the Delete key, so typing in a field can still delete text
   MenuEditDelete.Action := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
+  MenuEdit.AddSeparator;
+  AddMenuItem(MenuEdit, NewAction(rsMenuEditPreferences, aiPreferences, @PreferencesClick, ShortCut(VK_OEM_COMMA, [ssModifier])));
   MenuViewZoomIn.Action := NewAction(rsMenuViewZoomIn, aiZoomIn, @MenuViewZoomInClick, ShortCut(VK_OEM_PLUS, [ssModifier]));
   MenuViewZoomOut.Action := NewAction(rsMenuViewZoomOut, aiZoomOut, @MenuViewZoomOutClick, ShortCut(VK_OEM_MINUS, [ssModifier]));
   MenuViewFit.Action := NewAction(rsMenuViewFit, aiFit, @MenuViewFitClick, ShortCut(VK_0, [ssModifier]));
@@ -991,9 +1026,18 @@ begin
   UpdateStatus;
 end;
 
+// To a tenth of a millimetre, or as near as the unit shows it
+function CursorNumber(Millimetres: double; AUnit: TMeasureUnit): string;
+const
+  Decimals: array[TMeasureUnit] of integer = (1, 2, 3);
+begin
+  Result := FloatToStrF(Millimetres / MillimetresPerUnit[AUnit], ffFixed, 15, Decimals[AUnit]);
+end;
+
 procedure TMainForm.CanvasCursorMove(Sender: TObject; const ModelPos: TVec2);
 begin
-  StatusBar.Panels[PanelCursor].Text := Format(rsCursorAt, [ModelPos.X, ModelPos.Y]);
+  StatusBar.Panels[PanelCursor].Text := Format(rsCursorAt, [CursorNumber(ModelPos.X, FPreferences.MeasureUnit),
+    CursorNumber(ModelPos.Y, FPreferences.MeasureUnit), MeasureUnitNames[FPreferences.MeasureUnit]]);
   FHorzRuler.ShowCursor(ModelPos);
   FVertRuler.ShowCursor(ModelPos);
 end;
@@ -1012,8 +1056,8 @@ end;
 
 // Along the top and left of the canvas, which they must line up with: the
 // top strip spans the panel, so the corner is exactly as wide as the left
-// ruler and the top ruler starts where the canvas does. Patterns are in
-// millimetres until they have units of their own.
+// ruler and the top ruler starts where the canvas does. They count in the
+// user's unit (see ApplyPreferences).
 procedure TMainForm.CreateRulers;
 begin
   FRulerTop := TPanel.Create(Self);

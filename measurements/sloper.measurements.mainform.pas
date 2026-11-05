@@ -93,6 +93,7 @@ type
     procedure DocumentChanged(Sender: TObject);
     procedure RefreshLater(Data: PtrInt);
     procedure RefreshAll;
+    procedure PreferencesClick(Sender: TObject);
     procedure RefreshGrid;
     function CellText(Row, Column: integer): string;
     function ValueColumns: integer;
@@ -161,6 +162,7 @@ resourcestring
   rsMenuUndo = '&Undo';
   rsMenuUndoNamed = '&Undo %s';
   rsMenuRedo = '&Redo';
+  rsMenuPreferences = 'Pre&ferences...';
   rsName = 'Name';
   rsNotes = 'Notes';
   rsShowIn = 'Show in';
@@ -236,7 +238,7 @@ resourcestring
 implementation
 
 uses
-  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.RecentFiles, Sloper.Core.SeamlyFormat, Sloper.Core.Settings, Sloper.UI.IconSet;
+  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.RecentFiles, Sloper.Core.SeamlyFormat, Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Preferences;
 
 const
   HeaderHeight = 30;
@@ -347,6 +349,8 @@ begin
   Group := AddMenu(rsMenuEdit);
   FCommands.AddMenuItem(Group, FUndoAction);
   FCommands.AddMenuItem(Group, FRedoAction);
+  Group.AddSeparator;
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuPreferences, aiPreferences, @PreferencesClick, ShortCut(VK_OEM_COMMA, [ssModifier])));
 
   FCommands.AddButton(NewAction);
   FCommands.AddButton(OpenAction);
@@ -1096,35 +1100,19 @@ begin
 end;
 
 procedure TMeasurementsForm.LoadUnit;
-var
-  Settings: TAppSettings;
-  Reason: string;
 begin
-  Settings := TAppSettings.Create;
-  try
-    if FileExists(TAppPaths.SettingsFile) then
-      Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
-    FUnit := Settings.MeasureUnit;
-  finally
-    FreeAndNil(Settings);
-  end;
+  FUnit := UserPreferences.MeasureUnit;
 end;
 
-// Read first, since the drafting app keeps its settings in the same file
+// The unit is the user's preference, which the other apps share
 procedure TMeasurementsForm.SaveUnit;
 var
-  Settings: TAppSettings;
+  Preferences: TPreferences;
   Reason: string;
 begin
-  Settings := TAppSettings.Create;
-  try
-    if FileExists(TAppPaths.SettingsFile) and not Settings.LoadFromFile(TAppPaths.SettingsFile, Reason) then
-      Exit;
-    Settings.MeasureUnit := FUnit;
-    Settings.SaveToFile(TAppPaths.SettingsFile, Reason);
-  finally
-    FreeAndNil(Settings);
-  end;
+  Preferences := UserPreferences;
+  Preferences.MeasureUnit := FUnit;
+  SaveUserPreferences(Preferences, Reason);
 end;
 
 procedure TMeasurementsForm.WatchTick(Sender: TObject);
@@ -1514,6 +1502,17 @@ begin
     FDocument.MoveSize(Index, Index + 1);
     SelectCell(RowIndex(FGrid.Row), FGrid.Col + 1);
   end;
+end;
+
+procedure TMeasurementsForm.PreferencesClick(Sender: TObject);
+var
+  Preferences: TPreferences;
+begin
+  if not EditPreferences(Self, ptGeneral, Preferences) then
+    Exit;
+  FUnit := Preferences.MeasureUnit;
+  FUnitBox.ItemIndex := Ord(FUnit);
+  RefreshAll;
 end;
 
 end.

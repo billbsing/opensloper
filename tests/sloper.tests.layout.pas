@@ -67,6 +67,7 @@ type
     procedure TestCutListField;
     procedure TestCaptionNamesFabric;
     procedure TestMissingOutputMembersKeepDefaults;
+    procedure TestOldCalibrationIsIgnored;
     procedure TestPlaceNewPieces;
     procedure TestCopiesAndMirror;
     procedure TestPlacementStaysAtTopLeft;
@@ -631,8 +632,19 @@ begin
   AssertEquals('A4', FLayout.Output.Paper);
   AssertNear('margin', 6, FLayout.Output.Tiles.Margin);
   AssertNear('overlap', 10, FLayout.Output.Tiles.Overlap);
-  AssertNear('calibration', 1, FLayout.Output.CalibrationX);
   AssertEquals('first copy', 1, FLayout.Placements[0].Copy);
+end;
+
+// Calibration belongs to the user's printer, in Preferences
+procedure TTestLayout.TestOldCalibrationIsIgnored;
+var
+  ErrorMessage: string;
+begin
+  FLayout.Calibration.X := 1.02;
+  AssertTrue(ErrorMessage, FLayout.LoadFromText('{"format": "layout", "version": 1, "sources": [{"id": 1, "pattern": "a"}],' +
+    ' "output": {"calibrationX": 0.5, "calibrationY": -1}, "placements": []}', ErrorMessage));
+  AssertNear('the user''s stays', 1.02, FLayout.Calibration.X);
+  AssertEquals('not saved', 0, Pos('calibration', FLayout.SaveToText));
 end;
 
 procedure TTestLayout.TestPlaceNewPieces;
@@ -1037,7 +1049,7 @@ begin
   Prepare;
   FLayout.PlaceNewPieces;
   Plain := LayoutToPDF(FLayout);
-  FLayout.Output.CalibrationX := 1.01;
+  FLayout.Calibration.X := 1.01;
   Scaled := LayoutToPDF(FLayout);
   AssertTrue('the drawing changes', Plain <> Scaled);
 end;

@@ -42,6 +42,10 @@ type
     procedure TestInchTicksAtSixteenths;
     procedure TestEmptyRuler;
     procedure TestLabels;
+    procedure TestGridKeepsItsStep;
+    procedure TestGridInchMajorIsAnInch;
+    procedure TestGridZoomedOutDropsMinorLines;
+    procedure TestGridIsReadableAtEveryZoom;
   end;
 
 implementation
@@ -211,6 +215,66 @@ begin
   AssertEquals('0' + Point + '5', RulerLabel(0.5, 0.5));
   AssertEquals('1' + Point + '25', RulerLabel(1.25, 0.25));
   AssertEquals('whole step, no decimals', '3', RulerLabel(3, 1));
+end;
+
+procedure TTestRulerTicks.TestGridKeepsItsStep;
+var
+  Spacing: TRulerSpacing;
+begin
+  // 5 mm at 4 px per mm is 20 px apart: as set, majors every ten
+  Spacing := GridSpacing(4, 5, muMillimetre);
+  AssertNear('minor', 5, Spacing.Minor);
+  AssertNear('major', 50, Spacing.Labelled);
+end;
+
+procedure TTestRulerTicks.TestGridInchMajorIsAnInch;
+var
+  Spacing: TRulerSpacing;
+begin
+  Spacing := GridSpacing(200, 1 / 8, muInch);
+  AssertNear('minor', 1 / 8, Spacing.Minor);
+  AssertNear('major', 1, Spacing.Labelled);
+  AssertEquals('a step not dividing an inch', 10, GridMajorCount(0.3, muInch));
+  AssertEquals('a whole inch', 10, GridMajorCount(1, muInch));
+  AssertEquals('metric', 10, GridMajorCount(0.125, muCentimetre));
+end;
+
+procedure TTestRulerTicks.TestGridZoomedOutDropsMinorLines;
+var
+  Spacing: TRulerSpacing;
+begin
+  // 5 mm at 1 px per mm would be 5 px apart, so the 50 mm lines take over
+  Spacing := GridSpacing(1, 5, muMillimetre);
+  AssertNear('minor', 50, Spacing.Minor);
+  AssertNear('major', 500, Spacing.Labelled);
+  // An eighth of an inch at 20 px per inch doubles to a half, 10 px apart
+  Spacing := GridSpacing(20, 1 / 8, muInch);
+  AssertNear('inch minor', 1 / 2, Spacing.Minor);
+  AssertNear('inch major', 1, Spacing.Labelled);
+  // Further out, whole inches and then tens
+  Spacing := GridSpacing(5, 1 / 8, muInch);
+  AssertNear('inches', 10, Spacing.Minor);
+  AssertNear('tens', 100, Spacing.Labelled);
+end;
+
+procedure TTestRulerTicks.TestGridIsReadableAtEveryZoom;
+var
+  Scale, PixelsPerUnit: double;
+  AUnit: TMeasureUnit;
+  Spacing: TRulerSpacing;
+begin
+  for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
+  begin
+    Scale := MinScale;
+    while Scale <= MaxScale do
+    begin
+      PixelsPerUnit := Scale * MillimetresPerUnit[AUnit];
+      Spacing := GridSpacing(PixelsPerUnit, 0.1, AUnit);
+      AssertTrue(Format('%s at %g', [MeasureUnitNames[AUnit], Scale]), Spacing.Minor * PixelsPerUnit >= MinGridSpacing);
+      AssertTrue('major is a multiple', Abs(Spacing.Labelled / Spacing.Minor - Round(Spacing.Labelled / Spacing.Minor)) < 1e-9);
+      Scale := Scale * 1.1;
+    end;
+  end;
 end;
 
 initialization

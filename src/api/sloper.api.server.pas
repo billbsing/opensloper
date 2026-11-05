@@ -1728,6 +1728,7 @@ begin
       raise EApiError.Create(RpcRefused, Err);
     Layout.LoadSources;
     Layout.MachineProfiles := UserMachineProfiles;
+    Layout.Calibration := UserCalibration;
     if OptionalString(Params, 'profile') <> '' then
       Layout.Output.Profile := OptionalString(Params, 'profile');
     if not ExportLayout(Layout, Chosen, Target, Err) then

@@ -17,7 +17,8 @@
 }
 
 // The app's own settings, kept in settings.json in the config folder: things
-// that belong to the user rather than to a pattern, such as panel layout.
+// that belong to the user rather than to a pattern, such as panel layout, and
+// the preferences the three apps share (units, grid, printer calibration).
 // A missing file is a first run, so the defaults stand. No LCL dependency.
 unit Sloper.Core.Settings;
 
@@ -32,13 +33,42 @@ type
   // Which labels the canvas shows: those that help the current step, all, or none
   TLabelMode = (lmContextual, lmAll, lmNone);
 
+  // Factors scaling everything printed at true size, across and down the
+  // page, for a printer that is consistently a little off
+  TCalibration = record
+    X, Y: double;
+  end;
+
+  // In each unit's own numbers, so 0.125 in stays an eighth of an inch
+  TGridSteps = array[TMeasureUnit] of double;
+
+  // What the user sets in Preferences
+  TPreferences = record
+    // For new patterns, the measurements app and the drafting app's rulers,
+    // grid and status bar
+    MeasureUnit: TMeasureUnit;
+    // The drafting canvas grid's spacing for each unit
+    GridSteps: TGridSteps;
+    Calibration: TCalibration;
+  end;
+
 const
   DefaultNameColumnShare = 0.45;
   DefaultLabelMode = lmContextual;
+  DefaultGridSteps: TGridSteps = (5, 0.5, 0.125);
+  // The largest grid spacing, in mm, so a mistyped one can't hide the grid
+  MaxGridStep = 1000;
+  // Calibration factors further off than this are typing mistakes
+  MinCalibration = 0.5;
+  MaxCalibration = 2;
+  // The sides of the PDF's test square: 4 in on Letter, 10 cm elsewhere
+  MetricTestSquareSide = 100;
+  InchTestSquareSide = 101.6;
 
 type
   TAppSettings = class
   public
+    Preferences: TPreferences;
     // The part of the properties panel's row width given to field names, above 0 and below 1
     NameColumnShare: double;
     LabelMode: TLabelMode;
@@ -47,8 +77,6 @@ type
     ShowRulers: boolean;
     // Whether the drafting canvas fills pieces with their fabric
     ShowPieceFills: boolean;
-    // How the measurements app shows values
-    MeasureUnit: TMeasureUnit;
     // Besides the built-in Standard
     MachineProfiles: TMachineProfileArray;
     constructor Create;
@@ -60,9 +88,28 @@ type
     function LoadFromFile(const FileName: string; out ErrorMessage: string): boolean;
   end;
 
+function DefaultPreferences: TPreferences;
+function NoCalibration: TCalibration;
+function CalibrationIsUsable(const Calibration: TCalibration): boolean;
+function GridStepIsUsable(Step: double; AUnit: TMeasureUnit): boolean;
+// The factor that makes a test square print at Expected, given that with
+// Current it printed at Measured; the square is drawn with the factor, so the
+// correction builds on it
+function CorrectedCalibration(Current, Expected, Measured: double): double;
+
 // The profiles saved for this user, for the programs that export; none when
 // the settings cannot be read, and a layout naming one then says it is missing
 function UserMachineProfiles: TMachineProfileArray;
+// This user's printer calibration, for the programs that print; none when the
+// settings cannot be read
+function UserCalibration: TCalibration;
+// This user's preferences; the defaults when the settings cannot be read
+function UserPreferences: TPreferences;
+// Reads the settings file again, gives it these preferences and writes it
+// back, so what other apps running alongside have saved stays. Fails without
+// writing when the file cannot be read, rather than lose what is in it.
+function SaveUserPreferences(const Preferences: TPreferences; out ErrorMessage: string): boolean;
+function SavePreferencesToFile(const FileName: string; const Preferences: TPreferences; out ErrorMessage: string): boolean;
 
 resourcestring
   rsSettingsWrongFormat = 'This is not an OpenSloper settings file';
@@ -78,6 +125,37 @@ const
   SettingsVersion = 1;
   LabelModeNames: array[TLabelMode] of string = ('contextual', 'all', 'none');
 
+function DefaultPreferences: TPreferences;
+begin
+  Result.MeasureUnit := muMillimetre;
+  Result.GridSteps := DefaultGridSteps;
+  Result.Calibration := NoCalibration;
+end;
+
+function NoCalibration: TCalibration;
+begin
+  Result.X := 1;
+  Result.Y := 1;
+end;
+
+function CalibrationIsUsable(const Calibration: TCalibration): boolean;
+begin
+  Result := (Calibration.X >= MinCalibration) and (Calibration.X <= MaxCalibration) and (Calibration.Y >= MinCalibration) and
+    (Calibration.Y <= MaxCalibration);
+end;
+
+function GridStepIsUsable(Step: double; AUnit: TMeasureUnit): boolean;
+begin
+  Result := (Step > 0) and (Step * MillimetresPerUnit[AUnit] <= MaxGridStep);
+end;
+
+function CorrectedCalibration(Current, Expected, Measured: double): double;
+begin
+  if (Measured <= 0) or (Expected <= 0) then
+    Exit(Current);
+  Result := Current * Expected / Measured;
+end;
+
 constructor TAppSettings.Create;
 begin
   inherited Create;
@@ -91,8 +169,41 @@ begin
   ShowSidePanel := True;
   ShowRulers := True;
   ShowPieceFills := True;
-  MeasureUnit := muMillimetre;
+  Preferences := DefaultPreferences;
   MachineProfiles := nil;
+end;
+
+function GridStepsToJSON(const Steps: TGridSteps): TJSONObject;
+var
+  AUnit: TMeasureUnit;
+begin
+  Result := TJSONObject.Create;
+  for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
+    Result.Add(MeasureUnitNames[AUnit], JSONFloat(Steps[AUnit]));
+end;
+
+// A missing or unusable step keeps its default
+procedure ReadGridSteps(Obj: TJSONObject; var Steps: TGridSteps);
+var
+  Item: TJSONData;
+  AUnit: TMeasureUnit;
+  Step: double;
+begin
+  Item := Obj.Find('gridSteps');
+  if not Assigned(Item) or (Item.JSONType <> jtObject) then
+    Exit;
+  for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
+    if GetJSONNumber(TJSONObject(Item), MeasureUnitNames[AUnit], Step) and GridStepIsUsable(Step, AUnit) then
+      Steps[AUnit] := Step;
+end;
+
+// Both factors or neither, so a half-read pair can't skew one direction
+procedure ReadCalibration(Obj: TJSONObject; var Calibration: TCalibration);
+var
+  Loaded: TCalibration;
+begin
+  if GetJSONNumber(Obj, 'calibrationX', Loaded.X) and GetJSONNumber(Obj, 'calibrationY', Loaded.Y) and CalibrationIsUsable(Loaded) then
+    Calibration := Loaded;
 end;
 
 function TAppSettings.SaveToText: string;
@@ -108,7 +219,10 @@ begin
     Obj.Add('showSidePanel', ShowSidePanel);
     Obj.Add('showRulers', ShowRulers);
     Obj.Add('showPieceFills', ShowPieceFills);
-    Obj.Add('measureUnit', MeasureUnitNames[MeasureUnit]);
+    Obj.Add('measureUnit', MeasureUnitNames[Preferences.MeasureUnit]);
+    Obj.Add('gridSteps', GridStepsToJSON(Preferences.GridSteps));
+    Obj.Add('calibrationX', JSONFloat(Preferences.Calibration.X));
+    Obj.Add('calibrationY', JSONFloat(Preferences.Calibration.Y));
     if Length(MachineProfiles) > 0 then
       Obj.Add('machineProfiles', MachineProfilesToJSON(MachineProfiles));
     Result := JSONToText(Obj);
@@ -156,7 +270,9 @@ begin
     if GetJSONString(Obj, 'measureUnit', TextValue) then
       for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
         if TextValue = MeasureUnitNames[AUnit] then
-          MeasureUnit := AUnit;
+          Preferences.MeasureUnit := AUnit;
+    ReadGridSteps(Obj, Preferences.GridSteps);
+    ReadCalibration(Obj, Preferences.Calibration);
     MachineProfiles := MachineProfilesFromJSON(Obj.Find('machineProfiles'));
     Result := True;
   finally
@@ -191,6 +307,46 @@ begin
   try
     Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
     Result := Settings.MachineProfiles;
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+function UserPreferences: TPreferences;
+var
+  Settings: TAppSettings;
+  Reason: string;
+begin
+  Settings := TAppSettings.Create;
+  try
+    Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
+    Result := Settings.Preferences;
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+function UserCalibration: TCalibration;
+begin
+  Result := UserPreferences.Calibration;
+end;
+
+function SaveUserPreferences(const Preferences: TPreferences; out ErrorMessage: string): boolean;
+begin
+  TAppPaths.ForceDir(TAppPaths.ConfigDir);
+  Result := SavePreferencesToFile(TAppPaths.SettingsFile, Preferences, ErrorMessage);
+end;
+
+function SavePreferencesToFile(const FileName: string; const Preferences: TPreferences; out ErrorMessage: string): boolean;
+var
+  Settings: TAppSettings;
+begin
+  Settings := TAppSettings.Create;
+  try
+    if not Settings.LoadFromFile(FileName, ErrorMessage) then
+      Exit(False);
+    Settings.Preferences := Preferences;
+    Result := Settings.SaveToFile(FileName, ErrorMessage);
   finally
     FreeAndNil(Settings);
   end;

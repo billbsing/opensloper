@@ -30,7 +30,7 @@ interface
 
 uses
   SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.Measurements,
-  Sloper.Core.Pattern, Sloper.Core.Piece,
+  Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings,
   Sloper.Output.Tiling;
 
 const
@@ -70,7 +70,6 @@ type
     Tiles: TTileSettings;
     Marks: TLayoutMarks;
     Fill: TLayoutFill;
-    CalibrationX, CalibrationY: double;
     // A machine profile's name; empty for plain output
     Profile: string;
     // okMaterial's sheet; MaterialLength is 0 for a roll
@@ -206,6 +205,9 @@ type
     PrintDate: string;
     // Known to this user, from the settings. Not saved.
     MachineProfiles: TMachineProfileArray;
+    // The user's printer, from the settings, since it belongs to the printer
+    // rather than the layout. Not saved; older layouts' factors are ignored.
+    Calibration: TCalibration;
     constructor Create;
     destructor Destroy; override;
     procedure Clear;
@@ -296,7 +298,6 @@ resourcestring
   rsLayoutBadPaper = 'Paper "%s" is not known; give paperWidth and paperHeight for custom paper';
   rsLayoutBadNextId = '"nextId" must be a whole number above every source ID';
   rsLayoutNoPrintArea = 'The margin and overlap leave nothing to print on';
-  rsLayoutBadCalibration = 'Calibration factors must be above zero';
   rsLayoutNoFile = 'File not found: %s';
   rsLayoutSetAndSize = '%s, size %s';
   rsLayoutSourceProblem = '%s: %s';
@@ -465,8 +466,6 @@ begin
   Result.Tiles.Overlap := DefaultOverlap;
   Result.Marks := lkDiamond;
   Result.MaterialWidth := DefaultMaterialWidth;
-  Result.CalibrationX := 1;
-  Result.CalibrationY := 1;
 end;
 
 { TLayoutSource }
@@ -505,6 +504,7 @@ end;
 constructor TLayout.Create;
 begin
   FSources := TLayoutSourceList.Create;
+  Calibration := NoCalibration;
   Clear;
 end;
 
@@ -733,8 +733,6 @@ begin
     Result.Add('marks', MarksNames[Output.Marks]);
     if Output.Fill <> lfNone then
       Result.Add('fill', FillNames[Output.Fill]);
-    Result.Add('calibrationX', JSONFloat(Output.CalibrationX));
-    Result.Add('calibrationY', JSONFloat(Output.CalibrationY));
     if Output.Profile <> '' then
       Result.Add('profile', Output.Profile);
     if Output.MaterialWidth <> DefaultMaterialWidth then
@@ -936,8 +934,6 @@ begin
     end;
   ReadOptionalNumber(Item, 'margin', Output.Tiles.Margin);
   ReadOptionalNumber(Item, 'overlap', Output.Tiles.Overlap);
-  ReadOptionalNumber(Item, 'calibrationX', Output.CalibrationX);
-  ReadOptionalNumber(Item, 'calibrationY', Output.CalibrationY);
   if not TilesAreUsable(Output.Tiles) then
   begin
     ErrorMessage := rsLayoutNoPrintArea;
@@ -946,11 +942,6 @@ begin
   if Output.RollWidth <= 2 * Output.Tiles.Margin then
   begin
     ErrorMessage := rsLayoutBadRoll;
-    Exit(False);
-  end;
-  if (Output.CalibrationX <= 0) or (Output.CalibrationY <= 0) then
-  begin
-    ErrorMessage := rsLayoutBadCalibration;
     Exit(False);
   end;
   if GetJSONString(Item, 'marks', MarksText) then

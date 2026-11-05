@@ -16,7 +16,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// Where the canvas rulers put their ticks and numbers, in mm, cm or inches.
+// Where the canvas rulers put their ticks and numbers, in mm, cm or inches,
+// and how far apart the canvas grid's lines are.
 // Ticks are as close as stays readable at the zoom; inches divide in halves
 // down to sixteenths, the metric units in 1, 2 and 5. Kept free of the LCL
 // so it can be unit-tested.
@@ -33,6 +34,8 @@ const
   // Closest ticks and numbers may come, in pixels
   MinTickSpacing = 6;
   MinLabelSpacing = 50;
+  // Closest grid lines may come, in pixels
+  MinGridSpacing = 10;
 
 type
   TRulerTickKind = (rtMinor, rtMiddle, rtLabelled);
@@ -46,12 +49,21 @@ type
   end;
   TRulerTickArray = array of TRulerTick;
 
-  // In the ruler's unit; Labelled is a whole number of Minor steps
+  // In the ruler's unit; Labelled is a whole number of Minor steps. For the
+  // grid, Labelled is the major lines' spacing.
   TRulerSpacing = record
     Minor, Labelled: double;
   end;
 
 function RulerSpacing(PixelsPerUnit: double; AUnit: TMeasureUnit): TRulerSpacing;
+// How many grid steps make a major line: ten, or a whole inch when the step
+// divides one
+function GridMajorCount(Step: double; AUnit: TMeasureUnit): integer;
+// The canvas grid for a spacing of Step in AUnit. Zoomed out until the lines
+// would crowd, the minor lines go and the major ones take their place, so
+// every line drawn is still a multiple of Step; inch fractions double first,
+// through quarters and halves.
+function GridSpacing(PixelsPerUnit, Step: double; AUnit: TMeasureUnit): TRulerSpacing;
 // The ticks on a ruler Length pixels long. A vertical ruler counts down the
 // screen, as model y does.
 function RulerTicks(const View: TViewTransform; Vertical: boolean; Length: double; AUnit: TMeasureUnit): TRulerTickArray;
@@ -106,6 +118,43 @@ begin
   while (Index < MaxSteps) and ((StepAt(AUnit, Index) * PixelsPerUnit < MinLabelSpacing) or not IsWholeMultiple(StepAt(AUnit, Index), Result.Minor)) do
     Inc(Index);
   Result.Labelled := StepAt(AUnit, Index);
+end;
+
+function GridMajorCount(Step: double; AUnit: TMeasureUnit): integer;
+const
+  DefaultCount = 10;
+var
+  PerInch: double;
+begin
+  Result := DefaultCount;
+  if (AUnit <> muInch) or (Step <= 0) or (Step >= 1) then
+    Exit;
+  PerInch := 1 / Step;
+  if IsWholeMultiple(PerInch, 1) then
+    Result := Round(PerInch);
+end;
+
+function GridSpacing(PixelsPerUnit, Step: double; AUnit: TMeasureUnit): TRulerSpacing;
+const
+  // Far beyond the smallest zoom, so the loop always ends
+  MaxLevels = 20;
+var
+  Level, Count: integer;
+begin
+  Result.Minor := Step;
+  Count := GridMajorCount(Step, AUnit);
+  Level := 0;
+  while (Level < MaxLevels) and (Result.Minor * PixelsPerUnit < MinGridSpacing) do
+  begin
+    // An even fraction of an inch doubles towards the whole inch
+    if (AUnit = muInch) and (Result.Minor < 1) and IsWholeMultiple(1 / Result.Minor, 2) then
+      Result.Minor := Result.Minor * 2
+    else
+      Result.Minor := Result.Minor * Count;
+    Count := GridMajorCount(Result.Minor, AUnit);
+    Inc(Level);
+  end;
+  Result.Labelled := Result.Minor * Count;
 end;
 
 function RulerTicks(const View: TViewTransform; Vertical: boolean; Length: double; AUnit: TMeasureUnit): TRulerTickArray;
