@@ -1146,8 +1146,6 @@ begin
     Piece := TPieceObject(Node);
 end;
 
-// Model space (y up) to layout space (y down) with the top left of the
-// cutting line at (X, Y). A flip mirrors left to right before the rotation.
 function ClipperPaths(const Points: TVec2Array): TPathsD;
 var
   Index: integer;
@@ -1192,13 +1190,15 @@ var
   Offset: TVec2;
   Opened, Mirroring: boolean;
 
+// Model space to layout space, both y down, with the top left of the
+// cutting line at (X, Y). A flip mirrors left to right before the rotation,
+// which turns anticlockwise as seen on the page.
   function Turned(const P: TVec2): TVec2;
   begin
     Result := P;
     if Placement.Flipped then
       Result.X := -Result.X;
     Result := RotatePoint(Result, Vec2(0, 0), Placement.Rotation);
-    Result.Y := -Result.Y;
   end;
 
   function Moved(const P: TVec2): TVec2;

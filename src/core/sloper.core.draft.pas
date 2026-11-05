@@ -1510,12 +1510,14 @@ var
 
   function OnCircle(Degrees: double): TVec2;
   begin
-    Result := ACentre + Vec2(Cos(DegToRad(Degrees)), Sin(DegToRad(Degrees))) * ARadius;
+    Result := PolarPoint(ACentre, ARadius, Degrees);
   end;
 
+  // The way OnCircle moves as the angle grows: anticlockwise on screen, so
+  // up at 0 degrees, which is towards smaller y
   function Tangent(Degrees: double): TVec2;
   begin
-    Result := Vec2(-Sin(DegToRad(Degrees)), Cos(DegToRad(Degrees))) * (ARadius * Handle);
+    Result := Vec2(-Sin(DegToRad(Degrees)), -Cos(DegToRad(Degrees))) * (ARadius * Handle);
   end;
 
 begin
@@ -1684,7 +1686,7 @@ var
 
   function Across(const Along: TVec2): TVec2;
   begin
-    Result := Vec2(-Along.Y, Along.X) * (Direction * Distance2 / Along.Length);
+    Result := LeftOf(Along) * (Direction * Distance2 / Along.Length);
   end;
 
   procedure AddJoined(const Start, Finish: TVec2; const Added: TEdgeSegment);

@@ -112,10 +112,10 @@ procedure TTestDrag.TestOffsetPolar;
 var
   B: TPointObject;
 begin
-  Pt('A', '10', '10');
+  Pt('A', '10', '-10');
   B := TPointObject(Check(FPattern.AddOffsetPoint('B', '1', omPolar, '5', '0')));
   FPattern.Evaluate;
-  Drag(B, 40, 50);
+  Drag(B, 40, -50);
   AssertEquals('length', '50', FPattern.FormulaText(B, 'length'));
   AssertEquals('angle', '53.1', FPattern.FormulaText(B, 'angle'));
 end;
@@ -205,9 +205,9 @@ begin
   Handles := CurveHandles(Curve);
   AssertEquals(2, Length(Handles));
   AssertPointsNear('start anchor', Vec2(0, 0), Handles[0].Anchor);
-  AssertPointsNear('start handle', Vec2(0, 30), Handles[0].Position);
+  AssertPointsNear('start handle', Vec2(0, -30), Handles[0].Position);
   AssertPointsNear('end anchor', Vec2(100, 0), Handles[1].Anchor);
-  AssertPointsNear('end handle', Vec2(100, 40), Handles[1].Position);
+  AssertPointsNear('end handle', Vec2(100, -40), Handles[1].Position);
 end;
 
 procedure TTestDrag.TestDragStartHandle;
@@ -219,7 +219,7 @@ begin
   Pt('B', '100', '0');
   Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '30', '90', '40')));
   FPattern.Evaluate;
-  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[0], Vec2(30, 40), Err));
+  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[0], Vec2(30, -40), Err));
   FPattern.Evaluate;
   AssertEquals('length', '50', FPattern.FormulaText(Curve, 'length1'));
   AssertEquals('angle', '53.1', FPattern.FormulaText(Curve, 'angle1'));
@@ -235,10 +235,10 @@ begin
   Pt('B', '100', '0');
   Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '30', '90', '40')));
   FPattern.Evaluate;
-  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[1], Vec2(100, -25), Err));
+  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[1], Vec2(100, 25), Err));
   FPattern.Evaluate;
   AssertEquals('below the end, angles stay positive', '270', FPattern.FormulaText(Curve, 'angle2'));
-  AssertPointsNear('handle follows', Vec2(100, -25), CurveHandles(Curve)[1].Position);
+  AssertPointsNear('handle follows', Vec2(100, 25), CurveHandles(Curve)[1].Position);
 end;
 
 procedure TTestDrag.TestHandleAtAnchorKeepsAngle;
@@ -279,16 +279,16 @@ var
   Handles: TCurveHandleArray;
 begin
   Pt('A', '0', '0');
-  Pt('B', '100', '100');
+  Pt('B', '100', '-100');
   Pt('C', '200', '0');
   Path := TCurvePathObject(Check(FPattern.AddCurvePath(['1', '2', '3'], ['90', '0', '270'], ['', '50', '20'], ['30', '40', ''])));
   FPattern.Evaluate;
   Handles := CurveHandles(Path);
   AssertEquals('none beyond the ends', 4, Length(Handles));
-  AssertPointsNear('out of A', Vec2(0, 30), Handles[0].Position);
-  AssertPointsNear('into B, back along the tangent', Vec2(50, 100), Handles[1].Position);
-  AssertPointsNear('out of B', Vec2(140, 100), Handles[2].Position);
-  AssertPointsNear('into C', Vec2(200, 20), Handles[3].Position);
+  AssertPointsNear('out of A', Vec2(0, -30), Handles[0].Position);
+  AssertPointsNear('into B, back along the tangent', Vec2(50, -100), Handles[1].Position);
+  AssertPointsNear('out of B', Vec2(140, -100), Handles[2].Position);
+  AssertPointsNear('into C', Vec2(200, -20), Handles[3].Position);
   AssertEquals('node2.lengthIn', Handles[1].LengthField);
 end;
 
@@ -299,19 +299,19 @@ var
   Handles: TCurveHandleArray;
 begin
   Pt('A', '0', '0');
-  Pt('B', '100', '100');
+  Pt('B', '100', '-100');
   Pt('C', '200', '0');
   Path := TCurvePathObject(Check(FPattern.AddCurvePath(['1', '2', '3'], ['90', '0', '270'], ['', '50', '20'], ['30', '40', ''])));
   FPattern.Evaluate;
   // The handle into B, dragged to directly above B
-  AssertTrue(Err, DragHandle(FPattern, Path, CurveHandles(Path)[1], Vec2(100, 160), Err));
+  AssertTrue(Err, DragHandle(FPattern, Path, CurveHandles(Path)[1], Vec2(100, -160), Err));
   FPattern.Evaluate;
   AssertEquals('the shared tangent turns', '270', FPattern.FormulaText(Path, 'node2.angle'));
   AssertEquals('this length', '60', FPattern.FormulaText(Path, 'node2.lengthIn'));
   AssertEquals('the other length stays', '40', FPattern.FormulaText(Path, 'node2.lengthOut'));
   Handles := CurveHandles(Path);
-  AssertPointsNear('dragged', Vec2(100, 160), Handles[1].Position);
-  AssertPointsNear('the other side stays opposite', Vec2(100, 60), Handles[2].Position);
+  AssertPointsNear('dragged', Vec2(100, -160), Handles[1].Position);
+  AssertPointsNear('the other side stays opposite', Vec2(100, -60), Handles[2].Position);
 end;
 
 procedure TTestDrag.TestOnlyCurvesHaveHandles;

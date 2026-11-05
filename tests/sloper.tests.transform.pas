@@ -134,7 +134,7 @@ end;
 
 procedure TTestTransform.TestAffineThenRunsBeforeFirst;
 begin
-  AssertPointsNear('turn, then shift', Vec2(10, 1), AffineThen(AffineShift(Vec2(10, 0)), AffineTurn(90)).Apply(Vec2(1, 0)));
+  AssertPointsNear('turn, then shift', Vec2(10, -1), AffineThen(AffineShift(Vec2(10, 0)), AffineTurn(90)).Apply(Vec2(1, 0)));
 end;
 
 procedure TTestTransform.TestRotatePoint;
@@ -145,7 +145,7 @@ begin
   Pivot := Pt('P', 0, 0);
   Rotate([A.Key], Pivot.Key, '90');
   FPattern.Evaluate;
-  AssertPointsNear('a quarter anticlockwise', Vec2(0, 10), Copied('A_r1'));
+  AssertPointsNear('a quarter anticlockwise', Vec2(0, -10), Copied('A_r1'));
 end;
 
 procedure TTestTransform.TestRotateFollowsFormula;
@@ -172,7 +172,7 @@ begin
   Rotate([A.Key], Pivot.Key, '90');
   AssertTrue(FPattern.LastError, FPattern.SetFormula(A, 'x', '20'));
   FPattern.Evaluate;
-  AssertPointsNear('moved with it', Vec2(0, 20), Copied('A_r1'));
+  AssertPointsNear('moved with it', Vec2(0, -20), Copied('A_r1'));
 end;
 
 procedure TTestTransform.TestMirrorTwoPoints;
@@ -208,12 +208,12 @@ var
 begin
   Spec := Default(TTransformSpec);
   Spec.Kind := tkMirror;
-  Spec.Sources := [Pt('A', 2, 3).Key];
+  Spec.Sources := [Pt('A', 2, -3).Key];
   Spec.AxisA := Pt('P', 0, 0).Key;
   Spec.Angle := '45';
   AssertNotNull(FPattern.LastError, FPattern.AddTransform(Spec));
   FPattern.Evaluate;
-  AssertPointsNear('across the diagonal', Vec2(3, 2), Copied('A_m1'));
+  AssertPointsNear('across the diagonal', Vec2(3, -2), Copied('A_m1'));
 end;
 
 procedure TTestTransform.TestMirrorRefusesCurve;
@@ -273,7 +273,7 @@ begin
   Spec.Angle := '90';
   AssertNotNull(FPattern.LastError, FPattern.AddTransform(Spec));
   FPattern.Evaluate;
-  AssertPointsNear('moved', Vec2(0, 10), Copied('A_t1'));
+  AssertPointsNear('moved', Vec2(0, -10), Copied('A_t1'));
 end;
 
 // Turned about the pivot, then moved
@@ -290,7 +290,7 @@ begin
   Spec.Rotate := '90';
   AssertNotNull(FPattern.LastError, FPattern.AddTransform(Spec));
   FPattern.Evaluate;
-  AssertPointsNear('turned and moved', Vec2(100, 10), Copied('A_t1'));
+  AssertPointsNear('turned and moved', Vec2(100, -10), Copied('A_t1'));
 end;
 
 procedure TTestTransform.TestEdgeBringsItsEnds;
@@ -302,8 +302,8 @@ begin
   Pivot := Pt('P', 0, 0);
   Rotate([Line.Key], Pivot.Key, '90');
   FPattern.Evaluate;
-  AssertPointsNear('start', Vec2(0, 10), Copied('A_r1'));
-  AssertPointsNear('end', Vec2(0, 20), Copied('B_r1'));
+  AssertPointsNear('start', Vec2(0, -10), Copied('A_r1'));
+  AssertPointsNear('end', Vec2(0, -20), Copied('B_r1'));
 end;
 
 procedure TTestTransform.TestCopiedEdgeJoinsCopiedPoints;
@@ -355,7 +355,7 @@ begin
   FPattern.Evaluate;
   Rotate([ARepeat.Item(2).Key], Pt('P', 0, 0).Key, '90');
   FPattern.Evaluate;
-  AssertPointsNear('the middle one', Vec2(0, 50), Copied('Btn_2_r1'));
+  AssertPointsNear('the middle one', Vec2(0, -50), Copied('Btn_2_r1'));
 end;
 
 procedure TTestTransform.TestRotateKeepsLengths;
@@ -401,7 +401,7 @@ begin
   Next := FPattern.AddOffsetPoint('N', FPattern.FindObject('A_r1').Key, omCartesian, '5', '0');
   AssertNotNull(FPattern.LastError, Next);
   FPattern.Evaluate;
-  AssertPointsNear('from the copy', Vec2(5, 10), Next.Position);
+  AssertPointsNear('from the copy', Vec2(5, -10), Next.Position);
 end;
 
 procedure TTestTransform.TestNames;
@@ -552,7 +552,7 @@ begin
   Rotate([Pt('A', 10, 0).Key], Pt('P', 0, 0).Key, '90');
   AssertTrue(Err, LoadPatternFromText(FLoaded, SavePatternToText(FPattern), Err));
   FLoaded.Evaluate;
-  AssertPointsNear('computed again', Vec2(0, 10), TPointObject(FLoaded.FindObject('A_r1')).Position);
+  AssertPointsNear('computed again', Vec2(0, -10), TPointObject(FLoaded.FindObject('A_r1')).Position);
 end;
 
 procedure TTestTransform.TestRoundTripMirrorAndMove;
@@ -599,7 +599,7 @@ var
 begin
   A := Pt('A', 0, 0).Key;
   B := Pt('B', 100, 0).Key;
-  C := Pt('C', 100, 100).Key;
+  C := Pt('C', 100, -100).Key;
   Bottom := FPattern.AddLine(A, B, erOutline);
   Side := FPattern.AddLine(B, C, erOutline);
   Transform := Rotate([Bottom.Key], A, '90');
@@ -607,7 +607,7 @@ begin
   Top := FPattern.AddLine(C, FPattern.FindObject('B_r1').Key, erOutline);
   AssertNotNull(FPattern.LastError, Top);
   FPattern.Evaluate;
-  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(50, 50), Path, Reason));
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(50, -50), Path, Reason));
   AssertEquals('all four edges', 4, Length(Path));
   AssertNotNull('used by a piece', Transform);
   AssertTrue('the side stays', Side.State = esValid);

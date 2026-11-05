@@ -215,8 +215,8 @@ begin
   Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osLeft);
   FPattern.Evaluate;
   AssertTrue(Edge.Message, Edge.State = esValid);
-  AssertPointsNear('start', Vec2(0, 10), Edge.PointAtLength(0));
-  AssertPointsNear('end', Vec2(100, 10), Edge.PointAtLength(Edge.Length));
+  AssertPointsNear('start', Vec2(0, -10), Edge.PointAtLength(0));
+  AssertPointsNear('end', Vec2(100, -10), Edge.PointAtLength(Edge.Length));
 end;
 
 procedure TTestAccessories.TestOffsetLineRight;
@@ -225,7 +225,7 @@ var
 begin
   Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osRight);
   FPattern.Evaluate;
-  AssertPointsNear('start', Vec2(0, -10), Edge.PointAtLength(0));
+  AssertPointsNear('start', Vec2(0, 10), Edge.PointAtLength(0));
 end;
 
 procedure TTestAccessories.TestOffsetFollowsSource;
@@ -248,7 +248,8 @@ begin
   FPattern.AddVariable('stitch', '6');
   Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '#stitch * 2', osLeft);
   FPattern.Evaluate;
-  AssertEquals(12, Edge.PointAtLength(0).Y, 1e-9);
+  // Left of a line running right is up, towards smaller y
+  AssertEquals(-12, Edge.PointAtLength(0).Y, 1e-9);
 end;
 
 procedure TTestAccessories.TestOffsetNegativeIsInvalid;
@@ -330,7 +331,7 @@ begin
   Back := TOffsetEdge(Reloaded.FindNode(Edge.Key));
   AssertTrue(Back.Side = osRight);
   AssertTrue(Back.Role = erOutline);
-  AssertPointsNear('same place', Vec2(0, -10), Back.PointAtLength(0));
+  AssertPointsNear('same place', Vec2(0, 10), Back.PointAtLength(0));
   AssertEquals(SavePatternToText(FPattern), SavePatternToText(FLoaded));
 end;
 
@@ -342,7 +343,7 @@ begin
   Edge := FPattern.AddOffsetEdge(Line(Pt('A'), Pt('B', 100)).Key, '10', osLeft);
   Point := FPattern.AddAlongEdgePoint('M', Edge.Key, False, amRatio, '0.5');
   FPattern.Evaluate;
-  AssertPointsNear('middle', Vec2(50, 10), Point.Position);
+  AssertPointsNear('middle', Vec2(50, -10), Point.Position);
 end;
 
 procedure TTestAccessories.TestCornerTangentPoints;

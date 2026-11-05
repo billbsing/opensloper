@@ -36,7 +36,7 @@ type
     procedure TestSpacingIsReadableAtEveryZoom;
     procedure TestLabelledIsWholeNumberOfMinor;
     procedure TestHorizontalTicksMatchTheView;
-    procedure TestVerticalTicksCountUpTheScreen;
+    procedure TestVerticalTicksCountDownTheScreen;
     procedure TestTicksStayOnTheRuler;
     procedure TestTickKinds;
     procedure TestInchTicksAtSixteenths;
@@ -140,7 +140,7 @@ begin
   AssertNear('first at the left edge', -20, Ticks[0].Value);
 end;
 
-procedure TTestRulerTicks.TestVerticalTicksCountUpTheScreen;
+procedure TTestRulerTicks.TestVerticalTicksCountDownTheScreen;
 var
   AView: TViewTransform;
   Ticks: TRulerTickArray;
@@ -152,7 +152,7 @@ begin
   for Index := 0 to High(Ticks) do
     AssertNear(Format('at %g mm', [Ticks[Index].Value]), AView.ToScreen(Vec2(0, Ticks[Index].Value)).Y, Ticks[Index].Position);
   for Index := 1 to High(Ticks) do
-    AssertTrue('higher values sit higher', Ticks[Index].Position < Ticks[Index - 1].Position);
+    AssertTrue('larger values sit lower, as model y points down', Ticks[Index].Position > Ticks[Index - 1].Position);
 end;
 
 procedure TTestRulerTicks.TestTicksStayOnTheRuler;

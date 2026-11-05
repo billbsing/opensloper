@@ -335,7 +335,7 @@ begin
   Call('add_point', '{"type": "circleCirclePoint", "name": "C", "centreA": "O", "radiusA": 50, "centreB": "P", "radiusB": 50, "pick": 1}');
   Call('get_object', '{"name": "C"}');
   AssertEquals(30, Answer.Get('x', 0.0), 1e-6);
-  AssertEquals(40, Answer.Get('y', 0.0), 1e-6);
+  AssertEquals('up, on the left going from O to P', -40, Answer.Get('y', 0.0), 1e-6);
   Call('create_piece', '{"x": -40, "y": 0, "name": "Base"}');
   AssertEquals('valid', Answer.Get('state', ''));
 end;
@@ -855,7 +855,7 @@ begin
   Call('add_point', '{"type": "freePoint", "name": "A", "x": "0", "y": "0"}');
   Call('add_point', '{"type": "offsetPoint", "name": "B", "base": "A", "mode": "cartesian", "dx": 100, "dy": 0}');
   Call('add_point', '{"type": "offsetPoint", "name": "C", "base": "A", "dx": 1, "length": 50, "angle": 90}');
-  Call('add_point', '{"type": "freePoint", "name": "D", "x": 50, "y": -20}');
+  Call('add_point', '{"type": "freePoint", "name": "D", "x": 50, "y": 20}');
   Call('add_edge', '{"type": "line", "name": "Base", "start": "A", "end": "B"}');
   Call('add_edge', '{"type": "line", "name": "Up", "start": "D", "end": "C"}');
   Call('add_point', '{"type": "alongEdgePoint", "name": "E", "edge": "Base", "from": "end", "mode": "ratio", "value": 0.25}');
@@ -1061,14 +1061,14 @@ procedure TTestAPI.TestTransforms;
 begin
   Call('add_point', '{"type": "freePoint", "name": "A", "x": 10, "y": 0}');
   Call('add_point', '{"type": "freePoint", "name": "P", "x": 0, "y": 0}');
-  Call('add_point', '{"type": "freePoint", "name": "Q", "x": 0, "y": 50}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": 0, "y": -50}');
   Call('add_transform', '{"type": "rotate", "sources": ["A"], "pivot": "P", "angle": 90}');
   AssertEquals('rotate', 'rotate', Answer.Get('type', ''));
   AssertEquals('angle', '90', FormulaOf(Answer, 'angle'));
   Call('get_object', '{"name": "A_r1"}');
   AssertEquals('copy', 'pointCopy', Answer.Get('type', ''));
   AssertEquals('x', 0, Answer.Get('x', 99.0), 0.001);
-  AssertEquals('y', 10, Answer.Get('y', 99.0), 0.001);
+  AssertEquals('y, a quarter anticlockwise is up', -10, Answer.Get('y', 99.0), 0.001);
   Call('add_transform', '{"type": "mirror", "sources": ["A"], "axis": {"a": "P", "b": "Q"}}');
   AssertEquals('mirror', 'mirror', Answer.Get('type', ''));
   Call('get_object', '{"name": "A_m1"}');

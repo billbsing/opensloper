@@ -452,7 +452,8 @@ begin
 end;
 
 // In the middle of each overlap, so neighbouring pages print the same marks
-// and line up on them. Inward is the way into the page, y down.
+// and line up on them. Inward is the way into the page, as an angle seen on
+// the page: 270 points down from the top edge.
 procedure TLayoutPrinter.DrawMarks(const Page: TTilePage);
 var
   Overlap, MiddleX, MiddleY: double;
@@ -469,9 +470,9 @@ begin
   if Page.Column < FColumnCount - 1 then
     DrawMark(Page, Vec2(Page.Area.MaxX - Overlap / 2, MiddleY), 180);
   if Page.Row > 0 then
-    DrawMark(Page, Vec2(MiddleX, Page.Area.MinY + Overlap / 2), 90);
+    DrawMark(Page, Vec2(MiddleX, Page.Area.MinY + Overlap / 2), 270);
   if Page.Row < FRowCount - 1 then
-    DrawMark(Page, Vec2(MiddleX, Page.Area.MaxY - Overlap / 2), 270);
+    DrawMark(Page, Vec2(MiddleX, Page.Area.MaxY - Overlap / 2), 90);
 end;
 
 procedure TLayoutPrinter.DrawTile(const Page: TTilePage);

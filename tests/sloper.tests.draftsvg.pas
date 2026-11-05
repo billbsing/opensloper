@@ -39,7 +39,7 @@ type
     procedure SetUp; override;
     procedure TearDown; override;
   published
-    procedure TestPointsAreFlipped;
+    procedure TestPointsKeepTheirY;
     procedure TestLineIsAPath;
     procedure TestCurveIsABezier;
     procedure TestPathHasEverySegment;
@@ -75,12 +75,12 @@ begin
   FreeAndNil(FPattern);
 end;
 
-// A (0, 0), B (100, 0), C (100, 50); an outline A-B and a curve A-C
+// A (0, 0), B (100, 0), C (100, -50) above B; an outline A-B and a curve A-C
 procedure TTestDraftSVG.Build;
 begin
   FPattern.AddFreePoint('A', '0', '0');
   FPattern.AddFreePoint('B', '100', '0');
-  FPattern.AddFreePoint('C', '100', '50');
+  FPattern.AddFreePoint('C', '100', '-50');
   FPattern.AddLine('1', '2', erOutline);
   FPattern.AddCurve('1', '3', '270', '60', '270', '60');
   FPattern.Evaluate;
@@ -105,10 +105,10 @@ begin
   AssertTrue(Msg + ': did not expect ' + Part, Pos(Part, Text) = 0);
 end;
 
-procedure TTestDraftSVG.TestPointsAreFlipped;
+procedure TTestDraftSVG.TestPointsKeepTheirY;
 begin
   Build;
-  AssertHas('y up becomes y down', 'data-name="C" cx="100" cy="-50"', Render);
+  AssertHas('both y down', 'data-name="C" cx="100" cy="-50"', Render);
 end;
 
 procedure TTestDraftSVG.TestLineIsAPath;
@@ -120,7 +120,7 @@ end;
 procedure TTestDraftSVG.TestCurveIsABezier;
 begin
   Build;
-  // Handles straight down from A and C, 60 long: (0, -60) and (100, -10)
+  // Handles straight down from A and C, 60 long: (0, 60) and (100, 10)
   AssertHas('exact, not flattened', 'd="M 0 0 C 0 60 100 10 100 -50"', Render);
 end;
 
@@ -129,7 +129,7 @@ var
   Text: string;
 begin
   FPattern.AddFreePoint('A', '0', '0');
-  FPattern.AddFreePoint('B', '100', '100');
+  FPattern.AddFreePoint('B', '100', '-100');
   FPattern.AddFreePoint('C', '200', '0');
   FPattern.AddCurvePath(['1', '2', '3'], ['90', '0', '270'], ['', '50', '20'], ['30', '40', '']);
   FPattern.Evaluate;
@@ -193,7 +193,7 @@ end;
 procedure TTestDraftSVG.TestViewBoxHasAMargin;
 begin
   Build;
-  // The curve dips to about y = -35, so check the sides and the top
+  // The curve dips to about y = 35, so check the sides and the top
   AssertHas('5% of 100 mm each side', 'viewBox="-5 -55 110 ', Render);
 end;
 
@@ -208,7 +208,7 @@ begin
   Options.Region.MinY := 20;
   Options.Region.MaxX := 40;
   Options.Region.MaxY := 60;
-  AssertHas('no margin, top is max y', 'viewBox="10 -60 30 40"', DraftToSVG(FPattern, Options));
+  AssertHas('no margin, top is min y', 'viewBox="10 20 30 40"', DraftToSVG(FPattern, Options));
 end;
 
 // A failing object is drawn at its last good result, in the colour of its state

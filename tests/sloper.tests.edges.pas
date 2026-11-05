@@ -112,7 +112,7 @@ end;
 function TTestEdges.TestPath: TCurvePathObject;
 begin
   Pt('A', 0, 0);
-  Pt('B', 100, 100);
+  Pt('B', 100, -100);
   Pt('C', 200, 0);
   Result := TCurvePathObject(Check(FPattern.AddCurvePath([Key('A'), Key('B'), Key('C')],
     ['90', '0', '270'], ['', '50', '50'], ['50', '50', ''])));
@@ -164,7 +164,7 @@ begin
   AssertEquals('two segments', 2, Length(Path.Segments));
   AssertNear('length', 2 * SegmentLength, Path.Length, 1e-6);
   AssertNear('length property', 2 * SegmentLength, Path.PropertyValue('length'), 1e-6);
-  AssertAt('half way is node B', Middle, 100, 100);
+  AssertAt('half way is node B', Middle, 100, -100);
 end;
 
 procedure TTestEdges.TestPathJoinsSmoothly;
@@ -176,8 +176,8 @@ begin
   FPattern.Evaluate;
   First := Path.Segments[0];
   Second := Path.Segments[1];
-  AssertPointsNear('handle into B', Vec2(50, 100), First.Curve.P2);
-  AssertPointsNear('handle out of B', Vec2(150, 100), Second.Curve.P1);
+  AssertPointsNear('handle into B', Vec2(50, -100), First.Curve.P2);
+  AssertPointsNear('handle out of B', Vec2(150, -100), Second.Curve.P1);
   // Both handles at B lie on its tangent, on opposite sides
   AssertNear('tangent continues', NormalizeAngle(First.Curve.EndAngle + 180), Second.Curve.StartAngle);
 end;
@@ -200,14 +200,14 @@ var
   First, Second: TPointObject;
 begin
   Path := TestPath;
-  Pt('L', -50, 50);
-  Pt('R', 250, 50);
+  Pt('L', -50, -50);
+  Pt('R', 250, -50);
   Across := TLineObject(Check(FPattern.AddLine(Key('L'), Key('R'))));
   First := TPointObject(Check(FPattern.AddIntersectPoint('X1', Path.Key, Across.Key, False, False, 1)));
   Second := TPointObject(Check(FPattern.AddIntersectPoint('X2', Path.Key, Across.Key, False, False, 2)));
   FPattern.Evaluate;
-  AssertAt('on the first segment', First, CrossingX, 50);
-  AssertAt('on the second segment', Second, 200 - CrossingX, 50);
+  AssertAt('on the first segment', First, CrossingX, -50);
+  AssertAt('on the second segment', Second, 200 - CrossingX, -50);
 end;
 
 procedure TTestEdges.TestPathExtends;
@@ -217,16 +217,16 @@ var
   BeforeStart, AfterEnd: TPointObject;
 begin
   Path := TestPath;
-  Pt('L', -50, -20);
-  Pt('R', 250, -20);
+  Pt('L', -50, 20);
+  Pt('R', 250, 20);
   Below := TLineObject(Check(FPattern.AddLine(Key('L'), Key('R'))));
   BeforeStart := TPointObject(Check(FPattern.AddIntersectPoint('X1', Path.Key, Below.Key, True, False, 1)));
   AfterEnd := TPointObject(Check(FPattern.AddIntersectPoint('X2', Path.Key, Below.Key, True, False, 2)));
   FPattern.Evaluate;
   // The path leaves A going up and reaches C going down, so its
   // extensions run straight down from both ends
-  AssertAt('before the start', BeforeStart, 0, -20);
-  AssertAt('after the end', AfterEnd, 200, -20);
+  AssertAt('before the start', BeforeStart, 0, 20);
+  AssertAt('after the end', AfterEnd, 200, 20);
 end;
 
 procedure TTestEdges.TestPathFormulas;
@@ -353,7 +353,7 @@ var
   M: TPointObject;
   First, Second: TSplitPart;
 begin
-  // Arch from (0, 0) to (100, 0), handles straight up, top at (50, 75)
+  // Arch from (0, 0) to (100, 0), handles straight up, top at (50, -75)
   Pt('A', 0, 0);
   Pt('B', 100, 0);
   Curve := TCurveObject(Check(FPattern.AddCurve(Key('A'), Key('B'), '90', '100', '90', '100')));
@@ -365,7 +365,7 @@ begin
   AssertValidEdge('first', First);
   AssertNear('halves', Curve.Length / 2, First.Length, 1e-6);
   AssertNear('halves', Curve.Length / 2, Second.Length, 1e-6);
-  AssertPointsNear('first ends at the top', Vec2(50, 75), First.PointAtLength(First.Length));
+  AssertPointsNear('first ends at the top', Vec2(50, -75), First.PointAtLength(First.Length));
   // At the top the curve runs level, to the right
   AssertNear('first end handle points back left', 180, First.PropertyValue('angle2'));
   AssertNear('second start handle points right', 0, Second.PropertyValue('angle1'));

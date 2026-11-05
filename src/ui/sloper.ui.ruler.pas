@@ -163,7 +163,7 @@ begin
 end;
 
 // A number just past its tick: to the right on the top ruler; on the left
-// ruler turned to read upwards, above the tick
+// ruler turned to read upwards, below the tick, as values grow downwards
 procedure TCanvasRuler.DrawLabel(const ALabel: string; Position: integer);
 var
   Size: TSize;
@@ -184,7 +184,7 @@ begin
     Flat.TextOut(0, 0, ALabel, TextColor);
     Turned := Flat.RotateCCW;
     try
-      FBitmap.PutImage(0, Position - Gap - Turned.Height, Turned, dmDrawWithTransparency);
+      FBitmap.PutImage(0, Position + Gap, Turned, dmDrawWithTransparency);
     finally
       FreeAndNil(Turned);
     end;

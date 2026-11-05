@@ -16,8 +16,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// The canvas view: how model millimetres (y up) map to screen pixels (y
-// down), with zoom and pan. Kept free of the LCL so it can be unit-tested.
+// The canvas view: how model millimetres map to screen pixels, both y down,
+// with zoom and pan. Kept free of the LCL so it can be unit-tested.
 unit Sloper.UI.View;
 
 {$mode ObjFPC}{$H+}
@@ -102,13 +102,13 @@ end;
 function TViewTransform.ToScreen(const P: TVec2): TVec2;
 begin
   Result.X := OriginX + P.X * Scale;
-  Result.Y := OriginY - P.Y * Scale;
+  Result.Y := OriginY + P.Y * Scale;
 end;
 
 function TViewTransform.ToModel(const S: TVec2): TVec2;
 begin
   Result.X := (S.X - OriginX) / Scale;
-  Result.Y := (OriginY - S.Y) / Scale;
+  Result.Y := (S.Y - OriginY) / Scale;
 end;
 
 function TViewTransform.PixelsToMM(Pixels: double): double;
@@ -123,7 +123,7 @@ begin
   Fixed := ToModel(Anchor);
   Scale := EnsureRange(Scale * Factor, MinScale, MaxScale);
   OriginX := Anchor.X - Fixed.X * Scale;
-  OriginY := Anchor.Y + Fixed.Y * Scale;
+  OriginY := Anchor.Y - Fixed.Y * Scale;
 end;
 
 procedure TViewTransform.Pan(DX, DY: double);
@@ -135,7 +135,7 @@ end;
 procedure TViewTransform.CentreOn(const Centre: TVec2; Width, Height: double);
 begin
   OriginX := Width / 2 - Centre.X * Scale;
-  OriginY := Height / 2 + Centre.Y * Scale;
+  OriginY := Height / 2 - Centre.Y * Scale;
 end;
 
 procedure TViewTransform.Fit(const Bounds: TRect2; Width, Height, Margin: double);
@@ -148,16 +148,15 @@ begin
   Scale := EnsureRange(Min((Width - 2 * Margin) / ModelWidth, (Height - 2 * Margin) / ModelHeight), MinScale, MaxScale);
   Centre := Vec2((Bounds.MinX + Bounds.MaxX) / 2, (Bounds.MinY + Bounds.MaxY) / 2);
   OriginX := Width / 2 - Centre.X * Scale;
-  OriginY := Height / 2 + Centre.Y * Scale;
+  OriginY := Height / 2 - Centre.Y * Scale;
 end;
 
 procedure TViewTransform.Reveal(const Bounds: TRect2; Width, Height, Margin: double);
 var
   Corner, OtherCorner: TVec2;
 begin
-  // Model y points up, so MaxY is the top on screen
-  Corner := ToScreen(Vec2(Bounds.MinX, Bounds.MaxY));
-  OtherCorner := ToScreen(Vec2(Bounds.MaxX, Bounds.MinY));
+  Corner := ToScreen(Vec2(Bounds.MinX, Bounds.MinY));
+  OtherCorner := ToScreen(Vec2(Bounds.MaxX, Bounds.MaxY));
   if (Corner.X >= Margin) and (Corner.Y >= Margin) and (OtherCorner.X <= Width - Margin) and (OtherCorner.Y <= Height - Margin) then
     Exit;
   Pan(Width / 2 - (Corner.X + OtherCorner.X) / 2, Height / 2 - (Corner.Y + OtherCorner.Y) / 2);

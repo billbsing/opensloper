@@ -181,7 +181,7 @@ begin
   AssertEquals('the arc''s ID', ArcKey, Line.Key);
   FPattern.Evaluate;
   AssertPointsNear('from the arc''s start', Vec2(50, 0), TPointObject(FPattern.FindNode(Line.StartKey)).Position);
-  AssertPointsNear('to its end', Vec2(0, 50), TPointObject(FPattern.FindNode(Line.EndKey)).Position);
+  AssertPointsNear('to its end, up at 90 degrees', Vec2(0, -50), TPointObject(FPattern.FindNode(Line.EndKey)).Position);
   AssertTrue(FPattern.LastError, FPattern.SetFormula(Radius, 'formula', '60'));
   FPattern.Evaluate;
   AssertPointsNear('the ends follow the radius', Vec2(60, 0), TPointObject(FPattern.FindNode(Line.StartKey)).Position);

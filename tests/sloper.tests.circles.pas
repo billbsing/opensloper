@@ -184,7 +184,7 @@ begin
   Edge := FPattern.AddArc(Pt('O', 10, 0), '50', '0', '90', erOutline);
   FPattern.Evaluate;
   AssertPointsNear('position', Vec2(60, 0), Edge.PointAtLength(0));
-  AssertPointsNear('position', Vec2(10, 50), Edge.PointAtLength(Edge.Length));
+  AssertPointsNear('position, up at 90 degrees', Vec2(10, -50), Edge.PointAtLength(Edge.Length));
 end;
 
 procedure TTestCircles.TestArcLengthIsExact;
@@ -202,9 +202,9 @@ var
 begin
   Edge := FPattern.AddArc(Pt('O'), '50', '90', '0', erOutline);
   FPattern.Evaluate;
-  AssertPointsNear('position', Vec2(0, 50), Edge.PointAtLength(0));
+  AssertPointsNear('position', Vec2(0, -50), Edge.PointAtLength(0));
   AssertPointsNear('position', Vec2(50, 0), Edge.PointAtLength(Edge.Length));
-  AssertPointsNear('position', Vec2(50 * Cos(DegToRad(45)), 50 * Sin(DegToRad(45))), Edge.PointAtLength(Edge.Length / 2));
+  AssertPointsNear('position', Vec2(50 * Cos(DegToRad(45)), -50 * Sin(DegToRad(45))), Edge.PointAtLength(Edge.Length / 2));
 end;
 
 procedure TTestCircles.TestArcIsNotClosed;
@@ -242,7 +242,7 @@ begin
   Edge := FPattern.AddArc(Pt('O'), '50', '0', '90', erOutline);
   EndPoint := FPattern.AddAlongEdgePoint('E', Edge.Key, True, amLength, '0');
   FPattern.Evaluate;
-  AssertPointsNear('position', Vec2(0, 50), EndPoint.Position);
+  AssertPointsNear('position', Vec2(0, -50), EndPoint.Position);
 end;
 
 procedure TTestCircles.TestLineJoinsArcEndAndFollowsIt;
@@ -253,11 +253,11 @@ var
 begin
   Edge := FPattern.AddArc(Pt('O'), '50', '0', '90', erOutline);
   EndPoint := FPattern.AddAlongEdgePoint('E', Edge.Key, True, amLength, '0');
-  Line := FPattern.AddLine(EndPoint.Key, Pt('F', 200, 50), erOutline);
+  Line := FPattern.AddLine(EndPoint.Key, Pt('F', 200, -50), erOutline);
   FPattern.Evaluate;
   AssertTrue(FPattern.SetFormula(Edge, 'radius', '80'));
   FPattern.Evaluate;
-  AssertPointsNear('position', Vec2(0, 80), Line.PointAtLength(0));
+  AssertPointsNear('position', Vec2(0, -80), Line.PointAtLength(0));
 end;
 
 procedure TTestCircles.TestRoundTrip;
@@ -307,8 +307,9 @@ begin
   Left := FPattern.AddCircleCirclePoint('L', A, '50', B, '50', 1);
   Right := FPattern.AddCircleCirclePoint('R', A, '50', B, '50', 2);
   FPattern.Evaluate;
-  AssertPointsNear('position', Vec2(30, 40), Left.Position);
-  AssertPointsNear('position', Vec2(30, -40), Right.Position);
+  // Left going from A to B, as seen on screen: up, towards smaller y
+  AssertPointsNear('position', Vec2(30, -40), Left.Position);
+  AssertPointsNear('position', Vec2(30, 40), Right.Position);
 end;
 
 procedure TTestCircles.TestCircleCircleFollowsFormula;
@@ -360,7 +361,7 @@ begin
   FPattern.Evaluate;
   Back := TCircleCirclePoint(Reloaded.FindObject('L'));
   AssertEquals(2, Back.Pick);
-  AssertPointsNear('position', Vec2(30, -40), Back.Position);
+  AssertPointsNear('position', Vec2(30, 40), Back.Position);
 end;
 
 procedure TTestCircles.TestCircleIsAPiece;
@@ -517,7 +518,7 @@ begin
   Last := FPattern.AddAlongEdgePoint('L', Edge.Key, True, amLength, '0');
   FPattern.AddLine(Last.Key, First.Key, erOutline);
   FPattern.Evaluate;
-  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(0, 10), Path, Reason));
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(0, -10), Path, Reason));
   AssertEquals(2, Length(Path));
   Piece := FPattern.AddPiece('Half', Path, '5');
   FPattern.Evaluate;

@@ -52,7 +52,7 @@ type
     procedure TestScrollContentLargerThanView;
     procedure TestScrollNothingToScroll;
     procedure TestScrollViewPannedAwayFromContent;
-    procedure TestYIsFlipped;
+    procedure TestYPointsDown;
     procedure TestRoundTrip;
     procedure TestZoomKeepsAnchor;
     procedure TestZoomLimits;
@@ -111,12 +111,12 @@ procedure TTestCanvasModel.Build;
 begin
   FPattern.AddFreePoint('A', '0', '0');
   FPattern.AddFreePoint('B', '100', '0');
-  FPattern.AddFreePoint('C', '100', '50');
+  FPattern.AddFreePoint('C', '100', '-50');
   FPattern.AddLine('1', '2');
   FPattern.AddCurve('1', '3', '270', '60', '270', '60');
 end;
 
-procedure TTestCanvasModel.TestYIsFlipped;
+procedure TTestCanvasModel.TestYPointsDown;
 var
   View: TViewTransform;
 begin
@@ -124,7 +124,7 @@ begin
   View.OriginX := 100;
   View.OriginY := 300;
   AssertPointsNear('origin', Vec2(100, 300), View.ToScreen(Vec2(0, 0)));
-  AssertPointsNear('up in the model is up on screen', Vec2(120, 280), View.ToScreen(Vec2(10, 10)));
+  AssertPointsNear('down in the model is down on screen', Vec2(120, 320), View.ToScreen(Vec2(10, 10)));
   AssertNear('pixels to mm', 5, View.PixelsToMM(10));
 end;
 
@@ -190,8 +190,8 @@ begin
   AssertTrue(PatternBounds(FPattern, Bounds));
   AssertNear('min x', 0, Bounds.MinX);
   AssertNear('max x', 100, Bounds.MaxX);
-  AssertNear('max y', 50, Bounds.MaxY);
-  AssertTrue('the curve dips below the points', Bounds.MinY < -10);
+  AssertNear('min y', -50, Bounds.MinY);
+  AssertTrue('the curve dips below the points', Bounds.MaxY > 10);
 end;
 
 procedure TTestCanvasModel.TestNothingShownBeforeEvaluate;
@@ -231,7 +231,7 @@ begin
   Curve := EdgePolyline(TEdgeObject(FPattern.FindNode('5')), 0.1);
   AssertTrue('a curve is flattened', Length(Curve) > 4);
   AssertPointsNear('starts at A', Vec2(0, 0), Curve[0]);
-  AssertPointsNear('ends at C', Vec2(100, 50), Curve[High(Curve)]);
+  AssertPointsNear('ends at C', Vec2(100, -50), Curve[High(Curve)]);
   for Index := 1 to High(Curve) do
     AssertTrue('no repeated points', Distance(Curve[Index - 1], Curve[Index]) > 1e-9);
 end;
@@ -260,11 +260,11 @@ begin
   View := DefaultView;
   View.Scale := 1;
   View.OriginX := 0;
-  View.OriginY := 400;
+  View.OriginY := 0;
   Bounds := MakeRect(10, 10, 50, 50);
   View.Reveal(Bounds, 800, 400, 5);
   AssertNear('x', 0, View.OriginX);
-  AssertNear('y', 400, View.OriginY);
+  AssertNear('y', 0, View.OriginY);
 end;
 
 procedure TTestCanvasModel.TestRevealCentresWithoutZooming;
@@ -290,14 +290,14 @@ var
 begin
   A := FPattern.AddFreePoint('A', '0', '0').Key;
   B := FPattern.AddFreePoint('B', '100', '0').Key;
-  C := FPattern.AddFreePoint('C', '100', '100').Key;
-  D := FPattern.AddFreePoint('D', '0', '100').Key;
+  C := FPattern.AddFreePoint('C', '100', '-100').Key;
+  D := FPattern.AddFreePoint('D', '0', '-100').Key;
   FPattern.AddLine(A, B, erOutline);
   FPattern.AddLine(B, C, erOutline);
   FPattern.AddLine(C, D, erOutline);
   FPattern.AddLine(D, A, erOutline);
   FPattern.Evaluate;
-  AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(50, 50), Path, ErrorMessage));
+  AssertTrue(ErrorMessage, DetectPiecePath(FPattern, Vec2(50, -50), Path, ErrorMessage));
   Result := FPattern.AddPiece('Front', Path, '10');
   FPattern.Evaluate;
 end;
@@ -385,18 +385,18 @@ var
 begin
   Left := BuildPiece;
   E := FPattern.AddFreePoint('E', '200', '0').Key;
-  F := FPattern.AddFreePoint('F', '200', '100').Key;
+  F := FPattern.AddFreePoint('F', '200', '-100').Key;
   FPattern.AddLine(FPattern.FindObject('B').Key, E, erOutline);
   FPattern.AddLine(E, F, erOutline);
   FPattern.AddLine(F, FPattern.FindObject('C').Key, erOutline);
   FPattern.Evaluate;
-  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(150, 50), Path, Reason));
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(150, -50), Path, Reason));
   Right := FPattern.AddPiece('Right', Path, '10');
   FPattern.Evaluate;
-  AssertTrue('left of it', SeamEntryAt(FPattern, Vec2(99, 50), 2, Entry));
+  AssertTrue('left of it', SeamEntryAt(FPattern, Vec2(99, -50), 2, Entry));
   AssertEquals('the shared edge', FPattern.FindObject('Line_B_C').Key, Entry.EdgeKey);
   AssertEquals('left piece', Left.Key, Entry.PieceKey);
-  AssertTrue('right of it', SeamEntryAt(FPattern, Vec2(101, 50), 2, Entry));
+  AssertTrue('right of it', SeamEntryAt(FPattern, Vec2(101, -50), 2, Entry));
   AssertEquals('right piece', Right.Key, Entry.PieceKey);
 end;
 
@@ -522,10 +522,10 @@ var
   Piece: TPieceObject;
 begin
   Piece := BuildPiece;
-  AssertTrue('inside', PieceAt(FPattern, Vec2(50, 50)) = Piece);
-  AssertTrue('in the allowance', PieceAt(FPattern, Vec2(105, 50)) = Piece);
-  AssertNull('outside', PieceAt(FPattern, Vec2(120, 50)));
-  AssertPointsNear('middle', Vec2(50, 50), PieceMiddle(Piece));
+  AssertTrue('inside', PieceAt(FPattern, Vec2(50, -50)) = Piece);
+  AssertTrue('in the allowance', PieceAt(FPattern, Vec2(105, -50)) = Piece);
+  AssertNull('outside', PieceAt(FPattern, Vec2(120, -50)));
+  AssertPointsNear('middle', Vec2(50, -50), PieceMiddle(Piece));
 end;
 
 function Box(MinX, MinY, MaxX, MaxY: double): TRect2;
@@ -558,9 +558,9 @@ var
   Keys: TStringArray;
 begin
   Piece := BuildPiece;
-  Keys := ObjectsInBox(FPattern, Box(-1, -1, 101, 101));
+  Keys := ObjectsInBox(FPattern, Box(-1, -101, 101, 1));
   AssertEquals('points and edges, not the piece', 8, Length(Keys));
-  Keys := ObjectsInBox(FPattern, Box(-11, -11, 111, 111));
+  Keys := ObjectsInBox(FPattern, Box(-11, -111, 111, 11));
   AssertEquals('the piece too', 9, Length(Keys));
   AssertEquals('last, in pattern order', Piece.Key, Keys[8]);
 end;
@@ -576,7 +576,7 @@ begin
   AssertEquals(4, Length(Chevrons));
   // Clockwise round the square: rightwards along the top, leftwards along the bottom
   for Item in Chevrons do
-    if PointsNear(Item.Position, Vec2(50, 100)) then
+    if PointsNear(Item.Position, Vec2(50, -100)) then
       AssertNear('top runs right', 0, Item.Angle)
     else if PointsNear(Item.Position, Vec2(50, 0)) then
       AssertNear('bottom runs left', 180, Item.Angle);
@@ -603,10 +603,10 @@ begin
   FPattern.Evaluate;
   AssertEquals('only selected curves', 0, Length(SelectionHandles(FPattern, ['1', '4'])));
   AssertEquals('the curve', 2, Length(SelectionHandles(FPattern, ['5'])));
-  AssertTrue('near the start handle', HandleAt(FPattern, ['5'], Vec2(1, -59), 3, Handle));
+  AssertTrue('near the start handle', HandleAt(FPattern, ['5'], Vec2(1, 59), 3, Handle));
   AssertEquals('length1', Handle.LengthField);
-  AssertFalse('not when unselected', HandleAt(FPattern, nil, Vec2(1, -59), 3, Handle));
-  AssertFalse('too far', HandleAt(FPattern, ['5'], Vec2(20, 20), 3, Handle));
+  AssertFalse('not when unselected', HandleAt(FPattern, nil, Vec2(1, 59), 3, Handle));
+  AssertFalse('too far', HandleAt(FPattern, ['5'], Vec2(20, -20), 3, Handle));
 end;
 
 procedure TTestCanvasModel.TestPolylineMiddle;

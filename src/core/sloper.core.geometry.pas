@@ -17,8 +17,11 @@
 }
 
 // Basic 2D geometry: vectors, lines, intersections, transforms and polygons.
-// Units are millimetres; angles are degrees, 0 pointing right, positive
-// anticlockwise (y up). No LCL dependency.
+// Units are millimetres, x right and y down, as on screen and in Seamly2D.
+// Angles are degrees, 0 pointing right and positive anticlockwise as seen on
+// screen, so 90 points up (towards smaller y). Everything that turns, or tells
+// left from right or clockwise from anticlockwise, means it as seen on screen.
+// No LCL dependency.
 unit Sloper.Core.Geometry;
 
 {$mode ObjFPC}{$H+}
@@ -83,7 +86,7 @@ type
 
 function AffineIdentity: TAffine2;
 function AffineShift(const Offset: TVec2): TAffine2;
-// About the origin, anticlockwise
+// About the origin, anticlockwise on screen
 function AffineTurn(AngleDeg: double): TAffine2;
 function AffineTurnAbout(const Pivot: TVec2; AngleDeg: double): TAffine2;
 // Across the line through A and B
@@ -93,7 +96,11 @@ function AffineThen(const After, Before: TAffine2): TAffine2;
 function Vec2(AX, AY: double): TVec2; inline;
 function Line2(const A, B: TVec2): TLine2; inline;
 function Dot(const A, B: TVec2): double; inline;
+// The plain cross product, A.X * B.Y - A.Y * B.X. With y down it is positive
+// when B turns clockwise from A on screen; use LeftOf and SignedArea for sides.
 function Cross(const A, B: TVec2): double; inline;
+// V turned a quarter anticlockwise on screen: the left of a path running along V
+function LeftOf(const V: TVec2): TVec2; inline;
 function Lerp(const A, B: TVec2; T: double): TVec2;
 function Distance(const A, B: TVec2): double;
 function PointsNear(const A, B: TVec2; Tolerance: double = DefaultTolerance): boolean;
@@ -115,11 +122,11 @@ function IntersectLines(const A, B: TLine2; ExtendA, ExtendB: boolean; out Hit: 
 // Crossings of a line and a circle, sorted by T1 (the line parameter)
 function IntersectLineCircle(const L: TLine2; Extend: boolean; const Centre: TVec2; Radius: double): TIntersectionArray;
 
-// Positive when the points run anticlockwise
 // Where two circles cross: First is to the left going from centre A to centre
 // B, and Second to the right. Count is 0 when they miss or share a centre, 1
 // when they touch.
 function IntersectCircles(const A: TVec2; RadiusA: double; const B: TVec2; RadiusB: double; out First, Second: TVec2): integer;
+// Positive when the points run anticlockwise on screen
 function SignedArea(const Pts: TVec2Array): double;
 function IsClockwise(const Pts: TVec2Array): boolean;
 // Non-zero winding rule; points exactly on the boundary may go either way
@@ -234,9 +241,10 @@ end;
 function AffineTurn(AngleDeg: double): TAffine2;
 begin
   Result := AffineIdentity;
+  // Anticlockwise on screen is clockwise in the y-down axes
   Result.XX := Cos(DegToRad(AngleDeg));
-  Result.XY := -Sin(DegToRad(AngleDeg));
-  Result.YX := Sin(DegToRad(AngleDeg));
+  Result.XY := Sin(DegToRad(AngleDeg));
+  Result.YX := -Sin(DegToRad(AngleDeg));
   Result.YY := Cos(DegToRad(AngleDeg));
 end;
 
@@ -295,6 +303,11 @@ begin
   Result := A.X * B.Y - A.Y * B.X;
 end;
 
+function LeftOf(const V: TVec2): TVec2;
+begin
+  Result := Vec2(V.Y, -V.X);
+end;
+
 function Lerp(const A, B: TVec2; T: double): TVec2;
 begin
   Result := Vec2(A.X + (B.X - A.X) * T, A.Y + (B.Y - A.Y) * T);
@@ -325,12 +338,13 @@ var
   Rad: double;
 begin
   Rad := DegToRad(AngleDeg);
-  Result := Vec2(Origin.X + Len * Cos(Rad), Origin.Y + Len * Sin(Rad));
+  // y down: a positive angle goes up the screen
+  Result := Vec2(Origin.X + Len * Cos(Rad), Origin.Y - Len * Sin(Rad));
 end;
 
 function AngleBetween(const A, B: TVec2): double;
 begin
-  Result := NormalizeAngle(RadToDeg(ArcTan2(B.Y - A.Y, B.X - A.X)));
+  Result := NormalizeAngle(RadToDeg(ArcTan2(A.Y - B.Y, B.X - A.X)));
 end;
 
 function RotatePoint(const P, Pivot: TVec2; AngleDeg: double): TVec2;
@@ -340,7 +354,7 @@ var
 begin
   SinCos(DegToRad(AngleDeg), S, C);
   D := P - Pivot;
-  Result := Vec2(Pivot.X + D.X * C - D.Y * S, Pivot.Y + D.X * S + D.Y * C);
+  Result := Vec2(Pivot.X + D.X * C + D.Y * S, Pivot.Y - D.X * S + D.Y * C);
 end;
 
 function MirrorPoint(const P, A, B: TVec2): TVec2;
@@ -450,7 +464,7 @@ begin
     Exit(1);
   end;
   Height := Sqrt(HeightSquared);
-  Across := Vec2(-Unit2.Y, Unit2.X) * Height;
+  Across := LeftOf(Unit2) * Height;
   First := Foot + Across;
   Second := Foot - Across;
   Result := 2;
@@ -469,7 +483,8 @@ begin
     Result := Result + Cross(Pts[J], Pts[I]);
     J := I;
   end;
-  Result := Result / 2;
+  // The shoelace sum is positive for clockwise on screen, since y is down
+  Result := -Result / 2;
 end;
 
 function IsClockwise(const Pts: TVec2Array): boolean;

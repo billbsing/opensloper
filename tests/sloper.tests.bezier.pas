@@ -80,8 +80,8 @@ var
 begin
   C := BezierFromHandles(Vec2(0, 0), 90, 40, Vec2(100, 0), 90, 30);
   AssertPointsNear('start', Vec2(0, 0), C.P0);
-  AssertPointsNear('first handle', Vec2(0, 40), C.P1);
-  AssertPointsNear('second handle', Vec2(100, 30), C.P2);
+  AssertPointsNear('first handle, up', Vec2(0, -40), C.P1);
+  AssertPointsNear('second handle, up', Vec2(100, -30), C.P2);
   AssertPointsNear('end', Vec2(100, 0), C.P3);
 end;
 
@@ -110,7 +110,7 @@ var
   C: TCubicBezier;
 begin
   C := BezierFromHandles(Vec2(0, 0), 60, 0, Vec2(100, 0), 90, 50);
-  AssertNear('towards the other handle', AngleBetween(Vec2(0, 0), Vec2(100, 50)), C.StartAngle);
+  AssertNear('towards the other handle', AngleBetween(Vec2(0, 0), Vec2(100, -50)), C.StartAngle);
 end;
 
 procedure TTestBezier.TestStraightCurveLength;

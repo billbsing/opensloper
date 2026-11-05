@@ -262,22 +262,22 @@ begin
   try
     A := Pt('0', '0');
     B := Pt('100', '0');
-    C := Pt('100', '100');
-    D := Pt('0', '100');
+    C := Pt('100', '-100');
+    D := Pt('0', '-100');
     Pattern.AddLine(A, B, erOutline);
     Pattern.AddLine(B, C, erOutline);
     Pattern.AddLine(C, D, erOutline);
     Pattern.AddLine(D, A, erOutline);
     Pattern.Evaluate;
-    AssertTrue(Reason, DetectPiecePath(Pattern, Vec2(50, 50), Path, Reason));
+    AssertTrue(Reason, DetectPiecePath(Pattern, Vec2(50, -50), Path, Reason));
     Piece := Pattern.AddPiece('', Path, '10');
     AssertNotNull(Pattern.LastError, Piece);
     if Fold then
       AssertTrue(Pattern.LastError, Pattern.SetFoldEdge(Piece, Piece.Path[0].EdgeKey));
-    AssertTrue(Pattern.LastError, Pattern.AddHoleMarking(Piece, Pt('30', '40'), '4'));
-    AssertTrue(Pattern.LastError, Pattern.AddLineMarking(Piece, mkPlacement, Pattern.AddLine(Pt('20', '60'), Pt('80', '60')).Key));
-    AssertTrue(Pattern.LastError, Pattern.AddLineMarking(Piece, mkFoldLine, Pattern.AddLine(Pt('50', '0'), Pt('50', '100')).Key));
-    AssertTrue(Pattern.LastError, Pattern.AddStitchMarking(Piece, Pattern.AddLine(Pt('20', '80'), Pt('60', '80')).Key, '10', '1'));
+    AssertTrue(Pattern.LastError, Pattern.AddHoleMarking(Piece, Pt('30', '-40'), '4'));
+    AssertTrue(Pattern.LastError, Pattern.AddLineMarking(Piece, mkPlacement, Pattern.AddLine(Pt('20', '-60'), Pt('80', '-60')).Key));
+    AssertTrue(Pattern.LastError, Pattern.AddLineMarking(Piece, mkFoldLine, Pattern.AddLine(Pt('50', '0'), Pt('50', '-100')).Key));
+    AssertTrue(Pattern.LastError, Pattern.AddStitchMarking(Piece, Pattern.AddLine(Pt('20', '-80'), Pt('60', '-80')).Key, '10', '1'));
     Pattern.Evaluate;
     AssertTrue(Reason, SavePatternToFile(Pattern, ConcatPaths([FFolder, AFile]), Reason));
   finally
@@ -626,7 +626,7 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
     if Pattern.Objects[Index] is TPieceObject then
       Piece := TPieceObject(Pattern.Objects[Index]);
-  AssertTrue(Pattern.LastError, Pattern.AddHoleMarking(Piece, Pattern.AddFreePoint('', '0', '70').Key, '4'));
+  AssertTrue(Pattern.LastError, Pattern.AddHoleMarking(Piece, Pattern.AddFreePoint('', '0', '-70').Key, '4'));
   Pattern.Evaluate;
   AssertTrue('invalid', Piece.State = esInvalid);
   AssertTrue(Piece.Message, Pos('fold', Piece.Message) > 0);
@@ -645,8 +645,8 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
     if Pattern.Objects[Index] is TPieceObject then
       Piece := TPieceObject(Pattern.Objects[Index]);
-  AssertTrue(Pattern.LastError, Pattern.AddStitchMarking(Piece, Pattern.AddLine(Pattern.AddFreePoint('', '0', '20').Key,
-    Pattern.AddFreePoint('', '0', '60').Key).Key, '10', '1'));
+  AssertTrue(Pattern.LastError, Pattern.AddStitchMarking(Piece, Pattern.AddLine(Pattern.AddFreePoint('', '0', '-20').Key,
+    Pattern.AddFreePoint('', '0', '-60').Key).Key, '10', '1'));
   Pattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
   UseMaterial(1500);

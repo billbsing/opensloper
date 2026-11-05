@@ -182,15 +182,15 @@ var
   First, Second, Third: TPointObject;
 begin
   Curve := Arch;
-  Pt('L', -10, 56.25);
-  Pt('R', 110, 56.25);
+  Pt('L', -10, -56.25);
+  Pt('R', 110, -56.25);
   Across := Line('L', 'R');
   First := TPointObject(Check(FPattern.AddIntersectPoint('X1', Across.Key, Curve.Key, False, False, 1)));
   Second := TPointObject(Check(FPattern.AddIntersectPoint('X2', Across.Key, Curve.Key, False, False, 2)));
   Third := TPointObject(Check(FPattern.AddIntersectPoint('X3', Across.Key, Curve.Key, False, False, 3)));
   FPattern.Evaluate;
-  AssertAt('first', First, 15.625, 56.25);
-  AssertAt('second', Second, 84.375, 56.25);
+  AssertAt('first', First, 15.625, -56.25);
+  AssertAt('second', Second, 84.375, -56.25);
   AssertInvalid('third', Third, Format(rsDraftPickMissing, [2, 3]));
 end;
 
@@ -200,14 +200,14 @@ var
   AlongLine, AlongCurve: TPointObject;
 begin
   Curve := Arch;
-  Pt('L', -10, 56.25);
-  Pt('R', 110, 56.25);
+  Pt('L', -10, -56.25);
+  Pt('R', 110, -56.25);
   Backwards := Line('R', 'L');
   AlongLine := TPointObject(Check(FPattern.AddIntersectPoint('X1', Backwards.Key, Curve.Key, False, False, 1)));
   AlongCurve := TPointObject(Check(FPattern.AddIntersectPoint('X2', Curve.Key, Backwards.Key, False, False, 1)));
   FPattern.Evaluate;
-  AssertAt('first along a right-to-left line', AlongLine, 84.375, 56.25);
-  AssertAt('first along the curve', AlongCurve, 15.625, 56.25);
+  AssertAt('first along a right-to-left line', AlongLine, 84.375, -56.25);
+  AssertAt('first along the curve', AlongCurve, 15.625, -56.25);
 end;
 
 procedure TTestOperations.TestCurveExtendsAlongTangents;
@@ -216,8 +216,8 @@ var
   Plain, StartRay, EndRay: TPointObject;
 begin
   Curve := Arch;
-  Pt('M', -50, -20);
-  Pt('N', 150, -20);
+  Pt('M', -50, 20);
+  Pt('N', 150, 20);
   Below := Line('M', 'N');
   Plain := TPointObject(Check(FPattern.AddIntersectPoint('X0', Curve.Key, Below.Key, False, False, 1)));
   StartRay := TPointObject(Check(FPattern.AddIntersectPoint('X1', Curve.Key, Below.Key, True, False, 1)));
@@ -225,8 +225,8 @@ begin
   FPattern.Evaluate;
   AssertTrue('curve alone does not reach', Plain.State = esInvalid);
   // Both handles point up, so the curve continues straight down off each end
-  AssertAt('before the start', StartRay, 0, -20);
-  AssertAt('after the end', EndRay, 100, -20);
+  AssertAt('before the start', StartRay, 0, 20);
+  AssertAt('after the end', EndRay, 100, 20);
 end;
 
 procedure TTestOperations.TestCurvesCross;
@@ -235,17 +235,17 @@ var
   First, Second: TPointObject;
 begin
   Curve := Arch;
-  // The arch flipped about y = 56.25: x(t) is the same, so they meet where
+  // The arch flipped about y = -56.25: x(t) is the same, so they meet where
   // 300t(1 - t) = 56.25, at t = 0.25 and 0.75
-  Pt('F0', 0, 112.5);
-  Pt('F1', 100, 112.5);
+  Pt('F0', 0, -112.5);
+  Pt('F1', 100, -112.5);
   Flipped := TEdgeObject(Check(FPattern.AddCurve(FPattern.FindObject('F0').Key,
     FPattern.FindObject('F1').Key, '270', '100', '270', '100')));
   First := TPointObject(Check(FPattern.AddIntersectPoint('X1', Curve.Key, Flipped.Key, False, False, 1)));
   Second := TPointObject(Check(FPattern.AddIntersectPoint('X2', Curve.Key, Flipped.Key, False, False, 2)));
   FPattern.Evaluate;
-  AssertAt('first', First, 15.625, 56.25);
-  AssertAt('second', Second, 84.375, 56.25);
+  AssertAt('first', First, 15.625, -56.25);
+  AssertAt('second', Second, 84.375, -56.25);
 end;
 
 procedure TTestOperations.TestCompassStepOnLine;
@@ -311,8 +311,8 @@ begin
   Second := TPointObject(Check(FPattern.AddCircleEdgePoint('C2', FPattern.FindObject('M').Key,
     'sqrt(34.375^2 + 56.25^2)', Curve.Key, False, 2)));
   FPattern.Evaluate;
-  AssertAt('first', First, 15.625, 56.25);
-  AssertAt('second', Second, 84.375, 56.25);
+  AssertAt('first', First, 15.625, -56.25);
+  AssertAt('second', Second, 84.375, -56.25);
 end;
 
 procedure TTestOperations.TestNegativeRadiusIsInvalid;
@@ -359,7 +359,7 @@ var
 begin
   Pt('A', 0, 0);
   Pt('B', 100, 0);
-  Pt('P', 30, 40);
+  Pt('P', 30, -40);
   Base := Line('A', 'B');
   SourceKey := FPattern.FindObject('P').Key;
   Down := TPointObject(Check(FPattern.AddProjectPoint('D', SourceKey, Base.Key, pdAngle, '270', False)));
@@ -378,15 +378,15 @@ var
   Square, Down: TPointObject;
 begin
   Curve := Arch;
-  Pt('P', 50, 100);
-  Pt('Q', 15.625, 100);
+  Pt('P', 50, -100);
+  Pt('Q', 15.625, -100);
   Square := TPointObject(Check(FPattern.AddProjectPoint('F', FPattern.FindObject('P').Key,
     Curve.Key, pdPerpendicular, '', False)));
   Down := TPointObject(Check(FPattern.AddProjectPoint('D', FPattern.FindObject('Q').Key,
     Curve.Key, pdAngle, '270', False)));
   FPattern.Evaluate;
-  AssertAt('foot at the top of the arch', Square, 50, 75);
-  AssertAt('straight down', Down, 15.625, 56.25);
+  AssertAt('foot at the top of the arch', Square, 50, -75);
+  AssertAt('straight down', Down, 15.625, -56.25);
 end;
 
 procedure TTestOperations.TestProjectTakesNearest;
@@ -396,11 +396,11 @@ var
 begin
   Curve := Arch;
   // A horizontal line through P meets the arch on both sides
-  Pt('P', 70, 56.25);
+  Pt('P', 70, -56.25);
   Across := TPointObject(Check(FPattern.AddProjectPoint('X', FPattern.FindObject('P').Key,
     Curve.Key, pdAngle, '0', False)));
   FPattern.Evaluate;
-  AssertAt('nearer crossing', Across, 84.375, 56.25);
+  AssertAt('nearer crossing', Across, 84.375, -56.25);
 end;
 
 procedure TTestOperations.TestPatternChecks;
@@ -430,16 +430,16 @@ var
 begin
   Pt('A', 0, 0);
   Pt('B', 100, 0);
-  Pt('C', 0, 100);
-  Pt('D', 100, 100);
+  Pt('C', 0, -100);
+  Pt('D', 100, -100);
   First := Line('A', 'D');
   Second := Line('C', 'B');
   X := TPointObject(Check(FPattern.AddIntersectPoint('X', First.Key, Second.Key, False, False, 1)));
   Above := TPointObject(Check(FPattern.AddOffsetPoint('Y', X.Key, omPolar, '10', '90')));
   FPattern.Evaluate;
-  AssertAt('Y', Above, 50, 60);
+  AssertAt('Y', Above, 50, -60);
   // Move C so the lines no longer cross within their ends
-  AssertTrue(FPattern.SetFormula(FPattern.FindObject('C'), 'y', '-100'));
+  AssertTrue(FPattern.SetFormula(FPattern.FindObject('C'), 'y', '100'));
   FPattern.Evaluate;
   AssertTrue('X invalid', X.State = esInvalid);
   AssertTrue('Y blocked', Above.State = esBlocked);

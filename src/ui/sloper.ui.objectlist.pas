@@ -120,7 +120,7 @@ resourcestring
   rsFieldLength = 'Length';
   rsFieldAngle = 'Angle';
   rsFieldDX = 'Across';
-  rsFieldDY = 'Up';
+  rsFieldDY = 'Down';
   rsFieldValue = 'Distance or ratio';
   rsFieldCount = 'Count';
   rsFieldRadius = 'Radius';

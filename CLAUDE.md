@@ -38,7 +38,7 @@ Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa.
 ## Conventions
 
 - Every source unit starts with the GPLv3 header. Code translated from Valentina or Seamly2D keeps their copyright line.
-- Internal units are millimetres: geometry, computed state and exports. Formula numbers are in the pattern's unit (mm, cm or in), converted where they become geometry (see Pattern units in the design). Angles are degrees, 0° pointing right, positive anticlockwise.
+- Internal units are millimetres: geometry, computed state and exports. Formula numbers are in the pattern's unit (mm, cm or in), converted where they become geometry (see Pattern units in the design). Coordinates are x right, y down, as on screen and in Seamly2D. Angles are degrees, 0° pointing right, positive anticlockwise as seen on screen, so 90° points up.
 - Only definitions (operations, references, formula strings) are saved and undone; computed geometry is always derived.
 - Objects are referenced by stable integer IDs (`12`, `7`), never reused; names are for display only. Formulas are stored in ID form and shown with names.
 - Names: letters, digits and underscore, not starting with a digit; unique per namespace; compared case-insensitively. Copies get the next free number appended directly (`A` → `A2`).

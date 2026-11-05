@@ -17,8 +17,8 @@
 }
 
 // The draft as an SVG, to look at or to check: edges as true lines and Bézier
-// curves, points, and optionally their names. Coordinates are millimetres with
-// y flipped, since SVG's y points down. Reads computed geometry only.
+// curves, points, and optionally their names. Coordinates are millimetres
+// as in the model, since both have y down. Reads computed geometry only.
 unit Sloper.Output.DraftSVG;
 
 {$mode ObjFPC}{$H+}
@@ -91,10 +91,10 @@ begin
   Result := SVGNumber(Value);
 end;
 
-// Model y points up, SVG y points down
+// Model and SVG both have y down
 function Coord(const P: TVec2): string;
 begin
-  Result := Num(P.X) + ' ' + Num(-P.Y);
+  Result := Num(P.X) + ' ' + Num(P.Y);
 end;
 
 function EscapeXML(const Text: string): string;
@@ -139,7 +139,7 @@ begin
     end;
 end;
 
-// The part of the drawing shown, in SVG's y-down millimetres. Extent is the
+// The part of the drawing shown, in millimetres. Extent is the
 // longer side, which line widths and text sizes are shares of.
 function DraftView(Pattern: TPattern; const Options: TDraftSVGOptions): TDraftView;
 var
@@ -163,7 +163,7 @@ begin
   if not Options.HasRegion then
     Margin := Result.Extent * MarginShare;
   Result.Left := Bounds.MinX - Margin;
-  Result.Top := -Bounds.MaxY - Margin;
+  Result.Top := Bounds.MinY - Margin;
   Result.Width := Bounds.MaxX - Bounds.MinX + 2 * Margin;
   Result.Height := Bounds.MaxY - Bounds.MinY + 2 * Margin;
 end;
@@ -252,7 +252,7 @@ var
 begin
   Middle := Piece.Middle;
   Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
-    [Num(Middle.X), Num(-Middle.Y), Num(Extent * FontShare), StateColor(Piece.State, InkColor), EscapeXML(Pattern.PieceCaption(Piece))]) + #10;
+    [Num(Middle.X), Num(Middle.Y), Num(Extent * FontShare), StateColor(Piece.State, InkColor), EscapeXML(Pattern.PieceCaption(Piece))]) + #10;
 end;
 
 function LabelElement(const At: TVec2; Extent: double; const Color, Text: string): string;
@@ -261,7 +261,7 @@ var
 begin
   Offset := Extent * PointShare * 1.5;
   Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
-    [Num(At.X + Offset), Num(-At.Y - Offset), Num(Extent * FontShare), Color, EscapeXML(Text)]) + #10;
+    [Num(At.X + Offset), Num(At.Y - Offset), Num(Extent * FontShare), Color, EscapeXML(Text)]) + #10;
 end;
 
 // Halfway along the edge, where the canvas puts its name
@@ -278,7 +278,7 @@ begin
   Radius := Extent * PointShare;
   Color := StateColor(Point.State, InkColor);
   Result := Format('<circle data-id="%s" data-name="%s" cx="%s" cy="%s" r="%s" fill="%s"/>',
-    [Point.Key, EscapeXML(Point.DisplayName), Num(Point.Position.X), Num(-Point.Position.Y), Num(Radius), Color]) + #10;
+    [Point.Key, EscapeXML(Point.DisplayName), Num(Point.Position.X), Num(Point.Position.Y), Num(Radius), Color]) + #10;
   if Labels then
     Result := Result + LabelElement(Point.Position, Extent, Color, Point.DisplayName);
 end;

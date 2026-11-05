@@ -220,7 +220,8 @@ begin
     Snap.Position := Vec2(Base.Position.X, At.Y);
     Snap.PointKey := Base.Key;
     Snap.Distance := Abs(DY);
-    if DY >= 0 then
+    // y down: a smaller y is higher up, at 90 degrees
+    if DY <= 0 then
       Snap.Angle := 90
     else
       Snap.Angle := 270;

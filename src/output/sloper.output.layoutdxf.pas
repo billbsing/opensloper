@@ -98,7 +98,8 @@ type
     procedure Insert(const AName: string);
     procedure ClosedPath(const Layer: string; const Points: TVec2Array);
     procedure Line(const Layer: string; const Stroke: TLine2);
-    procedure Notch(const Mark: TNotchMark);
+    // A point on the cutting line, with the notch's length as z and its angle
+    procedure Notch(const Cut: TVec2; NotchLength, Angle: double);
     procedure PointAt(const Layer: string; const At: TVec2);
     procedure Circle(const Layer: string; const Centre: TVec2; Radius: double);
     procedure TextAt(const Layer: string; const At: TVec2; const AText: string);
@@ -256,13 +257,12 @@ begin
   Number(31, 0);
 end;
 
-// A point on the cutting line, with the notch's length as z and its direction
-procedure TDXFWriter.Notch(const Mark: TNotchMark);
+procedure TDXFWriter.Notch(const Cut: TVec2; NotchLength, Angle: double);
 begin
   Pair(0, 'POINT');
   Pair(8, LayerNotch);
-  Place(Mark.Cut, Distance(Mark.Cut, Mark.Tip));
-  Number(50, Line2(Mark.Cut, Mark.Tip).Angle);
+  Place(Cut, NotchLength);
+  Number(50, Angle);
 end;
 
 procedure TDXFWriter.PointAt(const Layer: string; const At: TVec2);
@@ -354,24 +354,46 @@ var
     At.Y := At.Y - TextHeight - TextSpacing;
   end;
 
+  // The model is y down and DXF y up
+  function Up(const P: TVec2): TVec2;
+  begin
+    Result := Vec2(P.X, -P.Y);
+  end;
+
+  function UpAll(const Points: TVec2Array): TVec2Array;
+  var
+    Each: integer;
+  begin
+    Result := nil;
+    SetLength(Result, Length(Points));
+    for Each := 0 to High(Points) do
+      Result[Each] := Up(Points[Each]);
+  end;
+
+  function UpLine(const Stroke: TLine2): TLine2;
+  begin
+    Result := Line2(Up(Stroke.P1), Up(Stroke.P2));
+  end;
+
 begin
   Writer.StartBlock(BlockName);
-  Writer.ClosedPath(LayerCut, Piece.CutLine);
-  Writer.ClosedPath(LayerSeam, Piece.Outline);
+  Writer.ClosedPath(LayerCut, UpAll(Piece.CutLine));
+  Writer.ClosedPath(LayerSeam, UpAll(Piece.Outline));
   if Piece.GrainKind <> gkNone then
-    Writer.Line(LayerGrain, Piece.Grainline);
+    Writer.Line(LayerGrain, UpLine(Piece.Grainline));
   if Piece.OnFold then
-    Writer.Line(LayerFold, Piece.FoldLine);
+    Writer.Line(LayerFold, UpLine(Piece.FoldLine));
+  // An angle as seen on screen is already DXF's anticlockwise angle
   for Mark in Piece.NotchMarks do
-    Writer.Notch(Mark);
+    Writer.Notch(Up(Mark.Cut), Distance(Mark.Cut, Mark.Tip), Line2(Mark.Cut, Mark.Tip).Angle);
   for Marking in Piece.MarkingMarks do
   begin
     for Index := 1 to High(Marking.Line) do
-      Writer.Line(LayerInternal, Line2(Marking.Line[Index - 1], Marking.Line[Index]));
+      Writer.Line(LayerInternal, UpLine(Line2(Marking.Line[Index - 1], Marking.Line[Index])));
     for Hole in Marking.Holes do
-      Writer.PointAt(LayerHole, Hole);
+      Writer.PointAt(LayerHole, Up(Hole));
   end;
-  At := Piece.Middle;
+  At := Up(Piece.Middle);
   AddText(Format(rsDXFPieceName, [Piece.DisplayName]));
   if SizeName <> '' then
     AddText(Format(rsDXFSize, [SizeName]));

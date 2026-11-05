@@ -133,7 +133,7 @@ begin
   C := TOffsetPoint(Check(FPattern.AddOffsetPoint('C', B.Key, omPolar, '50', '90')));
   FPattern.Evaluate;
   AssertAt('B', B, 100, 0);
-  AssertAt('C straight up from B', C, 100, 50);
+  AssertAt('C straight up from B', C, 100, -50);
 end;
 
 procedure TTestPattern.TestOffsetCartesianWithMeasurements;
@@ -174,7 +174,7 @@ begin
     'Line_A_B.length / 2', 'Line_A_B.angle + 90')));
   AssertEquals('stored', '{3}.length / 2', D.Field('length').StoredText);
   FPattern.Evaluate;
-  AssertAt('D', D, 0, 50);
+  AssertAt('D', D, 0, -50);
 end;
 
 procedure TTestPattern.TestSecondLineGetsNumber;
@@ -247,7 +247,7 @@ begin
   AssertEquals(Format(rsEvalBlocked, ['P']), Q.Message);
   AssertTrue(FPattern.SetFormula(P, 'value', '90'));
   FPattern.Evaluate;
-  AssertAt('fixed', Q, 90, 10);
+  AssertAt('fixed', Q, 90, -10);
 end;
 
 procedure TTestPattern.TestAlongCurve;
@@ -258,12 +258,12 @@ var
   M: TPointObject;
 begin
   Basic(A, B, L);
-  // Symmetric curve: handles straight up, 100 long; its middle is (50, 75)
+  // Symmetric curve: handles straight up, 100 long; its middle is (50, -75)
   C := TCurveObject(Check(FPattern.AddCurve(A.Key, B.Key, '90', '100', '90', '100')));
   AssertEquals('Curve_A_B', C.Name);
   M := TPointObject(Check(FPattern.AddAlongEdgePoint('M', C.Key, False, amRatio, '0.5')));
   FPattern.Evaluate;
-  AssertAt('middle', M, 50, 75);
+  AssertAt('middle', M, 50, -75);
 end;
 
 procedure TTestPattern.TestCurveHandlesAndProperties;

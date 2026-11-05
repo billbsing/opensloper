@@ -450,12 +450,12 @@ begin
   SetLength(Notched, 8);
   Notched[0] := Vec2(0, 0);
   Notched[1] := Vec2(30, 0);
-  Notched[2] := Vec2(30, 25);
-  Notched[3] := Vec2(20, 25);
-  Notched[4] := Vec2(20, 5);
-  Notched[5] := Vec2(10, 5);
-  Notched[6] := Vec2(10, 25);
-  Notched[7] := Vec2(0, 25);
+  Notched[2] := Vec2(30, -25);
+  Notched[3] := Vec2(20, -25);
+  Notched[4] := Vec2(20, -5);
+  Notched[5] := Vec2(10, -5);
+  Notched[6] := Vec2(10, -25);
+  Notched[7] := Vec2(0, -25);
   Lines := HatchLines(Notched, 20, 0);
   AssertEquals('one across the base at 0, two across the arms at 20', 3, Length(Lines));
   AssertEquals(10, Abs(Lines[1].P2.X - Lines[1].P1.X), 1e-6);

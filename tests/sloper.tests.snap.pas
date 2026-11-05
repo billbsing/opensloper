@@ -64,8 +64,8 @@ begin
   FPattern := TPattern.Create;
   FPattern.AddFreePoint('A', '0', '0');
   FPattern.AddFreePoint('B', '100', '0');
-  FPattern.AddFreePoint('C', '50', '-50');
-  FPattern.AddFreePoint('D', '50', '50');
+  FPattern.AddFreePoint('C', '50', '50');
+  FPattern.AddFreePoint('D', '50', '-50');
   FPattern.AddLine('1', '2');
   FPattern.AddLine('3', '4');
   FPattern.Evaluate;
@@ -161,12 +161,12 @@ procedure TTestSnap.TestVertical;
 var
   Result: TSnap;
 begin
-  Result := Snap(50.5, 80);
+  Result := Snap(50.5, -80);
   AssertTrue('square', Result.Kind = snVertical);
   AssertEquals('above D', '4', Result.PointKey);
   AssertNear('distance', 30, Result.Distance);
   AssertNear('up', 90, Result.Angle);
-  AssertMakes('above D', Result, 'TOffsetPoint', 50, 80);
+  AssertMakes('above D', Result, 'TOffsetPoint', 50, -80);
 end;
 
 procedure TTestSnap.TestAnchorComesFirst;
@@ -175,10 +175,10 @@ var
 begin
   // Square to A (0.9 mm off) and level with C (0.4 mm off): C lines up
   // better, but a line from A lines up with A first
-  Result := Snap(0.9, -49.6, '1');
+  Result := Snap(0.9, 49.6, '1');
   AssertTrue('square to the anchor', Result.Kind = snVertical);
   AssertEquals('1', Result.PointKey);
-  Result := Snap(0.9, -49.6);
+  Result := Snap(0.9, 49.6);
   AssertTrue('level with C without an anchor', Result.Kind = snHorizontal);
   AssertEquals('3', Result.PointKey);
 end;
@@ -211,7 +211,7 @@ begin
   AssertEquals(Format(rsSnapCrossing, ['Line_A_B', 'Line_C_D']), SnapDescription(FPattern, Snap(50.6, 0.7)));
   AssertEquals(Format(rsSnapEdge, ['Line_A_B', '30', 'B']), SnapDescription(FPattern, Snap(70, -1.5)));
   AssertEquals(Format(rsSnapRight, ['30', 'B']), SnapDescription(FPattern, Snap(130, 0.8)));
-  AssertEquals(Format(rsSnapUp, ['30', 'D']), SnapDescription(FPattern, Snap(50.5, 80)));
+  AssertEquals(Format(rsSnapUp, ['30', 'D']), SnapDescription(FPattern, Snap(50.5, -80)));
   AssertEquals(Format(rsSnapFree, ['200', '200']), SnapDescription(FPattern, Snap(200, 200)));
 end;
 
@@ -220,7 +220,7 @@ begin
   AssertEquals('a point', '2', string.Join(' ', SnapObjectKeys(Snap(99, 0))));
   AssertEquals('a crossing', '5 6', string.Join(' ', SnapObjectKeys(Snap(50, 0.5))));
   AssertEquals('an edge', '5', string.Join(' ', SnapObjectKeys(Snap(25, 0.5))));
-  AssertEquals('lines up with a point', '4', string.Join(' ', SnapObjectKeys(Snap(50, 60))));
+  AssertEquals('lines up with a point', '4', string.Join(' ', SnapObjectKeys(Snap(50, -60))));
   AssertEquals('free', '', string.Join(' ', SnapObjectKeys(Snap(200, 200))));
 end;
 

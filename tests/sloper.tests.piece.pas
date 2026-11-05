@@ -270,8 +270,8 @@ begin
   Square(100, A, B, C, D);
   Path := Detect(50, 50);
   AssertEquals('edges', 4, Length(Path));
-  // Drawn anticlockwise, so all four are reversed in a clockwise path
-  AssertTrue(Path[0].Reversed and Path[1].Reversed and Path[2].Reversed and Path[3].Reversed);
+  // With y down the square is drawn clockwise on screen, so none is reversed
+  AssertFalse(Path[0].Reversed or Path[1].Reversed or Path[2].Reversed or Path[3].Reversed);
 end;
 
 procedure TTestPiece.TestDetectEdgesDrawnAnyWay;
@@ -411,7 +411,8 @@ begin
   Line(A, B);
   Curve := FPattern.AddCurve(A, B, '90', '50', '90', '50', erOutline);
   AssertNotNull(FPattern.LastError, Curve);
-  Path := Detect(50, 10);
+  // The curve bulges up, towards smaller y
+  Path := Detect(50, -10);
   AssertEquals('edges', 2, Length(Path));
 end;
 
@@ -598,12 +599,12 @@ begin
   B := Pt('', 100, 0);
   Line(A, B);
   Curve := FPattern.AddCurve(A, B, '90', '50', '90', '50', erOutline);
-  Piece := FPattern.AddPiece('', Detect(50, 10), '10');
+  Piece := FPattern.AddPiece('', Detect(50, -10), '10');
   FPattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
   // Every point of the cutting line above the base is 10 mm off the curve
   for P in Piece.CutLine do
-    if (P.Y > 1) and (P.X > 0) and (P.X < 100) then
+    if (P.Y < -1) and (P.X > 0) and (P.X < 100) then
     begin
       Curve.Locate(P, Position, Gap);
       AssertNear('10 mm off the curve', 10, Gap, 0.1);
@@ -616,9 +617,9 @@ var
 begin
   Piece := SquarePiece('10');
   AssertTrue(Piece.GrainKind = gkAngle);
-  // Straight up through the middle, 60% of the height
-  AssertPointsNear('start', Vec2(50, 20), Piece.Grainline.P1);
-  AssertPointsNear('end', Vec2(50, 80), Piece.Grainline.P2);
+  // Straight up through the middle, 60% of the height: from y 80 to y 20
+  AssertPointsNear('start', Vec2(50, 80), Piece.Grainline.P1);
+  AssertPointsNear('end', Vec2(50, 20), Piece.Grainline.P2);
   AssertEquals('shaft and two heads', 5, Length(Piece.GrainArrow));
 end;
 
@@ -918,7 +919,7 @@ begin
   B := Pt('', 100, 0);
   Line(A, B);
   Curve := FPattern.AddCurve(A, B, '90', '50', '90', '50', erOutline);
-  Piece := FPattern.AddPiece('', Detect(50, 10), '10');
+  Piece := FPattern.AddPiece('', Detect(50, -10), '10');
   AssertFalse('curved', FPattern.SetFoldEdge(Piece, Curve.Key));
   AssertEquals(Format(rsPatternFoldNotStraight, [Curve.Name]), FPattern.LastError);
   Line(B, Pt('', 200, 0));

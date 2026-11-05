@@ -55,14 +55,15 @@ type
 
 implementation
 
+// Anticlockwise on screen: right, then up, which is towards smaller y
 function Square: TVec2Array;
 begin
   Result := nil;
   SetLength(Result, 4);
   Result[0] := Vec2(0, 0);
   Result[1] := Vec2(100, 0);
-  Result[2] := Vec2(100, 100);
-  Result[3] := Vec2(0, 100);
+  Result[2] := Vec2(100, -100);
+  Result[3] := Vec2(0, -100);
 end;
 
 procedure TTestGeometry.TestVectorArithmetic;
@@ -90,15 +91,15 @@ end;
 procedure TTestGeometry.TestPolarPointAnglesAreAnticlockwise;
 begin
   AssertPointsNear('0 deg points right', Vec2(110, 0), PolarPoint(Vec2(10, 0), 100, 0));
-  AssertPointsNear('90 deg points up', Vec2(0, 50), PolarPoint(Vec2(0, 0), 50, 90));
+  AssertPointsNear('90 deg points up', Vec2(0, -50), PolarPoint(Vec2(0, 0), 50, 90));
   AssertPointsNear('180 deg points left', Vec2(-50, 0), PolarPoint(Vec2(0, 0), 50, 180));
 end;
 
 procedure TTestGeometry.TestAngleBetweenIsInRange;
 begin
   AssertNear('right', 0, AngleBetween(Vec2(0, 0), Vec2(10, 0)));
-  AssertNear('up', 90, AngleBetween(Vec2(0, 0), Vec2(0, 10)));
-  AssertNear('down', 270, AngleBetween(Vec2(0, 0), Vec2(0, -10)));
+  AssertNear('up', 90, AngleBetween(Vec2(0, 0), Vec2(0, -10)));
+  AssertNear('down', 270, AngleBetween(Vec2(0, 0), Vec2(0, 10)));
 end;
 
 procedure TTestGeometry.TestNormalizeAngle;
@@ -120,9 +121,9 @@ end;
 
 procedure TTestGeometry.TestRotatePoint;
 begin
-  AssertPointsNear('90 about origin', Vec2(0, 10), RotatePoint(Vec2(10, 0), Vec2(0, 0), 90));
+  AssertPointsNear('90 about origin turns up', Vec2(0, -10), RotatePoint(Vec2(10, 0), Vec2(0, 0), 90));
   AssertPointsNear('180 about pivot', Vec2(0, 10), RotatePoint(Vec2(20, 10), Vec2(10, 10), 180));
-  AssertPointsNear('-90 is clockwise', Vec2(0, -10), RotatePoint(Vec2(10, 0), Vec2(0, 0), -90));
+  AssertPointsNear('-90 is clockwise, so down', Vec2(0, 10), RotatePoint(Vec2(10, 0), Vec2(0, 0), -90));
 end;
 
 procedure TTestGeometry.TestMirrorPoint;
@@ -138,7 +139,7 @@ procedure TTestGeometry.TestLineLengthAndAngle;
 var
   L: TLine2;
 begin
-  L := Line2(Vec2(10, 10), Vec2(10, -20));
+  L := Line2(Vec2(10, -10), Vec2(10, 20));
   AssertNear('length', 30, L.Length);
   AssertNear('straight down', 270, L.Angle);
 end;
@@ -269,8 +270,8 @@ procedure TTestGeometry.TestPointInPolygon;
 var
   L: TVec2Array;
 begin
-  AssertTrue('inside', PointInPolygon(Vec2(50, 50), Square));
-  AssertFalse('outside', PointInPolygon(Vec2(150, 50), Square));
+  AssertTrue('inside', PointInPolygon(Vec2(50, -50), Square));
+  AssertFalse('outside', PointInPolygon(Vec2(150, -50), Square));
   // L shape: the notch at the top right is outside
   L := nil;
   SetLength(L, 6);

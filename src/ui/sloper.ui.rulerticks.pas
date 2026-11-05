@@ -52,8 +52,8 @@ type
   end;
 
 function RulerSpacing(PixelsPerUnit: double; AUnit: TMeasureUnit): TRulerSpacing;
-// The ticks on a ruler Length pixels long. A vertical ruler counts up the
-// screen, since model y points up.
+// The ticks on a ruler Length pixels long. A vertical ruler counts down the
+// screen, as model y does.
 function RulerTicks(const View: TViewTransform; Vertical: boolean; Length: double; AUnit: TMeasureUnit): TRulerTickArray;
 // A labelled tick's number, with as many decimals as the spacing needs
 function RulerLabel(Value, Labelled: double): string;
@@ -110,7 +110,7 @@ end;
 
 function RulerTicks(const View: TViewTransform; Vertical: boolean; Length: double; AUnit: TMeasureUnit): TRulerTickArray;
 var
-  PixelsPerUnit, Origin, Sign, Low, High: double;
+  PixelsPerUnit, Origin, Low, High: double;
   Spacing: TRulerSpacing;
   PerLabel, First, Last, Index, Count: int64;
   Tick: TRulerTick;
@@ -122,18 +122,12 @@ begin
   Spacing := RulerSpacing(PixelsPerUnit, AUnit);
   PerLabel := Round(Spacing.Labelled / Spacing.Minor);
   if Vertical then
-  begin
-    Origin := View.OriginY;
-    Sign := -1;
-  end
+    Origin := View.OriginY
   else
-  begin
     Origin := View.OriginX;
-    Sign := 1;
-  end;
-  // The values at the two ends of the ruler, lowest first
-  Low := Min((0 - Origin) * Sign, (Length - Origin) * Sign) / PixelsPerUnit;
-  High := Max((0 - Origin) * Sign, (Length - Origin) * Sign) / PixelsPerUnit;
+  // The values at the two ends of the ruler
+  Low := -Origin / PixelsPerUnit;
+  High := (Length - Origin) / PixelsPerUnit;
   // Counted in whole steps, so long rulers gather no rounding
   First := Ceil64(Low / Spacing.Minor - Tolerance);
   Last := Floor64(High / Spacing.Minor + Tolerance);
@@ -142,7 +136,7 @@ begin
   for Index := First to Last do
   begin
     Tick.Value := Index * Spacing.Minor;
-    Tick.Position := Origin + Sign * Tick.Value * PixelsPerUnit;
+    Tick.Position := Origin + Tick.Value * PixelsPerUnit;
     if Index mod PerLabel = 0 then
       Tick.Kind := rtLabelled
     else if (PerLabel mod 2 = 0) and (Index mod (PerLabel div 2) = 0) then

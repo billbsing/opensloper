@@ -199,8 +199,9 @@ type
     // last LengthsOut are ignored.
     function AddCircle(const CentreId, Radius: string; Role: TEdgeRole = erConstruction; const AName: string = ''): TCircleObject;
     function AddArc(const CentreId, Radius, Angle1, Angle2: string; Role: TEdgeRole = erConstruction; const AName: string = ''): TArcObject;
-    // Points and lines from CornerId, with Width and Height as formulas. The
-    // height is held in one place, the point above the corner.
+    // Points and lines from CornerId, with Width and Height as formulas: the
+    // corner is the top left, with the width to the right and the height
+    // down. The height is held in one place, the point below the corner.
     function AddRectangle(const CornerId, Width, Height: string; Role: TEdgeRole; out Edges: TRectangleEdges): boolean;
     function AddOffsetEdge(const EdgeId, Distance: string; Side: TOffsetSide; Role: TEdgeRole = erOutline; const AName: string = ''): TOffsetEdge;
     // Rounds the corner where two straight edges meet. Each is split at the
@@ -1667,7 +1668,7 @@ end;
 function TPattern.AddRectangle(const CornerId, Width, Height: string; Role: TEdgeRole; out Edges: TRectangleEdges): boolean;
 var
   Corner: TEvalNode;
-  Across, Above, Opposite: TOffsetPoint;
+  Across, Below, Opposite: TOffsetPoint;
   CornerName: string;
 begin
   Edges := Default(TRectangleEdges);
@@ -1679,16 +1680,16 @@ begin
   Across := AddOffsetPoint('', CornerId, omCartesian, Width, '0');
   if not Assigned(Across) then
     Exit(False);
-  Above := AddOffsetPoint('', CornerId, omCartesian, '0', Height);
-  if not Assigned(Above) then
+  Below := AddOffsetPoint('', CornerId, omCartesian, '0', Height);
+  if not Assigned(Below) then
     Exit(False);
-  Opposite := AddOffsetPoint('', Across.Key, omCartesian, '0', Above.DisplayName + '.y - ' + CornerName + '.y');
+  Opposite := AddOffsetPoint('', Across.Key, omCartesian, '0', Below.DisplayName + '.y - ' + CornerName + '.y');
   if not Assigned(Opposite) then
     Exit(False);
   Edges[0] := AddLine(CornerId, Across.Key, Role);
   Edges[1] := AddLine(Across.Key, Opposite.Key, Role);
-  Edges[2] := AddLine(Opposite.Key, Above.Key, Role);
-  Edges[3] := AddLine(Above.Key, CornerId, Role);
+  Edges[2] := AddLine(Opposite.Key, Below.Key, Role);
+  Edges[3] := AddLine(Below.Key, CornerId, Role);
   Result := Assigned(Edges[0]) and Assigned(Edges[1]) and Assigned(Edges[2]) and Assigned(Edges[3]);
 end;
 

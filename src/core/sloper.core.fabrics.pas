@@ -184,8 +184,8 @@ begin
   Result := nil;
   if (Length(Polygon) < 3) or (Spacing <= 0) then
     Exit;
-  Along := Vec2(Cos(DegToRad(Angle)), Sin(DegToRad(Angle)));
-  Across := Vec2(-Along.Y, Along.X);
+  Along := PolarPoint(Vec2(0, 0), 1, Angle);
+  Across := LeftOf(Along);
   Lowest := Infinity;
   Highest := -Infinity;
   for P in Polygon do

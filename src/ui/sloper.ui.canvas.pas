@@ -1829,9 +1829,9 @@ begin
     VK_RIGHT:
       Nudge(Step, 0);
     VK_UP:
-      Nudge(0, Step);
-    VK_DOWN:
       Nudge(0, -Step);
+    VK_DOWN:
+      Nudge(0, Step);
     else
       Exit;
   end;
@@ -1900,8 +1900,8 @@ begin
     FBitmap.DrawVertLine(Round(Screen.X), 0, ClientHeight, LineColor);
     Coord := Coord + Step;
   end;
-  Coord := Floor(BottomRight.Y / Step) * Step;
-  while Coord <= TopLeft.Y do
+  Coord := Floor(TopLeft.Y / Step) * Step;
+  while Coord <= BottomRight.Y do
   begin
     Screen := FView.ToScreen(Vec2(0, Coord));
     if Abs(Coord / Major - Round(Coord / Major)) < 1e-9 then
@@ -2313,8 +2313,8 @@ begin
     Exit;
   if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds) then
   begin
-    TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MaxY));
-    BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MinY));
+    TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MinY));
+    BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MaxY));
     ShowOnBar(FHorzBar, ScrollAxisFor(TopLeft.X - FitMargin, BottomRight.X + FitMargin, ClientWidth));
     ShowOnBar(FVertBar, ScrollAxisFor(TopLeft.Y - FitMargin, BottomRight.Y + FitMargin, ClientHeight));
   end

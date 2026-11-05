@@ -58,10 +58,10 @@ begin
   Result := Result * (1 / Result.Length);
 end;
 
-// Right of the direction of travel: outwards on an anticlockwise path
+// Right of the direction of travel on screen: outwards on an anticlockwise path
 function Outwards(const Direction: TVec2): TVec2;
 begin
-  Result := Vec2(Direction.Y, -Direction.X);
+  Result := -LeftOf(Direction);
 end;
 
 // Adds the offset of one corner to Raw
@@ -83,11 +83,13 @@ begin
   SetLength(Raw, Count + 3);
   Before := Vertex + Outwards(Incoming) * WidthIn;
   After := Vertex + Outwards(Outgoing) * WidthOut;
-  Turn := Cross(Incoming, Outgoing);
+  // Positive for a turn to the left on screen; with y down the plain cross
+  // product has the opposite sign
+  Turn := -Cross(Incoming, Outgoing);
   if Turn > StraightTurn then
   begin
     // A convex corner: the two offset lines meet at a point
-    Mitre := Before + Incoming * (Cross(After - Before, Outgoing) / Turn);
+    Mitre := Before + Incoming * (Cross(After - Before, Outgoing) / Cross(Incoming, Outgoing));
     if Distance(Mitre, Vertex) <= MitreLimit * Max(WidthIn, WidthOut) then
       Add(Mitre)
     else
@@ -172,7 +174,9 @@ begin
       Widths[Before], Widths[Index], Raw[0]);
   end;
 
-  Cleaned := LargestPath(Union(Raw, frPositive, CutLineDecimals));
+  // Clipper counts winding in y-up axes, where a path anticlockwise on screen
+  // winds negatively; the loops at concave corners wind the other way
+  Cleaned := LargestPath(Union(Raw, frNegative, CutLineDecimals));
   Result := Length(Cleaned) >= 3;
   if not Result then
     Exit;
