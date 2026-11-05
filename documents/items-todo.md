@@ -20,6 +20,10 @@ These could not be tested properly during development.
 
 ## List of Changes
 
+#### documents/web
+Remove web folder in documents, the sync process to web cluade is too much. Remove sync process, and later when we publish this repo, claude web can read directly.
+I have already removed skills in .claude/... 
+
 #### Tool Merge Points
 This is simalar to inkscape join nodes, the user selects 2 or more points, then clicks on the tool.
 The new point name will take the lowest default name , or the first name that has been changed by the user.
@@ -41,16 +45,12 @@ Done 2026-11-04 (see Breaking a point in the design document; to test in the app
 #### Anotations
 Have the anotations appear at the highest Z-order , over the design. The user can view/hide anotations.
 Add, Edit, Delete, Move anotations in the design page.
-Set font, and font size for anotations.
+Set font, and font size for anotations, change direction, anchored from a point.
 
 Decided 2026-11-03 (see Annotations in the design document; not started):
 - The user chooses the font name (installed fonts) and size (points) for each annotation.
 - The PDF embeds the chosen TrueType font so prints match the screen; OpenType/CFF or a missing font falls back to Helvetica with a warning.
 - First version is everything in the design: notes, callouts, live fields, bold/italic, alignment, box/background, leader ends, print-or-screen, show/hide.
-
-#### New Circle and Rectangle creation
-Now we can merge and break points...
-Circle and Rectangle, drawing tools, do not need to select a point first. After creating a circle the point is automatically placed in the midle. The rectangle places 4 points automaticcaly.
 
 #### Preferences
 New prefrences dialog to record users preferences, accross measurement, design and publish, all apps use the same dialog form.
@@ -77,9 +77,11 @@ The fields are re-enabled only when the test slider is moved back to the center.
 Show a ruler Top and Left of the canvas in the current units, with the cursor as a line on the rulers. Similar to Inkscape. Show the units on the ruler, in a prominant color, if there is space.
 
 #### Measurement App
+Add Menus and toolbar to ActionList.
 Need to change to toolbar and icons.
 
 #### Publish App
+Add Menus and toolbar to ActionList.
 Need to add basic toolbar and icons.
 
 #### Documents
@@ -95,13 +97,12 @@ Can we determin if Qt6 is available, if so build with qt6, else build with Qt5.
 #### Apps, Maintenance, Design & Publish
 Add Menu item Open Recent -> list of last open files
 
-## Future Road Map Changes
+#### Publish - printing question
+How to adjust the print size if the square block is not 10x10.
 
-#### Locking an object
-An object can be locked and the user can not do any operation with this except the formular can still be run, and the object can still set it's value based on the formular values.
+#### Remove Alignment
+The alignment tool is not correct in the panel, can we remove (hide) the allignment tool and panel
 
-
-
-
+Done 2026-11-05: the Align tab is hidden (one line in `sloper.ui.mainform.pas`); `arrange` and `add_repeat` stay in the Automation API. Add repeat was only on that tab, so repeats can't be added in the app until it comes back or the button moves.
 
 

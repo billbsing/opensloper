@@ -418,6 +418,8 @@ begin
   FAlign.Document := FDocument;
   FAlign.OnMessage := @ListPanelMessage;
   FAlign.OnSelect := @AlignSelect;
+  // Hidden until the panel is fixed; the arrange code stays for the Automation API
+  AlignSheet.TabVisible := False;
   FabricsSheet := FSidePanel.AddTabSheet;
   FabricsSheet.Caption := rsTabFabrics;
   FFabrics := TFabricsPanel.Create(Self);
