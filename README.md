@@ -10,7 +10,7 @@ Early development: project skeleton, geometry basics and the test suite are in p
 
 To clone this project, you must use `--recursive`, since this project contains submodules that are used in the build process.
 
-To build we suggest you first install Lazarus/Free Pascal using [fpcupdeluxe](https://github.com/LongDirtyAnimAlf/fpcupdeluxe).
+Build with the release toolchain that CI uses: Lazarus 4.8 with FPC 3.2.2 (from your distribution, or the packages at [lazarus-ide.org](https://www.lazarus-ide.org)).
 
 ```
 git clone --recursive https://github.com/billbsing/opensloper.git
@@ -27,6 +27,8 @@ git submodule update --init --recursive
 ./run-tests.sh     # build and run the tests (with leak checking)
 ./build.sh         # build the three GUI apps and the CLI into release/
 ```
+
+To contribute, see `CONTRIBUTING.md`.
 
 To use a Lazarus/FPC that is not on `PATH` (for example an fpcupdeluxe install), copy `build.local.sh.example` to `build.local.sh` and edit the paths.
 
