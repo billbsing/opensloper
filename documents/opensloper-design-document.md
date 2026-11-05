@@ -608,7 +608,7 @@ Selecting a seam highlights both sides in their colours with chevrons for direct
 
 A pattern is one drafting area: every object is on the same canvas, drawn in pattern order with pieces under edges and edges under points. Among points, or among edges, the nearest to the cursor is picked.
 
-**Drafts and layers were taken out** (2026-11-03), with the draft tabs, the Layers panel and the Garment view, to reduce clutter. Drafts held separate drafting areas (bodice, sleeve) as tabs in one file, and layers gave each draft a drawing order and hidden, locked and solo states. They added rules (direct inputs on the same draft, moving between layers, what shows versus what prints) for little use so far. Locking comes back per object (see `items-todo.md`).
+**Drafts and layers were taken out** (2026-11-03), with the draft tabs, the Layers panel and the Garment view, to reduce clutter. Drafts held separate drafting areas (bodice, sleeve) as tabs in one file, and layers gave each draft a drawing order and hidden, locked and solo states. They added rules (direct inputs on the same draft, moving between layers, what shows versus what prints) for little use so far. Locking comes back per object (see Planned under Roadmap and open questions).
 
 **View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. The canvas's zoom and centre are view state: saved in the pattern file under `view` (`{"zoom": 1.5, "centre": [120, -200]}`) once the canvas has shown the pattern, so it reopens as it was left, but left out of the undo snapshots and the modified flag. Undo keeps the view text aside and puts it back after replacing the pattern. The ID counter is also kept out of the undo snapshots but is not view state: it is saved at the top level as `nextId` (see Names and IDs).
 
@@ -1537,3 +1537,13 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 18. Leather hides: outlines drawn or traced from a photo, flaws, placing and packing on true shapes
 19. Blender export for 3D preview
 
+
+### Planned
+
+Further work agreed but not yet designed in detail or placed in the numbered steps above.
+
+- **Locking an object.** A locked object cannot be moved, edited or deleted, but its formulas still run, so it keeps following the values they read. This brings back locking per object, after layers were taken out (see One canvas).
+- **Circles and rectangles without a point first.** Now that points can be merged and broken apart, the Circle and Rectangle tools draw straight onto the canvas instead of needing a point selected first (see Accessories). A new circle places its centre point automatically, and a new rectangle places its four corner points.
+- **Claude integration.** Building on Automation API phase 2: the Claude API key is stored in Preferences so Claude can reach the app. Open question: how Claude tells the user about the changes it makes to the design, and whether the API needs to report which objects are selected so Claude can work on them.
+- **Fabric needed.** Estimate from the design the fabric it needs: the area in square millimetres and the minimum width and length. Given the width of the supplier's fabric, work out the actual length to buy, and warn when the design is too big to cut from a single piece of fabric.
+- **G-code export.** Export the pattern as a G-code file for CNC machines, from the publish app.
