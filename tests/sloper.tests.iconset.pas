@@ -31,6 +31,7 @@ type
   published
     procedure TestIconDirIsFound;
     procedure TestIconDirMissing;
+    procedure TestIconDirFromAppFolder;
     procedure TestEveryIconHasItsFile;
     procedure TestEveryIconTakesTheTextColour;
     procedure TestTintReplacesEveryCurrentColor;
@@ -49,6 +50,16 @@ end;
 procedure TTestIconSet.TestIconDirMissing;
 begin
   AssertEquals('', TAppPaths.IconDirIn(ConcatPaths([GetTempDir, 'no-such-opensloper-folder', 'bin'])));
+end;
+
+// The GUI apps are built in src/<app>, two folders below data/
+procedure TTestIconSet.TestIconDirFromAppFolder;
+var
+  AppDir: string;
+begin
+  AppDir := ConcatPaths([ExtractFilePath(ParamStr(0)), '..', 'src', 'design']);
+  AssertEquals(TAppPaths.IconDir, TAppPaths.IconDirIn(AppDir));
+  AssertEquals(TAppPaths.CatalogueFile, TAppPaths.CatalogueFileIn(AppDir));
 end;
 
 procedure TTestIconSet.TestEveryIconHasItsFile;

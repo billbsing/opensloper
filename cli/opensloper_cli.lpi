@@ -38,11 +38,11 @@
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="opensloper_cli"/>
+      <Filename Value="../release/opensloper-cli"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../packages/console-tools"/>
+      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../src/packages/console-tools"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

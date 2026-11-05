@@ -50,5 +50,5 @@ PY
 }
 
 make_icon opensloper-design opensloper.ico
-make_icon opensloper-measure measurements/opensloper-measurements.ico
-make_icon opensloper-publish publish/opensloper-publish.ico
+make_icon opensloper-measure src/measurements/opensloper-measurements.ico
+make_icon opensloper-publish src/publish/opensloper-publish.ico

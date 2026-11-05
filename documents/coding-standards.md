@@ -9,7 +9,7 @@ Code is formatted with JEDI Code Format (JCF), the formatter built into the Laza
 - **From the command line:** `./format.sh` formats every source file; `./format.sh --check` lists files that need formatting without changing them; `./format.sh FILE...` formats only those files. Run it before committing.
 - **In the IDE:** use the same settings, so the IDE and `format.sh` agree. Copy `jcfsettings.cfg` over the IDE's copy in the Lazarus configuration folder (for the fpcupdeluxe install, `~/Packages/fpc_build/config_lazarus/jcfsettings.cfg`), then use Source → JEDI Code Format → Format Current Editor Window.
 - **Formatter version:** `format.sh` builds the command-line formatter into `lib/jcf` on first use, from the Lazarus source in `JCF_SOURCE` (set in `build.local.sh`). Use the Lazarus version the IDE runs, so both produce the same layout. Delete `lib/jcf` to rebuild it.
-- **Not formatted:** `packages/` (third-party code) and `src/core/clipper2/osclipper2.pas`, which Lazarus regenerates.
+- **Not formatted:** `src/packages/` (third-party code) and `src/core/clipper2/osclipper2.pas`, which Lazarus regenerates.
 
 What the settings produce:
 

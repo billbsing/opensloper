@@ -9,7 +9,7 @@
         <MainUnitHasScaledStatement Value="False"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <Title Value="OpenSloper Measurements"/>
+      <Title Value="OpenSloper Publish"/>
       <Scaled Value="True"/>
       <ResourceType Value="res"/>
       <Icon Value="0"/>
@@ -26,7 +26,7 @@
     <RequiredPackages>
       <Item>
         <PackageName Value="OSClipper2"/>
-        <DefaultFilename Value="../src/core/clipper2/osclipper2.lpk" Prefer="True"/>
+        <DefaultFilename Value="../core/clipper2/osclipper2.lpk" Prefer="True"/>
       </Item>
       <Item>
         <PackageName Value="BGRABitmapPack"/>
@@ -38,29 +38,29 @@
     </RequiredPackages>
     <Units>
       <Unit>
-        <Filename Value="opensloper_measurements.lpr"/>
+        <Filename Value="opensloper_publish.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
-        <Filename Value="sloper.measurements.mainform.pas"/>
+        <Filename Value="sloper.publish.mainform.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Measurements.MainForm"/>
+        <UnitName Value="Sloper.Publish.MainForm"/>
       </Unit>
       <Unit>
-        <Filename Value="sloper.measurements.bodyfigure.pas"/>
+        <Filename Value="sloper.publish.previewcanvas.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Measurements.BodyFigure"/>
+        <UnitName Value="Sloper.Publish.PreviewCanvas"/>
       </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="opensloper_measurements"/>
+      <Filename Value="../../release/opensloper-publish"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document;../src/ui"/>
+      <OtherUnitFiles Value="../core;../output;../ui"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

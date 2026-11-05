@@ -25,7 +25,7 @@ Requires Lazarus with FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset (`lib
 ```
 git submodule update --init --recursive
 ./run-tests.sh     # build and run the tests (with leak checking)
-./build.sh         # build opensloper, publish/opensloper-publish, measurements/opensloper-measurements and cli/opensloper-cli
+./build.sh         # build the three GUI apps and the CLI into release/
 ```
 
 To use a Lazarus/FPC that is not on `PATH` (for example an fpcupdeluxe install), copy `build.local.sh.example` to `build.local.sh` and edit the paths.

@@ -15,11 +15,8 @@ backup/
 *.bak
 *.lrs
 
-# Built executables
-/cli/opensloper_cli
-/publish/opensloper_publish
-/design/opensloper_design
-/measurements/opensloper_measurements
+# Built executables: the apps and CLI build into release/
+/release/
 /tests/opensloper_tests
 *.exe
 *.dll
@@ -31,6 +28,6 @@ backup/
 /build.local.sh
 
 # Lazarus copies each project's icon to the main unit's name when building
-/design/opensloper_design.ico
-/publish/opensloper_publish.ico
-/measurements/opensloper_measurements.ico
+/src/design/opensloper_design.ico
+/src/publish/opensloper_publish.ico
+/src/measurements/opensloper_measurements.ico

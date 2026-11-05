@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Format the Pascal sources with JEDI Code Format and the project settings in
-# jcfsettings.cfg (see documents/coding-standards.md). packages/ and the
+# jcfsettings.cfg (see documents/coding-standards.md). src/packages/ and the
 # Lazarus-generated package unit osclipper2.pas are left alone.
 #
 #   ./format.sh           format every source file in place
@@ -63,7 +63,7 @@ if [ $# -gt 0 ]; then
   FILES=("$@")
 else
   mapfile -t FILES < <(git ls-files --cached --others --exclude-standard '*.pas' '*.lpr' '*.pp' |
-    grep -v '^packages/' | grep -v '^src/core/clipper2/osclipper2.pas$')
+    grep -v '^src/packages/' | grep -v '^src/core/clipper2/osclipper2.pas$')
 fi
 
 if [ "$CHECK" -eq 1 ]; then

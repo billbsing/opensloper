@@ -37,15 +37,15 @@ type
     class function RecentFilesFile: string;
     // True when portable.ini sits beside the executable
     class function IsPortable: boolean;
-    // The publish app beside this program, or in publish/ below it as in a
-    // source tree. Empty when it is in neither place.
+    // The publish app beside this program, or in the source tree in publish/
+    // below it or beside its folder. Empty when it is in none of these.
     class function PublishProgram: string;
     class function PublishProgramIn(const Folder: string): string;
     // opensloper-measurements, found the same way; '' when it is not there
     class function MeasurementsProgram: string;
     class function MeasurementsProgramIn(const Folder: string): string;
     // The measurement catalogue, in data beside this program when installed
-    // or a folder up in the source tree; '' when it is not there
+    // or one or two folders up in the source tree; '' when it is not there
     class function CatalogueFile: string;
     class function CatalogueFileIn(const Folder: string): string;
     // The toolbar and menu icons, found the same way; '' when they are not there
@@ -187,15 +187,36 @@ begin
   Result := ConcatPaths([StateDir, RecentFilesFileName]);
 end;
 
-// Beside this program when installed, in its own folder in the source tree
+// Beside this program when installed; in the source tree in its own folder,
+// below this program or beside its folder (src/design and src/publish)
 function CompanionIn(const Folder, SubFolder, FileName: string): string;
 begin
   Result := ConcatPaths([Folder, FileName]);
   if FileExists(Result) then
     Exit;
   Result := ConcatPaths([Folder, SubFolder, FileName]);
+  if FileExists(Result) then
+    Exit;
+  Result := ExpandFileName(ConcatPaths([Folder, '..', SubFolder, FileName]));
   if not FileExists(Result) then
     Result := '';
+end;
+
+// Path in data beside Folder when installed, or in the data folder of the
+// source tree: one folder up from tests and cli, two up from src/<app>
+function DataPathIn(const Folder, Path: string; WantDir: boolean): string;
+const
+  UpLevels: array[0..2] of string = ('', '..', '..' + PathDelim + '..');
+var
+  Up: string;
+begin
+  for Up in UpLevels do
+  begin
+    Result := ExpandFileName(ConcatPaths([Folder, Up, DataFolder, Path]));
+    if (WantDir and DirectoryExists(Result)) or (not WantDir and FileExists(Result)) then
+      Exit;
+  end;
+  Result := '';
 end;
 
 class function TAppPaths.PublishProgram: string;
@@ -215,12 +236,7 @@ end;
 
 class function TAppPaths.CatalogueFileIn(const Folder: string): string;
 begin
-  Result := ConcatPaths([Folder, DataFolder, CatalogueFileName]);
-  if FileExists(Result) then
-    Exit;
-  Result := ExpandFileName(ConcatPaths([Folder, '..', DataFolder, CatalogueFileName]));
-  if not FileExists(Result) then
-    Result := '';
+  Result := DataPathIn(Folder, CatalogueFileName, False);
 end;
 
 class function TAppPaths.IconDir: string;
@@ -230,12 +246,7 @@ end;
 
 class function TAppPaths.IconDirIn(const Folder: string): string;
 begin
-  Result := ConcatPaths([Folder, DataFolder, IconFolder]);
-  if DirectoryExists(Result) then
-    Exit;
-  Result := ExpandFileName(ConcatPaths([Folder, '..', DataFolder, IconFolder]));
-  if not DirectoryExists(Result) then
-    Result := '';
+  Result := DataPathIn(Folder, IconFolder, True);
 end;
 
 class function TAppPaths.MeasurementsProgram: string;

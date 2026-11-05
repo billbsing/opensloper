@@ -7,8 +7,8 @@
     <CompilerOptions>
       <Version Value="11"/>
       <SearchPaths>
-        <OtherUnitFiles Value="../../../packages/clipper2/Delphi/Clipper2Lib"/>
-        <IncludeFiles Value="../../../packages/clipper2/Delphi/Clipper2Lib"/>
+        <OtherUnitFiles Value="../../packages/clipper2/Delphi/Clipper2Lib"/>
+        <IncludeFiles Value="../../packages/clipper2/Delphi/Clipper2Lib"/>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
       <Other>
@@ -24,27 +24,27 @@
     <Version Major="2"/>
     <Files>
       <Item>
-        <Filename Value="../../../packages/clipper2/Delphi/Clipper2Lib/Clipper.pas"/>
+        <Filename Value="../../packages/clipper2/Delphi/Clipper2Lib/Clipper.pas"/>
         <UnitName Value="Clipper"/>
       </Item>
       <Item>
-        <Filename Value="../../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Core.pas"/>
+        <Filename Value="../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Core.pas"/>
         <UnitName Value="Clipper.Core"/>
       </Item>
       <Item>
-        <Filename Value="../../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Engine.pas"/>
+        <Filename Value="../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Engine.pas"/>
         <UnitName Value="Clipper.Engine"/>
       </Item>
       <Item>
-        <Filename Value="../../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Offset.pas"/>
+        <Filename Value="../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Offset.pas"/>
         <UnitName Value="Clipper.Offset"/>
       </Item>
       <Item>
-        <Filename Value="../../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Minkowski.pas"/>
+        <Filename Value="../../packages/clipper2/Delphi/Clipper2Lib/Clipper.Minkowski.pas"/>
         <UnitName Value="Clipper.Minkowski"/>
       </Item>
       <Item>
-        <Filename Value="../../../packages/clipper2/Delphi/Clipper2Lib/Clipper.RectClip.pas"/>
+        <Filename Value="../../packages/clipper2/Delphi/Clipper2Lib/Clipper.RectClip.pas"/>
         <UnitName Value="Clipper.RectClip"/>
       </Item>
     </Files>

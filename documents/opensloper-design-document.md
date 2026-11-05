@@ -878,7 +878,7 @@ Everything else (reordering, sizes, imports, the client library) is done in the 
 
 **The selected size is not saved in the pattern.** The drafting app's size chooser, in the Measurements tab, is for the session; a set opens on its first size.
 
-**Code.** A third Lazarus project, `measurements/opensloper-measurements.lpi`, using `src/core` and `src/document`, and BGRABitmap for the body figure once it is added.
+**Code.** A third Lazarus project, `src/measurements/opensloper_measurements.lpi`, using `src/core` and `src/document`, and BGRABitmap for the body figure once it is added.
 
 ## Publish app
 
@@ -937,7 +937,7 @@ Printer calibration is neither: it belongs to the user's printer, so it is a pre
 
 Sources have IDs from the layout's own counter, under the same never-reused rule; `piece` is the piece's ID in that source's pattern file. Placements are plain numbers, not formulas: a layout arranges finished pieces and is not parametric. One layout file holds one arrangement; a differently arranged version (A4 tiles versus one A0 sheet) is another layout file.
 
-**Code.** The publish app is a second Lazarus project, `publish/opensloper-publish.lpi`, (`opensloper_publish.lpr`, with its window in `publish/`), using `src/core` and `src/output`. Layout loading, page tiling and preview drawing live in the output layer, so `opensloper-cli export LAYOUT` produces the same PDFs without a window.
+**Code.** The publish app is a second Lazarus project, `src/publish/opensloper_publish.lpi` (`opensloper_publish.lpr`, with its window in `src/publish/`), using `src/core` and `src/output`. Layout loading, page tiling and preview drawing live in the output layer, so `opensloper-cli export LAYOUT` produces the same PDFs without a window.
 
 **Implemented so far** (`Sloper.Output.Layout`, `.Tiling`, `.PDFWriter`, `.LayoutPDF`):
 
@@ -951,7 +951,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **The window** (`Sloper.Publish.MainForm`, `Sloper.Publish.PreviewCanvas`, with the LCL-free `Sloper.Output.Preview`) is one screen: the pages with the pieces on them, and beside them four tabs (Pieces: turn, flip, pack, the tray; Patterns: the sources; Output: paper settings and the exports; Notes: title block and sheet notes) above an always-visible problems list. It takes a `.slayout`, or a `.sloper` to start a layout for. A page's printable area is drawn white, and grey when blank. Click selects a piece and dragging moves it, on a 0.5 mm grid, as one undo step; Escape cancels. The wheel zooms about the cursor; middle-drag or Space+drag pans.
 - **Undo** (`TLayoutDocument`) records the layout's text before each change, as `TPatternDocument` does, and reads the patterns again on undo. A run of paper setting changes merges into one step.
 - **Keeping in step.** Once a second the window compares a checksum of each source's pattern and measurement files, since file times only go to the second. A changed file has to read the same on two checks before it is loaded, so a save still in progress is not read. The status bar then says what was read, and new pieces show as unplaced. Reload Patterns reads everything again by hand.
-- **Publish…** (File menu, Ctrl/Cmd+P) in the drafting app starts `opensloper-publish`, beside it or in `publish/` below it, with the pattern's layout (same name, `.slayout`) if there is one and otherwise the pattern. It reads saved files, so an unnamed pattern is saved first and a modified one is offered the choice. Each use starts another window; it does not look for one already open.
+- **Publish…** (File menu, Ctrl/Cmd+P) in the drafting app starts `opensloper-publish`, beside it (as in `release/`), with the pattern's layout (same name, `.slayout`) if there is one and otherwise the pattern. It reads saved files, so an unnamed pattern is saved first and a modified one is offered the choice. Each use starts another window; it does not look for one already open.
 - **Leaving pages out.** Right-clicking a page in the preview leaves it out of the print, or puts it back, as one undo step: a plain click selects a piece, and a page is often all piece. It shows grey and crossed, with the piece still over it, and the cover's page map strikes it through. The layout file lists the captions under `excludedPages` in `output`. A change of paper, margin, overlap or output kind clears the list, since the captions then mean other sheets.
 - **Large format.** `kind` `large` prints one sheet, `rollWidth` wide (914 mm, 36 in, by default) and as long as the layout needs, with the title, reminder and test square across the top instead of a cover page. Pages and marks do not apply. A piece past the roll's printable width is a warning, and is cut off at the margin.
 - **Unplaced tray.** A list in the side panel shows every copy with no placement, including ones a saved pattern has just added. Dragging one onto the pages drops it centred on the cursor and selects it; double-clicking puts it in a new row; Place new pieces takes them all. Delete or Back to tray returns a placed copy. A failing piece waits in the tray and cannot be placed until it works. In the CLI, which has no tray, unplaced copies are still warnings. A copy still placed after its piece's cut count went down prints as before, with a warning.
@@ -1268,49 +1268,50 @@ Pages are written by task ("Add a size", "Rotate a dart"), not by menu. Each app
 
 ## Repository layout
 
-The repo mirrors the architecture layers, with third-party code isolated under `packages/`.
+The repo mirrors the architecture layers. All Pascal source, including the three GUI apps and third-party code isolated under `src/packages/`, lives in `src/`.
 
 ```text
 opensloper/
 ├── LICENSE                 GPLv3 full text
 ├── README.md               what it is, status, build steps, submodule init
-├── .gitignore              lib/, backup/, *.ppu, *.o, *.compiled, *.lps, binaries
+├── .gitignore              lib/, backup/, *.ppu, *.o, *.compiled, *.lps, release/
 ├── .gitmodules
 ├── run-tests.sh            submodule init, lazbuild tests, run test binary, leak check
-├── build.sh                build GUI app and CLI; local toolchain in build.local.sh
-├── opensloper.lpi / .lpr   main GUI application
+├── build.sh                build GUI apps and CLI; local toolchain in build.local.sh
+├── release/                built programs: opensloper-design, -publish, -measurements, -cli (ignored by git)
 ├── src/
+│   ├── design/             opensloper-design: the main drafting app (.lpi / .lpr)
+│   ├── measurements/       opensloper-measurements: measurement files and size tables, using core
+│   ├── publish/            opensloper-publish: layouts and printing, using core + output
 │   ├── core/               geometry, expressions, model, evaluator, storage (no LCL)
 │   │   └── clipper2/       osclipper2.lpk, builds Clipper2 from the submodule
 │   ├── document/           TPatternDocument, undo/redo commands, notifications
 │   ├── ui/                 forms, canvas, tools, snapping, panels
 │   ├── output/             layouts, tiling, PDF, SVG, DXF, Blender exporters
-│   └── api/                Automation API: JSON-RPC 2.0 over the document layer
+│   ├── api/                Automation API: JSON-RPC 2.0 over the document layer
+│   └── packages/           git submodules, pinned commits
+│       ├── clipper2/
+│       ├── bgrabitmap/
+│       └── console-tools/
 ├── data/                   measurement catalogue, body figures and icons, read at run time
 ├── resources/              branding: app icons and the API logo (SVG), for builds, docs and other resources
-├── measurements/           opensloper-measurements: measurement files and size tables, using core
-├── publish/                opensloper-publish: layouts and printing, using core + output
 ├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
 ├── tests/                  FPCUnit test project, regression patterns and expected JSON
-├── packages/               git submodules, pinned commits
-│   ├── clipper2/
-│   ├── bgrabitmap/
-│   └── console-tools/
 ├── documents/              internal development: design document, known issues, Claude notes
 └── docs/                   user manuals (Zensical: mkdocs.yml, examples/, LICENSE); published with GitHub Pages
 ```
 
-`.gitignore` for Lazarus: `lib/`, `backup/`, `*.ppu`, `*.o`, `*.compiled`, `*.lps` (per-user session files), `*.res` if generated, and built executables.
+`.gitignore` for Lazarus: `lib/`, `backup/`, `*.ppu`, `*.o`, `*.compiled`, `*.lps` (per-user session files), `*.res` if generated, and `release/`, where every project writes its program (`opensloper-design`, `opensloper-publish`, `opensloper-measurements`, `opensloper-cli`). The programs sit side by side there, so each app finds the others beside it and `data/` one folder up.
 
 ## Dependencies
 
-Third-party and personal Pascal libraries are git submodules under `packages/`, pinned to known-good commits.
+Third-party and personal Pascal libraries are git submodules under `src/packages/`, pinned to known-good commits.
 
 | Package | Path | Use | Licence |
 | --- | --- | --- | --- |
-| Clipper2 | `packages/clipper2` | Seam allowance offsetting and polygon booleans; from the fork [github.com/billbsing/Clipper2](https://github.com/billbsing/Clipper2), which carries our fixes | Boost |
-| BGRABitmap | `packages/bgrabitmap` | Antialiased canvas drawing, SVG | Modified LGPL |
-| ConsoleTools | `packages/console-tools` | Argument parsing and coloured, word-wrapped help for command-line tools | MIT |
+| Clipper2 | `src/packages/clipper2` | Seam allowance offsetting and polygon booleans; from the fork [github.com/billbsing/Clipper2](https://github.com/billbsing/Clipper2), which carries our fixes | Boost |
+| BGRABitmap | `src/packages/bgrabitmap` | Antialiased canvas drawing, SVG | Modified LGPL |
+| ConsoleTools | `src/packages/console-tools` | Argument parsing and coloured, word-wrapped help for command-line tools | MIT |
 
 **Submodule practice:**
 

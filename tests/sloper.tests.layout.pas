@@ -155,6 +155,7 @@ type
     procedure TestLargeNarrowRollRefused;
     procedure TestPublishProgram;
     procedure TestMeasurementsProgram;
+    procedure TestCompanionInSiblingFolder;
     procedure TestWatchWaitsForAStableFile;
     procedure TestWatchIgnoresUnchangedFiles;
     procedure TestWatchSeesMeasurements;
@@ -1297,6 +1298,26 @@ begin
   finally
     DeleteFile(ConcatPaths([Sub, Name]));
     RemoveDir(Sub);
+  end;
+end;
+
+// In the source tree each app has its own folder under src/
+procedure TTestLayout.TestCompanionInSiblingFolder;
+var
+  Design, Sub, Name, Reason: string;
+begin
+  Design := ConcatPaths([FFolder, 'design']);
+  Sub := ConcatPaths([FFolder, 'publish']);
+  Name := 'opensloper-publish' {$IFDEF WINDOWS} + '.exe' {$ENDIF};
+  ForceDirectories(Design);
+  ForceDirectories(Sub);
+  try
+    AssertTrue(Reason, WriteTextFile(ConcatPaths([Sub, Name]), '', Reason));
+    AssertEquals(ExpandFileName(ConcatPaths([Sub, Name])), TAppPaths.PublishProgramIn(Design));
+  finally
+    DeleteFile(ConcatPaths([Sub, Name]));
+    RemoveDir(Sub);
+    RemoveDir(Design);
   end;
 end;
 

@@ -1,10 +1,10 @@
 [submodule "packages/clipper2"]
-	path = packages/clipper2
+	path = src/packages/clipper2
 	url = https://github.com/billbsing/Clipper2.git
 	branch = main
 [submodule "packages/bgrabitmap"]
-	path = packages/bgrabitmap
+	path = src/packages/bgrabitmap
 	url = https://github.com/bgrabitmap/bgrabitmap.git
 [submodule "packages/console-tools"]
-	path = packages/console-tools
+	path = src/packages/console-tools
 	url = https://github.com/billbsing/console-tools.git
