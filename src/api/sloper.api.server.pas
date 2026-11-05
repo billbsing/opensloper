@@ -98,6 +98,7 @@ type
     function DoSetCut(Params: TJSONObject): TJSONData;
     function DoSetFold(Params: TJSONObject): TJSONData;
     function DoConvertEdge(Params: TJSONObject): TJSONData;
+    function DoSetRole(Params: TJSONObject): TJSONData;
     function DoMergePoints(Params: TJSONObject): TJSONData;
     function DoBreakPoint(Params: TJSONObject): TJSONData;
     function FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
@@ -161,6 +162,7 @@ resourcestring
   rsApiAddRepeat = 'Add repeat';
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
+  rsApiRole = 'Change role';
   rsApiAddMarking = 'Add marking';
   rsApiRemoveMarking = 'Remove marking';
   rsApiFabrics = 'Change fabrics';
@@ -258,7 +260,7 @@ end;
 
 function RoleParam(Params: TJSONObject): TEdgeRole;
 begin
-  Result := TEdgeRole(ChoiceParam(Params, 'role', ['construction', 'outline']));
+  Result := TEdgeRole(ChoiceParam(Params, 'role', EdgeRoleNames));
 end;
 
 // Name, type, state and what it computes to, then its formulas with names
@@ -330,6 +332,8 @@ begin
     begin
       Result.Add('name', Node.DisplayName);
       Result.Add('type', PatternObjectTypeName(TDraftObject(Node)));
+      if Node is TEdgeObject then
+        Result.Add('role', EdgeRoleNames[TEdgeObject(Node).Role]);
     end;
     Result.Add('state', StateName(Node.State));
     if Node.State <> esValid then
@@ -1285,7 +1289,7 @@ begin
     begin
       Key := Reference(Params, 'edge');
       FDocument.BeginChange(rsApiAddMarking);
-      Done := FDocument.Pattern.AddLineMarking(Piece, Kind, Key);
+      Done := FDocument.Pattern.AddLineMarking(Piece, Key);
     end;
   end;
   if not Done then
@@ -1585,6 +1589,32 @@ begin
   Result := AddedNode(Converted);
 end;
 
+// A marking role gives the edge to the pieces it lies in, as the reply's
+// pieces list shows
+function TApiServer.DoSetRole(Params: TJSONObject): TJSONData;
+var
+  Role: TEdgeRole;
+  Target: TEvalNode;
+  Piece: TPieceObject;
+  Pieces: TJSONArray;
+begin
+  Target := FindTarget(Params);
+  if not (Target is TEdgeObject) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotAnEdge, [Target.DisplayName]));
+  if not Assigned(Params.Find('role')) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['role']));
+  // Read before the change opens, as a bad role raises
+  Role := RoleParam(Params);
+  FDocument.BeginChange(rsApiRole);
+  if not FDocument.Pattern.SetEdgeRole(TEdgeObject(Target), Role) then
+    RefuseChange;
+  Result := AddedNode(Target);
+  Pieces := TJSONArray.Create;
+  TJSONObject(Result).Add('pieces', Pieces);
+  for Piece in FDocument.Pattern.PiecesWithLine(Target.Key) do
+    Pieces.Add(Piece.DisplayName);
+end;
+
 // The point kept, under the merged name
 function TApiServer.DoMergePoints(Params: TJSONObject): TJSONData;
 var
@@ -1796,6 +1826,7 @@ begin
     'set_cut': Result := DoSetCut(Params);
     'set_fold': Result := DoSetFold(Params);
     'convert_edge': Result := DoConvertEdge(Params);
+    'set_role': Result := DoSetRole(Params);
     'merge_points': Result := DoMergePoints(Params);
     'break_point': Result := DoBreakPoint(Params);
     'list_fabrics': Result := FabricsToJSON;

@@ -268,8 +268,7 @@ resourcestring
   rsMenuToolsMerge = 'Merge &Points';
   rsMenuToolsBreak = '&Break Point';
   rsMenuToolsHole = 'Mark &Hole';
-  rsMenuToolsPlacement = 'Mark Placement Line';
-  rsMenuToolsFoldLine = 'Mark Fold Line';
+  rsMenuToolsAttachLine = 'Attach Marking Line to Piece';
   rsMenuToolsStitch = 'Mark Stitch Holes';
   rsMenuToolsRemoveMarking = 'Remove Marking';
   rsMenuToolsRotate = '&Rotate Copy...';
@@ -795,7 +794,7 @@ procedure TMainForm.CreateToolCommands;
 const
   Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'K', 'T', 'E');
   ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiPiece, aiNotch, aiSeam);
-  MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiFoldLine, aiStitchHoles);
+  MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
   TransformIcons: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
 var
   MenuTools, Item: TMenuItem;
@@ -820,8 +819,7 @@ var
 
 begin
   MarkingCaptions[mkHole] := rsMenuToolsHole;
-  MarkingCaptions[mkPlacement] := rsMenuToolsPlacement;
-  MarkingCaptions[mkFoldLine] := rsMenuToolsFoldLine;
+  MarkingCaptions[mkLine] := rsMenuToolsAttachLine;
   MarkingCaptions[mkStitchHoles] := rsMenuToolsStitch;
   TransformCaptions[tkRotate] := rsMenuToolsRotate;
   TransformCaptions[tkMirror] := rsMenuToolsMirror;

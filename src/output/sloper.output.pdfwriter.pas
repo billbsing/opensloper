@@ -43,6 +43,8 @@ type
     procedure SetLineWidth(Millimetres: double);
     // Dashes and gaps this long; 0 for a solid line
     procedure SetDash(Millimetres: double);
+    // Dash, gap, dash, gap... in mm; a solid line when the first is 0
+    procedure SetDashPattern(const Lengths: array of double);
     // Lines and text from here on, from 0 for black to 1 for white
     procedure SetGray(Level: double);
     // The same in colour, each part from 0 to 1
@@ -120,6 +122,24 @@ begin
     Add('[] 0 d')
   else
     Add('[' + PointsText(Millimetres * PointsPerMM) + '] 0 d');
+end;
+
+procedure TPDFWriter.SetDashPattern(const Lengths: array of double);
+var
+  Pattern: rawbytestring;
+  Index: integer;
+begin
+  Pattern := '';
+  for Index := 0 to High(Lengths) do
+    if Lengths[Index] > 0 then
+    begin
+      if Pattern <> '' then
+        Pattern := Pattern + ' ';
+      Pattern := Pattern + PointsText(Lengths[Index] * PointsPerMM);
+    end;
+  if (Length(Lengths) = 0) or (Lengths[0] <= 0) then
+    Pattern := '';
+  Add('[' + Pattern + '] 0 d');
 end;
 
 procedure TPDFWriter.SetGray(Level: double);

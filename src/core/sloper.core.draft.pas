@@ -29,13 +29,33 @@ uses
   SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Bezier;
 
 type
-  TEdgeRole = (erConstruction, erOutline);
+  // Construction lines are guides and outlines bound pieces. The rest are
+  // marking lines, printed with the pieces they lie in (see Markings in the
+  // design document).
+  TEdgeRole = (erConstruction, erOutline, erPlacement, erStitch, erFold, erCut);
   TOffsetMode = (omPolar, omCartesian);
   TAlongMode = (amLength, amRatio);
   TProjectDirection = (pdPerpendicular, pdAngle);
   TOffsetSide = (osLeft, osRight);
 
   TSegmentKind = (skLine, skCurve);
+
+  // Dash and gap lengths in mm, as on paper; all 0 for a solid line
+  TDashPattern = array[0..3] of double;
+
+const
+  MarkingRoles = [erPlacement, erStitch, erFold, erCut];
+  // As written in pattern files and the Automation API
+  EdgeRoleNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut');
+  // How marking lines are printed: placement thin and solid, stitch in short
+  // dashes (shorter than the seam line's 2 mm), fold dash-dot, and cut solid
+  // at the cutting line's width
+  RoleDashes: array[TEdgeRole] of TDashPattern = ((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (1, 1, 0, 0), (6, 1.5, 1, 1.5), (0, 0, 0, 0));
+  // How they are told apart on screen and in draft SVG; red and orange mean
+  // problems there, so no role uses them
+  RoleColors: array[TEdgeRole] of string = ('', '', '#1f6fd1', '#2a9d3a', '#8a3fc4', '#00838f');
+
+type
 
   // One straight or curved stretch of an edge's computed geometry
   TEdgeSegment = record

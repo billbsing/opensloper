@@ -555,7 +555,11 @@ begin
       Continue;
     Layer := BlockNameFrom(Profile.Lines[Kind].Layer);
     case Kind of
-      ltCut: Writer.ClosedPath(Layer, UpAll(Shape.CutLine));
+      ltCut:
+      begin
+        Writer.ClosedPath(Layer, UpAll(Shape.CutLine));
+        Strokes(Layer, Shape.SlitLines);
+      end;
       ltScore: Strokes(Layer, Shape.ScoreLines);
       ltMark:
       begin

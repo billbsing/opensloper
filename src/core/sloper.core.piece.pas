@@ -43,7 +43,7 @@ const
   MarkingSpacingField = 'spacing';
   MarkingSizeField = 'size';
   // As written in pattern files and the Automation API
-  MarkingKindNames: array[0..3] of string = ('hole', 'placement', 'fold', 'stitch');
+  MarkingKindNames: array[0..2] of string = ('hole', 'line', 'stitch');
   // Ends of neighbouring edges this close (in mm) count as joined, so formula
   // rounding cannot open a piece
   PieceJoinTolerance = 0.01;
@@ -77,8 +77,9 @@ type
   TNotchMarkArray = array of TNotchMark;
 
   // mkHole is at a point, with a diameter. The others are along an edge:
-  // mkStitchHoles also has a spacing and a hole size.
-  TMarkingKind = (mkHole, mkPlacement, mkFoldLine, mkStitchHoles);
+  // mkLine is a marking line, drawn in its edge's role, and mkStitchHoles has
+  // a spacing and a hole size.
+  TMarkingKind = (mkHole, mkLine, mkStitchHoles);
 
   TPieceMarking = record
     Kind: TMarkingKind;
@@ -90,6 +91,8 @@ type
   // A marking worked out: Line for a line, Holes for holes of diameter HoleSize
   TMarkingMark = record
     Kind: TMarkingKind;
+    // How an mkLine is drawn: its edge's marking role
+    Role: TEdgeRole;
     Line: TVec2Array;
     Holes: TVec2Array;
     HoleSize: double;
@@ -152,7 +155,13 @@ type
     function AddMarking(AKind: TMarkingKind; const APointKey, AEdgeKey: string): integer;
     procedure RemoveMarking(Index: integer);
     function MarkingField(Index: integer; const Part: string): string;
-    // Its markings as short strokes, holes as small circles, for drawing
+    // The mkLine marking along this edge, or -1
+    function LineMarkingOf(const AEdgeKey: string): integer;
+    // True when the piece reads the edge only as marking lines, so deleting
+    // the edge or changing its role can simply take them off
+    function UsesOnlyAsLine(const AEdgeKey: string): boolean;
+    // Its holes as small circles of short strokes, for drawing; marking lines
+    // are drawn as their edges, in their role's style
     function MarkingStrokes: TLine2Array;
     function Area: double;
     function Perimeter: double;
@@ -199,6 +208,8 @@ type
     property FillColor: string read FFillColor write FFillColor;
     property FillStyle: TPieceFillStyle read FFillStyle write FFillStyle;
   end;
+
+  TPieceObjectArray = array of TPieceObject;
 
 resourcestring
   rsPieceGap = 'There is a gap between %s and %s';
@@ -347,6 +358,32 @@ begin
   Result := 'marking' + IntToStr(Index + 1) + '.' + Part;
 end;
 
+function TPieceObject.LineMarkingOf(const AEdgeKey: string): integer;
+var
+  Index: integer;
+begin
+  for Index := 0 to High(FMarkings) do
+    if (FMarkings[Index].Kind = mkLine) and (FMarkings[Index].EdgeKey = AEdgeKey) then
+      Exit(Index);
+  Result := -1;
+end;
+
+function TPieceObject.UsesOnlyAsLine(const AEdgeKey: string): boolean;
+var
+  InputKey: string;
+  Reads, AsLine, Index: integer;
+begin
+  Reads := 0;
+  for InputKey in InputKeys do
+    if InputKey = AEdgeKey then
+      Inc(Reads);
+  AsLine := 0;
+  for Index := 0 to High(FMarkings) do
+    if (FMarkings[Index].Kind = mkLine) and (FMarkings[Index].EdgeKey = AEdgeKey) then
+      Inc(AsLine);
+  Result := (AsLine > 0) and (Reads = AsLine);
+end;
+
 function TPieceObject.AddMarking(AKind: TMarkingKind; const APointKey, AEdgeKey: string): integer;
 begin
   Result := Length(FMarkings);
@@ -431,9 +468,13 @@ begin
   if not (Node is TEdgeObject) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [Marking.EdgeKey])));
   Edge := TEdgeObject(Node);
-  if Marking.Kind <> mkStitchHoles then
+  if Marking.Kind = mkLine then
   begin
     Mark.Line := Edge.Flatten(CoarseFlatness);
+    // An edge that lost its marking role keeps the plainest look
+    Mark.Role := erPlacement;
+    if Edge.Role in MarkingRoles then
+      Mark.Role := Edge.Role;
     Exit(esValid);
   end;
   if not EvalField(Context, MarkingField(Index, MarkingSpacingField), Spacing) or not EvalField(Context, MarkingField(Index, MarkingSizeField), Size) then
@@ -469,8 +510,6 @@ begin
   Result := nil;
   for Mark in FMarkingMarks do
   begin
-    for Index := 1 to High(Mark.Line) do
-      Add(Mark.Line[Index - 1], Mark.Line[Index]);
     for Hole in Mark.Holes do
       for Index := 0 to CircleStrokes - 1 do
         Add(PolarPoint(Hole, Mark.HoleSize / 2, Index * 360 / CircleStrokes), PolarPoint(Hole, Mark.HoleSize / 2, (Index + 1) * 360 / CircleStrokes));

@@ -90,12 +90,22 @@ type
     procedure TestRemoveMissingMarkingRefused;
     procedure TestMarkingsRoundTrip;
     procedure TestMarkingsDrawAsStrokes;
+    procedure TestRoleLineJoinsItsPiece;
+    procedure TestLineInOverlappingPiecesJoinsBoth;
+    procedure TestLooseLineJoinsNewPiece;
+    procedure TestAssignmentIsKept;
+    procedure TestOtherRoleDetaches;
+    procedure TestDeletingLineDetaches;
+    procedure TestAttachNeedsMarkingRole;
+    procedure TestAttachByHand;
+    procedure TestOldPlacementBecomesRole;
+    procedure TestRolesRoundTrip;
   end;
 
 implementation
 
 uses
-  Math, Sloper.Core.EvalTypes, Sloper.Core.PatternFile, Sloper.Core.PieceDetect, Sloper.Core.Evaluator;
+  Math, Sloper.Core.EvalTypes, Sloper.Core.PatternFile, Sloper.Core.PieceDetect, Sloper.Core.Evaluator, Sloper.Core.PatternCheck;
 
 procedure TTestAccessories.SetUp;
 begin
@@ -624,9 +634,9 @@ begin
   Rectangle;
   Piece := PieceAt(50, 50);
   First := Pt('P', 20, 50);
-  Pocket := FPattern.AddLine(First, Pt('Q', 180, 50)).Key;
-  AssertTrue(FPattern.LastError, FPattern.AddLineMarking(Piece, mkPlacement, Pocket));
+  Pocket := FPattern.AddLine(First, Pt('Q', 180, 50), erPlacement).Key;
   FPattern.Evaluate;
+  AssertEquals('joined the piece', 0, Piece.LineMarkingOf(Pocket));
   AssertTrue(Piece.Message, Piece.State = esValid);
   AssertPointsNear('start', Vec2(20, 50), Piece.MarkingMarks[0].Line[0]);
   AssertTrue(FPattern.SetFormula(FPattern.FindNode(First), 'y', '70'));
@@ -640,9 +650,10 @@ var
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  AssertTrue(FPattern.AddLineMarking(Piece, mkFoldLine, FPattern.AddLine(Pt('P', 100, 0), Pt('Q', 100, 100)).Key));
+  FPattern.AddLine(Pt('P', 100, 0), Pt('Q', 100, 100), erFold);
   FPattern.Evaluate;
-  AssertTrue(Piece.MarkingMarks[0].Kind = mkFoldLine);
+  AssertTrue(Piece.MarkingMarks[0].Kind = mkLine);
+  AssertTrue('drawn as a fold', Piece.MarkingMarks[0].Role = erFold);
 end;
 
 procedure TTestAccessories.TestStitchHolesSpaceEvenly;
@@ -761,8 +772,9 @@ begin
   Rectangle;
   Piece := PieceAt(50, 50);
   AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
-  AssertTrue(FPattern.AddLineMarking(Piece, mkPlacement, FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50)).Key));
-  AssertTrue(FPattern.AddLineMarking(Piece, mkFoldLine, FPattern.AddLine(Pt('R', 20, 60), Pt('S', 120, 60)).Key));
+  FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50), erPlacement);
+  FPattern.AddLine(Pt('R', 20, 60), Pt('S', 120, 60), erFold);
+  FPattern.Evaluate;
   AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('T', 20, 70), Pt('U', 120, 70)).Key, '5', '1.5'));
   FPattern.Evaluate;
   Back := TPieceObject(Reloaded.FindNode(Piece.Key));
@@ -785,6 +797,202 @@ begin
   FPattern.Evaluate;
   AssertEquals(0, Before);
   AssertTrue('a circle of strokes', Length(Piece.MarkingStrokes) > 8);
+end;
+
+procedure TTestAccessories.TestRoleLineJoinsItsPiece;
+var
+  Piece: TPieceObject;
+  Stitch: TLineObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  Stitch := FPattern.AddLine(Pt('P', 20, 20), Pt('Q', 180, 20), erStitch);
+  AssertEquals('waits for evaluation', -1, Piece.LineMarkingOf(Stitch.Key));
+  FPattern.Evaluate;
+  AssertEquals('joined', 0, Piece.LineMarkingOf(Stitch.Key));
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertTrue('drawn as stitching', Piece.MarkingMarks[0].Role = erStitch);
+  AssertEquals('listed', 1, Length(FPattern.PiecesWithLine(Stitch.Key)));
+end;
+
+procedure TTestAccessories.TestLineInOverlappingPiecesJoinsBoth;
+var
+  Inner, Outer: TPieceObject;
+  Edges: TRectangleEdges;
+  Path: TPiecePath;
+  Index: integer;
+  Fold: TLineObject;
+begin
+  Rectangle;
+  Inner := PieceAt(50, 50, 'Inner');
+  // A larger piece drawn round the first, as a back drafted under a front
+  AssertTrue(FPattern.LastError, FPattern.AddRectangle(Pt('Corner2', -50, -50), '300', '200', erOutline, Edges));
+  Path := nil;
+  SetLength(Path, 4);
+  for Index := 0 to 3 do
+    Path[Index].EdgeKey := Edges[Index].Key;
+  Outer := FPattern.AddPiece('Outer', Path, '10');
+  AssertNotNull(FPattern.LastError, Outer);
+  FPattern.Evaluate;
+  AssertTrue(Outer.Message, Outer.State = esValid);
+  Fold := FPattern.AddLine(Pt('P', 100, 10), Pt('Q', 100, 90), erFold);
+  FPattern.Evaluate;
+  AssertTrue('inner', Inner.LineMarkingOf(Fold.Key) >= 0);
+  AssertTrue('outer', Outer.LineMarkingOf(Fold.Key) >= 0);
+end;
+
+procedure TTestAccessories.TestLooseLineJoinsNewPiece;
+var
+  Piece: TPieceObject;
+  MarkLine: TLineObject;
+  Blocked: integer;
+  Problem: string;
+  Found: boolean;
+begin
+  Rectangle;
+  MarkLine := FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50), erPlacement);
+  FPattern.Evaluate;
+  AssertEquals('no piece yet', 0, Length(FPattern.PiecesWithLine(MarkLine.Key)));
+  Found := False;
+  for Problem in PatternProblems(FPattern, Blocked) do
+    Found := Found or (Problem = Format(rsCheckLineLoose, [MarkLine.DisplayName]));
+  AssertTrue('reported as loose', Found);
+  Piece := PieceAt(50, 20);
+  AssertEquals('joins the new piece', 0, Piece.LineMarkingOf(MarkLine.Key));
+end;
+
+// Stored, so a measurement change cannot move a line to another piece
+procedure TTestAccessories.TestAssignmentIsKept;
+var
+  Piece: TPieceObject;
+  First: string;
+  MarkLine: TLineObject;
+  Blocked: integer;
+  Problems: TStringArray;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  First := Pt('P', 20, 50);
+  MarkLine := FPattern.AddLine(First, Pt('Q', 120, 50), erPlacement);
+  FPattern.Evaluate;
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(First), 'y', '400'));
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(MarkLine.EndKey), 'y', '400'));
+  FPattern.Evaluate;
+  AssertEquals('still marked', 0, Piece.LineMarkingOf(MarkLine.Key));
+  Problems := PatternProblems(FPattern, Blocked);
+  AssertEquals(1, Length(Problems));
+  AssertEquals(Format(rsCheckLineOutside, [MarkLine.DisplayName, Piece.DisplayName]), Problems[0]);
+end;
+
+procedure TTestAccessories.TestOtherRoleDetaches;
+var
+  Piece: TPieceObject;
+  MarkLine: TLineObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  MarkLine := FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50), erPlacement);
+  FPattern.Evaluate;
+  AssertTrue(FPattern.SetEdgeRole(MarkLine, erCut));
+  FPattern.Evaluate;
+  AssertEquals('another marking role keeps it', 0, Piece.LineMarkingOf(MarkLine.Key));
+  AssertTrue(Piece.MarkingMarks[0].Role = erCut);
+  AssertTrue(FPattern.SetEdgeRole(MarkLine, erConstruction));
+  FPattern.Evaluate;
+  AssertEquals('construction takes it off', 0, Length(Piece.Markings));
+  AssertTrue(FPattern.SetEdgeRole(MarkLine, erStitch));
+  FPattern.Evaluate;
+  AssertEquals('and back on', 0, Piece.LineMarkingOf(MarkLine.Key));
+end;
+
+procedure TTestAccessories.TestDeletingLineDetaches;
+var
+  Piece: TPieceObject;
+  MarkLine: TLineObject;
+  Edges: TRectangleEdges;
+begin
+  Edges := Rectangle;
+  Piece := PieceAt(50, 50);
+  MarkLine := FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50), erStitch);
+  FPattern.Evaluate;
+  AssertTrue(FPattern.LastError, FPattern.Delete(MarkLine));
+  FPattern.Evaluate;
+  AssertEquals(0, Length(Piece.Markings));
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertFalse('an outline edge is still in use', FPattern.Delete(Edges[0]));
+end;
+
+procedure TTestAccessories.TestAttachNeedsMarkingRole;
+var
+  Piece: TPieceObject;
+  MarkLine: TLineObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  MarkLine := FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50));
+  AssertFalse(FPattern.AddLineMarking(Piece, MarkLine.Key));
+  AssertEquals(Format(rsPatternNotMarkingLine, [MarkLine.DisplayName]), FPattern.LastError);
+end;
+
+// Outside every piece, so only by hand
+procedure TTestAccessories.TestAttachByHand;
+var
+  Piece: TPieceObject;
+  MarkLine: TLineObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  MarkLine := FPattern.AddLine(Pt('P', 20, 300), Pt('Q', 120, 300), erPlacement);
+  FPattern.Evaluate;
+  AssertEquals(0, Length(Piece.Markings));
+  AssertTrue(FPattern.LastError, FPattern.AddLineMarking(Piece, MarkLine.Key));
+  AssertFalse('only once', FPattern.AddLineMarking(Piece, MarkLine.Key));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+end;
+
+procedure TTestAccessories.TestOldPlacementBecomesRole;
+var
+  Piece: TPieceObject;
+  MarkLine: TLineObject;
+  Text, Reason: string;
+  Back: TLineObject;
+begin
+  Rectangle;
+  Piece := PieceAt(50, 50);
+  MarkLine := FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50), erPlacement);
+  FPattern.Evaluate;
+  // As an older file wrote it: a construction line marked on the piece
+  Text := StringReplace(SavePatternToText(FPattern), '"role": "placement"', '"role": "construction"', []);
+  Text := StringReplace(Text, '"kind": "line"', '"kind": "fold"', []);
+  FreeAndNil(FLoaded);
+  FLoaded := TPattern.Create;
+  AssertTrue(Reason, LoadPatternFromText(FLoaded, Text, Reason));
+  FLoaded.Evaluate;
+  Back := TLineObject(FLoaded.FindNode(MarkLine.Key));
+  AssertTrue('takes the marking''s role', Back.Role = erFold);
+  AssertEquals(0, TPieceObject(FLoaded.FindNode(Piece.Key)).LineMarkingOf(MarkLine.Key));
+  AssertTrue('saved the new way', Pos('"kind": "line"', SavePatternToText(FLoaded)) > 0);
+end;
+
+procedure TTestAccessories.TestRolesRoundTrip;
+var
+  Role: TEdgeRole;
+  MarkLine: TLineObject;
+  Keys: array[TEdgeRole] of string;
+begin
+  Rectangle;
+  PieceAt(50, 50);
+  for Role := Low(TEdgeRole) to High(TEdgeRole) do
+  begin
+    MarkLine := FPattern.AddLine(Pt('', 20, 10 + 10 * Ord(Role)), Pt('', 120, 10 + 10 * Ord(Role)), Role);
+    Keys[Role] := MarkLine.Key;
+  end;
+  FPattern.Evaluate;
+  Reloaded;
+  for Role := Low(TEdgeRole) to High(TEdgeRole) do
+    AssertTrue(TEdgeObject(FLoaded.FindNode(Keys[Role])).Role = Role);
+  AssertEquals(SavePatternToText(FPattern), SavePatternToText(FLoaded));
 end;
 
 initialization

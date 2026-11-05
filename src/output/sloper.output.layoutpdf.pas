@@ -48,7 +48,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Settings, Sloper.Output.PDFWriter, Sloper.Output.Tiling;
+  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Output.PDFWriter, Sloper.Output.Tiling;
 
 const
   CoverMargin = 15;
@@ -394,6 +394,7 @@ end;
 
 procedure TLayoutPrinter.DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
 var
+  Line: TPlacedLine;
   Mark: TLine2;
   Spot: TVec2;
 begin
@@ -408,6 +409,16 @@ begin
   FWriter.SetLineWidth(FMarkWidth);
   for Mark in Shape.Marks do
     FWriter.Line(PagePoint(Page, Mark.P1), PagePoint(Page, Mark.P2));
+  for Line in Shape.Lines do
+  begin
+    FWriter.SetDashPattern(RoleDashes[Line.Role]);
+    if Line.Role = erCut then
+      FWriter.SetLineWidth(FCutWidth)
+    else
+      FWriter.SetLineWidth(FMarkWidth);
+    FWriter.Polyline(PagePoints(Page, Line.Points), False);
+  end;
+  FWriter.SetDash(0);
   Spot := PagePoint(Page, Shape.LabelAt);
   FWriter.Text(Spot.X, Spot.Y, FLabelSize, Shape.Caption);
 end;

@@ -31,7 +31,7 @@ type
     aiSelect, aiPoint, aiLine, aiCurve, aiPiece, aiNotch, aiSeam,
     aiSplit, aiCircle, aiArc, aiRectangle, aiRoundCorner, aiOffsetLeft, aiOffsetRight, aiToLine, aiToCurve,
     aiMergePoints, aiBreakPoint,
-    aiHole, aiPlacement, aiFoldLine, aiStitchHoles, aiRemoveMarking,
+    aiHole, aiPlacement, aiStitchHoles, aiRemoveMarking,
     aiRotate, aiMirror, aiMove, aiSuggestSeams,
     // The measurements and publish apps
     aiImport, aiExport, aiCheckPattern, aiStopCheck,
@@ -46,7 +46,7 @@ const
     'pointer', 'point', 'line', 'vector-bezier', 'polygon', 'triangle-inverted', 'needle-thread',
     'scissors', 'circle', 'rainbow', 'rectangle', 'border-corner-rounded', 'arrow-bar-left', 'arrow-bar-right', 'line', 'vector-bezier',
     'arrows-join', 'arrows-split',
-    'circle-dot', 'line-dashed', 'fold', 'line-dotted', 'eraser',
+    'circle-dot', 'line-dashed', 'line-dotted', 'eraser',
     'rotate', 'flip-vertical', 'arrows-move', 'sparkles',
     'file-import', 'file-export', 'file-search', 'player-stop',
     'file-type-pdf', 'file-type-svg', 'file-vector', 'cut', 'refresh',

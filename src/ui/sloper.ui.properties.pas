@@ -75,6 +75,8 @@ type
     FNameEdit: TEdit;
     FDescriptionEdit: TEdit;
     FRoleBox: TComboBox;
+    // The pieces a marking line prints on
+    FMarkedOnText: TGridLabel;
     FEndsBox: TComboBox;
     FCutEdit: TSpinEdit;
     FMirrorBox: TCheckBox;
@@ -140,6 +142,7 @@ type
     procedure SetEditText(Edit: TEdit; const AText: string);
     function KeepsText(Edit: TEdit): boolean;
     procedure RoleChange(Sender: TObject);
+    function MarkedOnText(Edge: TEdgeObject): string;
     procedure AddPieceRows(Piece: TPieceObject);
     procedure AddSeamRows;
     procedure RefreshSeamRows(Seam: TSeamObject);
@@ -191,6 +194,13 @@ resourcestring
   rsPropChangeEnds = 'Change repeat ends';
   rsPropConstruction = 'Construction';
   rsPropOutline = 'Outline';
+  rsPropPlacement = 'Placement';
+  rsPropStitch = 'Stitch';
+  rsPropFoldRole = 'Fold';
+  rsPropCutRole = 'Cut';
+  rsPropMarkedOn = 'Marked on';
+  rsPropMarkedOnNone = 'No piece';
+  rsPropNotMarking = '-';
   rsPropPosition = 'Position';
   rsPropLength = 'Length';
   rsPropPerimeter = 'Perimeter';
@@ -438,6 +448,7 @@ begin
   FNameEdit := nil;
   FDescriptionEdit := nil;
   FRoleBox := nil;
+  FMarkedOnText := nil;
   FCutEdit := nil;
   FMirrorBox := nil;
   FFoldBox := nil;
@@ -664,10 +675,16 @@ begin
     begin
       FRoleBox := TComboBox.Create(Self);
       FRoleBox.Style := csDropDownList;
+      // In the order of TEdgeRole
       FRoleBox.Items.Add(rsPropConstruction);
       FRoleBox.Items.Add(rsPropOutline);
+      FRoleBox.Items.Add(rsPropPlacement);
+      FRoleBox.Items.Add(rsPropStitch);
+      FRoleBox.Items.Add(rsPropFoldRole);
+      FRoleBox.Items.Add(rsPropCutRole);
       FRoleBox.OnChange := @RoleChange;
       AddRow(rsPropRole, FRoleBox, RowGap);
+      FMarkedOnText := AddTextRow(rsPropMarkedOn, '', RowGap);
     end;
     if Node is TRepeatObject then
       AddRepeatRows(TRepeatObject(Node));
@@ -751,6 +768,8 @@ begin
     SetEditText(FDescriptionEdit, OriginalText(FDescriptionEdit));
   if Assigned(FRoleBox) then
     FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
+  if Assigned(FMarkedOnText) then
+    FMarkedOnText.Caption := MarkedOnText(TEdgeObject(Node));
   if Assigned(FEndsBox) then
     FEndsBox.ItemIndex := Ord(not TRepeatObject(Node).IncludeEnds);
   if Node is TPieceObject then
@@ -1257,6 +1276,24 @@ begin
   end;
 end;
 
+// The pieces it prints on, for a marking line
+function TPropertiesPanel.MarkedOnText(Edge: TEdgeObject): string;
+var
+  Piece: TPieceObject;
+begin
+  if not (Edge.Role in MarkingRoles) then
+    Exit(rsPropNotMarking);
+  Result := '';
+  for Piece in FDocument.Pattern.PiecesWithLine(Edge.Key) do
+  begin
+    if Result <> '' then
+      Result := Result + ', ';
+    Result := Result + Piece.DisplayName;
+  end;
+  if Result = '' then
+    Result := rsPropMarkedOnNone;
+end;
+
 procedure TPropertiesPanel.RoleChange(Sender: TObject);
 var
   Node: TEvalNode;
@@ -1267,7 +1304,7 @@ begin
   FCommitting := True;
   try
     FDocument.BeginChange(rsPropChangeRole);
-    TEdgeObject(Node).Role := TEdgeRole(FRoleBox.ItemIndex);
+    FDocument.Pattern.SetEdgeRole(TEdgeObject(Node), TEdgeRole(FRoleBox.ItemIndex));
     FDocument.EndChange;
   finally
     FCommitting := False;

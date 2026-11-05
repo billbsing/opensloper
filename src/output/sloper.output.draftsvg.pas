@@ -178,19 +178,33 @@ end;
 function EdgeElement(Edge: TEdgeObject; Extent: double): string;
 var
   Color, Dash: string;
-  Stroke: double;
+  Stroke, Length: double;
 begin
   Dash := '';
-  if Edge.Role = erOutline then
-  begin
-    Color := InkColor;
-    Stroke := Extent * LineShare;
-  end
-  else
-  begin
-    Color := ConstructionColor;
-    Stroke := Extent * ConstructionShare;
-    Dash := Format(' stroke-dasharray="%s %s"', [Num(Stroke * 4), Num(Stroke * 3)]);
+  case Edge.Role of
+    erOutline:
+    begin
+      Color := InkColor;
+      Stroke := Extent * LineShare;
+    end;
+    erConstruction:
+    begin
+      Color := ConstructionColor;
+      Stroke := Extent * ConstructionShare;
+      Dash := Format(' stroke-dasharray="%s %s"', [Num(Stroke * 4), Num(Stroke * 3)]);
+    end;
+    else
+    begin
+      // A marking line in its role's colour, dashed as on paper but scaled
+      // with the drawing, like the other lines
+      Color := RoleColors[Edge.Role];
+      Stroke := Extent * LineShare * 0.75;
+      for Length in RoleDashes[Edge.Role] do
+        if Length > 0 then
+          Dash := Dash + ' ' + Num(Length * Stroke * 2);
+      if Dash <> '' then
+        Dash := Format(' stroke-dasharray="%s"', [Trim(Dash)]);
+    end;
   end;
   Result := Format('<path data-id="%s" data-name="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"%s/>',
     [Edge.Key, EscapeXML(Edge.DisplayName), EdgePath(Edge), StateColor(Edge.State, Color), Num(Stroke), Dash]) + #10;

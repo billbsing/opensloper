@@ -256,6 +256,7 @@ resourcestring
   rsCanvasRoundCorner = 'Round corner';
   rsCanvasPickHole = 'Select the piece and the point for the hole';
   rsCanvasPickMarkingEdge = 'Select the piece and the edge for the marking';
+  rsCanvasPickLine = 'Select the piece and the marking line to attach to it';
   rsCanvasPickMarkingToRemove = 'Select the piece and the point or edge of the marking to remove';
   rsCanvasAddMarking = 'Add marking';
   rsCanvasRemoveMarking = 'Remove marking';
@@ -309,6 +310,7 @@ const
   FabricHatchAlpha = 130;
   FabricHatchPixels = 8;
   // Screen pixels
+  MarkingLineWidth = 1.5;
   PointRadius = 3.5;
   SmallPointRadius = 2.5;
   PointHitRadius = 7;
@@ -1081,10 +1083,12 @@ begin
   end;
   if not Assigned(Piece) or (Target = '') or (Length(FSelection) <> 2) then
   begin
-    if Kind = mkHole then
-      ShowMessageText(rsCanvasPickHole)
-    else
-      ShowMessageText(rsCanvasPickMarkingEdge);
+    case Kind of
+      mkHole: ShowMessageText(rsCanvasPickHole);
+      mkLine: ShowMessageText(rsCanvasPickLine);
+      else
+        ShowMessageText(rsCanvasPickMarkingEdge);
+    end;
     Exit;
   end;
   FDocument.BeginChange(rsCanvasAddMarking);
@@ -1092,7 +1096,7 @@ begin
     mkHole: Done := FDocument.Pattern.AddHoleMarking(Piece, FDocument.Pattern.UsePoint(Target), NewHoleDiameter);
     mkStitchHoles: Done := FDocument.Pattern.AddStitchMarking(Piece, Target, NewStitchSpacing, NewStitchSize);
     else
-      Done := FDocument.Pattern.AddLineMarking(Piece, Kind, Target);
+      Done := FDocument.Pattern.AddLineMarking(Piece, Target);
   end;
   Reason := FDocument.Pattern.LastError;
   if not FDocument.Commit(Done) then
@@ -2062,6 +2066,8 @@ begin
   end;
 end;
 
+function ScreenDashes(const Dashes: TDashPattern; LineWidth: single): TBGRAPenStyle; forward;
+
 procedure TPatternCanvas.DrawEdge(Edge: TEdgeObject);
 var
   Model: TVec2Array;
@@ -2078,15 +2084,22 @@ begin
   for Index := 0 to High(Model) do
     Screen[Index] := ScreenPoint(FView.ToScreen(Model[Index]));
 
-  if Edge.Role = erOutline then
-  begin
-    LineColor := Ink;
-    LineWidth := 2;
-  end
-  else
-  begin
-    LineColor := ConstructionInk;
-    LineWidth := 1;
+  case Edge.Role of
+    erOutline:
+    begin
+      LineColor := Ink;
+      LineWidth := 2;
+    end;
+    erConstruction:
+    begin
+      LineColor := ConstructionInk;
+      LineWidth := 1;
+    end;
+    else
+    begin
+      LineColor := StrToBGRA(RoleColors[Edge.Role]);
+      LineWidth := MarkingLineWidth;
+    end;
   end;
   LineColor := Faded(StateInk(Edge.State, LineColor), Edge.State);
   if Edge.Key = FHoverKey then
@@ -2098,9 +2111,29 @@ begin
     LineWidth := LineWidth + 1;
   end;
   if Edge.Role = erConstruction then
-    FBitmap.PenStyle := psDash;
+    FBitmap.PenStyle := psDash
+  else if RoleDashes[Edge.Role][0] > 0 then
+    FBitmap.CustomPenStyle := ScreenDashes(RoleDashes[Edge.Role], LineWidth);
   FBitmap.DrawPolyLineAntialias(Screen, LineColor, LineWidth);
   FBitmap.PenStyle := psSolid;
+end;
+
+// The paper dashes at a fixed size on screen, whatever the zoom, in the pen
+// widths BGRABitmap counts in
+function ScreenDashes(const Dashes: TDashPattern; LineWidth: single): TBGRAPenStyle;
+const
+  PixelsPerMillimetre = 2.5;
+var
+  Index, Count: integer;
+begin
+  Result := nil;
+  Count := 0;
+  for Index := 0 to High(Dashes) do
+    if Dashes[Index] > 0 then
+      Inc(Count);
+  SetLength(Result, Count);
+  for Index := 0 to Count - 1 do
+    Result[Index] := Dashes[Index] * PixelsPerMillimetre / LineWidth;
 end;
 
 procedure TPatternCanvas.DrawPoint(Point: TPointObject);

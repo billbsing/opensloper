@@ -34,7 +34,7 @@ function LayoutToSVG(Layout: TLayout): string;
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Output.DraftSVG;
+  SysUtils, Math, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.MachineProfiles, Sloper.Output.DraftSVG;
 
 const
   // Around the pieces, so that a line on the edge is drawn whole
@@ -74,6 +74,47 @@ begin
   Result := Trim(Result);
 end;
 
+function OpenPath(const Points: TVec2Array): string;
+var
+  Index: integer;
+begin
+  Result := '';
+  for Index := 0 to High(Points) do
+    if Index = 0 then
+      Result := 'M ' + PointText(Points[Index])
+    else
+      Result := Result + ' L ' + PointText(Points[Index]);
+end;
+
+function DashArray(Role: TEdgeRole): string;
+var
+  Length: double;
+begin
+  Result := '';
+  for Length in RoleDashes[Role] do
+    if Length > 0 then
+      Result := Result + ' ' + SVGNumber(Length);
+  if Result <> '' then
+    Result := Format(' stroke-dasharray="%s"', [Trim(Result)]);
+end;
+
+// One group per role, as the roles print differently
+function LinesGroup(const Shape: TPlacedPiece): string;
+var
+  Line: TPlacedLine;
+  Width: double;
+begin
+  Result := '';
+  for Line in Shape.Lines do
+  begin
+    Width := MarkWidth;
+    if Line.Role = erCut then
+      Width := CutWidth;
+    Result := Result + Format('<g class="line-%s"><path d="%s" stroke-width="%s"%s/></g>',
+      [EdgeRoleNames[Line.Role], OpenPath(Line.Points), SVGNumber(Width), DashArray(Line.Role)]) + #10;
+  end;
+end;
+
 function PieceGroup(const Shape: TPlacedPiece; Number: integer): string;
 var
   Marks: string;
@@ -85,6 +126,7 @@ begin
     [ClosedPath(Shape.SeamLine), SVGNumber(SeamWidth), SVGNumber(SeamDash), SVGNumber(SeamDash)]) + #10;
   if Marks <> '' then
     Result := Result + Format('<g class="marks"><path d="%s" stroke-width="%s"/></g>', [Marks, SVGNumber(MarkWidth)]) + #10;
+  Result := Result + LinesGroup(Shape);
   Result := Result + Format('<g class="label"><text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s" stroke="none">%s</text></g>',
     [SVGNumber(Shape.LabelAt.X), SVGNumber(Shape.LabelAt.Y), SVGNumber(LabelSize), InkColor, EscapeXML(Shape.Caption)]) + #10 + '</g>' + #10;
 end;
@@ -96,7 +138,12 @@ var
 begin
   Result := '';
   case Kind of
-    ltCut: Result := Format('<path d="%s"/>', [ClosedPath(Shape.CutLine)]);
+    ltCut:
+    begin
+      Result := Format('<path d="%s"/>', [ClosedPath(Shape.CutLine)]);
+      if Length(Shape.SlitLines) > 0 then
+        Result := Result + Format('<path d="%s"/>', [StrokesPath(Shape.SlitLines)]);
+    end;
     ltScore:
       if Length(Shape.ScoreLines) > 0 then
         Result := Format('<path d="%s"/>', [StrokesPath(Shape.ScoreLines)]);

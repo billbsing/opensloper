@@ -94,7 +94,7 @@ resourcestring
 implementation
 
 uses
-  Math;
+  Math, Sloper.Core.Draft;
 
 const
   FitMargin = 24;
@@ -415,6 +415,7 @@ end;
 
 procedure TPreviewCanvas.DrawShape(const Shape: TPlacedPiece);
 var
+  Line: TPlacedLine;
   Mark: TLine2;
   First, Last, Spot: TVec2;
   Ink: TBGRAPixel;
@@ -438,6 +439,13 @@ begin
     First := FView.ToScreen(Mark.P1);
     Last := FView.ToScreen(Mark.P2);
     FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, Ink, 1);
+  end;
+  for Line in Shape.Lines do
+  begin
+    if RoleDashes[Line.Role][0] > 0 then
+      FBitmap.PenStyle := psDash;
+    FBitmap.DrawPolyLineAntialias(ScreenPoints(Line.Points), Ink, 1);
+    FBitmap.PenStyle := psSolid;
   end;
   Spot := FView.ToScreen(Shape.LabelAt);
   FBitmap.FontHeight := LabelHeight;

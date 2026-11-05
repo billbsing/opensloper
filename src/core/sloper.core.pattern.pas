@@ -83,6 +83,14 @@ type
     FLastErrorPos: integer;
     FNameExclude: TDraftObject;
     FFabrics: TPatternFabricList;
+    // Marking lines to give a piece after the next evaluation, which works
+    // out where they lie; FAssignLoose adds every one without a piece
+    FPendingMarkings: TStringArray;
+    FAssignLoose: boolean;
+    procedure QueueMarking(Edge: TEdgeObject);
+    function AssignPendingMarkings: boolean;
+    // Takes the edge's marking lines off every piece that reads it only so
+    procedure DetachLine(const EdgeKey: string);
     procedure ResetFabrics;
     // Gives the first fabric an ID and puts every piece on it, ready to be
     // written to the file
@@ -230,8 +238,16 @@ type
     function AddEdgeNotch(Piece: TPieceObject; const EdgeId, Position: string): boolean;
     function RemoveNotch(Piece: TPieceObject; Index: integer): boolean;
     function AddHoleMarking(Piece: TPieceObject; const PointId, Diameter: string): boolean;
-    // A placement or fold line along an edge
-    function AddLineMarking(Piece: TPieceObject; Kind: TMarkingKind; const EdgeId: string): boolean;
+    // Attaches a marking line to a piece by hand, whatever it lies in; the
+    // edge needs a marking role
+    function AddLineMarking(Piece: TPieceObject; const EdgeId: string): boolean;
+    // Changes an edge's role. A marking role gives the edge to every piece it
+    // lies inside at the next evaluation, and any other takes it off them.
+    function SetEdgeRole(Edge: TEdgeObject; Role: TEdgeRole): boolean;
+    // Most of the edge, sampled along it, lies inside the piece's cutting line
+    function LiesInside(Edge: TEdgeObject; Piece: TPieceObject): boolean;
+    // The pieces that print this marking line
+    function PiecesWithLine(const EdgeKey: string): TPieceObjectArray;
     function AddStitchMarking(Piece: TPieceObject; const EdgeId, Spacing, Size: string): boolean;
     function RemoveMarking(Piece: TPieceObject; Index: integer): boolean;
     function SetCut(Piece: TPieceObject; Count: integer; Mirrored: boolean): boolean;
@@ -408,13 +424,16 @@ resourcestring
   rsPatternGrainSamePoint = 'The grainline needs two different points';
   rsPatternNoNotch = 'There is no notch %d';
   rsPatternNoMarking = 'There is no marking %d';
+  rsPatternNotMarkingLine = '%s is not a marking line; give it a role such as Placement or Stitch first';
+  rsPatternLineIsOutline = '%s is part of the outline of %s';
+  rsPatternLineMarked = '%s is already marked on %s';
   rsPatternBadCutCount = 'A piece must be cut at least once';
   rsPatternFoldNotStraight = 'A fold has to be straight, and %s is not';
 
 implementation
 
 uses
-  Math, Sloper.Core.Names;
+  Math, Sloper.Core.Geometry, Sloper.Core.Names;
 
 const
   // Not translated: a name has to keep to the name rules
@@ -623,6 +642,8 @@ begin
   FVariables.Clear;
   FObjects.Clear;
   FNextId := 1;
+  FPendingMarkings := nil;
+  FAssignLoose := False;
   Notes := '';
   MeasurementFile := '';
   View := Default(TPatternView);
@@ -1108,6 +1129,7 @@ begin
         Copied.NameIsDerived := False;
         Copied.Role := Edge.Role;
         AddObjectNode(Copied);
+        QueueMarking(Copied);
       end;
     end;
   finally
@@ -1631,6 +1653,7 @@ begin
   AEdge.Role := ARole;
   Inc(FNextId);
   AddObjectNode(AEdge);
+  QueueMarking(AEdge);
   Result := True;
 end;
 
@@ -1847,6 +1870,7 @@ var
     Result.Name := DerivedEdgeName(Result);
     Result.Role := Source.Role;
     AddObjectNode(Result);
+    QueueMarking(Result);
   end;
 
 begin
@@ -1909,6 +1933,8 @@ begin
   Result.FabricKey := FFabrics[0].Key;
   AddObjectNode(Result);
   SetGrainAngle(Result, DefaultGrainAngle);
+  // Lines drawn before the piece was made join it now
+  FAssignLoose := True;
 end;
 
 procedure TPattern.OrderObjectsByInputs;
@@ -2037,13 +2063,129 @@ begin
     Piece.RemoveMarking(Index);
 end;
 
-function TPattern.AddLineMarking(Piece: TPieceObject; Kind: TMarkingKind; const EdgeId: string): boolean;
+function TPattern.AddLineMarking(Piece: TPieceObject; const EdgeId: string): boolean;
+var
+  Edge: TEdgeObject;
 begin
   if not CheckEdgeTarget(EdgeId) then
     Exit(False);
-  Piece.AddMarking(Kind, '', EdgeId);
+  Edge := TEdgeObject(FindNode(EdgeId));
+  if not (Edge.Role in MarkingRoles) then
+    Exit(SetError(Format(rsPatternNotMarkingLine, [Edge.DisplayName])));
+  if Piece.PathIndexOf(EdgeId) >= 0 then
+    Exit(SetError(Format(rsPatternLineIsOutline, [Edge.DisplayName, Piece.DisplayName])));
+  if Piece.LineMarkingOf(EdgeId) >= 0 then
+    Exit(SetError(Format(rsPatternLineMarked, [Edge.DisplayName, Piece.DisplayName])));
+  Piece.AddMarking(mkLine, '', EdgeId);
   KeepInputsBefore(Piece);
   Result := True;
+end;
+
+function TPattern.SetEdgeRole(Edge: TEdgeObject; Role: TEdgeRole): boolean;
+var
+  WasMarking: boolean;
+begin
+  WasMarking := Edge.Role in MarkingRoles;
+  Edge.Role := Role;
+  if not (Role in MarkingRoles) then
+    DetachLine(Edge.Key)
+  else if not WasMarking then
+    QueueMarking(Edge);
+  Result := True;
+end;
+
+procedure TPattern.QueueMarking(Edge: TEdgeObject);
+begin
+  if Edge.Role in MarkingRoles then
+    System.Insert(Edge.Key, FPendingMarkings, Length(FPendingMarkings));
+end;
+
+function TPattern.LiesInside(Edge: TEdgeObject; Piece: TPieceObject): boolean;
+const
+  Samples = 8;
+var
+  Index, Inside: integer;
+begin
+  if not Edge.HasResult or (Piece.State <> esValid) or (Length(Piece.CutLine) < 3) then
+    Exit(False);
+  Inside := 0;
+  for Index := 0 to Samples do
+    if PointInPolygon(Edge.PointAtLength(Edge.Length * Index / Samples), Piece.CutLine) then
+      Inc(Inside);
+  Result := 2 * Inside > Samples + 1;
+end;
+
+function TPattern.PiecesWithLine(const EdgeKey: string): TPieceObjectArray;
+var
+  DraftObject: TDraftObject;
+begin
+  Result := nil;
+  for DraftObject in FObjects do
+    if (DraftObject is TPieceObject) and (TPieceObject(DraftObject).LineMarkingOf(EdgeKey) >= 0) then
+      System.Insert(TPieceObject(DraftObject), Result, Length(Result));
+end;
+
+procedure TPattern.DetachLine(const EdgeKey: string);
+var
+  DraftObject: TDraftObject;
+  Piece: TPieceObject;
+  Index: integer;
+begin
+  for DraftObject in FObjects do
+    if DraftObject is TPieceObject then
+    begin
+      Piece := TPieceObject(DraftObject);
+      Index := Piece.LineMarkingOf(EdgeKey);
+      while Index >= 0 do
+      begin
+        Piece.RemoveMarking(Index);
+        Index := Piece.LineMarkingOf(EdgeKey);
+      end;
+    end;
+end;
+
+// A line inside several pieces goes to all of them; one inside none waits
+// for a piece, as a new piece takes the loose lines inside it
+function TPattern.AssignPendingMarkings: boolean;
+var
+  Keys: TStringArray;
+  Key: string;
+  DraftObject, Other: TDraftObject;
+  Edge: TEdgeObject;
+  Piece: TPieceObject;
+  Changed: TPieceObjectArray;
+begin
+  Keys := FPendingMarkings;
+  if FAssignLoose then
+    for DraftObject in FObjects do
+      if (DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in MarkingRoles) and
+        (Length(PiecesWithLine(DraftObject.Key)) = 0) then
+        System.Insert(DraftObject.Key, Keys, Length(Keys));
+  FPendingMarkings := nil;
+  FAssignLoose := False;
+  Changed := nil;
+  for Key in Keys do
+  begin
+    if not (FindNode(Key) is TEdgeObject) then
+      Continue;
+    Edge := TEdgeObject(FindNode(Key));
+    if not (Edge.Role in MarkingRoles) then
+      Continue;
+    for Other in FObjects do
+      if Other is TPieceObject then
+      begin
+        Piece := TPieceObject(Other);
+        if (Piece.PathIndexOf(Key) < 0) and (Piece.LineMarkingOf(Key) < 0) and LiesInside(Edge, Piece) then
+        begin
+          Piece.AddMarking(mkLine, '', Key);
+          System.Insert(Piece, Changed, Length(Changed));
+        end;
+      end;
+  end;
+  // Reordering the list for the file waits until it is not being walked
+  for Piece in Changed do
+    KeepInputsBefore(Piece);
+  Result := Length(Changed) > 0;
 end;
 
 function TPattern.AddStitchMarking(Piece: TPieceObject; const EdgeId, Spacing, Size: string): boolean;
@@ -2892,17 +3034,18 @@ begin
     Node := TRepeatPoint(Node).Source;
   end;
   Users := UsersOf(Node);
-  if Length(Users) > 0 then
-  begin
-    Names := '';
-    for User in Users do
+  // A piece that only prints the line lets it go with it
+  Names := '';
+  for User in Users do
+    if not ((User is TPieceObject) and TPieceObject(User).UsesOnlyAsLine(Node.Key)) then
     begin
       if Names <> '' then
         Names := Names + ', ';
       Names := Names + User.DisplayName;
     end;
+  if Names <> '' then
     Exit(SetError(Format(rsPatternInUse, [Node.DisplayName, Names])));
-  end;
+  DetachLine(Node.Key);
   // The evaluator may hold the node; forget the old graph
   FEvaluator.Rebuild(nil, FContext);
   if Node is TRepeatObject then
@@ -2994,6 +3137,12 @@ begin
   RebuildMeasurementNodes;
   FEvaluator.Rebuild(AllNodes, FContext);
   FEvaluator.Run(FContext);
+  // Where a new marking line lies is only known once it is computed
+  if AssignPendingMarkings then
+  begin
+    FEvaluator.Rebuild(AllNodes, FContext);
+    FEvaluator.Run(FContext);
+  end;
 end;
 
 // Moves the counter past Key (12 -> next ID 13)

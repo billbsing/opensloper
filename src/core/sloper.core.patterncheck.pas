@@ -44,7 +44,8 @@ function ReportFloat(Value: double): TJSONData;
 function StateName(State: TEvalState): string;
 // One line per measurement, variable or object in error or invalid, as
 // "Name (error): message", then one per seam out of tolerance and one per piece
-// with no fabric. Blocked ones fail because of these, so they are only counted.
+// with no fabric, and one per marking line in no piece or outside its piece.
+// Blocked ones fail because of these, so they are only counted.
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
 // Every variable's value and every object's position (points), length (edges)
 // areas and perimeter (pieces), or side lengths (seams), with its state; failing ones have a message instead of values.
@@ -56,6 +57,8 @@ resourcestring
   rsCheckError = 'error';
   rsCheckInvalid = 'invalid';
   rsCheckNoFabric = '%s has no fabric';
+  rsCheckLineOutside = '%s lies outside %s, which it is marked on';
+  rsCheckLineLoose = '%s is a marking line in no piece, so it does not print';
   rsCheckSeam = '%s: side A is %s mm and side B %s mm, %s mm from the expected %s mm';
 
 implementation
@@ -110,6 +113,30 @@ begin
   end;
 end;
 
+// Only for lines and pieces that computed, as failing ones are reported anyway
+procedure AddMarkingLineProblems(Pattern: TPattern; var Problems: TStringArray);
+var
+  Index: integer;
+  Edge: TEdgeObject;
+  Piece: TPieceObject;
+  Pieces: TPieceObjectArray;
+begin
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    if not (Pattern.Objects[Index] is TEdgeObject) then
+      Continue;
+    Edge := TEdgeObject(Pattern.Objects[Index]);
+    if not (Edge.Role in MarkingRoles) or (Edge.State <> esValid) then
+      Continue;
+    Pieces := Pattern.PiecesWithLine(Edge.Key);
+    if Length(Pieces) = 0 then
+      Insert(Format(rsCheckLineLoose, [Edge.DisplayName]), Problems, Length(Problems));
+    for Piece in Pieces do
+      if (Piece.State = esValid) and not Pattern.LiesInside(Edge, Piece) then
+        Insert(Format(rsCheckLineOutside, [Edge.DisplayName, Piece.DisplayName]), Problems, Length(Problems));
+  end;
+end;
+
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
 const
   SeamFormat = '0.#';
@@ -153,6 +180,7 @@ begin
       SetLength(Result, Length(Result) + 1);
       Result[High(Result)] := Format(rsCheckNoFabric, [Pattern.Objects[Index].DisplayName]);
     end;
+  AddMarkingLineProblems(Pattern, Result);
 end;
 
 function ReportFloat(Value: double): TJSONData;

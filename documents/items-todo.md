@@ -37,6 +37,9 @@ Still to do:
 - New patterns take the preferred unit, once Pattern units is built (decided 2026-11-04, not started): each pattern has one unit, the preference sets it for new patterns and never changes an existing one, Tools → Convert Pattern Units… rewrites only lengths, and numbers may carry a suffix (`400mm`, `2in`; the suffix is built, converting to mm for now).
 - An app already open picks up a preference changed in another app only when restarted.
 
+#### Marking line roles
+Done 2026-11-05 (see Markings in the design document): edges can be placement, stitch, fold or cut lines, which join the pieces they lie in and print in their own style. Still to do: point markers (drill hole, button, match dot), choosing a role before drawing, several lines in the same place (picking and the screen offset), and the longer offset edge (runs of edges, inside/outside, mitred corners).
+
 #### Documents
 Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
 

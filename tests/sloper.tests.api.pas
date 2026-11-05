@@ -51,6 +51,7 @@ type
     procedure TestCircleArcAndCircleCircle;
     procedure TestRectangleCornerAndOffset;
     procedure TestMarkings;
+    procedure TestSetRole;
     procedure TestFabricMethods;
     procedure TestFabricRefusals;
     procedure TestPieceFabricAndFill;
@@ -303,6 +304,31 @@ begin
   AssertEquals(1, Answer.Get('markings', 0));
   Call('remove_marking', '{"name": "Flap", "marking": 9}');
   AssertEquals(Format(rsPatternNoMarking, [9]), ErrorText);
+end;
+
+// A marking role puts the line on the piece it lies in, which the reply lists
+procedure TTestAPI.TestSetRole;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Flap"}');
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": 10, "y": 80}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": 90, "y": 80}');
+  Call('add_edge', '{"type": "line", "start": "P", "end": "Q", "name": "Pocket"}');
+  Call('set_role', '{"name": "Pocket", "role": "placement"}');
+  AssertEquals('placement', Answer.Get('role', ''));
+  AssertEquals('on the piece', 'Flap', TJSONArray(Answer.Find('pieces')).Strings[0]);
+  Call('get_object', '{"name": "Flap"}');
+  AssertEquals('a marking now', 1, Answer.Get('markings', 0));
+  Call('set_role', '{"name": "Pocket", "role": "construction"}');
+  AssertEquals('taken off', 0, TJSONArray(Answer.Find('pieces')).Count);
+  Call('set_role', '{"name": "Pocket", "role": "hem"}');
+  AssertEquals('no such role', RpcInvalidParams, ErrorCode);
+  Call('set_role', '{"name": "Flap", "role": "stitch"}');
+  AssertEquals('not an edge', RpcRefused, ErrorCode);
+  Call('add_edge', '{"type": "line", "start": "P", "end": "Q", "name": "Topstitch", "role": "stitch"}');
+  AssertEquals('stitch', Answer.Get('role', ''));
+  Call('get_object', '{"name": "Flap"}');
+  AssertEquals('a new stitch line joins too', 1, Answer.Get('markings', 0));
 end;
 
 procedure TTestAPI.TestRectangleCornerAndOffset;

@@ -102,7 +102,10 @@ const
   TypeEdgeCopy = 'edgeCopy';
   TransformTypes: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
 
-  RoleNames: array[TEdgeRole] of string = ('construction', 'outline');
+  // Marking kinds as read: older files marked placement and fold lines on
+  // the piece, and these become the edge's role
+  ReadMarkingKindNames: array[0..4] of string = ('hole', 'line', 'stitch', 'placement', 'fold');
+  OldMarkingRoles: array[3..4] of TEdgeRole = (erPlacement, erFold);
   OffsetModeNames: array[TOffsetMode] of string = ('polar', 'cartesian');
   AlongModeNames: array[TAlongMode] of string = ('length', 'ratio');
   DirectionNames: array[TProjectDirection] of string = ('perpendicular', 'angle');
@@ -608,7 +611,7 @@ begin
         Result.Add(DraftObject.Fields[Index].Name, DraftObject.Fields[Index].Formula.StoredText);
 
     if DraftObject is TEdgeObject then
-      Result.Add('role', RoleNames[TEdgeObject(DraftObject).Role]);
+      Result.Add('role', EdgeRoleNames[TEdgeObject(DraftObject).Role]);
   except
     FreeAndNil(Result);
     raise;
@@ -997,9 +1000,12 @@ begin
     Marking := TJSONObject(Data.Items[Index]);
     if not Assigned(Marking.Find('kind')) then
       Exit(Missing('kind'));
-    if not ReadChoice(Marking, 'kind', MarkingKindNames, Choice) then
+    if not ReadChoice(Marking, 'kind', ReadMarkingKindNames, Choice) then
       Exit(False);
-    Kind := TMarkingKind(Choice);
+    if Choice > Ord(High(TMarkingKind)) then
+      Kind := mkLine
+    else
+      Kind := TMarkingKind(Choice);
     if Kind = mkHole then
     begin
       if not ReadInput(Marking, 'point', False, Key) then
@@ -1011,6 +1017,10 @@ begin
     end;
     if not ReadInput(Marking, 'edge', True, Key) then
       Exit(False);
+    // A construction line marked by an older file takes the marking's role
+    if (Choice > Ord(High(TMarkingKind))) and (FPattern.FindNode(Key) is TEdgeObject) and
+      (TEdgeObject(FPattern.FindNode(Key)).Role = erConstruction) then
+      TEdgeObject(FPattern.FindNode(Key)).Role := OldMarkingRoles[Choice];
     Added := Piece.AddMarking(Kind, '', Key);
     if (Kind = mkStitchHoles) and (not ReadFormula(Marking, MarkingSpacingField, Piece, Piece.MarkingField(Added, MarkingSpacingField)) or
       not ReadFormula(Marking, MarkingSizeField, Piece, Piece.MarkingField(Added, MarkingSizeField))) then
@@ -1630,7 +1640,7 @@ begin
           Exit(False);
     if DraftObject is TEdgeObject then
     begin
-      if not ReadChoice(Item, 'role', RoleNames, Choice) then
+      if not ReadChoice(Item, 'role', EdgeRoleNames, Choice) then
         Exit(False);
       TEdgeObject(DraftObject).Role := TEdgeRole(Choice);
       // The derived name is set once every object is loaded

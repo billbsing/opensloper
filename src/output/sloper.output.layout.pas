@@ -30,7 +30,7 @@ interface
 
 uses
   SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.Measurements,
-  Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings,
+  Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Core.Draft,
   Sloper.Output.Tiling;
 
 const
@@ -118,16 +118,27 @@ type
 
   TPlacedHoleArray = array of TPlacedHole;
 
+  // A marking line in layout space, drawn on paper in its role's style
+  TPlacedLine = record
+    Role: TEdgeRole;
+    Points: TVec2Array;
+  end;
+
+  TPlacedLineArray = array of TPlacedLine;
+
   // A placed piece in layout space, ready to draw
   TPlacedPiece = record
     Placement: integer;
     Caption: string;
     Look: TPieceLook;
     CutLine, SeamLine: TVec2Array;
-    // Everything marked on the piece as plain strokes, for paper
+    // Grainline, fold, notches and holes as plain strokes, for paper
     Marks: TLine2Array;
-    // The same marks apart by line type, for machines; see the design document
-    MarkLines, ScoreLines: TLine2Array;
+    // Marking lines, each whole, for paper and the preview
+    Lines: TPlacedLineArray;
+    // The marks apart by line type, for machines; see the design document.
+    // Cut lines inside the piece are slits, cut with the cutting line.
+    MarkLines, ScoreLines, SlitLines: TLine2Array;
     Holes: TPlacedHoleArray;
     LabelAt: TVec2;
     Bounds: TRect2;
@@ -1242,19 +1253,52 @@ var
     AddTo(Result.MarkLines, Stroke);
   end;
 
+  procedure AddLine(Role: TEdgeRole; const Points: TVec2Array);
+  begin
+    SetLength(Result.Lines, Length(Result.Lines) + 1);
+    Result.Lines[High(Result.Lines)].Role := Role;
+    Result.Lines[High(Result.Lines)].Points := MovedAll(Points);
+  end;
+
+  // On both halves of an opened piece, unless it runs along the fold
+  procedure AddWholeLine(Role: TEdgeRole; const Points: TVec2Array);
+  var
+    Index: integer;
+    Mirrored: TVec2Array;
+    OnFold: boolean;
+  begin
+    AddLine(Role, Points);
+    if not Mirroring then
+      Exit;
+    OnFold := True;
+    Mirrored := nil;
+    SetLength(Mirrored, Length(Points));
+    for Index := 0 to High(Points) do
+    begin
+      Mirrored[Index] := Mirror(Points[Index]);
+      OnFold := OnFold and OnTheFold(Points[Index]);
+    end;
+    if not OnFold then
+      AddLine(Role, Mirrored);
+  end;
+
   procedure AddMarkingTypes(const Marking: TMarkingMark);
   var
     Index: integer;
     Stroke: TLine2;
     Hole: TVec2;
   begin
+    if Length(Marking.Line) > 1 then
+      AddWholeLine(Marking.Role, Marking.Line);
     for Index := 1 to High(Marking.Line) do
     begin
       Stroke := Line2(Marking.Line[Index - 1], Marking.Line[Index]);
-      if Marking.Kind = mkFoldLine then
-        AddTo(Result.ScoreLines, Stroke)
-      else
-        AddTo(Result.MarkLines, Stroke);
+      case Marking.Role of
+        erFold: AddTo(Result.ScoreLines, Stroke);
+        erCut: AddTo(Result.SlitLines, Stroke);
+        else
+          AddTo(Result.MarkLines, Stroke);
+      end;
     end;
     for Hole in Marking.Holes do
     begin

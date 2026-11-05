@@ -275,8 +275,9 @@ begin
     if Fold then
       AssertTrue(Pattern.LastError, Pattern.SetFoldEdge(Piece, Piece.Path[0].EdgeKey));
     AssertTrue(Pattern.LastError, Pattern.AddHoleMarking(Piece, Pt('30', '-40'), '4'));
-    AssertTrue(Pattern.LastError, Pattern.AddLineMarking(Piece, mkPlacement, Pattern.AddLine(Pt('20', '-60'), Pt('80', '-60')).Key));
-    AssertTrue(Pattern.LastError, Pattern.AddLineMarking(Piece, mkFoldLine, Pattern.AddLine(Pt('50', '0'), Pt('50', '-100')).Key));
+    Pattern.AddLine(Pt('20', '-60'), Pt('80', '-60'), erPlacement);
+    Pattern.AddLine(Pt('50', '0'), Pt('50', '-100'), erFold);
+    Pattern.Evaluate;
     AssertTrue(Pattern.LastError, Pattern.AddStitchMarking(Piece, Pattern.AddLine(Pt('20', '-80'), Pt('60', '-80')).Key, '10', '1'));
     Pattern.Evaluate;
     AssertTrue(Reason, SavePatternToFile(Pattern, ConcatPaths([FFolder, AFile]), Reason));
@@ -553,11 +554,19 @@ const
   StrokesPerHole = 16;
 var
   Shape: TPlacedPiece;
+  Line: TPlacedLine;
+  LineStrokes: integer;
 begin
   AddMarkedPattern('a.sloper');
   FLayout.PlaceNewPieces;
   Shape := FLayout.PlacedPieces[0];
-  AssertEquals(Length(Shape.MarkLines) + Length(Shape.ScoreLines) + StrokesPerHole * Length(Shape.Holes), Length(Shape.Marks));
+  // Marking lines go whole, to be drawn in their role's style
+  LineStrokes := 0;
+  for Line in Shape.Lines do
+    Inc(LineStrokes, Length(Line.Points) - 1);
+  AssertEquals('both lines', 2, Length(Shape.Lines));
+  AssertEquals(Length(Shape.MarkLines) + Length(Shape.ScoreLines) + Length(Shape.SlitLines) + StrokesPerHole * Length(Shape.Holes),
+    Length(Shape.Marks) + LineStrokes);
 end;
 
 procedure TTestLayoutExports.TestFoldStaysHalfOnPaper;
