@@ -21,6 +21,10 @@
 // the design gives the drafting app: changing a value or description and adding
 // a key. Everything else belongs to the measurements app. These edits go
 // straight to the file, so they are not undo steps.
+
+// The Test size slider tries the pattern a size up or down: every measurement
+// is scaled by up to 20% either way, 1% a step. Nothing is saved; the values
+// shown are the scaled ones, and editing waits until the slider is back at 0%.
 unit Sloper.UI.MeasurementsPanel;
 
 {$mode ObjFPC}{$H+}
@@ -28,7 +32,7 @@ unit Sloper.UI.MeasurementsPanel;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, StdCtrls, ExtCtrls, LCLType, Sloper.UI.ListPanel;
+  Classes, SysUtils, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, LCLType, Sloper.UI.ListPanel;
 
 type
   TMeasurementsPanel = class(TListPanel)
@@ -39,6 +43,11 @@ type
     FSaveButton: TButton;
     FSizeBar: TPanel;
     FSizeBox: TComboBox;
+    FTestLabel: TLabel;
+    FTestSlider: TTrackBar;
+    FTestReset: TButton;
+    // While the slider is being set from the document
+    FShowingTest: boolean;
     FOnOpenSet: TNotifyEvent;
     FOnNewSet: TNotifyEvent;
     FOnEditSet: TNotifyEvent;
@@ -47,6 +56,10 @@ type
     procedure UpdateFileLabel;
     procedure UpdateSizes;
     procedure SizeChange(Sender: TObject);
+    procedure BuildTestBar;
+    procedure UpdateTest;
+    procedure TestChange(Sender: TObject);
+    procedure TestResetClick(Sender: TObject);
     procedure EditClick(Sender: TObject);
     procedure ShowEditors;
     procedure Save;
@@ -81,6 +94,11 @@ resourcestring
   rsMeasurementsDescription = 'Description';
   rsMeasurementsMissing = 'Missing';
   rsMeasurementsBadValue = 'The value must be a number, such as 820 or 41.5';
+  rsMeasurementsTest = 'Test size: %s';
+  rsMeasurementsTestOff = '0%';
+  rsMeasurementsTestOn = '%s%%, editing paused';
+  rsMeasurementsTestReset = '&Reset';
+  rsMeasurementsTestHint = 'Tries the pattern with every measurement larger or smaller, 1% a step. Nothing is saved.';
 
 implementation
 
@@ -89,6 +107,9 @@ uses
 
 const
   MaxValue = 1e12;
+  // Test size steps, in percent either way
+  MaxTestPercent = 20;
+  TestTickPercent = 5;
 
 function ParseValue(const Text: string; out Value: double): boolean;
 var
@@ -155,6 +176,8 @@ begin
   Buttons.AutoSize := True;
   AddButton(Buttons, rsMeasurementsAdd, @AddClick);
   FSaveButton := AddButton(Buttons, rsMeasurementsSave, @SaveClick);
+  // After the editors, which it disables while testing
+  BuildTestBar;
   SetColumns([rsMeasurementsKey, rsMeasurementsValue, rsMeasurementsDescription], [120, 100, 240]);
 end;
 
@@ -223,6 +246,83 @@ begin
     Document.SelectMeasurementSize(FSizeBox.Items[FSizeBox.ItemIndex]);
 end;
 
+// Under the size, the label above the slider and its Reset button
+procedure TMeasurementsPanel.BuildTestBar;
+var
+  TestBar, Row: TPanel;
+begin
+  TestBar := TPanel.Create(Self);
+  TestBar.Parent := FHeader;
+  TestBar.Align := alTop;
+  TestBar.Top := 10000;
+  TestBar.BevelOuter := bvNone;
+  TestBar.AutoSize := True;
+  TestBar.Hint := rsMeasurementsTestHint;
+  TestBar.ShowHint := True;
+  Row := TPanel.Create(Self);
+  Row.Parent := TestBar;
+  Row.Align := alTop;
+  Row.BevelOuter := bvNone;
+  Row.AutoSize := True;
+  FTestReset := AddButton(Row, rsMeasurementsTestReset, @TestResetClick);
+  FTestReset.Align := alRight;
+  FTestLabel := TLabel.Create(Self);
+  FTestLabel.Parent := Row;
+  FTestLabel.Align := alClient;
+  FTestLabel.Layout := tlCenter;
+  FTestSlider := TTrackBar.Create(Self);
+  FTestSlider.Parent := TestBar;
+  FTestSlider.Align := alTop;
+  FTestSlider.Top := 10000;
+  FTestSlider.Min := -MaxTestPercent;
+  FTestSlider.Max := MaxTestPercent;
+  FTestSlider.Frequency := TestTickPercent;
+  FTestSlider.LineSize := 1;
+  FTestSlider.PageSize := TestTickPercent;
+  FTestSlider.Position := 0;
+  FTestSlider.OnChange := @TestChange;
+  UpdateTest;
+end;
+
+// From the document, which goes back to 0% when another pattern opens
+procedure TMeasurementsPanel.UpdateTest;
+var
+  Percent: integer;
+  Testing: boolean;
+begin
+  Percent := 0;
+  if Assigned(Document) then
+    Percent := Round((Document.MeasurementScale - 1) * 100);
+  Testing := Percent <> 0;
+  FShowingTest := True;
+  try
+    FTestSlider.Position := Percent;
+  finally
+    FShowingTest := False;
+  end;
+  // Format has no + flag, so larger sizes get their sign here
+  if Percent > 0 then
+    FTestLabel.Caption := Format(rsMeasurementsTest, [Format(rsMeasurementsTestOn, ['+' + IntToStr(Percent)])])
+  else if Testing then
+    FTestLabel.Caption := Format(rsMeasurementsTest, [Format(rsMeasurementsTestOn, [IntToStr(Percent)])])
+  else
+    FTestLabel.Caption := Format(rsMeasurementsTest, [rsMeasurementsTestOff]);
+  FTestReset.Enabled := Testing;
+  FEditors.Enabled := not Testing;
+end;
+
+procedure TMeasurementsPanel.TestChange(Sender: TObject);
+begin
+  if FShowingTest or not Assigned(Document) then
+    Exit;
+  Document.SetMeasurementScale(1 + FTestSlider.Position / 100);
+end;
+
+procedure TMeasurementsPanel.TestResetClick(Sender: TObject);
+begin
+  FTestSlider.Position := 0;
+end;
+
 procedure TMeasurementsPanel.EditClick(Sender: TObject);
 begin
   if Assigned(FOnEditSet) then
@@ -237,6 +337,7 @@ begin
   Result := nil;
   UpdateFileLabel;
   UpdateSizes;
+  UpdateTest;
   Rows := MeasurementRows(Document.Pattern, Document.Measurements, SearchText);
   SetLength(Result, Length(Rows));
   for Index := 0 to High(Rows) do

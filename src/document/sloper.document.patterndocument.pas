@@ -104,6 +104,7 @@ type
     FUndoLimit: integer;
     FMergeSeconds: double;
     function GetModified: boolean;
+    function GetMeasurementScale: double;
     function GetCanUndo: boolean;
     function GetCanRedo: boolean;
     function GetUndoDescription: string;
@@ -142,6 +143,10 @@ type
     // Uses this size of a size table and re-evaluates; False when it is not in
     // the set. Not an undo step, and not saved: a set starts on its first size.
     function SelectMeasurementSize(const Size: string): boolean;
+    // Multiplies every measurement the pattern reads by Factor, to try it a
+    // size up or down, and re-evaluates. Not an undo step, not a modification
+    // and not saved; New and Open go back to 1. False for a Factor not above 0.
+    function SetMeasurementScale(Factor: double): boolean;
     // Call regularly: reads the set again and re-evaluates once a change made
     // elsewhere has stopped changing, keeping the size. True when it did.
     function CheckMeasurementFile: boolean;
@@ -179,6 +184,7 @@ type
     property MeasurementPath: string read FMeasurementPath;
     // Why the pattern's measurement file could not be loaded, or ''
     property MeasurementError: string read FMeasurementError;
+    property MeasurementScale: double read GetMeasurementScale;
     // Full path, or '' for a pattern not saved yet
     property FileName: string read FFileName;
     property Modified: boolean read GetModified;
@@ -411,12 +417,13 @@ procedure TPatternDocument.NewPattern;
 begin
   RequireNoChange;
   FPattern.Clear;
+  FPattern.MeasurementScale := 1;
   ClearHistory;
   FFileName := '';
   FMeasurementsChanged := False;
   FPattern.MeasurementFile := MeasurementFileFor(FFileName);
   FPattern.Evaluate;
-  Notify([dcPattern, dcObjectsReplaced, dcHistory, dcFile]);
+  Notify([dcPattern, dcObjectsReplaced, dcMeasurements, dcHistory, dcFile]);
 end;
 
 function TPatternDocument.LoadFromFile(const FileName: string; out ErrorMessage: string): boolean;
@@ -514,6 +521,25 @@ begin
   FPattern.Evaluate;
   Notify([dcPattern, dcMeasurements]);
   Result := True;
+end;
+
+function TPatternDocument.GetMeasurementScale: double;
+begin
+  Result := FPattern.MeasurementScale;
+end;
+
+function TPatternDocument.SetMeasurementScale(Factor: double): boolean;
+begin
+  RequireNoChange;
+  if Factor <= 0 then
+    Exit(False);
+  Result := True;
+  // Only an actual change re-evaluates, so this is not a tolerance compare
+  if Factor = FPattern.MeasurementScale then
+    Exit;
+  FPattern.MeasurementScale := Factor;
+  FPattern.Evaluate;
+  Notify([dcPattern, dcMeasurements]);
 end;
 
 function TPatternDocument.SelectMeasurementSize(const Size: string): boolean;

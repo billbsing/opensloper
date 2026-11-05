@@ -48,6 +48,8 @@ Decided 2026-11-04 (see Pattern units in the design document; not started):
 On the measurement panel, have a 'test' slider, that the user can slide left or right. When slide left all of the measurements are decreased by 1%, up to 20%, and the opposite for right move +1% per step up to 20%. If the sizes change the design changes size if the measurements are being used, and the measurement fields are disabled. 
 The fields are re-enabled only when the test slider is moved back to the center.
 
+Done 2026-11-05 (see Test size in the design document): in the Measurements tab, with a Reset button; not saved, not an undo step, back to 0% on New and Open.
+
 #### Design Canvas Ruler
 Show a ruler Top and Left of the canvas in the current units, with the cursor as a line on the rulers. Similar to Inkscape. Show the units on the ruler, in a prominant color, if there is space.
 

@@ -83,6 +83,14 @@ type
     procedure TestChangeMeasurementFixesMissingKey;
     procedure TestChangeMeasurementNeedsAFile;
     procedure TestNewPattern;
+    procedure TestMeasurementScaleScalesValues;
+    procedure TestMeasurementScaleIsNotAChange;
+    procedure TestMeasurementScaleIsNotSaved;
+    procedure TestMeasurementScaleSurvivesUndo;
+    procedure TestMeasurementScaleNotifies;
+    procedure TestMeasurementScaleRefusesNonPositive;
+    procedure TestNewPatternResetsMeasurementScale;
+    procedure TestOpeningResetsMeasurementScale;
   end;
 
 implementation
@@ -725,6 +733,105 @@ begin
   FDocument.Undo;
   AssertNull(FDocument.Pattern.FindObject('A'));
   AssertTrue('still modified: the set changed', FDocument.Modified);
+end;
+
+// A waist of 720 with A at waist / 4, so A is at 180 unscaled
+procedure TTestDocument.TestMeasurementScaleScalesValues;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  AddPoint('A', '@waist / 4');
+  AssertNear('unscaled', 180, PointX('A'));
+  AssertTrue(FDocument.SetMeasurementScale(1.1));
+  AssertNear('scale', 1.1, FDocument.MeasurementScale);
+  AssertNear('10% larger', 198, PointX('A'));
+  AssertNear('the set is untouched', 720, FDocument.Measurements.Find('waist').Value);
+  AssertTrue(FDocument.SetMeasurementScale(0.8));
+  AssertNear('20% smaller', 144, PointX('A'));
+  AssertTrue(FDocument.SetMeasurementScale(1));
+  AssertNear('back', 180, PointX('A'));
+end;
+
+procedure TTestDocument.TestMeasurementScaleIsNotAChange;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  AddPoint('A', '@waist / 4');
+  AssertTrue(Err, FDocument.SaveToFile(ConcatPaths([FFolder, 'test.sloper']), Err));
+  FDocument.SetMeasurementScale(1.2);
+  AssertFalse('not modified', FDocument.Modified);
+  AssertEquals('no undo step', 'Add point', FDocument.UndoDescription);
+end;
+
+procedure TTestDocument.TestMeasurementScaleIsNotSaved;
+var
+  Err, FileName: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  AddPoint('A', '@waist / 4');
+  FDocument.SetMeasurementScale(1.2);
+  FileName := ConcatPaths([FFolder, 'test.sloper']);
+  AssertTrue(Err, FDocument.SaveToFile(FileName, Err));
+  AssertTrue(Err, FDocument.LoadFromFile(FileName, Err));
+  AssertNear('opens unscaled', 1, FDocument.MeasurementScale);
+  AssertNear('unscaled', 180, PointX('A'));
+end;
+
+procedure TTestDocument.TestMeasurementScaleSurvivesUndo;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  AddPoint('A', '@waist / 4');
+  FDocument.SetMeasurementScale(1.1);
+  AddPoint('B', '1');
+  FDocument.Undo;
+  AssertNear('scale kept', 1.1, FDocument.MeasurementScale);
+  AssertNear('still scaled', 198, PointX('A'));
+  FDocument.Redo;
+  AssertNear('still scaled after redo', 198, PointX('A'));
+end;
+
+procedure TTestDocument.TestMeasurementScaleNotifies;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FDocument.UseMeasurements(WriteSet('bill.slm', 720), Err));
+  FChanges := nil;
+  FDocument.AddListener(@Listen);
+  FDocument.SetMeasurementScale(1.05);
+  AssertEquals('one notification', 1, Length(FChanges));
+  AssertTrue('measurements', dcMeasurements in FChanges[0]);
+  AssertTrue('pattern', dcPattern in FChanges[0]);
+  FDocument.SetMeasurementScale(1.05);
+  AssertEquals('no change, no notification', 1, Length(FChanges));
+end;
+
+procedure TTestDocument.TestMeasurementScaleRefusesNonPositive;
+begin
+  AssertFalse(FDocument.SetMeasurementScale(0));
+  AssertFalse(FDocument.SetMeasurementScale(-1));
+  AssertNear('unchanged', 1, FDocument.MeasurementScale);
+end;
+
+procedure TTestDocument.TestNewPatternResetsMeasurementScale;
+begin
+  FDocument.SetMeasurementScale(1.2);
+  FDocument.NewPattern;
+  AssertNear('reset', 1, FDocument.MeasurementScale);
+end;
+
+procedure TTestDocument.TestOpeningResetsMeasurementScale;
+var
+  Err, FileName: string;
+begin
+  FileName := ConcatPaths([FFolder, 'test.sloper']);
+  AssertTrue(Err, FDocument.SaveToFile(FileName, Err));
+  FDocument.SetMeasurementScale(0.9);
+  AssertTrue(Err, FDocument.LoadFromFile(FileName, Err));
+  AssertNear('reset', 1, FDocument.MeasurementScale);
 end;
 
 procedure TTestDocument.TestNewPattern;

@@ -180,6 +180,8 @@ uses
 
 const
   VariableDecimals = 4;
+  // A scaled measurement is shown to a hundredth
+  ScaledFormat = '0.##';
 
 function FieldCaption(const FieldName: string): string;
 var
@@ -484,6 +486,19 @@ var
   Index, Count: integer;
   Key: string;
 
+// As the pattern reads it while it is being tried a size up or down
+  function ScaledText(Value: double): string;
+  var
+    Formats: TFormatSettings;
+  begin
+    // Exactly 1 is the slider at its centre, so this is not a tolerance compare
+    if Pattern.MeasurementScale = 1 then
+      Exit(FormatJSONFloat(Value));
+    Formats := DefaultFormatSettings;
+    Formats.DecimalSeparator := '.';
+    Result := FormatFloat(ScaledFormat, Value * Pattern.MeasurementScale, Formats);
+  end;
+
   procedure Add(const AKey, Value, Description: string; Missing: boolean);
   begin
     if (LowerSearch <> '') and (Pos(LowerSearch, LowerCase(AKey)) = 0) and (Pos(LowerSearch, LowerCase(Description)) = 0) then
@@ -503,7 +518,7 @@ begin
   if Assigned(MeasurementSet) then
     for Index := 0 to MeasurementSet.Count - 1 do
       if MeasurementSet[Index].HasValue then
-        Add(MeasurementSet[Index].Key, FormatJSONFloat(MeasurementSet[Index].Value), MeasurementSet[Index].Description, False)
+        Add(MeasurementSet[Index].Key, ScaledText(MeasurementSet[Index].Value), MeasurementSet[Index].Description, False)
       else
         Add(MeasurementSet[Index].Key, '', MeasurementSet[Index].Description, False);
   for Key in PatternMeasurementKeys(Pattern) do

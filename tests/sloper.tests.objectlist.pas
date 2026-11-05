@@ -52,6 +52,7 @@ type
     procedure TestFailingVariableHasNoValue;
     procedure TestNewVariableName;
     procedure TestMeasurementRows;
+    procedure TestMeasurementRowsAreScaled;
     procedure TestMeasurementSearch;
     procedure TestMissingMeasurements;
     procedure TestNoMeasurementSet;
@@ -265,6 +266,24 @@ begin
     AssertEquals('720.5', Rows[0].Value);
     AssertEquals('Round the waist', Rows[0].Description);
     AssertFalse('in the set', Rows[0].Missing);
+  finally
+    FreeAndNil(MeasurementSet);
+  end;
+end;
+
+procedure TTestObjectList.TestMeasurementRowsAreScaled;
+var
+  MeasurementSet: TMeasurementSet;
+  Rows: TMeasurementRowArray;
+begin
+  MeasurementSet := TMeasurementSet.Create;
+  try
+    MeasurementSet.Add('waist', 720.5);
+    MeasurementSet.Add('hip', 960);
+    FPattern.MeasurementScale := 1.1;
+    Rows := MeasurementRows(FPattern, MeasurementSet, '');
+    AssertEquals('to a hundredth', '792.55', Rows[0].Value);
+    AssertEquals('1056', Rows[1].Value);
   finally
     FreeAndNil(MeasurementSet);
   end;

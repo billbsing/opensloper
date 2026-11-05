@@ -65,6 +65,7 @@ type
   TPattern = class
   private
     FMeasurements: TMeasurementSet;
+    FMeasurementScale: double;
     FMeasurementNodes: TMeasurementNodeList;
     FVariables: TVariableList;
     FObjects: TDraftObjectList;
@@ -334,6 +335,10 @@ type
 
     // Not owned. Can be nil or swapped for another person's set.
     property Measurements: TMeasurementSet read FMeasurements write FMeasurements;
+    // Every measurement value is multiplied by this as the pattern reads it,
+    // to try the pattern a size up or down. 1 by default; like Measurements,
+    // not part of the pattern, so it is never saved and Clear keeps it.
+    property MeasurementScale: double read FMeasurementScale write FMeasurementScale;
     property Resolver: TNameResolver read FResolver;
     property Evaluator: TEvaluator read FEvaluator;
     property VariableCount: integer read GetVariableCount;
@@ -542,6 +547,8 @@ function TPatternContext.MeasurementValue(const Key: string; out Value: double):
 begin
   Value := 0;
   Result := Assigned(FPattern.Measurements) and FPattern.Measurements.TryGetValue(Key, Value);
+  if Result then
+    Value := Value * FPattern.MeasurementScale;
 end;
 
 function TPatternContext.MeasurementProblem(const Key: string): string;
@@ -587,6 +594,7 @@ begin
   FVariableResolver := TPatternResolver.Create(Self, False);
   FContext := TPatternContext.Create(Self);
   FFabrics := TPatternFabricList.Create;
+  FMeasurementScale := 1;
   Clear;
 end;
 
