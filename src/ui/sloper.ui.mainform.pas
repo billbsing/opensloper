@@ -28,7 +28,7 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams,
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.RecentMenu,
   Sloper.UI.FabricsPanel, Sloper.UI.IconSet, Sloper.Core.Transform;
 
 type
@@ -87,6 +87,7 @@ type
   private
     FDocument: TPatternDocument;
     FSettings: TAppSettings;
+    FRecent: TRecentMenu;
     FActions: TActionList;
     // The same icons at toolbar and menu sizes, in TAppIcon order, and greyed
     // for disabled buttons: a grey copy of a black icon is still black
@@ -162,6 +163,7 @@ type
     // True when there are no unsaved changes, or the user saved or discarded them
     function ConfirmDiscard: boolean;
     procedure OpenFile(const FileName: string);
+    procedure RecentOpen(Sender: TObject; const FileName: string);
     function Save: boolean;
     function SaveAs: boolean;
     procedure UpdateTitle;
@@ -178,7 +180,7 @@ uses
   Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.Draft, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
   Sloper.Core.AppPaths, Sloper.Core.Measurements,
-  Sloper.Core.PatternCheck, Sloper.Output.Layout;
+  Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
 
   {$R *.lfm}
 
@@ -303,6 +305,7 @@ begin
   FDocument := TPatternDocument.Create;
   CreateToolBars;
   CreateCommands;
+  FRecent := TRecentMenu.Create(Self, MenuFile, MenuFileOpen, rlPatterns, @RecentOpen);
   CreateSidePanel;
   CreateViewCommands;
   CreateToolCommands;
@@ -1068,6 +1071,7 @@ begin
     MessageDlg(Format(rsOpenFailed, [FileName, Err]), mtError, [mbOK], 0);
     Exit;
   end;
+  FRecent.Remember(FileName);
   FCanvas.SelectNone;
   FCanvas.RestoreView;
   if FDocument.MeasurementError <> '' then
@@ -1081,7 +1085,9 @@ begin
   if FDocument.FileName = '' then
     Exit(SaveAs);
   Result := FDocument.SaveToFile(FDocument.FileName, Err);
-  if not Result then
+  if Result then
+    FRecent.Remember(FDocument.FileName)
+  else
     MessageDlg(Format(rsSaveFailed, [FDocument.FileName, Err]), mtError, [mbOK], 0);
 end;
 
@@ -1093,7 +1099,9 @@ begin
   if not SaveDialog.Execute then
     Exit(False);
   Result := FDocument.SaveToFile(SaveDialog.FileName, Err);
-  if not Result then
+  if Result then
+    FRecent.Remember(SaveDialog.FileName)
+  else
     MessageDlg(Format(rsSaveFailed, [SaveDialog.FileName, Err]), mtError, [mbOK], 0);
 end;
 
@@ -1110,6 +1118,12 @@ procedure TMainForm.MenuFileOpenClick(Sender: TObject);
 begin
   if ConfirmDiscard and OpenDialog.Execute then
     OpenFile(OpenDialog.FileName);
+end;
+
+procedure TMainForm.RecentOpen(Sender: TObject; const FileName: string);
+begin
+  if ConfirmDiscard then
+    OpenFile(FileName);
 end;
 
 procedure TMainForm.MenuFileSaveClick(Sender: TObject);

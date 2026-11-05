@@ -33,6 +33,7 @@ type
     procedure TestXdgRelativeValueIsIgnored;
     procedure TestFoldersEndWithAppName;
     procedure TestSettingsFileIsInConfigDir;
+    procedure TestRecentFilesFileIsInStateDir;
   end;
 
 implementation
@@ -72,6 +73,11 @@ end;
 procedure TTestAppPaths.TestSettingsFileIsInConfigDir;
 begin
   AssertEquals(ConcatPaths([TAppPaths.ConfigDir, 'settings.json']), TAppPaths.SettingsFile);
+end;
+
+procedure TTestAppPaths.TestRecentFilesFileIsInStateDir;
+begin
+  AssertEquals(ConcatPaths([TAppPaths.StateDir, 'recent-files.json']), TAppPaths.RecentFilesFile);
 end;
 
 initialization

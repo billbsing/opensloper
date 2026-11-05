@@ -26,8 +26,8 @@ unit Sloper.Publish.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, Sloper.Output.Layout, Sloper.Output.LayoutDocument,
-  Sloper.Publish.PreviewCanvas;
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Output.Layout, Sloper.Output.LayoutDocument,
+  Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.UI.RecentMenu;
 
 type
   TPublishForm = class(TForm)
@@ -58,7 +58,9 @@ type
     // What each tray line stands for
     FTrayCopies: TUnplacedCopyArray;
     FTurnButton, FFlipButton, FRemoveButton, FPackButton: TButton;
-    FUndoItem, FRedoItem: TMenuItem;
+    FCommands: TCommandSet;
+    FUndoAction, FRedoAction: TAction;
+    FRecent: TRecentMenu;
     FWatch: TTimer;
     FRefreshing: boolean;
     // Rows stack in the order their Top says, so each takes the next one
@@ -119,6 +121,8 @@ type
     procedure CloseAsked(Sender: TObject; var CanClose: boolean);
     function ConfirmDiscard: boolean;
     procedure OpenPath(const Path: string);
+    procedure RecentOpen(Sender: TObject; const FileName: string);
+    procedure SaveLayout(const FileName: string);
     procedure ShowStatus(const AText: string);
   public
     constructor Create(AOwner: TComponent); override;
@@ -251,7 +255,7 @@ resourcestring
 implementation
 
 uses
-  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.Settings, Sloper.Output.LayoutExport,
+  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.RecentFiles, Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.Output.LayoutExport,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
@@ -354,35 +358,54 @@ var
     Bar.Items.Add(Result);
   end;
 
-  function AddItem(Parent: TMenuItem; const ACaption: string; AHandler: TNotifyEvent; AShortCut: TShortCut = 0): TMenuItem;
-  begin
-    Result := TMenuItem.Create(Parent);
-    Result.Caption := ACaption;
-    Result.OnClick := AHandler;
-    Result.ShortCut := AShortCut;
-    Parent.Add(Result);
-  end;
-
 var
-  Group: TMenuItem;
+  Group, OpenItem: TMenuItem;
+  OpenAction, SaveAction, FitAction, ReloadAction: TAction;
+  ExportActions: array[TExportFormat] of TAction;
+  ExportFormat: TExportFormat;
 begin
   Bar := TMainMenu.Create(Self);
   Menu := Bar;
+  FCommands := TCommandSet.Create(Self, Bar);
+  OpenAction := FCommands.NewAction(rsMenuOpen, aiOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
+  SaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
+  ExportActions[efPDF] := FCommands.NewAction(rsMenuExport, aiExportPDF, @ExportClick, ShortCut(VK_E, [ssModifier]), Ord(efPDF));
+  ExportActions[efSVG] := FCommands.NewAction(rsMenuExportSVG, aiExportSVG, @ExportClick, 0, Ord(efSVG));
+  ExportActions[efDXF] := FCommands.NewAction(rsMenuExportDXF, aiExportDXF, @ExportClick, 0, Ord(efDXF));
+  ExportActions[efMachineDXF] := FCommands.NewAction(rsMenuExportMachineDXF, aiExportMachineDXF, @ExportClick, 0, Ord(efMachineDXF));
+  FUndoAction := FCommands.NewAction(rsMenuUndo, aiUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
+  FRedoAction := FCommands.NewAction(rsMenuRedo, aiRedo, @RedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
+  FitAction := FCommands.NewAction(rsMenuFit, aiFit, @FitClick, ShortCut(VK_0, [ssModifier]));
+  ReloadAction := FCommands.NewAction(rsMenuReload, aiReload, @ReloadClick, ShortCut(VK_R, [ssModifier]));
+
   Group := AddMenu(rsMenuFile);
-  AddItem(Group, rsMenuOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
-  AddItem(Group, rsMenuSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
-  AddItem(Group, rsMenuSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
-  AddItem(Group, rsMenuExport, @ExportClick, ShortCut(VK_E, [ssModifier])).Tag := Ord(efPDF);
-  AddItem(Group, rsMenuExportSVG, @ExportClick).Tag := Ord(efSVG);
-  AddItem(Group, rsMenuExportDXF, @ExportClick).Tag := Ord(efDXF);
-  AddItem(Group, rsMenuExportMachineDXF, @ExportClick).Tag := Ord(efMachineDXF);
-  AddItem(Group, rsMenuQuit, @QuitClick, ShortCut(VK_Q, [ssModifier]));
+  OpenItem := FCommands.AddMenuItem(Group, OpenAction);
+  FRecent := TRecentMenu.Create(Self, Group, OpenItem, rlLayouts, @RecentOpen);
+  FCommands.AddMenuItem(Group, SaveAction);
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift])));
+  Group.AddSeparator;
+  for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
+    FCommands.AddMenuItem(Group, ExportActions[ExportFormat]);
+  Group.AddSeparator;
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuQuit, aiQuit, @QuitClick, ShortCut(VK_Q, [ssModifier])));
   Group := AddMenu(rsMenuEdit);
-  FUndoItem := AddItem(Group, rsMenuUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
-  FRedoItem := AddItem(Group, rsMenuRedo, @RedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
+  FCommands.AddMenuItem(Group, FUndoAction);
+  FCommands.AddMenuItem(Group, FRedoAction);
   Group := AddMenu(rsMenuView);
-  AddItem(Group, rsMenuFit, @FitClick, ShortCut(VK_0, [ssModifier]));
-  AddItem(Group, rsMenuReload, @ReloadClick, ShortCut(VK_R, [ssModifier]));
+  FCommands.AddMenuItem(Group, FitAction);
+  FCommands.AddMenuItem(Group, ReloadAction);
+
+  FCommands.AddButton(OpenAction);
+  FCommands.AddButton(SaveAction);
+  FCommands.AddDivider;
+  FCommands.AddButton(FUndoAction);
+  FCommands.AddButton(FRedoAction);
+  FCommands.AddDivider;
+  FCommands.AddButton(FitAction);
+  FCommands.AddButton(ReloadAction);
+  FCommands.AddDivider;
+  for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
+    FCommands.AddButton(ExportActions[ExportFormat]);
 end;
 
 // For a tab with more rows than a small window has room for
@@ -1012,12 +1035,13 @@ begin
   FFlipButton.Enabled := FPreview.Selected >= 0;
   FRemoveButton.Enabled := FPreview.Selected >= 0;
   FPackButton.Enabled := FDocument.Layout.Output.Kind <> okProjector;
-  FUndoItem.Enabled := FDocument.CanUndo;
+  FUndoAction.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
-    FUndoItem.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
+    FUndoAction.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
   else
-    FUndoItem.Caption := rsMenuUndo;
-  FRedoItem.Enabled := FDocument.CanRedo;
+    FUndoAction.Caption := rsMenuUndo;
+  SetActionHint(FUndoAction);
+  FRedoAction.Enabled := FDocument.CanRedo;
   if Layout.FileName <> '' then
     Caption := Format(rsPublishTitleFile, [ExtractFileName(Layout.FileName), ModifiedMark[FDocument.Modified]])
   else
@@ -1110,15 +1134,34 @@ procedure TPublishForm.OpenPath(const Path: string);
 var
   Reason: string;
 begin
+  // A pattern starts a new layout, which is remembered once it is saved
   if ExtractFileExt(Path) = PatternExtension then
     FDocument.NewForPattern(Path)
-  else if not FDocument.Open(Path, Reason) then
+  else if FDocument.Open(Path, Reason) then
+    FRecent.Remember(Path)
+  else
   begin
     ShowStatus(Reason);
     Exit;
   end;
   FPreview.Selected := -1;
   FPreview.ZoomToFit;
+end;
+
+procedure TPublishForm.RecentOpen(Sender: TObject; const FileName: string);
+begin
+  if ConfirmDiscard then
+    OpenPath(FileName);
+end;
+
+procedure TPublishForm.SaveLayout(const FileName: string);
+var
+  Reason: string;
+begin
+  if FDocument.Save(FileName, Reason) then
+    FRecent.Remember(FileName)
+  else
+    ShowStatus(Reason);
 end;
 
 function TPublishForm.ConfirmDiscard: boolean;
@@ -1148,27 +1191,24 @@ begin
 end;
 
 procedure TPublishForm.SaveClick(Sender: TObject);
-var
-  Reason: string;
 begin
   if FDocument.Layout.FileName = '' then
     SaveAsClick(Sender)
-  else if not FDocument.Save(FDocument.Layout.FileName, Reason) then
-    ShowStatus(Reason);
+  else
+    SaveLayout(FDocument.Layout.FileName);
 end;
 
 procedure TPublishForm.SaveAsClick(Sender: TObject);
 var
   Dialog: TSaveDialog;
-  Reason: string;
 begin
   Dialog := TSaveDialog.Create(Self);
   try
     Dialog.Filter := rsFilterLayout;
     Dialog.DefaultExt := LayoutExtension;
     Dialog.FileName := FDocument.Layout.FileName;
-    if Dialog.Execute and not FDocument.Save(Dialog.FileName, Reason) then
-      ShowStatus(Reason);
+    if Dialog.Execute then
+      SaveLayout(Dialog.FileName);
   finally
     FreeAndNil(Dialog);
   end;

@@ -33,6 +33,8 @@ type
     class function CacheDir: string;
     class function DefaultDocumentsDir: string;
     class function SettingsFile: string;
+    // File → Open Recent's lists, which are state rather than settings
+    class function RecentFilesFile: string;
     // True when portable.ini sits beside the executable
     class function IsPortable: boolean;
     // The publish app beside this program, or in publish/ below it as in a
@@ -63,6 +65,7 @@ uses
 const
   PortableFileName = 'portable.ini';
   SettingsFileName = 'settings.json';
+  RecentFilesFileName = 'recent-files.json';
   PublishFolder = 'publish';
   MeasurementsFolder = 'measurements';
   DataFolder = 'data';
@@ -177,6 +180,11 @@ end;
 class function TAppPaths.SettingsFile: string;
 begin
   Result := ConcatPaths([ConfigDir, SettingsFileName]);
+end;
+
+class function TAppPaths.RecentFilesFile: string;
+begin
+  Result := ConcatPaths([StateDir, RecentFilesFileName]);
 end;
 
 // Beside this program when installed, in its own folder in the source tree

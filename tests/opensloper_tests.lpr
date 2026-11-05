@@ -50,6 +50,7 @@ uses
   Sloper.Tests.API,
   Sloper.Tests.DraftSVG,
   Sloper.Tests.Settings,
+  Sloper.Tests.RecentFiles,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper,
   Sloper.Tests.Piece,

@@ -24,6 +24,8 @@ These could not be tested properly during development.
 Remove web folder in documents, the sync process to web cluade is too much. Remove sync process, and later when we publish this repo, claude web can read directly.
 I have already removed skills in .claude/... 
 
+Done 2026-11-05: `documents/web` removed, and its mention in `CLAUDE.md`.
+
 #### Tool Merge Points
 This is simalar to inkscape join nodes, the user selects 2 or more points, then clicks on the tool.
 The new point name will take the lowest default name , or the first name that has been changed by the user.
@@ -80,9 +82,13 @@ Show a ruler Top and Left of the canvas in the current units, with the cursor as
 Add Menus and toolbar to ActionList.
 Need to change to toolbar and icons.
 
+Done 2026-11-05: the measurements app's menus run on actions (`Sloper.UI.Commands`), with a command bar of Tabler icons along the top; tried on Xvfb.
+
 #### Publish App
 Add Menus and toolbar to ActionList.
 Need to add basic toolbar and icons.
+
+Done 2026-11-05: the publish app's menus run on actions (`Sloper.UI.Commands`), with a command bar of Tabler icons along the top; tried on Xvfb.
 
 #### Documents
 Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
@@ -94,8 +100,12 @@ Each store file type has currently a version number, and the JSON specification,
 #### Build script
 Can we determin if Qt6 is available, if so build with qt6, else build with Qt5.
 
+Done 2026-11-05: `build.sh` uses qt6 when `libQt6Pas` (the Lazarus Qt6 bindings) is installed, else qt5; `LCL_WIDGETSET` still overrides. This machine has Qt6 but not libQt6Pas, so it builds qt5.
+
 #### Apps, Maintenance, Design & Publish
 Add Menu item Open Recent -> list of last open files
+
+Done 2026-11-05 (see the Config paragraph on Open Recent in the design document): in all three apps, after Open; tried in each app on Xvfb.
 
 #### Publish - printing question
 How to adjust the print size if the square block is not 10x10.

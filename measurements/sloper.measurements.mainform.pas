@@ -26,8 +26,8 @@ unit Sloper.Measurements.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, Sloper.Core.Catalogue, Sloper.Core.Measurements,
-  Sloper.Document.MeasurementDocument, Sloper.Measurements.BodyFigure;
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, ActnList, Sloper.Core.Catalogue, Sloper.Core.Measurements,
+  Sloper.Document.MeasurementDocument, Sloper.Measurements.BodyFigure, Sloper.UI.Commands, Sloper.UI.RecentMenu;
 
 type
   TMeasurementsForm = class(TForm)
@@ -54,7 +54,9 @@ type
     FNameEdit, FNotesEdit: TEdit;
     FUnitBox: TComboBox;
     FStatus: TStatusBar;
-    FUndoItem, FRedoItem: TMenuItem;
+    FCommands: TCommandSet;
+    FUndoAction, FRedoAction: TAction;
+    FRecent: TRecentMenu;
     FBar: TPanel;
     FWatch: TTimer;
     FUnit: TMeasureUnit;
@@ -131,6 +133,7 @@ type
     function ConfirmDiscard: boolean;
     function SaveTo(const FileName: string): boolean;
     procedure OpenPath(const Path: string);
+    procedure RecentOpen(Sender: TObject; const FileName: string);
     procedure ShowStatus(const AText: string);
     procedure ShowRefusal(const Reason: string);
     procedure LoadUnit;
@@ -233,7 +236,7 @@ resourcestring
 implementation
 
 uses
-  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.SeamlyFormat, Sloper.Core.Settings;
+  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.RecentFiles, Sloper.Core.SeamlyFormat, Sloper.Core.Settings, Sloper.UI.IconSet;
 
 const
   HeaderHeight = 30;
@@ -311,33 +314,51 @@ var
     Bar.Items.Add(Result);
   end;
 
-  function AddItem(Parent: TMenuItem; const ACaption: string; AHandler: TNotifyEvent; AShortCut: TShortCut = 0): TMenuItem;
-  begin
-    Result := TMenuItem.Create(Parent);
-    Result.Caption := ACaption;
-    Result.OnClick := AHandler;
-    Result.ShortCut := AShortCut;
-    Parent.Add(Result);
-  end;
-
 var
-  Group: TMenuItem;
+  Group, OpenItem: TMenuItem;
+  NewAction, OpenAction, SaveAction, ImportAction, ExportAction, CheckAction: TAction;
 begin
   Bar := TMainMenu.Create(Self);
   Menu := Bar;
+  FCommands := TCommandSet.Create(Self, Bar);
+  NewAction := FCommands.NewAction(rsMenuNew, aiNew, @NewClick, ShortCut(VK_N, [ssModifier]));
+  OpenAction := FCommands.NewAction(rsMenuOpen, aiOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
+  SaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
+  ImportAction := FCommands.NewAction(rsMenuImport, aiImport, @ImportClick, ShortCut(VK_I, [ssModifier]));
+  ExportAction := FCommands.NewAction(rsMenuExport, aiExport, @ExportClick, ShortCut(VK_E, [ssModifier]));
+  CheckAction := FCommands.NewAction(rsMenuCheck, aiCheckPattern, @CheckPatternClick);
+  FUndoAction := FCommands.NewAction(rsMenuUndo, aiUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
+  FRedoAction := FCommands.NewAction(rsMenuRedo, aiRedo, @RedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
+
   Group := AddMenu(rsMenuFile);
-  AddItem(Group, rsMenuNew, @NewClick, ShortCut(VK_N, [ssModifier]));
-  AddItem(Group, rsMenuOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
-  AddItem(Group, rsMenuSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
-  AddItem(Group, rsMenuSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
-  AddItem(Group, rsMenuImport, @ImportClick, ShortCut(VK_I, [ssModifier]));
-  AddItem(Group, rsMenuExport, @ExportClick, ShortCut(VK_E, [ssModifier]));
-  AddItem(Group, rsMenuCheck, @CheckPatternClick);
-  AddItem(Group, rsMenuStopCheck, @StopPatternClick);
-  AddItem(Group, rsMenuQuit, @QuitClick, ShortCut(VK_Q, [ssModifier]));
+  FCommands.AddMenuItem(Group, NewAction);
+  OpenItem := FCommands.AddMenuItem(Group, OpenAction);
+  FRecent := TRecentMenu.Create(Self, Group, OpenItem, rlMeasurements, @RecentOpen);
+  FCommands.AddMenuItem(Group, SaveAction);
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift])));
+  Group.AddSeparator;
+  FCommands.AddMenuItem(Group, ImportAction);
+  FCommands.AddMenuItem(Group, ExportAction);
+  Group.AddSeparator;
+  FCommands.AddMenuItem(Group, CheckAction);
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuStopCheck, aiStopCheck, @StopPatternClick));
+  Group.AddSeparator;
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuQuit, aiQuit, @QuitClick, ShortCut(VK_Q, [ssModifier])));
   Group := AddMenu(rsMenuEdit);
-  FUndoItem := AddItem(Group, rsMenuUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
-  FRedoItem := AddItem(Group, rsMenuRedo, @RedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
+  FCommands.AddMenuItem(Group, FUndoAction);
+  FCommands.AddMenuItem(Group, FRedoAction);
+
+  FCommands.AddButton(NewAction);
+  FCommands.AddButton(OpenAction);
+  FCommands.AddButton(SaveAction);
+  FCommands.AddDivider;
+  FCommands.AddButton(FUndoAction);
+  FCommands.AddButton(FRedoAction);
+  FCommands.AddDivider;
+  FCommands.AddButton(ImportAction);
+  FCommands.AddButton(ExportAction);
+  FCommands.AddDivider;
+  FCommands.AddButton(CheckAction);
 end;
 
 procedure TMeasurementsForm.BuildHeader;
@@ -369,6 +390,8 @@ var
 begin
   Row := TPanel.Create(Self);
   Row.Parent := Self;
+  // Under the toolbar: top-aligned controls stack in the order of their Top
+  Row.Top := FCommands.Bar.BoundsRect.Bottom;
   Row.Align := alTop;
   Row.Height := HeaderHeight + SideGap;
   Row.BevelOuter := bvNone;
@@ -396,7 +419,7 @@ begin
   FBar := TPanel.Create(Self);
   FBar.Parent := Self;
   FBar.Align := alTop;
-  FBar.Top := HeaderHeight * 2;
+  FBar.Top := FNameEdit.Parent.BoundsRect.Bottom;
   FBar.Height := HeaderHeight + SideGap;
   FBar.BevelOuter := bvNone;
   AddButton(rsAdd, @AddClick);
@@ -956,12 +979,13 @@ begin
   finally
     FRefreshing := False;
   end;
-  FUndoItem.Enabled := FDocument.CanUndo;
+  FUndoAction.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
-    FUndoItem.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
+    FUndoAction.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
   else
-    FUndoItem.Caption := rsMenuUndo;
-  FRedoItem.Enabled := FDocument.CanRedo;
+    FUndoAction.Caption := rsMenuUndo;
+  SetActionHint(FUndoAction);
+  FRedoAction.Enabled := FDocument.CanRedo;
   FileTitle := ExtractFileName(FDocument.FileName);
   if FileTitle = '' then
     FileTitle := rsUntitled;
@@ -1168,8 +1192,17 @@ procedure TMeasurementsForm.OpenPath(const Path: string);
 var
   Reason: string;
 begin
-  if not FDocument.Open(Path, Reason) then
+  if FDocument.Open(Path, Reason) then
+    FRecent.Remember(Path)
+  else
     MessageDlg(Format(rsOpenFailed, [Path, Reason]), mtError, [mbOK], 0);
+end;
+
+procedure TMeasurementsForm.RecentOpen(Sender: TObject; const FileName: string);
+begin
+  FGrid.EditingDone;
+  if ConfirmDiscard then
+    OpenPath(FileName);
 end;
 
 procedure TMeasurementsForm.OpenClick(Sender: TObject);
@@ -1194,7 +1227,10 @@ var
 begin
   Result := FDocument.Save(FileName, Reason);
   if Result then
-    ShowStatus(Format(rsSaved, [FileName]))
+  begin
+    ShowStatus(Format(rsSaved, [FileName]));
+    FRecent.Remember(FileName);
+  end
   else
     MessageDlg(Format(rsSaveFailed, [FileName, Reason]), mtError, [mbOK], 0);
 end;

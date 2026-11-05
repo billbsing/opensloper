@@ -227,6 +227,11 @@
         <UnitName Value="Sloper.Tests.Settings"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.recentfiles.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.RecentFiles"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.objectlist.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.ObjectList"/>
