@@ -36,7 +36,7 @@ echo "Building GUI apps with the $WS widgetset"
 
 git submodule update --init --recursive
 
-"$LAZBUILD" "${PCP_ARGS[@]}" -q cli/opensloper_cli.lpi "$@"
+"$LAZBUILD" "${PCP_ARGS[@]}" -q src/cli/opensloper_cli.lpi "$@"
 "$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" src/design/opensloper_design.lpi "$@"
 "$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" src/publish/opensloper_publish.lpi "$@"
 "$LAZBUILD" "${PCP_ARGS[@]}" -q --ws="$WS" src/measurements/opensloper_measurements.lpi "$@"

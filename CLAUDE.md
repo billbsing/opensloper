@@ -14,10 +14,10 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/design/` — `opensloper-design`, the main design app.
 - `src/measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
 - `src/publish/` — `opensloper-publish`, layouts and printing.
+- `src/cli/` — `opensloper-cli` (export, export-draft, layout, check, measurements, serve), built on the core and ConsoleTools.
 - `src/packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.
 - `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources; `make-icons.sh` regenerates the apps' `.ico` files after an SVG changes, and `linux/` holds the `.desktop` entries.
 - `data/` — files the apps read at run time: the measurement catalogue and its body figures, and the Tabler toolbar icons (`data/icons`, MIT).
-- `cli/` — `opensloper-cli` (export, export-draft, layout, check, measurements, serve), built on the core and ConsoleTools.
 - `tests/` — FPCUnit test project and regression patterns.
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
 - `documents/` — internal development notes, the design document, `coding-standards.md`, `known-issues.md` and the GPL unit header (`gpl-header.txt`).

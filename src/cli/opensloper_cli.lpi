@@ -25,7 +25,7 @@
     <RequiredPackages>
       <Item>
         <PackageName Value="OSClipper2"/>
-        <DefaultFilename Value="../src/core/clipper2/osclipper2.lpk" Prefer="True"/>
+        <DefaultFilename Value="../core/clipper2/osclipper2.lpk" Prefer="True"/>
       </Item>
     </RequiredPackages>
     <Units>
@@ -38,11 +38,11 @@
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="../release/opensloper-cli"/>
+      <Filename Value="../../release/opensloper-cli"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../src/packages/console-tools"/>
+      <OtherUnitFiles Value="../core;../document;../api;../output;../packages/console-tools"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

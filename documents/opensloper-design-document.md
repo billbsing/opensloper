@@ -1183,7 +1183,7 @@ Development is on Linux with the Qt widgetset, testing on macOS, and Windows def
 - Canvas and mouse handling tested on Qt and Cocoa early, including Retina scaling
 - Optional GitHub Actions builds on Linux, macOS and Windows on every push, so Windows keeps compiling untested
 
-**App icons.** The SVGs in `resources/` are the masters: Design, Measure and Publish for the three GUI apps, and the API logo for the docs, since the CLI has none. `resources/make-icons.sh` turns each app's SVG into the `.ico` beside its `.lpi` (bitmaps up to 128 px and a PNG at 256 px, because the LCL's resource loader rejects smaller PNG entries). lazbuild puts that file in the program's resources as `MAINICON`, which the LCL uses as the window icon on every platform; the generated `.ico` files are committed, and the copies lazbuild writes under the `.lpr` name are ignored. For Linux desktops, `resources/linux/` has a `.desktop` entry per app, naming its icon (`opensloper-design`, `opensloper-measure`, `opensloper-publish`) and its window class, so a package installs the SVGs as `share/icons/hicolor/scalable/apps/<name>.svg`. A macOS `.icns` for the `.app` bundle is left for packaging.
+**App icons.** The SVGs in `resources/` are the masters: Design, Measure and Publish for the three GUI apps, and the API logo for the docs, since the CLI has none. `resources/make-icons.sh` turns each app's SVG into the `.ico` beside its `.lpi` (bitmaps up to 128 px and a PNG at 256 px, because the LCL's resource loader rejects smaller PNG entries). lazbuild puts that file in the program's resources as `MAINICON`, which the LCL uses as the window icon on every platform; each `.ico` is named after its project (`opensloper_design.ico` beside `opensloper_design.lpi`), and the generated files are committed. For Linux desktops, `resources/linux/` has a `.desktop` entry per app, naming its icon (`opensloper-design`, `opensloper-measure`, `opensloper-publish`) and its window class, so a package installs the SVGs as `share/icons/hicolor/scalable/apps/<name>.svg`. A macOS `.icns` for the `.app` bundle is left for packaging.
 
 **Deferred until a community release:** packaging the Qt bindings library, macOS code signing and notarisation, Windows builds and `sqlite3.dll`, and GitHub Actions CI. During personal use, only the portable-code practices above apply.
 
@@ -1268,7 +1268,7 @@ Pages are written by task ("Add a size", "Rotate a dart"), not by menu. Each app
 
 ## Repository layout
 
-The repo mirrors the architecture layers. All Pascal source, including the three GUI apps and third-party code isolated under `src/packages/`, lives in `src/`.
+The repo mirrors the architecture layers. All Pascal source, including the three GUI apps, the CLI and third-party code isolated under `src/packages/`, lives in `src/`.
 
 ```text
 opensloper/
@@ -1283,6 +1283,7 @@ opensloper/
 │   ├── design/             opensloper-design: the main drafting app (.lpi / .lpr)
 │   ├── measurements/       opensloper-measurements: measurement files and size tables, using core
 │   ├── publish/            opensloper-publish: layouts and printing, using core + output
+│   ├── cli/                opensloper-cli (export, check, serve) using core + ConsoleTools
 │   ├── core/               geometry, expressions, model, evaluator, storage (no LCL)
 │   │   └── clipper2/       osclipper2.lpk, builds Clipper2 from the submodule
 │   ├── document/           TPatternDocument, undo/redo commands, notifications
@@ -1295,7 +1296,6 @@ opensloper/
 │       └── console-tools/
 ├── data/                   measurement catalogue, body figures and icons, read at run time
 ├── resources/              branding: app icons and the API logo (SVG), for builds, docs and other resources
-├── cli/                    opensloper-cli (export, check, serve) using core + ConsoleTools
 ├── tests/                  FPCUnit test project, regression patterns and expected JSON
 ├── documents/              internal development: design document, known issues, Claude notes
 └── docs/                   user manuals (Zensical: mkdocs.yml, examples/, LICENSE); published with GitHub Pages

@@ -20,8 +20,8 @@ Expected files are written by the CLI. Check the values by hand before committin
 ```
 ./build.sh
 cd tests/patterns
-../../cli/opensloper-cli check skirt-block.sloper -m skirt-small.slm             # must report no problems
-../../cli/opensloper-cli check skirt-block.sloper -m skirt-small.slm --json > skirt-block.skirt-small.expected.json
+../../release/opensloper-cli check skirt-block.sloper -m skirt-small.slm             # must report no problems
+../../release/opensloper-cli check skirt-block.sloper -m skirt-small.slm --json > skirt-block.skirt-small.expected.json
 ```
 
 Only regenerate an expected file when the change in values is intended, and say why in the commit message.

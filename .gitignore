@@ -26,8 +26,3 @@ backup/
 
 # Local toolchain settings (see build.local.sh.example)
 /build.local.sh
-
-# Lazarus copies each project's icon to the main unit's name when building
-/src/design/opensloper_design.ico
-/src/publish/opensloper_publish.ico
-/src/measurements/opensloper_measurements.ico
