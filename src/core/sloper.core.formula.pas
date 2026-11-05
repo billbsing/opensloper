@@ -23,7 +23,7 @@
 // which survives renames. DisplayText turns IDs back into current names.
 // Measurements are referred to by their stable key in both forms.
 
-// Syntax: numbers, + - * / ^ (right-associative, binds tighter than unary
+// Syntax: numbers, optionally with a unit (400mm, 1.5cm, 2in), + - * / ^ (right-associative, binds tighter than unary
 // minus), brackets, and the functions sin cos tan asin acos atan2 sqrt abs
 // min max round. Angles are in degrees. Failures are reported through
 // ErrorMessage and ErrorPos, never as exceptions. No LCL dependency.
@@ -101,6 +101,9 @@ type
     function DisplayErrorPos(Resolver: TNameResolver): integer;
     // A plain number, optionally negative: can be changed by dragging
     function IsLiteral: boolean;
+    // The unit a literal's number is written in; nsNone for a plain number
+    // or anything that is not a literal
+    function LiteralSuffix: TNumberSuffix;
     property StoredText: string read FStoredText;
     property References: TFormulaReferenceArray read FReferences;
     property Valid: boolean read FValid;
@@ -514,7 +517,9 @@ begin
     begin
       Result := TNumberNode.Create;
       Result.Token := FPos;
-      TNumberNode(Result).Value := Tok.Value;
+      // Patterns are in mm until they have units of their own, so a
+      // suffixed number becomes mm and a plain one is already in it
+      TNumberNode(Result).Value := Tok.Value * NumberSuffixMillimetres[Tok.Suffix];
       Inc(FPos);
     end;
     ftMeasurement, ftVariable, ftObjectRef, ftIdRef:
@@ -883,6 +888,19 @@ end;
 function TFormula.IsLiteral: boolean;
 begin
   Result := FValid and ((FRoot is TNumberNode) or ((FRoot is TNegateNode) and (TNegateNode(FRoot).Operand is TNumberNode)));
+end;
+
+function TFormula.LiteralSuffix: TNumberSuffix;
+var
+  Node: TFormulaNode;
+begin
+  Result := nsNone;
+  if not IsLiteral then
+    Exit;
+  Node := FRoot;
+  if Node is TNegateNode then
+    Node := TNegateNode(Node).Operand;
+  Result := FTokens[Node.Token].Suffix;
 end;
 
 end.

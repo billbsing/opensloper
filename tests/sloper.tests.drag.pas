@@ -39,6 +39,8 @@ type
     procedure TearDown; override;
   published
     procedure TestFreePoint;
+    procedure TestDragKeepsUnitSuffix;
+    procedure TestHandleWithUnitAtAnchor;
     procedure TestOffsetPolar;
     procedure TestOffsetCartesian;
     procedure TestAlongEdge;
@@ -338,6 +340,36 @@ begin
   AssertTrue(FPattern.LastError, FPattern.SplitEdge(Curve.Key, Middle.Key, First, Second));
   FPattern.Evaluate;
   AssertEquals(0, Length(CurveHandles(First)));
+end;
+
+procedure TTestDrag.TestDragKeepsUnitSuffix;
+var
+  A, B: TPointObject;
+begin
+  A := Pt('A', '1in', '2cm');
+  FPattern.Evaluate;
+  AssertPointsNear('read in mm', Vec2(25.4, 20), A.Position);
+  Drag(A, 50.9, 33.33);
+  AssertEquals('inches, to 0.01 in', '2in', FPattern.FormulaText(A, 'x'));
+  AssertEquals('centimetres, to 0.1 cm', '3.3cm', FPattern.FormulaText(A, 'y'));
+  B := TPointObject(Check(FPattern.AddOffsetPoint('B', '1', omPolar, '1in', '0')));
+  FPattern.Evaluate;
+  Drag(B, 50.8 + 50.8, 33);
+  AssertEquals('polar length', '2in', FPattern.FormulaText(B, 'length'));
+end;
+
+procedure TTestDrag.TestHandleWithUnitAtAnchor;
+var
+  Curve: TCurveObject;
+  Err: string;
+begin
+  Pt('A', '0', '0');
+  Pt('B', '100', '0');
+  Curve := TCurveObject(Check(FPattern.AddCurve('1', '2', '90', '1in', '90', '40')));
+  FPattern.Evaluate;
+  AssertTrue(Err, DragHandle(FPattern, Curve, CurveHandles(Curve)[0], Vec2(0.01, 0), Err));
+  AssertEquals('length', '0in', FPattern.FormulaText(Curve, 'length1'));
+  AssertEquals('angle kept', '90', FPattern.FormulaText(Curve, 'angle1'));
 end;
 
 initialization

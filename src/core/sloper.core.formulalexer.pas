@@ -19,7 +19,9 @@
 // Tokenizer for formulas. It reads either the display form the user types
 // (Line_A_B.length + #ease + @waist) or the stored ID form
 // ({12}.length + {3} + @waist). It only checks spelling; names are resolved
-// by TFormula. No LCL dependency.
+// by TFormula. A number may carry a unit straight after it (400mm, 1.5cm,
+// 2in); the suffix is optional and stays part of the number's text, so both
+// forms keep it. No LCL dependency.
 unit Sloper.Core.FormulaLexer;
 
 {$mode ObjFPC}{$H+}
@@ -29,8 +31,11 @@ interface
 type
   TFormulaTextForm = (ffDisplay, ffStored);
 
+  // The unit written after a number, if any
+  TNumberSuffix = (nsNone, nsMillimetre, nsCentimetre, nsInch);
+
   TFormulaTokenKind = (
-    ftNumber,       // 12, 0.5, .5, 1e3
+    ftNumber,       // 12, 0.5, .5, 1e3, 400mm, 1.5cm, 2in
     ftOperator,     // + - * / ^ ( ) ,
     ftName,         // plain identifier: a function, or a mistake
     ftMeasurement,  // @waist
@@ -43,12 +48,18 @@ type
     Kind: TFormulaTokenKind;
     Pos, Len: integer;   // 1-based byte position in the text
     Op: char;            // ftOperator
-    Value: double;       // ftNumber
+    Value: double;       // ftNumber, as written, before any suffix converts it
+    Suffix: TNumberSuffix; // ftNumber
     Name: string;        // identifier, measurement key, variable/object name or ID
     Prop: string;        // property after the dot, if any
   end;
 
   TFormulaTokenArray = array of TFormulaToken;
+
+const
+  NumberSuffixNames: array[TNumberSuffix] of string = ('', 'mm', 'cm', 'in');
+  // Millimetres in one of each suffix's unit; a plain number is left as it is
+  NumberSuffixMillimetres: array[TNumberSuffix] of double = (1, 1, 10, 25.4);
 
 // Splits Text into tokens. On failure ErrorMessage and ErrorPos (1-based)
 // describe the first problem.
@@ -62,6 +73,7 @@ resourcestring
   rsFormulaExpectedMeasurement = 'Expected a measurement name after "@"';
   rsFormulaExpectedVariable = 'Expected a variable name after "#"';
   rsFormulaBadId = 'Expected an ID such as {12}';
+  rsFormulaUnknownSuffix = 'Unknown unit "%s" after a number; use mm, cm or in';
 
 implementation
 
@@ -172,10 +184,35 @@ var
     end;
   end;
 
+  // A unit straight after a number. Names cannot start with a digit, so any
+  // letters there can only be a unit.
+  function ReadSuffix(out Suffix: TNumberSuffix): boolean;
+  var
+    Start: integer;
+    Written: string;
+    Candidate: TNumberSuffix;
+  begin
+    Suffix := nsNone;
+    Result := True;
+    if (Position > Len) or not IsNameStart(Text[Position]) then
+      Exit;
+    Start := Position;
+    Written := ReadName;
+    for Candidate := Succ(nsNone) to High(TNumberSuffix) do
+      if SameText(Written, NumberSuffixNames[Candidate]) then
+      begin
+        Suffix := Candidate;
+        Exit;
+      end;
+    Fail(Format(rsFormulaUnknownSuffix, [Written]), Start);
+    Result := False;
+  end;
+
   function ReadNumber(Start: integer): boolean;
   var
     Code, TokenIndex: integer;
     Value: double;
+    Suffix: TNumberSuffix;
   begin
     Result := False;
     while (Position <= Len) and IsDigit(Text[Position]) do
@@ -211,9 +248,12 @@ var
       Fail(rsFormulaExpectedDigit, Start + Code - 1);
       Exit;
     end;
+    if not ReadSuffix(Suffix) then
+      Exit;
     // Add may grow Tokens, so take the index before indexing
     TokenIndex := Add(ftNumber, Start);
     Tokens[TokenIndex].Value := Value;
+    Tokens[TokenIndex].Suffix := Suffix;
     Result := True;
   end;
 

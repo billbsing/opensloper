@@ -27,11 +27,13 @@ unit Sloper.Core.Drag;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.FormulaLexer, Sloper.Core.Draft, Sloper.Core.Pattern;
 
 const
   // Dragged values are rounded to these decimals: mm, degrees, ratio
   DragLengthDecimals = 1;
+  // A length written with a unit is rounded in that unit: 0.1 mm, 0.1 cm, 0.01 in
+  DragSuffixDecimals: array[TNumberSuffix] of integer = (DragLengthDecimals, 1, 1, 2);
   DragAngleDecimals = 1;
   DragRatioDecimals = 4;
 
@@ -51,6 +53,9 @@ type
 
 // Value rounded to Decimals as formula text, without "-0"
 function RoundedText(Value: double; Decimals: integer): string;
+// Millimetres as text for a length field being dragged: in the unit the field
+// is written in, with its suffix (2in stays in inches), or plain mm
+function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double): string;
 // True when Point can be dragged: its type moves freely, and every field the
 // drag would change is a plain number. Otherwise ErrorMessage says why.
 function CanDrag(Point: TPointObject; out ErrorMessage: string): boolean;
@@ -90,6 +95,14 @@ begin
   if Rounded = 0 then
     Rounded := 0;
   Result := FormatJSONFloat(Rounded);
+end;
+
+function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double): string;
+var
+  Suffix: TNumberSuffix;
+begin
+  Suffix := Target.Field(FieldName).LiteralSuffix;
+  Result := RoundedText(Millimetres / NumberSuffixMillimetres[Suffix], DragSuffixDecimals[Suffix]) + NumberSuffixNames[Suffix];
 end;
 
 // The fields a drag of Point writes; empty when its type cannot be dragged
@@ -155,7 +168,7 @@ begin
     Exit(False);
   if Point is TFreePoint then
     Exit(SetFields(Pattern, Point, ['x', 'y'],
-      [RoundedText(Target.X, DragLengthDecimals), RoundedText(Target.Y, DragLengthDecimals)], ErrorMessage));
+      [DraggedLength(Point, 'x', Target.X), DraggedLength(Point, 'y', Target.Y)], ErrorMessage));
 
   if Point is TOffsetPoint then
   begin
@@ -163,10 +176,10 @@ begin
     Base := TPointObject(BaseNode).Position;
     if TOffsetPoint(Point).Mode = omPolar then
       Exit(SetFields(Pattern, Point, ['length', 'angle'],
-        [RoundedText(Sloper.Core.Geometry.Distance(Base, Target), DragLengthDecimals),
+        [DraggedLength(Point, 'length', Sloper.Core.Geometry.Distance(Base, Target)),
         RoundedText(AngleBetween(Base, Target), DragAngleDecimals)], ErrorMessage));
     Exit(SetFields(Pattern, Point, ['dx', 'dy'],
-      [RoundedText(Target.X - Base.X, DragLengthDecimals), RoundedText(Target.Y - Base.Y, DragLengthDecimals)],
+      [DraggedLength(Point, 'dx', Target.X - Base.X), DraggedLength(Point, 'dy', Target.Y - Base.Y)],
       ErrorMessage));
   end;
 
@@ -180,7 +193,7 @@ begin
   else
     Distance := Position;
   if Along.Mode = amLength then
-    Result := SetFields(Pattern, Point, ['value'], [RoundedText(Distance, DragLengthDecimals)], ErrorMessage)
+    Result := SetFields(Pattern, Point, ['value'], [DraggedLength(Point, 'value', Distance)], ErrorMessage)
   else if EdgeLength > 0 then
     Result := SetFields(Pattern, Point, ['value'], [RoundedText(Distance / EdgeLength, DragRatioDecimals)], ErrorMessage)
   else
@@ -241,8 +254,9 @@ var
 begin
   if not CanDragHandle(Edge, Handle, ErrorMessage) then
     Exit(False);
-  LengthText := RoundedText(Sloper.Core.Geometry.Distance(Handle.Anchor, Target), DragLengthDecimals);
-  if LengthText = '0' then
+  LengthText := DraggedLength(Edge, Handle.LengthField, Sloper.Core.Geometry.Distance(Handle.Anchor, Target));
+  // At the anchor, whatever unit the length is written in
+  if LengthText = '0' + NumberSuffixNames[Edge.Field(Handle.LengthField).LiteralSuffix] then
     Exit(SetFields(Pattern, Edge, [Handle.LengthField], [LengthText], ErrorMessage));
   Result := SetFields(Pattern, Edge, [Handle.AngleField, Handle.LengthField],
     [RoundedText(NormalizeAngle(AngleBetween(Handle.Anchor, Target) - Handle.AngleOffset), DragAngleDecimals), LengthText],

@@ -55,6 +55,7 @@ type
     procedure TestStoredTokens;
     procedure TestNumberForms;
     procedure TestBadNumber;
+    procedure TestNumberSuffixes;
     procedure TestUnexpectedCharacter;
     procedure TestUnexpectedCharacterIsWholeUtf8Char;
     procedure TestMissingNames;
@@ -90,6 +91,9 @@ type
     procedure TestStoredRoundTrip;
     procedure TestDanglingId;
     procedure TestIsLiteral;
+    procedure TestUnitSuffixes;
+    procedure TestSuffixRoundTrip;
+    procedure TestUnknownSuffix;
     procedure TestDecimalPointIgnoresLocale;
     procedure TestEmpty;
     procedure TestSyntaxErrors;
@@ -645,6 +649,62 @@ begin
   AssertFalse(FFormula.Evaluate(FContext, V));
   AssertEquals('stored position', 12, FFormula.ErrorPos);
   AssertEquals('display position', 17, FFormula.DisplayErrorPos(FResolver));
+end;
+
+procedure TTestFormulaLexer.TestNumberSuffixes;
+var
+  T: TFormulaTokenArray;
+  Msg: string;
+  Pos: integer;
+begin
+  AssertTrue(Msg, TokenizeFormula('400mm + 1.5cm*2in - 3', ffDisplay, T, Msg, Pos));
+  AssertEquals('tokens', 7, Length(T));
+  AssertTrue('mm', T[0].Suffix = nsMillimetre);
+  AssertNear('written value', 400, T[0].Value);
+  AssertEquals('suffix is part of the number', 5, T[0].Len);
+  AssertTrue('cm', T[2].Suffix = nsCentimetre);
+  AssertTrue('in', T[4].Suffix = nsInch);
+  AssertTrue('plain', T[6].Suffix = nsNone);
+  AssertTrue('any case', TokenizeFormula('2IN', ffDisplay, T, Msg, Pos) and (T[0].Suffix = nsInch));
+  AssertTrue('stored form too', TokenizeFormula('{3}.x + 2in', ffStored, T, Msg, Pos) and (T[2].Suffix = nsInch));
+  AssertFalse('unknown unit', TokenizeFormula('3 + 2ft', ffDisplay, T, Msg, Pos));
+  AssertEquals(Format(rsFormulaUnknownSuffix, ['ft']), Msg);
+  AssertEquals('at the unit', 6, Pos);
+end;
+
+procedure TTestFormula.TestUnitSuffixes;
+begin
+  AssertValue('400mm', 400);
+  AssertValue('1.5cm', 15);
+  AssertValue('2in', 50.8);
+  AssertValue('-1in', -25.4);
+  AssertValue('1e1mm', 10);
+  AssertValue('(@waist * 2) + 1in', 2 * Eval('@waist') + 25.4);
+  // The suffix is optional: a plain number is in the pattern's unit
+  AssertValue('400 + 400mm', 800);
+end;
+
+procedure TTestFormula.TestSuffixRoundTrip;
+var
+  Stored: string;
+begin
+  AssertTrue(FFormula.Parse('Line_A_B.length + 2in', FResolver));
+  Stored := FFormula.StoredText;
+  AssertTrue('stored keeps the unit', Pos('2in', Stored) > 0);
+  AssertTrue(FFormula.ParseStored(Stored));
+  AssertEquals('display', 'Line_A_B.length + 2in', FFormula.DisplayText(FResolver));
+  AssertTrue(FFormula.Parse('-2.5cm', FResolver));
+  AssertTrue('literal', FFormula.IsLiteral);
+  AssertTrue('its unit', FFormula.LiteralSuffix = nsCentimetre);
+  AssertTrue(FFormula.Parse('12', FResolver));
+  AssertTrue('plain', FFormula.LiteralSuffix = nsNone);
+  AssertTrue(FFormula.Parse('2in + 1', FResolver));
+  AssertTrue('not a literal', FFormula.LiteralSuffix = nsNone);
+end;
+
+procedure TTestFormula.TestUnknownSuffix;
+begin
+  AssertParseError('10 + 3pt', Format(rsFormulaUnknownSuffix, ['pt']), 7);
 end;
 
 initialization
