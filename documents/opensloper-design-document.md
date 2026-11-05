@@ -607,12 +607,12 @@ Planned 2026-11-05, not built yet. Marking roles say what a line means, like KiC
 **Output chosen in the publish app.** The drafting app stores every marking, and the publish app decides which reach the output. Machine profiles already switch line types on and off for cutters (see Cutting machines under Accessories); output profiles do the same for what a piece shows, on any output.
 
 - **Where they live.** Output profiles describe a kind of print, not a pattern, so they live in `settings.json` beside the machine profiles, and the CLI reads them too. A layout stores only the profile's name, as `outputProfile` in `output`. A layout without one prints everything, as now. A name not in the settings is a blocking problem for that layout's exports, never a quiet fallback, since a print missing its stitch lines would be cut and sewn wrongly.
-- **What a profile lists.** `roles`: the marking roles to include. `marks`: the piece's other marks to include, from `seamLine`, `notches`, `grainline`, `foldBracket`, `labels`, `holes` and `stitchHoles`. `allowance`: `keep`, or `none` (see below). Optional `styles`: colour, dash and width for each role, for paper only. The cutting line is always included, since it is the piece.
+- **What a profile lists.** `roles`: the marking roles to include. `pieceMarks`: the piece's other marks to include, from `seamLine`, `notches`, `grainline`, `foldBracket`, `labels`, `holes` and `stitchHoles`. `allowance`: `keep`, or `none` (see below). Optional `styles`: colour, dash and width for each role, for paper only. The cutting line is always included, since it is the piece.
 - **Order.** The output profile applies first. With a machine profile, its line-type switches then decide what is left. So a profile says what the job needs, and a machine profile says what the machine can do.
 - **Seam allowance.** `allowance` `none` cuts on the seam line, as leather usually is. It changes the piece's outline, not just what is drawn, so the preview, overlap checks, packing and every export use the seam line as the cutting line, and placements give its top left, as for opened-out fold pieces. The seam line itself is not drawn, since it is the cutting line. Pieces whose allowances are already zero look the same either way.
 - **Built-in profiles.** The four below ship with the app and can be copied, but not changed, so a layout naming one always prints the same. Profiles are edited in the settings file until there is a window for them, as machine profiles are.
 
-| Profile | `roles` | `marks` | `allowance` |
+| Profile | `roles` | `pieceMarks` | `allowance` |
 | --- | --- | --- | --- |
 | Home printing | All | All | Keep |
 | Plotter or laser cutter | Cut | Holes, stitch holes | Keep |
@@ -623,14 +623,14 @@ Planned 2026-11-05, not built yet. Marking roles say what a line means, like KiC
 "outputProfiles": [
   { "name": "Leather",
     "roles": ["stitch", "cut", "skive", "edgeFinish"],
-    "marks": ["notches", "grainline", "labels", "holes", "stitchHoles"],
+    "pieceMarks": ["notches", "grainline", "labels", "holes", "stitchHoles"],
     "allowance": "none" }
 ]
 ```
 
 **Open questions:**
 
-- Should buttonhole marks become a marking role, or wait for point markers (button position)? Grainlines and labels stay their own objects, switched by a profile's `marks`.
+- Should buttonhole marks become a marking role, or wait for point markers (button position)? Grainlines and labels stay their own objects, switched by a profile's `pieceMarks`.
 - Should a profile send roles to separate files or passes (one file per laser operation)?
 - What values does each leather marking need (hole spacing and size, skive width and depth)? This joins the question below on where point markers keep theirs.
 
