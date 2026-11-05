@@ -246,15 +246,18 @@ begin
     Document.SelectMeasurementSize(FSizeBox.Items[FSizeBox.ItemIndex]);
 end;
 
-// Under the size, the label above the slider and its Reset button
+// At the bottom, under the editors: the label above the slider and its Reset
+// button
 procedure TMeasurementsPanel.BuildTestBar;
 var
   TestBar, Row: TPanel;
 begin
   TestBar := TPanel.Create(Self);
-  TestBar.Parent := FHeader;
-  TestBar.Align := alTop;
-  TestBar.Top := 10000;
+  TestBar.Parent := Self;
+  TestBar.Align := alBottom;
+  // Below the editors, which are docked at the bottom too
+  TestBar.Top := 100000;
+  TestBar.BorderSpacing.Top := 6;
   TestBar.BevelOuter := bvNone;
   TestBar.AutoSize := True;
   TestBar.Hint := rsMeasurementsTestHint;
