@@ -35,7 +35,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.UI.ObjectList;
+  SysUtils, Sloper.UI.ObjectList;
 
 const
   DialogWidth = 560;
@@ -72,7 +72,7 @@ begin
       if List.Checked[Index] then
         Insert(Suggestions[Index], Result, Length(Result));
   finally
-    Dialog.Free;
+    FreeAndNil(Dialog);
   end;
 end;
 

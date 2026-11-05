@@ -8,7 +8,7 @@ Code is formatted with JEDI Code Format (JCF), the formatter built into the Laza
 
 - **From the command line:** `./format.sh` formats every source file; `./format.sh --check` lists files that need formatting without changing them; `./format.sh FILE...` formats only those files. Run it before committing.
 - **In the IDE:** use the same settings, so the IDE and `format.sh` agree. Copy `jcfsettings.cfg` over the IDE's copy in the Lazarus configuration folder (for the fpcupdeluxe install, `~/Packages/fpc_build/config_lazarus/jcfsettings.cfg`), then use Source → JEDI Code Format → Format Current Editor Window.
-- **Formatter version:** `format.sh` builds the command-line formatter into `lib/jcf` on first use, from the Lazarus source in `JCF_SOURCE` (set in `build.local.sh`). Use the Lazarus version the IDE runs, so both produce the same layout. Delete `lib/jcf` to rebuild it.
+- **Formatter version:** `format.sh` builds the command-line formatter into `lib/jcf` on first use, from the source of the Lazarus that `lazbuild` belongs to (override with `JCF_SOURCE` in `build.local.sh`). The reference is the release Lazarus that CI uses (4.8): CI fails a pull request whose files that formatter would change. Delete `lib/jcf` to rebuild it.
 - **Not formatted:** `src/packages/` (third-party code) and `src/core/clipper2/osclipper2.pas`, which Lazarus regenerates.
 
 What the settings produce:
@@ -30,6 +30,10 @@ What the settings produce:
 
 The project settings are the IDE's own settings with four changes: `RemoveExpressionReturns`, `RemoveProcedureDefReturns` and `RemoveVarReturns` are off, so deliberate line breaks survive, and `WhenRebreakLines` is 1, so lines over 164 characters are broken.
 
+## Checking the rules
+
+`./check-standards.sh` checks the rules below that a pattern match can find: the GPL header and `{$mode ObjFPC}{$H+}`, unit and file names, the layering of `uses` clauses (no LCL below `src/ui`, and which `Sloper.*` areas each folder may use), `Sloper.Core.CodePage` first in programs, `FreeAndNil`, `Assigned`, `ssModifier`, and message text that should be a `resourcestring`. These are errors. Single-letter names are warnings. CI runs it on the files each pull request changes. The rest, such as descriptive names, `try`/`finally` protection and undoable commands, is left to review.
+
 ## Naming
 
 - **Descriptive names.** No single-letter variables or parameters: `Index`, not `I`; `Node`, not `N`; `Failure`, not `E`. A name says what the value is (`StartPos`, `LengthOrDx`, `TokenIndex`), not just its type.
@@ -47,7 +51,7 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 - Units start with `{$mode ObjFPC}{$H+}`.
 - Comments explain why, or what is not obvious; they don't restate the code.
 - Collections use `Generics.Collections`: `specialize TObjectList<T>` for lists that own their items, `specialize TDictionary<string, T>` for lookups by key, instead of `TList` with casts. Declare the specialization as a named type (`TDraftObjectList = specialize TObjectList<TDraftObject>`). Removing from an owning list frees the item; use `ExtractIndex` to take one out without freeing it.
-- Free objects with `FreeAndNil(Obj)`, never `Obj.Free` or `Obj.Destroy`, so a reference is either `nil` or a live instance (see [Modern Object Pascal](https://castle-engine.io/modern_pascal)). It does not clear other copies of the reference. The one exception is a typecast list item (`TObject(List[Index]).Free`), which cannot be passed to `FreeAndNil`; clear the list straight after.
+- Free objects with `FreeAndNil(Obj)`, never `Obj.Free` or `Obj.Destroy`, so a reference is either `nil` or a live instance (see [Modern Object Pascal](https://castle-engine.io/modern_pascal)). It does not clear other copies of the reference. The one exception is an indexed or typecast item (`TObject(List[Index]).Free`, `Controls[0].Free`), which cannot be passed to `FreeAndNil`; clear the list straight after, or let its owner drop it.
 - Test a reference with `Assigned(Obj)` or `not Assigned(Obj)`, never `Obj <> nil` or `Obj = nil`. This applies to objects, pointers and event handlers alike. For a dynamic array, test `Length(Items) = 0`. Clearing a reference is still `Obj := nil`.
 - Protect every object a routine creates, so an exception or an early `Exit` cannot leak it. Heaptrc only sees the paths the tests run, so don't rely on an object being safe because nothing "should" raise; a failure halfway through building a result leaked 79 blocks before this rule was followed.
   - **A local object:** create it just before the `try`, not inside it, and free it in the `finally`. If `Create` raises inside the `try`, the `finally` runs on a variable that was never assigned. `Exit` inside the `try` still runs the `finally`.

@@ -2,5 +2,7 @@
 # for example an fpcupdeluxe install. Sourced by run-tests.sh and build.sh.
 LAZBUILD="$HOME/Packages/fpc_build/lazarus/lazbuild"
 LAZARUS_PCP="$HOME/Packages/fpc_build/config_lazarus"
-# Formatter source for format.sh; use the Lazarus version your IDE runs
-JCF_SOURCE="$HOME/Packages/fpc_build/lazarus/components/jcf2"
+# Formatter source for format.sh. The default is the Lazarus that LAZBUILD
+# belongs to; CI formats with the release Lazarus in .github/workflows/ci.yml,
+# so only override this with a source that formats the same way.
+#JCF_SOURCE="$HOME/Packages/fpc_build/lazarus/components/jcf2"

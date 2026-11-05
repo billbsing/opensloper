@@ -30,11 +30,12 @@ git submodule update --init --recursive
 ./run-tests.sh     # tests, with heaptrc leak check
 ./build.sh         # GUI apps and CLI, into release/ (not in git)
 ./format.sh        # format sources with jcfsettings.cfg (--check to list only)
+./check-standards.sh  # rules the formatter cannot check (errors fail, warnings advise)
 ```
 
 Toolchain overrides (`LAZBUILD`, `LAZARUS_PCP`, `LCL_WIDGETSET`) go in the gitignored `build.local.sh`; see `build.local.sh.example`.
 
-Requires FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa. Run `run-tests.sh` before every commit.
+Requires FPC 3.2.0 or later; CI (`.github/workflows/ci.yml`) uses the release Lazarus 4.8 with FPC 3.2.2, and its formatter is the reference. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa. Run `run-tests.sh` and `check-standards.sh` before every commit. Pull request rules are in `CONTRIBUTING.md`.
 
 ## Conventions
 

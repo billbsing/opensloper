@@ -8,22 +8,22 @@
 #   ./format.sh FILE...   format only the given files
 #
 # The command-line formatter is built into lib/jcf on first use, from the
-# Lazarus source in JCF_SOURCE (default: the system Lazarus). Use the same
-# Lazarus version as your IDE so both format alike; set JCF_SOURCE in
-# build.local.sh.
+# Lazarus source in JCF_SOURCE (default: the Lazarus that LAZBUILD belongs to).
+# CI uses the release Lazarus in .github/workflows/ci.yml; format with the same
+# release so your files pass its check. JCF_SOURCE can be set in build.local.sh.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 [ -f build.local.sh ] && . ./build.local.sh
 LAZBUILD="${LAZBUILD:-lazbuild}"
 JCF="${JCF:-lib/jcf/jcf}"
-JCF_SOURCE="${JCF_SOURCE:-/usr/lib/lazarus/components/jcf2}"
+LAZARUS_DIR="$(dirname "$(realpath "$(command -v "$LAZBUILD")")")"
+JCF_SOURCE="${JCF_SOURCE:-$LAZARUS_DIR/components/jcf2}"
 CONFIG="$PWD/jcfsettings.cfg"
 
 build_jcf() {
-  local lazarus_dir src
+  local src
   echo "Building the formatter from $JCF_SOURCE" >&2
-  lazarus_dir="$(dirname "$(realpath "$(command -v "$LAZBUILD")")")"
   src=lib/jcf-src
   rm -rf "$src" lib/jcf-pcp
   mkdir -p lib/jcf
@@ -33,7 +33,7 @@ build_jcf() {
   # the Lazarus that does the building
   sed -i 's|<PackageName Value="jcfbase"/>|&\n        <DefaultFilename Value="../../jcfbase.lpk" Prefer="True"/>|' \
     "$src/CommandLine/Lazarus/jcf.lpi"
-  "$LAZBUILD" --pcp="$PWD/lib/jcf-pcp" --lazarusdir="$lazarus_dir" -q \
+  "$LAZBUILD" --pcp="$PWD/lib/jcf-pcp" --lazarusdir="$LAZARUS_DIR" -q \
     "$src/CommandLine/Lazarus/jcf.lpi" > lib/jcf/build.log 2>&1 ||
     { cat lib/jcf/build.log >&2; exit 1; }
   cp "$src"/lib/CommandLine-*/jcf "$JCF"

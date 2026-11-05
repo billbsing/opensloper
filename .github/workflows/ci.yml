@@ -1,0 +1,114 @@
+# Checks every pull request and every push to development: coding standards,
+# formatting, the test suite (with the heaptrc leak check) and a build of every
+# app. Uses release toolchains only: FPC 3.2.2 and Lazarus 4.8, from the
+# Lazarus project's official .deb packages, checked against known SHA-256 sums.
+# To move to a new Lazarus release, update LAZARUS_DEBS and the sums together.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [development]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LAZARUS_RELEASE: "4.8"
+  LAZARUS_DEBS: >-
+    fpc-laz_3.2.2-210709_amd64.deb
+    fpc-src_3.2.2-210709_amd64.deb
+    lazarus-project_4.8.0-0_amd64.deb
+
+jobs:
+  standards:
+    name: Coding standards
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # On a pull request, check only the files it adds or changes, so warnings
+      # in code it does not touch stay out of the review
+      - name: Check standards
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "$BASE_SHA"...HEAD -- '*.pas' '*.lpr' '*.pp' |
+              grep -v '^src/packages/' | grep -v '^src/core/clipper2/osclipper2.pas$' || true)
+            if [ ${#FILES[@]} -eq 0 ]; then
+              echo "No Pascal sources changed."
+              exit 0
+            fi
+            ./check-standards.sh "${FILES[@]}"
+          else
+            ./check-standards.sh
+          fi
+
+      - name: Third-party code is changed upstream
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git diff --name-only "$BASE_SHA"...HEAD | grep -q '^src/packages/'; then
+            echo "::warning::This pull request changes src/packages/. Changes to Clipper2, BGRABitmap or ConsoleTools go to their own projects upstream."
+          fi
+
+  build:
+    name: Format, test and build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache the Lazarus packages
+        id: debs
+        uses: actions/cache@v4
+        with:
+          path: debs
+          key: lazarus-debs-${{ env.LAZARUS_RELEASE }}
+
+      - name: Download the Lazarus packages
+        if: steps.debs.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p debs
+          base="https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%20${LAZARUS_RELEASE}"
+          for deb in $LAZARUS_DEBS; do
+            curl -fsSL --retry 5 --retry-delay 10 -o "debs/$deb" "$base/$deb/download"
+          done
+
+      - name: Verify and install FPC, Lazarus and Qt5 bindings
+        run: |
+          cd debs
+          sha256sum -c <<'EOF'
+          92000f2b831184e153aab0c910f8ae9240450e5c6d76dc189cf53116ee501d83  fpc-laz_3.2.2-210709_amd64.deb
+          8c9e145d8056754a9ca39ce3e52e982b8e4816124984c5f542f2a874e721ad53  fpc-src_3.2.2-210709_amd64.deb
+          401742cefb01ad99a628188034bf728fb5360d641ed2be5f91fb0ee183a301cd  lazarus-project_4.8.0-0_amd64.deb
+          EOF
+          cd ..
+          sudo apt-get update -q
+          sudo apt-get install -y -q $(for deb in $LAZARUS_DEBS; do echo "./debs/$deb"; done) libqt5pas-dev
+          fpc -iV
+          lazbuild --version
+
+      - name: Formatting
+        run: |
+          if ! ./format.sh --check; then
+            echo "::error::The files above need formatting. Run ./format.sh (with Lazarus ${LAZARUS_RELEASE}) and commit the result."
+            exit 1
+          fi
+
+      - name: Tests and leak check
+        run: ./run-tests.sh
+
+      - name: Build the apps
+        env:
+          LCL_WIDGETSET: qt5
+        run: ./build.sh
