@@ -1318,9 +1318,44 @@ Pages are written by task ("Add a size", "Rotate a dart"), not by menu. Each app
 
 - F1 and the Help menu open the page for the current tool or dialog, through a small table of help IDs to page paths.
 - An offline copy of the built site ships with each app and opens in the browser; the website is the fallback.
-- Translation and versioned documentation wait until the community release.
+- Translation (see Translation) and versioned documentation wait until the community release.
 
 **Folders:** `docs/` is the user documentation (this section); `documents/` stays for internal development notes, including this design document. Developer documentation of the Pascal units (for example with PasDoc) is left until someone else needs to read the code.
+
+## Translation
+
+Planned for the community release; nothing is translated yet. Already in place: user-visible text lives in `resourcestring` sections (`check-standards.sh` reports message text that is not), strings are UTF-8 throughout, and names in formulas and files are stable keys and IDs, kept apart from what is shown.
+
+Decision: the standard Free Pascal and Lazarus route, gettext `.po` files, rather than a mechanism of our own, so translators can use common tools (Poedit, Weblate, Crowdin).
+
+**Program text.**
+
+- Each project turns on i18n in its `.lpi`, writing to a shared `data/languages/` folder, since translations are read at run time. The compiler puts the resourcestrings in `.rsj` files and Lazarus gathers them into one template per app (`opensloper-design.pot`, `opensloper-measurements.pot`, `opensloper-publish.pot`, `opensloper-cli.pot`). Translations sit beside them as `opensloper-design.de.po` and so on.
+- The GUI apps add `LCLTranslator` and call `SetDefaultLang` at start-up, which also translates the captions in `.lfm` forms. The language comes from a new General preference, `language`; with none set, from `--lang` on the command line, then the system locale (`LANG`), then English.
+- `src/core` and the CLI cannot use `LCLTranslator`. They use `TranslateResourceStrings` from LazUtils' `Translations` unit, which needs no LCL, so the layering rule holds.
+- `data/languages/` is found through `TAppPaths`, so installed and development builds both work.
+
+**Measurement catalogue.** The catalogue's `name`, `description` and `howTo` are data, not resourcestrings. A script extracts them into `measurement-catalogue.pot`, with each message's context set to the measurement key, and `Sloper.Core.Catalogue` looks up the translation when it loads. Translators then have one tool and one workflow; a translated copy of the JSON per language would fall behind without anyone noticing.
+
+**What is never translated.**
+
+- **Formulas:** measurement keys (`@waist`), variable and object names, function names, and the `.` decimal point. A decimal comma would clash with the comma between function arguments, and a pattern must mean the same in every language. Only the display names and descriptions shown beside keys are translated. (Valentina translates its formula vocabulary, which ties its files and formulas to translation tables; we avoid that.)
+- **Files:** every saved key and value stays as it is; a file written in one language opens unchanged in another.
+- **Automation API:** method names, field names and error codes stay English, since scripts depend on them. Error messages may be translated; scripts should check codes, not message text.
+- **CLI output meant for scripts:** column headings of `measurements list`, `check` and other machine-read output stay English. Help text and error messages are translated.
+
+**Exported text.** Text printed on outputs, such as title block labels and piece labels, follows a language chosen in the output profile (see Visibility, styles and output under Markings), falling back to the app's language. A pattern is often printed for someone who reads another language than the person who drafted it.
+
+**Rules for code, from now on**, so later translation needs no rewriting:
+
+- Build messages with `Format` and placeholders (`'%s is not in the measurement set'`), never by joining pieces, since word order differs between languages.
+- Give each sentence its own resourcestring, including singular and plural forms; never build plurals or sentences from fragments.
+- Leave room for longer text (German runs about 30% longer than English): anchored or autosized controls, not fixed widths sized to the English.
+- Keep units, numbers and dates out of the resourcestring itself; pass them in as formatted values.
+
+**Documentation.** Translating the manuals waits with versioned documentation (see Documentation) and follows what Zensical supports.
+
+**Tests.** A test loads a sample `.po` for a test language and checks a translated resourcestring and catalogue entry, and that formulas, saved files and API error codes are unchanged by the language.
 
 ## Repository layout
 
@@ -1350,7 +1385,7 @@ opensloper/
 │       ├── clipper2/
 │       ├── bgrabitmap/
 │       └── console-tools/
-├── data/                   measurement catalogue, body figures and icons, read at run time
+├── data/                   measurement catalogue, body figures, icons and (planned) translations, read at run time
 ├── resources/              branding: app icons and the API logo (SVG), for builds, docs and other resources
 ├── tests/                  FPCUnit test project, regression patterns and expected JSON
 ├── documents/              internal development: design document, known issues, Claude notes
@@ -1603,4 +1638,5 @@ Further work agreed but not yet designed in detail or placed in the numbered ste
 - **Claude integration.** Building on Automation API phase 2: the Claude API key is stored in Preferences so Claude can reach the app. Open question: how Claude tells the user about the changes it makes to the design, and whether the API needs to report which objects are selected so Claude can work on them.
 - **Fabric needed.** Estimate from the design the fabric it needs: the area in square millimetres and the minimum width and length. Given the width of the supplier's fabric, work out the actual length to buy, and warn when the design is too big to cut from a single piece of fabric.
 - **G-code export.** Export the pattern as a G-code file for CNC machines, from the publish app.
+- **Translation.** gettext `.po` files for the apps, the CLI and the measurement catalogue, a language preference, and a language per output profile (see Translation).
 - **Marking visibility and output profiles.** The role visibility panel and presets in the drafting app, the two leather roles, and output profiles in the publish app (see Visibility, styles and output under Markings).
