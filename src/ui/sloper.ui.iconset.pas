@@ -35,7 +35,8 @@ type
     aiRotate, aiMirror, aiMove, aiSuggestSeams,
     // The measurements and publish apps
     aiImport, aiExport, aiCheckPattern, aiStopCheck,
-    aiExportPDF, aiExportSVG, aiExportDXF, aiExportMachineDXF, aiReload);
+    aiExportPDF, aiExportSVG, aiExportDXF, aiExportMachineDXF, aiReload,
+    aiRulers);
 
 const
   AppIconNames: array[TAppIcon] of string = ('file-plus', 'folder-open', 'device-floppy', 'file-pencil',
@@ -48,7 +49,8 @@ const
     'circle-dot', 'line-dashed', 'fold', 'line-dotted', 'eraser',
     'rotate', 'flip-vertical', 'arrows-move', 'sparkles',
     'file-import', 'file-export', 'file-search', 'player-stop',
-    'file-type-pdf', 'file-type-svg', 'file-vector', 'cut', 'refresh');
+    'file-type-pdf', 'file-type-svg', 'file-vector', 'cut', 'refresh',
+    'ruler-2');
 
 function IconFileName(const Dir: string; Icon: TAppIcon): string;
 // Tabler draws in currentColor; this gives it Color, such as #202020

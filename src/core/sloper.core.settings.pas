@@ -43,6 +43,8 @@ type
     NameColumnShare: double;
     LabelMode: TLabelMode;
     ShowSidePanel: boolean;
+    // Rulers along the top and left of the drafting canvas
+    ShowRulers: boolean;
     // Whether the drafting canvas fills pieces with their fabric
     ShowPieceFills: boolean;
     // How the measurements app shows values
@@ -87,6 +89,7 @@ begin
   NameColumnShare := DefaultNameColumnShare;
   LabelMode := DefaultLabelMode;
   ShowSidePanel := True;
+  ShowRulers := True;
   ShowPieceFills := True;
   MeasureUnit := muMillimetre;
   MachineProfiles := nil;
@@ -103,6 +106,7 @@ begin
     Obj.Add('nameColumnShare', JSONFloat(NameColumnShare));
     Obj.Add('labelMode', LabelModeNames[LabelMode]);
     Obj.Add('showSidePanel', ShowSidePanel);
+    Obj.Add('showRulers', ShowRulers);
     Obj.Add('showPieceFills', ShowPieceFills);
     Obj.Add('measureUnit', MeasureUnitNames[MeasureUnit]);
     if Length(MachineProfiles) > 0 then
@@ -145,6 +149,8 @@ begin
           LabelMode := Mode;
     if GetJSONBoolean(Obj, 'showSidePanel', Shown) then
       ShowSidePanel := Shown;
+    if GetJSONBoolean(Obj, 'showRulers', Shown) then
+      ShowRulers := Shown;
     if GetJSONBoolean(Obj, 'showPieceFills', Shown) then
       ShowPieceFills := Shown;
     if GetJSONString(Obj, 'measureUnit', TextValue) then

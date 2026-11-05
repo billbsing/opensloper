@@ -28,7 +28,7 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.RecentMenu,
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
   Sloper.UI.FabricsPanel, Sloper.UI.IconSet, Sloper.Core.Transform;
 
 type
@@ -93,7 +93,10 @@ type
     // for disabled buttons: a grey copy of a black icon is still black
     FToolIcons, FDisabledIcons, FMenuIcons: TImageList;
     FCommandBar, FToolBar: TToolBar;
-    FUndoAction, FRedoAction, FPieceFillsAction, FSideAction: TAction;
+    FUndoAction, FRedoAction, FPieceFillsAction, FSideAction, FRulersAction: TAction;
+    FRulerTop: TPanel;
+    FRulerCorner: TRulerCorner;
+    FHorzRuler, FVertRuler: TCanvasRuler;
     FToolActions: array[TCanvasTool] of TAction;
     FLabelActions: array[TLabelMode] of TAction;
     FSidePanel: TPageControl;
@@ -163,6 +166,11 @@ type
     // True when there are no unsaved changes, or the user saved or discarded them
     function ConfirmDiscard: boolean;
     procedure OpenFile(const FileName: string);
+    procedure CreateRulers;
+    procedure SetRulersShown(Shown: boolean);
+    procedure RulersClick(Sender: TObject);
+    procedure CanvasViewChange(Sender: TObject);
+    procedure CanvasCursorLeave(Sender: TObject);
     procedure RecentOpen(Sender: TObject; const FileName: string);
     function Save: boolean;
     function SaveAs: boolean;
@@ -224,6 +232,7 @@ resourcestring
   rsMenuViewTrueSize = '&True Size';
   rsTabFabrics = 'Fabrics';
   rsMenuViewSidePanel = '&Side Panel';
+  rsMenuViewRulers = '&Rulers';
   rsTabProperties = 'Properties';
   rsTabObjects = 'Objects';
   rsTabVariables = 'Variables';
@@ -320,6 +329,7 @@ begin
   FCanvasVertBar := TScrollBar.Create(Self);
   FCanvasVertBar.Parent := FCanvasPanel;
   FCanvasVertBar.Align := alRight;
+  CreateRulers;
   FCanvas := TPatternCanvas.Create(Self);
   FCanvas.Parent := FCanvasPanel;
   FCanvas.Align := alClient;
@@ -327,6 +337,8 @@ begin
   FCanvas.VertBar := FCanvasVertBar;
   FCanvas.Document := FDocument;
   FCanvas.OnCursorMove := @CanvasCursorMove;
+  FCanvas.OnCursorLeave := @CanvasCursorLeave;
+  FCanvas.OnViewChange := @CanvasViewChange;
   FCanvas.OnMessage := @CanvasMessage;
   FCanvas.OnToolChange := @CanvasToolChange;
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
@@ -334,6 +346,7 @@ begin
   FPieceFillsAction.Checked := FSettings.ShowPieceFills;
   FCanvas.ShowPieceFills := FSettings.ShowPieceFills;
   SetSideShown(FSettings.ShowSidePanel);
+  SetRulersShown(FSettings.ShowRulers);
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
   StatusBar.OnResize := @StatusBarResize;
@@ -361,6 +374,7 @@ begin
   FSettings.LabelMode := FCanvas.LabelMode;
   FSettings.ShowPieceFills := FCanvas.ShowPieceFills;
   FSettings.ShowSidePanel := FSidePanel.Visible;
+  FSettings.ShowRulers := FRulersAction.Checked;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
 end;
@@ -709,6 +723,8 @@ begin
   FSideAction := NewAction(rsMenuViewSidePanel, aiSidePanel, @SideItemClick);
   MenuView.Add(NewLine);
   AddMenuItem(MenuView, FSideAction);
+  FRulersAction := NewAction(rsMenuViewRulers, aiRulers, @RulersClick, ShortCut(VK_R, [ssModifier]));
+  AddMenuItem(MenuView, FRulersAction);
   MenuLabels := TMenuItem.Create(MainMenu);
   MenuLabels.Caption := rsMenuViewLabels;
   MenuLabels.ImageIndex := Ord(aiLabels);
@@ -978,6 +994,56 @@ end;
 procedure TMainForm.CanvasCursorMove(Sender: TObject; const ModelPos: TVec2);
 begin
   StatusBar.Panels[PanelCursor].Text := Format(rsCursorAt, [ModelPos.X, ModelPos.Y]);
+  FHorzRuler.ShowCursor(ModelPos);
+  FVertRuler.ShowCursor(ModelPos);
+end;
+
+procedure TMainForm.CanvasCursorLeave(Sender: TObject);
+begin
+  FHorzRuler.HideCursor;
+  FVertRuler.HideCursor;
+end;
+
+procedure TMainForm.CanvasViewChange(Sender: TObject);
+begin
+  FHorzRuler.SetView(FCanvas.View);
+  FVertRuler.SetView(FCanvas.View);
+end;
+
+// Along the top and left of the canvas, which they must line up with: the
+// top strip spans the panel, so the corner is exactly as wide as the left
+// ruler and the top ruler starts where the canvas does. Patterns are in
+// millimetres until they have units of their own.
+procedure TMainForm.CreateRulers;
+begin
+  FRulerTop := TPanel.Create(Self);
+  FRulerTop.Parent := FCanvasPanel;
+  FRulerTop.Align := alTop;
+  FRulerTop.BevelOuter := bvNone;
+  FRulerTop.Height := RulerThickness(Self);
+  FRulerCorner := TRulerCorner.Create(Self);
+  FRulerCorner.Parent := FRulerTop;
+  FRulerCorner.Align := alLeft;
+  FRulerCorner.Width := RulerThickness(Self);
+  FHorzRuler := TCanvasRuler.Create(Self, False);
+  FHorzRuler.Parent := FRulerTop;
+  FHorzRuler.Align := alClient;
+  FVertRuler := TCanvasRuler.Create(Self, True);
+  FVertRuler.Parent := FCanvasPanel;
+  FVertRuler.Align := alLeft;
+  FVertRuler.Width := RulerThickness(Self);
+end;
+
+procedure TMainForm.SetRulersShown(Shown: boolean);
+begin
+  FRulerTop.Visible := Shown;
+  FVertRuler.Visible := Shown;
+  FRulersAction.Checked := Shown;
+end;
+
+procedure TMainForm.RulersClick(Sender: TObject);
+begin
+  SetRulersShown(not FRulersAction.Checked);
 end;
 
 procedure TMainForm.CanvasMessage(Sender: TObject; const AText: string);

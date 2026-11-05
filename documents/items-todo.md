@@ -51,6 +51,8 @@ The fields are re-enabled only when the test slider is moved back to the center.
 #### Design Canvas Ruler
 Show a ruler Top and Left of the canvas in the current units, with the cursor as a line on the rulers. Similar to Inkscape. Show the units on the ruler, in a prominant color, if there is space.
 
+Done 2026-11-05 (see Rulers in the design document): View → Rulers (Ctrl+R), unit named in the corner. Shows mm until Pattern units are done, then the pattern's unit.
+
 #### Documents
 Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
 

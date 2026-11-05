@@ -84,6 +84,10 @@ type
     FPickFirst: string;
     FOnToolChange: TNotifyEvent;
     FOnCursorMove: TCursorMoveEvent;
+    FOnCursorLeave: TNotifyEvent;
+    FOnViewChange: TNotifyEvent;
+    // The view last reported through OnViewChange
+    FReportedView: TViewTransform;
     FOnMessage: TCanvasMessageEvent;
     FOnSelectionChange: TNotifyEvent;
     procedure SetDocument(ADocument: TPatternDocument);
@@ -208,6 +212,10 @@ type
     // Keys of the selected objects
     property Selection: TStringArray read FSelection;
     property OnCursorMove: TCursorMoveEvent read FOnCursorMove write FOnCursorMove;
+    property OnCursorLeave: TNotifyEvent read FOnCursorLeave write FOnCursorLeave;
+    // After a paint that zoomed or panned, for the rulers
+    property OnViewChange: TNotifyEvent read FOnViewChange write FOnViewChange;
+    property View: TViewTransform read FView;
     // A hint or the reason something could not be done
     property OnMessage: TCanvasMessageEvent read FOnMessage write FOnMessage;
     property OnSelectionChange: TNotifyEvent read FOnSelectionChange write FOnSelectionChange;
@@ -1833,6 +1841,8 @@ end;
 procedure TPatternCanvas.MouseLeave;
 begin
   inherited MouseLeave;
+  if Assigned(FOnCursorLeave) then
+    FOnCursorLeave(Self);
   if FSnapShown then
   begin
     FSnapShown := False;
@@ -2351,6 +2361,13 @@ begin
   FBitmap.Draw(Canvas, 0, 0, True);
   UpdateScrollBars;
   StoreView;
+  // Any change at all moves the rulers, so this is not a tolerance compare
+  if Assigned(FOnViewChange) and ((FView.Scale <> FReportedView.Scale) or (FView.OriginX <> FReportedView.OriginX) or
+    (FView.OriginY <> FReportedView.OriginY)) then
+  begin
+    FReportedView := FView;
+    FOnViewChange(Self);
+  end;
 end;
 
 end.

@@ -44,6 +44,7 @@ type
     procedure TestMissingShareIsDefault;
     procedure TestLabelModeRoundTrip;
     procedure TestSidePanelRoundTrip;
+    procedure TestRulersRoundTrip;
     procedure TestUnknownLabelModeIsIgnored;
   end;
 
@@ -67,6 +68,24 @@ begin
   AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
   AssertTrue('label mode', FSettings.LabelMode = lmContextual);
   AssertTrue('side panel', FSettings.ShowSidePanel);
+  AssertTrue('rulers', FSettings.ShowRulers);
+end;
+
+procedure TTestSettings.TestRulersRoundTrip;
+var
+  Other: TAppSettings;
+  Err: string;
+begin
+  FSettings.ShowRulers := False;
+  Other := TAppSettings.Create;
+  try
+    AssertTrue(Err, Other.LoadFromText(FSettings.SaveToText, Err));
+    AssertFalse('hidden', Other.ShowRulers);
+    AssertTrue('missing means shown', Other.LoadFromText('{"format": "opensloper-settings", "version": 1}', Err));
+    AssertTrue(Other.ShowRulers);
+  finally
+    FreeAndNil(Other);
+  end;
 end;
 
 procedure TTestSettings.TestSidePanelRoundTrip;

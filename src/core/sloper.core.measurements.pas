@@ -174,6 +174,7 @@ function CreateMeasurementFile(const FileName: string; out ErrorMessage: string)
 
 const
   MeasureUnitNames: array[TMeasureUnit] of string = ('mm', 'cm', 'in');
+  MillimetresPerUnit: array[TMeasureUnit] of double = (1, 10, 25.4);
 
 resourcestring
   rsMeasurementWrongFormat = 'This is not a measurements file';
@@ -202,7 +203,6 @@ uses
   Classes, Math, Sloper.Core.Names, Sloper.Core.JSON;
 
 const
-  MillimetresPerUnit: array[TMeasureUnit] of double = (1, 10, 25.4);
   // Enough places to tell 0.1 mm apart in each unit
   MeasureFormats: array[TMeasureUnit] of string = ('0.######', '0.####', '0.####');
   MaxMeasure = 1e12;
