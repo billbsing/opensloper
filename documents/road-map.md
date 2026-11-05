@@ -13,3 +13,6 @@ Also need to work out how claude is going to communicate to the user for changes
 
 #### Fabric Size
 Based on the design, estimate the amount fabric needed for the design. This could be square mm, and min width/length of the fabric. User may need to enter in the fabric width. We can then calculate the amount of fabric needed for the design.
+
+### Publish
+Any use in an export as g-code files for 3dprinters or CNC 
