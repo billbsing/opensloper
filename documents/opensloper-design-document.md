@@ -580,6 +580,35 @@ Markings created before their piece exists are assigned when the piece is create
 
 **Fold on the outline.** A fold on the piece's own edge (centre front cut on the fold) is not a second line: it is the piece's existing `foldEdge` property. The edge is drawn as a fold line, and the piece is mirrored there for cutting and layout.
 
+### Visibility, styles and output
+
+Planned 2026-11-05, not built yet. Marking roles say what a line means, like KiCad's fixed technical layers (silkscreen, edge cuts): the list is the app's, not the file's, so output settings can rely on it. New roles are added to the built-in list, never defined per pattern.
+
+**More roles for leather.** Skive line (the extent of thinning at an edge) and Edge finish (how far edge paint, burnishing or binding runs) join the marking roles, beside the stitch holes already among the markings (see Accessories).
+
+**Styles.** Each role keeps its built-in colour, dash and weight (see As built under Edge roles), chosen so that every role can be shown at once and read at a glance. Users can override them in Preferences, but the defaults should be distinct enough that few need to. Where lines coincide, each role has a draw priority, and the higher one is drawn on top, alongside the screen-only offset that shows there is more than one.
+
+**Marking visibility panel.** A dockable panel lists every marking role with a visibility checkbox and its style swatch, with show all, hide all, solo (show only this role) and saved presets such as "Seams only" or "Leather".
+
+- It changes the view only. Hidden markings are still stored and still print; the drafting app never drops a marking because it is hidden.
+- Which roles are visible is a view setting, not pattern data, so it is not undone.
+- A hidden marking cannot be picked on the canvas, though it can still be selected in the Objects panel.
+
+**Output chosen in the publish app.** The drafting app stores every marking, and the publish app decides which reach the output. Machine profiles already switch line types on and off for cutters (see Cutting machines under Accessories); output profiles extend the same idea to paper, listing the roles and marks to include, with optional style overrides. Profiles are reusable, and a layout can change profile without any change to the pattern:
+
+| Profile | Included |
+| --- | --- |
+| Home printing | Cutting line, seam line, folds, notches, grainline, labels |
+| Plotter or laser cutter | Cutting line only; stitch holes as an optional separate pass |
+| Leather | Cutting line, stitch holes, skive line, edge finish; no seam allowance |
+| Instructions sheet | Seam lines, stitch, folds; no cutting lines |
+
+**Open questions:**
+
+- Should grainlines, labels and buttonhole marks become marking roles too, or stay as their own objects?
+- Should a profile send roles to separate files or passes (one file per laser operation)?
+- What values does each leather marking need (hole spacing and size, skive width and depth)? This joins the question below on where point markers keep theirs.
+
 **To settle when point markers are built:** how holes and stitch holes carry over. A hole has a `diameter`, and stitch holes are holes spaced along an edge (`spacing`, `size`, the piece's `.holes` count), while the Stitch role is a stitching line; markers need somewhere to keep those values, and `add_marking` / `remove_marking` change with them.
 
 ## Seams
