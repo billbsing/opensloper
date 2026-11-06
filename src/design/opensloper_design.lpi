@@ -7,11 +7,11 @@
       <Title Value="OpenSloper"/>
       <Scaled Value="True"/>
       <ResourceType Value="res"/>
-      <Icon Value="0"/>
       <UseXPManifest Value="True"/>
       <XPManifest>
         <DpiAware Value="True/PM_V2"/>
       </XPManifest>
+      <Icon Value="0"/>
     </General>
     <BuildModes>
       <Item Name="Default" Default="True"/>
@@ -277,6 +277,11 @@
         <Filename Value="../ui/sloper.ui.fabricspanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.FabricsPanel"/>
+      </Unit>
+      <Unit>
+        <Filename Value="../ui/sloper.ui.rolespanel.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.RolesPanel"/>
       </Unit>
     </Units>
   </ProjectOptions>

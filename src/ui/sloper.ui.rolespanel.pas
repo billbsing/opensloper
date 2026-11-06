@@ -37,8 +37,10 @@ type
     FDocument: TPatternDocument;
     FChecks: array[TEdgeRole] of TCheckBox;
     FPresetBox: TComboBox;
+    FPresetGroup: TGroupBox;
     FPresets: TRolePresetArray;
     FRefreshing: boolean;
+    FViewGroup: TGroupBox;
     FOnMessage: TRolesMessageEvent;
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
@@ -86,6 +88,7 @@ resourcestring
   rsRolesPresetSaved = 'Saved the preset %s';
   rsRolesPresetNotSaved = 'The preset could not be saved: %s';
   rsRolesOutlineNote = 'Outlines always show, as pieces are made from them. Hidden lines still print.';
+  rsRoleViewGroup = 'Line Filter Views';
 
 implementation
 
@@ -94,7 +97,7 @@ uses
 
 const
   Gap = 6;
-  SwatchWidth = 48;
+  SwatchWidth = 68;
   RowHeight96 = 30;
 
 constructor TRolesPanel.Create(AOwner: TComponent);
@@ -120,12 +123,18 @@ var
   Solo: TButton;
   Note: TLabel;
 begin
+  FViewGroup := TGroupBox.Create(Self);
+  FViewGroup.Parent := Self;
+  FViewGroup.Align := alTop;
+  FViewGroup.Caption := rsRoleViewGroup;
+  FViewGroup.AutoSize := True;
+
   for Role := High(TEdgeRole) downto Low(TEdgeRole) do
   begin
     if not (Role in HideableRoles) then
       Continue;
     Row := TPanel.Create(Self);
-    Row.Parent := Self;
+    Row.Parent := FViewGroup;
     Row.Align := alTop;
     Row.BevelOuter := bvNone;
     Row.Height := Scale96ToForm(RowHeight96);
@@ -147,32 +156,35 @@ begin
     FChecks[Role].OnClick := @CheckClick;
   end;
   Buttons := TPanel.Create(Self);
-  Buttons.Parent := Self;
+  Buttons.Parent := FViewGroup;
   Buttons.Align := alTop;
+  Buttons.BorderSpacing.Top:= 8;
   Buttons.Top := 10000;
   Buttons.BevelOuter := bvNone;
   Buttons.AutoSize := True;
   AddButton(Buttons, rsRolesHideAll, rsRolesHideAllHint, @HideAllClick).Align := alLeft;
   AddButton(Buttons, rsRolesShowAll, rsRolesShowAllHint, @ShowAllClick).Align := alLeft;
-  Note := TLabel.Create(Self);
-  Note.Parent := Self;
+  Note := TLabel.Create(FViewGroup);
+  Note.Parent := FViewGroup;
   Note.Align := alTop;
   Note.Top := 10001;
+  Note.BorderSpacing.Top:= 8;
   Note.WordWrap := True;
   Note.Caption := rsRolesOutlineNote;
-  Note := TLabel.Create(Self);
-  Note.Parent := Self;
-  Note.Align := alTop;
-  Note.Top := 10002;
-  Note.Caption := rsRolesPresets;
+  FPresetGroup := TGroupBox.Create(Self);
+  FPresetGroup.Parent := Self;
+  FPresetGroup.Align:= alTop;
+  FPresetGroup.BorderSpacing.Top := 8;
+  FPresetGroup.Top := 10002;
+  FPresetGroup.Caption := rsRolesPresets;
   FPresetBox := TComboBox.Create(Self);
-  FPresetBox.Parent := Self;
+  FPresetBox.Parent := FPresetGroup;
   FPresetBox.Align := alTop;
   FPresetBox.Top := 10003;
   FPresetBox.Style := csDropDownList;
   FPresetBox.OnChange := @PresetChange;
   Buttons := TPanel.Create(Self);
-  Buttons.Parent := Self;
+  Buttons.Parent := FPresetGroup;
   Buttons.Align := alTop;
   Buttons.Top := 10004;
   Buttons.BevelOuter := bvNone;
@@ -358,6 +370,10 @@ var
   Middle: integer;
 begin
   Box := TPaintBox(Sender);
+  Box.Canvas.Brush.Color := clWhite; // Or any TColor like clSilver, clBtnFace, etc.
+
+  // Fill the entire paintbox area
+  Box.Canvas.FillRect(Box.ClientRect);
   Role := TEdgeRole(Box.Tag);
   Middle := Box.Height div 2;
   if RoleColors[Role] = '' then
@@ -365,15 +381,15 @@ begin
   else
     Box.Canvas.Pen.Color := RGBToColor(StrToInt('$' + Copy(RoleColors[Role], 2, 2)), StrToInt('$' + Copy(RoleColors[Role], 4, 2)),
       StrToInt('$' + Copy(RoleColors[Role], 6, 2)));
-  Box.Canvas.Pen.Width := Max(1, Scale96ToForm(2));
+  Box.Canvas.Pen.Width := Max(1, Scale96ToForm(2) * 2);
   if (Role = erConstruction) or (RoleDashes[Role][0] > 0) then
   begin
-    Box.Canvas.Pen.Width := 1;
+    Box.Canvas.Pen.Width := 4;
     Box.Canvas.Pen.Style := psDash;
   end
   else
     Box.Canvas.Pen.Style := psSolid;
-  Box.Canvas.Line(0, Middle, Box.Width, Middle);
+  Box.Canvas.Line(4, Middle, Box.Width - 4, Middle);
 end;
 
 procedure TRolesPanel.Say(const AText: string);

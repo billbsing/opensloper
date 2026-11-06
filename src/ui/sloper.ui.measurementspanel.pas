@@ -46,6 +46,7 @@ type
     FTestLabel: TLabel;
     FTestSlider: TTrackBar;
     FTestReset: TButton;
+    FTestGroup: TGroupBox;
     // While the slider is being set from the document
     FShowingTest: boolean;
     FOnOpenSet: TNotifyEvent;
@@ -99,6 +100,7 @@ resourcestring
   rsMeasurementsTestOn = '%s%%, editing paused';
   rsMeasurementsTestReset = '&Reset';
   rsMeasurementsTestHint = 'Tries the pattern with every measurement larger or smaller, 1% a step. Nothing is saved.';
+  rsMeasurementsTestTitle = 'Test Sizes';
 
 implementation
 
@@ -250,20 +252,20 @@ end;
 // button
 procedure TMeasurementsPanel.BuildTestBar;
 var
-  TestBar, Row: TPanel;
+  Row: TPanel;
 begin
-  TestBar := TPanel.Create(Self);
-  TestBar.Parent := Self;
-  TestBar.Align := alBottom;
+  FTestGroup := TGroupBox.Create(Self);
+  FTestGroup.Parent := Self;
+  FTestGroup.Align := alBottom;
   // Below the editors, which are docked at the bottom too
-  TestBar.Top := 100000;
-  TestBar.BorderSpacing.Top := 6;
-  TestBar.BevelOuter := bvNone;
-  TestBar.AutoSize := True;
-  TestBar.Hint := rsMeasurementsTestHint;
-  TestBar.ShowHint := True;
+  FTestGroup.Top := 100000;
+  FTestGroup.Caption:= rsMeasurementsTestTitle;
+  FTestGroup.BorderSpacing.Top := 6;
+  FTestGroup.AutoSize := True;
+  FTestGroup.Hint := rsMeasurementsTestHint;
+  FTestGroup.ShowHint := True;
   Row := TPanel.Create(Self);
-  Row.Parent := TestBar;
+  Row.Parent := FTestGroup;
   Row.Align := alTop;
   Row.BevelOuter := bvNone;
   Row.AutoSize := True;
@@ -274,7 +276,7 @@ begin
   FTestLabel.Align := alClient;
   FTestLabel.Layout := tlCenter;
   FTestSlider := TTrackBar.Create(Self);
-  FTestSlider.Parent := TestBar;
+  FTestSlider.Parent := FTestGroup;
   FTestSlider.Align := alTop;
   FTestSlider.Top := 10000;
   FTestSlider.Min := -MaxTestPercent;

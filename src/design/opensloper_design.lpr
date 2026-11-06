@@ -29,7 +29,7 @@ uses
   Forms,
   Sloper.Core.Version,
   Sloper.UI.HintPlacement,
-  Sloper.UI.MainForm;
+  Sloper.UI.MainForm, Sloper.UI.RolesPanel;
 
   {$R *.res}
 
