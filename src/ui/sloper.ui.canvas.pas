@@ -2369,6 +2369,8 @@ var
   Point: TPointObject;
   Shown: TDraftObjectArray;
   DraftObject: TDraftObject;
+  Key: string;
+  Node: TEvalNode;
 begin
   // Pieces under edges, edges under points
   Shown := ShownObjects(FDocument.Pattern);
@@ -2376,9 +2378,16 @@ begin
   for DraftObject in Shown do
     if (DraftObject is TPieceObject) and DraftObject.HasResult then
       DrawPiece(TPieceObject(DraftObject));
-  for DraftObject in Shown do
-    if (DraftObject is TEdgeObject) and DraftObject.HasResult then
+  for DraftObject in EdgesInDrawOrder(Shown) do
+    if DraftObject.HasResult then
       DrawEdge(TEdgeObject(DraftObject));
+  // A hidden line shows while it is selected, as from the Objects panel
+  for Key in FSelection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if (Node is TEdgeObject) and FDocument.Pattern.IsHidden(TEdgeObject(Node)) and Node.HasResult then
+      DrawEdge(TEdgeObject(Node));
+  end;
   for DraftObject in Shown do
   begin
     if not (DraftObject is TPieceObject) or not DraftObject.HasResult then

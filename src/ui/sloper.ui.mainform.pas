@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
-  Sloper.UI.FabricsPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform;
+  Sloper.UI.FabricsPanel, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform;
 
 type
 
@@ -107,6 +107,7 @@ type
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
     FFabrics: TFabricsPanel;
+    FRoles: TRolesPanel;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FObjects: TObjectsPanel;
     FVariables: TVariablesPanel;
@@ -208,6 +209,7 @@ const
   PanelProblems = 1;
   PanelMeasurements = 2;
   PanelMessage = 3;
+  ProblemsPanelWidth96 = 150;
   MeasurementWatchMilliseconds = 1000;
 
 resourcestring
@@ -243,6 +245,7 @@ resourcestring
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
   rsTabFabrics = 'Fabrics';
+  rsTabLines = 'Lines';
   rsMenuViewSidePanel = '&Side Panel';
   rsMenuViewRulers = '&Rulers';
   rsTabProperties = 'Properties';
@@ -307,6 +310,8 @@ resourcestring
   rsCursorAt = 'x %s   y %s %s';
   rsNoProblems = 'No problems';
   rsProblems = 'Problems: %d';
+  rsRolesHidden = '%s; %d kinds of line hidden';
+  rsRoleHidden = '%s; 1 kind of line hidden';
   rsNoMeasurements = 'No measurement set';
 
   { TMainForm }
@@ -383,6 +388,7 @@ begin
   FSettings.LoadFromFile(TAppPaths.SettingsFile, Err);
   FProperties.NameShare := FSettings.NameColumnShare;
   FPreferences := FSettings.Preferences;
+  FRoles.SetPresets(FSettings.RolePresets);
 end;
 
 // Read again first, so that what the other apps saved in the same file while
@@ -447,7 +453,7 @@ procedure TMainForm.CreateSidePanel;
   end;
 
 var
-  PropertySheet, AlignSheet, FabricsSheet: TTabSheet;
+  PropertySheet, AlignSheet, FabricsSheet, RolesSheet: TTabSheet;
 begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
@@ -482,6 +488,13 @@ begin
   FAlign.OnSelect := @AlignSelect;
   // Hidden until the panel is fixed; the arrange code stays for the Automation API
   AlignSheet.TabVisible := False;
+  RolesSheet := FSidePanel.AddTabSheet;
+  RolesSheet.Caption := rsTabLines;
+  FRoles := TRolesPanel.Create(Self);
+  FRoles.Parent := RolesSheet;
+  FRoles.Align := alClient;
+  FRoles.Document := FDocument;
+  FRoles.OnMessage := @ListPanelMessage;
   FabricsSheet := FSidePanel.AddTabSheet;
   FabricsSheet.Caption := rsTabFabrics;
   FFabrics := TFabricsPanel.Create(Self);
@@ -856,7 +869,6 @@ var
   Kind: TTransformKind;
   MenuDrawAs: TMenuItem;
   Role: TEdgeRole;
-  RoleCaptions: array[TEdgeRole] of string;
 
   procedure AddCommand(AAction: TAction);
   begin
@@ -871,12 +883,6 @@ var
   end;
 
 begin
-  RoleCaptions[erConstruction] := rsPropConstruction;
-  RoleCaptions[erOutline] := rsPropOutline;
-  RoleCaptions[erPlacement] := rsPropPlacement;
-  RoleCaptions[erStitch] := rsPropStitch;
-  RoleCaptions[erFold] := rsPropFoldRole;
-  RoleCaptions[erCut] := rsPropCutRole;
   MarkingCaptions[mkPoint] := rsMenuToolsHole;
   MarkingCaptions[mkLine] := rsMenuToolsAttachLine;
   MarkingCaptions[mkStitchHoles] := rsMenuToolsStitch;
@@ -929,7 +935,7 @@ begin
   MenuTools.Add(MenuDrawAs);
   for Role := Low(TEdgeRole) to High(TEdgeRole) do
   begin
-    FRoleActions[Role] := NewAction(RoleCaptions[Role], aiLine, @DrawRoleClick, 0, Ord(Role));
+    FRoleActions[Role] := NewAction(RoleCaption(Role), aiLine, @DrawRoleClick, 0, Ord(Role));
     FRoleActions[Role].ImageIndex := -1;
     FRoleActions[Role].GroupIndex := 3;
     Item := AddMenuItem(MenuDrawAs, FRoleActions[Role]);
@@ -1222,13 +1228,27 @@ end;
 procedure TMainForm.UpdateStatus;
 var
   Problems: TStringArray;
-  BlockedCount: integer;
+  BlockedCount, Hidden: integer;
+  ProblemText: string;
+  Role: TEdgeRole;
 begin
   Problems := PatternProblems(FDocument.Pattern, BlockedCount);
   if Length(Problems) = 0 then
-    StatusBar.Panels[PanelProblems].Text := rsNoProblems
+    ProblemText := rsNoProblems
   else
-    StatusBar.Panels[PanelProblems].Text := Format(rsProblems, [Length(Problems)]);
+    ProblemText := Format(rsProblems, [Length(Problems)]);
+  // So that nothing seems to vanish without a reason
+  Hidden := 0;
+  for Role := Low(TEdgeRole) to High(TEdgeRole) do
+    if Role in FDocument.Pattern.View.HiddenRoles then
+      Inc(Hidden);
+  if Hidden = 1 then
+    ProblemText := Format(rsRoleHidden, [ProblemText])
+  else if Hidden > 1 then
+    ProblemText := Format(rsRolesHidden, [ProblemText, Hidden]);
+  StatusBar.Panels[PanelProblems].Text := ProblemText;
+  StatusBar.Panels[PanelProblems].Width := Max(Scale96ToForm(ProblemsPanelWidth96), StatusBar.Canvas.TextWidth(ProblemText) + Scale96ToForm(16));
+  StatusBarResize(StatusBar);
   if not Assigned(FDocument.Measurements) then
     StatusBar.Panels[PanelMeasurements].Text := rsNoMeasurements
   else if FDocument.Measurements.Name <> '' then
@@ -1357,6 +1377,7 @@ begin
       Exit;
     Options := DefaultDraftSVGOptions;
     Options.NoFills := not FCanvas.ShowPieceFills;
+    Options.HiddenRoles := FDocument.Pattern.View.HiddenRoles;
     // The names the canvas is showing: all, none, or for Contextual the
     // selection and what it uses and is used by
     Options.LabelChosen := True;

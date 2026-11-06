@@ -392,6 +392,12 @@ begin
   end;
 end;
 
+// One of the red, green and blue parts of #rrggbb, from 0 to 1
+function HexPart(const Color: string; Part: integer): double;
+begin
+  Result := StrToIntDef('$' + Copy(Color, 2 + 2 * Part, 2), 0) / 255;
+end;
+
 procedure TLayoutPrinter.DrawShape(const Page: TTilePage; const Shape: TPlacedPiece);
 var
   Line: TPlacedLine;
@@ -402,25 +408,43 @@ begin
   FWriter.SetDash(0);
   FWriter.SetLineWidth(FCutWidth);
   FWriter.Polyline(PagePoints(Page, Shape.CutLine), True);
-  FWriter.SetDash(SeamDash);
-  FWriter.SetLineWidth(FSeamWidth);
-  FWriter.Polyline(PagePoints(Page, Shape.SeamLine), True);
+  if Length(Shape.SeamLine) > 0 then
+  begin
+    FWriter.SetDash(SeamDash);
+    FWriter.SetLineWidth(FSeamWidth);
+    FWriter.Polyline(PagePoints(Page, Shape.SeamLine), True);
+  end;
   FWriter.SetDash(0);
   FWriter.SetLineWidth(FMarkWidth);
   for Mark in Shape.Marks do
     FWriter.Line(PagePoint(Page, Mark.P1), PagePoint(Page, Mark.P2));
   for Line in Shape.Lines do
   begin
-    FWriter.SetDashPattern(RoleDashes[Line.Role]);
-    if Line.Role = erCut then
-      FWriter.SetLineWidth(FCutWidth)
+    // An output profile's own look, or the built-in one
+    if Line.Style.Custom then
+    begin
+      FWriter.SetDashPattern(Line.Style.Dashes);
+      FWriter.SetLineWidth(Line.Style.Width);
+      FWriter.SetColor(HexPart(Line.Style.Color, 0), HexPart(Line.Style.Color, 1), HexPart(Line.Style.Color, 2));
+    end
     else
-      FWriter.SetLineWidth(FMarkWidth);
+    begin
+      FWriter.SetDashPattern(RoleDashes[Line.Role]);
+      if Line.Role = erCut then
+        FWriter.SetLineWidth(FCutWidth)
+      else
+        FWriter.SetLineWidth(FMarkWidth);
+    end;
     FWriter.Polyline(PagePoints(Page, Line.Points), False);
+    if Line.Style.Custom then
+      FWriter.SetGray(0);
   end;
   FWriter.SetDash(0);
-  Spot := PagePoint(Page, Shape.LabelAt);
-  FWriter.Text(Spot.X, Spot.Y, FLabelSize, Shape.Caption);
+  if Shape.ShowLabel then
+  begin
+    Spot := PagePoint(Page, Shape.LabelAt);
+    FWriter.Text(Spot.X, Spot.Y, FLabelSize, Shape.Caption);
+  end;
 end;
 
 procedure TLayoutPrinter.DrawDiamond(const Page: TTilePage; const Centre: TVec2);

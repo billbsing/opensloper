@@ -238,6 +238,29 @@ begin
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
 end;
 
+// A list of strings; anything else in it is refused
+function StringListParam(Params: TJSONObject; const AName: string): TStringArray;
+var
+  List: TJSONData;
+  Index: integer;
+begin
+  Result := nil;
+  List := Params.Find(AName);
+  if List.JSONType <> jtArray then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+  for Index := 0 to List.Count - 1 do
+  begin
+    if List.Items[Index].JSONType <> jtString then
+      raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+    Insert(List.Items[Index].AsString, Result, Length(Result));
+  end;
+end;
+
+function JoinedRoleNames: string;
+begin
+  Result := string.Join(', ', EdgeRoleNames);
+end;
+
 // Which of Choices, the first when absent
 function ChoiceParam(Params: TJSONObject; const AName: string; const Choices: array of string): integer;
 var
@@ -871,6 +894,8 @@ begin
   if Assigned(Params) then
   begin
     GetJSONBoolean(Params, 'labels', Options.Labels);
+    if Assigned(Params.Find('hiddenRoles')) and not NamesToRoles(StringListParam(Params, 'hiddenRoles'), Options.HiddenRoles) then
+      raise EApiError.Create(RpcInvalidParams, Format(rsApiBadChoice, ['hiddenRoles', JoinedRoleNames]));
     Region := Params.Find('region');
     if Assigned(Region) then
     begin
@@ -1827,6 +1852,7 @@ begin
       raise EApiError.Create(RpcRefused, Err);
     Layout.LoadSources;
     Layout.MachineProfiles := UserMachineProfiles;
+    Layout.OutputProfiles := UserOutputProfiles;
     Layout.Calibration := UserCalibration;
     if OptionalString(Params, 'profile') <> '' then
       Layout.Output.Profile := OptionalString(Params, 'profile');

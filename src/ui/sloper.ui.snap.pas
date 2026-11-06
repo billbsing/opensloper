@@ -116,7 +116,7 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not IsUsable(Pattern, DraftObject) then
+    if not (DraftObject is TEdgeObject) or not IsUsable(Pattern, DraftObject) or Pattern.IsHidden(DraftObject) then
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
     if Offset <= Radius then

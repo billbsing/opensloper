@@ -27,7 +27,7 @@ unit Sloper.Core.Settings;
 interface
 
 uses
-  Sloper.Core.Measurements, Sloper.Core.MachineProfiles;
+  Sloper.Core.Measurements, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.Draft;
 
 type
   // Which labels the canvas shows: those that help the current step, all, or none
@@ -38,6 +38,14 @@ type
   TCalibration = record
     X, Y: double;
   end;
+
+  // A saved set of roles to hide in the drafting app, such as "Seams only"
+  TRolePreset = record
+    Name: string;
+    Hidden: TEdgeRoles;
+  end;
+
+  TRolePresetArray = array of TRolePreset;
 
   // In each unit's own numbers, so 0.125 in stays an eighth of an inch
   TGridSteps = array[TMeasureUnit] of double;
@@ -79,6 +87,9 @@ type
     ShowPieceFills: boolean;
     // Besides the built-in Standard
     MachineProfiles: TMachineProfileArray;
+    // Besides the built-in ones
+    OutputProfiles: TOutputProfileArray;
+    RolePresets: TRolePresetArray;
     constructor Create;
     procedure Reset;
     function SaveToText: string;
@@ -100,6 +111,11 @@ function CorrectedCalibration(Current, Expected, Measured: double): double;
 // The profiles saved for this user, for the programs that export; none when
 // the settings cannot be read, and a layout naming one then says it is missing
 function UserMachineProfiles: TMachineProfileArray;
+// The same for output profiles
+function UserOutputProfiles: TOutputProfileArray;
+// Takes out a preset by name, ignoring case, and adds this one
+procedure PutRolePreset(var Presets: TRolePresetArray; const Preset: TRolePreset);
+procedure RemoveRolePreset(var Presets: TRolePresetArray; const AName: string);
 // This user's printer calibration, for the programs that print; none when the
 // settings cannot be read
 function UserCalibration: TCalibration;
@@ -110,6 +126,9 @@ function UserPreferences: TPreferences;
 // writing when the file cannot be read, rather than lose what is in it.
 function SaveUserPreferences(const Preferences: TPreferences; out ErrorMessage: string): boolean;
 function SavePreferencesToFile(const FileName: string; const Preferences: TPreferences; out ErrorMessage: string): boolean;
+// The same for role presets
+function SaveUserRolePresets(const Presets: TRolePresetArray; out ErrorMessage: string): boolean;
+function SaveRolePresetsToFile(const FileName: string; const Presets: TRolePresetArray; out ErrorMessage: string): boolean;
 
 resourcestring
   rsSettingsWrongFormat = 'This is not an OpenSloper settings file';
@@ -171,6 +190,77 @@ begin
   ShowPieceFills := True;
   Preferences := DefaultPreferences;
   MachineProfiles := nil;
+  OutputProfiles := nil;
+  RolePresets := nil;
+end;
+
+function RolePresetsToJSON(const Presets: TRolePresetArray): TJSONArray;
+var
+  Preset: TRolePreset;
+  Item: TJSONObject;
+  Hidden: TJSONArray;
+  RoleName: string;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Preset in Presets do
+    begin
+      Item := TJSONObject.Create;
+      Result.Add(Item);
+      Item.Add('name', Preset.Name);
+      Hidden := TJSONArray.Create;
+      Item.Add('hidden', Hidden);
+      for RoleName in RolesToNames(Preset.Hidden) do
+        Hidden.Add(RoleName);
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+// A preset with no name is skipped, and unknown roles and Outline are passed over
+function RolePresetsFromJSON(Data: TJSONData): TRolePresetArray;
+var
+  Index, Item: integer;
+  Obj: TJSONObject;
+  Preset: TRolePreset;
+  Hidden: TJSONData;
+  Roles: TEdgeRoles;
+begin
+  Result := nil;
+  if not Assigned(Data) or (Data.JSONType <> jtArray) then
+    Exit;
+  for Index := 0 to Data.Count - 1 do
+  begin
+    if Data.Items[Index].JSONType <> jtObject then
+      Continue;
+    Obj := TJSONObject(Data.Items[Index]);
+    Preset := Default(TRolePreset);
+    if not GetJSONString(Obj, 'name', Preset.Name) or (Trim(Preset.Name) = '') then
+      Continue;
+    Hidden := Obj.Find('hidden');
+    if Assigned(Hidden) and (Hidden.JSONType = jtArray) then
+      for Item := 0 to Hidden.Count - 1 do
+        if (Hidden.Items[Item].JSONType = jtString) and NamesToRoles([Hidden.Items[Item].AsString], Roles) then
+          Preset.Hidden := Preset.Hidden + Roles * HideableRoles;
+    Insert(Preset, Result, Length(Result));
+  end;
+end;
+
+procedure RemoveRolePreset(var Presets: TRolePresetArray; const AName: string);
+var
+  Index: integer;
+begin
+  for Index := High(Presets) downto 0 do
+    if SameText(Presets[Index].Name, AName) then
+      Delete(Presets, Index, 1);
+end;
+
+procedure PutRolePreset(var Presets: TRolePresetArray; const Preset: TRolePreset);
+begin
+  RemoveRolePreset(Presets, Preset.Name);
+  Insert(Preset, Presets, Length(Presets));
 end;
 
 function GridStepsToJSON(const Steps: TGridSteps): TJSONObject;
@@ -225,6 +315,10 @@ begin
     Obj.Add('calibrationY', JSONFloat(Preferences.Calibration.Y));
     if Length(MachineProfiles) > 0 then
       Obj.Add('machineProfiles', MachineProfilesToJSON(MachineProfiles));
+    if Length(OutputProfiles) > 0 then
+      Obj.Add('outputProfiles', OutputProfilesToJSON(OutputProfiles));
+    if Length(RolePresets) > 0 then
+      Obj.Add('rolePresets', RolePresetsToJSON(RolePresets));
     Result := JSONToText(Obj);
   finally
     FreeAndNil(Obj);
@@ -274,6 +368,8 @@ begin
     ReadGridSteps(Obj, Preferences.GridSteps);
     ReadCalibration(Obj, Preferences.Calibration);
     MachineProfiles := MachineProfilesFromJSON(Obj.Find('machineProfiles'));
+    OutputProfiles := OutputProfilesFromJSON(Obj.Find('outputProfiles'));
+    RolePresets := RolePresetsFromJSON(Obj.Find('rolePresets'));
     Result := True;
   finally
     FreeAndNil(Obj);
@@ -307,6 +403,20 @@ begin
   try
     Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
     Result := Settings.MachineProfiles;
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+function UserOutputProfiles: TOutputProfileArray;
+var
+  Settings: TAppSettings;
+  Reason: string;
+begin
+  Settings := TAppSettings.Create;
+  try
+    Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
+    Result := Settings.OutputProfiles;
   finally
     FreeAndNil(Settings);
   end;
@@ -346,6 +456,27 @@ begin
     if not Settings.LoadFromFile(FileName, ErrorMessage) then
       Exit(False);
     Settings.Preferences := Preferences;
+    Result := Settings.SaveToFile(FileName, ErrorMessage);
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+function SaveUserRolePresets(const Presets: TRolePresetArray; out ErrorMessage: string): boolean;
+begin
+  TAppPaths.ForceDir(TAppPaths.ConfigDir);
+  Result := SaveRolePresetsToFile(TAppPaths.SettingsFile, Presets, ErrorMessage);
+end;
+
+function SaveRolePresetsToFile(const FileName: string; const Presets: TRolePresetArray; out ErrorMessage: string): boolean;
+var
+  Settings: TAppSettings;
+begin
+  Settings := TAppSettings.Create;
+  try
+    if not Settings.LoadFromFile(FileName, ErrorMessage) then
+      Exit(False);
+    Settings.RolePresets := Presets;
     Result := Settings.SaveToFile(FileName, ErrorMessage);
   finally
     FreeAndNil(Settings);

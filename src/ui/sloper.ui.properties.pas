@@ -181,6 +181,9 @@ type
     property OnMessage: TPropertiesMessageEvent read FOnMessage write FOnMessage;
   end;
 
+// What a role is called in the app
+function RoleCaption(Role: TEdgeRole): string;
+
 resourcestring
   rsPropNothing = 'Nothing selected';
   rsPropMany = '%d objects selected';
@@ -200,6 +203,8 @@ resourcestring
   rsPropStitch = 'Stitch';
   rsPropFoldRole = 'Fold';
   rsPropCutRole = 'Cut';
+  rsPropSkiveRole = 'Skive line';
+  rsPropEdgeFinishRole = 'Edge finish';
   rsPropMarkedOn = 'Marked on';
   rsPropMarkedOnNone = 'No piece';
   rsPropNotMarking = '-';
@@ -249,6 +254,21 @@ implementation
 uses
   Sloper.Core.EvalTypes, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
   Sloper.UI.FabricsPanel, Sloper.UI.GridColumns, Sloper.UI.ObjectList;
+
+function RoleCaption(Role: TEdgeRole): string;
+begin
+  case Role of
+    erConstruction: Result := rsPropConstruction;
+    erOutline: Result := rsPropOutline;
+    erPlacement: Result := rsPropPlacement;
+    erStitch: Result := rsPropStitch;
+    erFold: Result := rsPropFoldRole;
+    erCut: Result := rsPropCutRole;
+    erSkive: Result := rsPropSkiveRole;
+    else
+      Result := rsPropEdgeFinishRole;
+  end;
+end;
 
 const
   Gap = 6;
@@ -634,6 +654,7 @@ procedure TPropertiesPanel.Rebuild;
 var
   Node: TEvalNode;
   Index: integer;
+  Role: TEdgeRole;
 begin
   DisableAlign;
   try
@@ -687,12 +708,8 @@ begin
       FRoleBox := TComboBox.Create(Self);
       FRoleBox.Style := csDropDownList;
       // In the order of TEdgeRole
-      FRoleBox.Items.Add(rsPropConstruction);
-      FRoleBox.Items.Add(rsPropOutline);
-      FRoleBox.Items.Add(rsPropPlacement);
-      FRoleBox.Items.Add(rsPropStitch);
-      FRoleBox.Items.Add(rsPropFoldRole);
-      FRoleBox.Items.Add(rsPropCutRole);
+      for Role := Low(TEdgeRole) to High(TEdgeRole) do
+        FRoleBox.Items.Add(RoleCaption(Role));
       FRoleBox.OnChange := @RoleChange;
       AddRow(rsPropRole, FRoleBox, RowGap);
       FMarkedOnText := AddTextRow(rsPropMarkedOn, '', RowGap);

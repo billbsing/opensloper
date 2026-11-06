@@ -27,7 +27,7 @@ unit Sloper.Output.LayoutDXF;
 interface
 
 uses
-  Sloper.Core.MachineProfiles, Sloper.Output.Layout;
+  Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Output.Layout;
 
 const
   LayerCut = '1';
@@ -340,7 +340,10 @@ begin
   AddLine(rsDXFUnits);
 end;
 
-procedure WritePieceBlock(Writer: TDXFWriter; Pattern: TPattern; Piece: TPieceObject; const BlockName, SizeName: string);
+// What the output profile includes, as PlaceShape does; the piece's name,
+// size, quantity and material always go in, as DXF-AAMA asks for them
+procedure WritePieceBlock(Writer: TDXFWriter; Pattern: TPattern; Piece: TPieceObject; const BlockName, SizeName: string;
+  const Profile: TOutputProfile);
 var
   At: TVec2;
   Mark: TNotchMark;
@@ -379,17 +382,39 @@ var
 
 begin
   Writer.StartBlock(BlockName);
-  Writer.ClosedPath(LayerCut, UpAll(Piece.CutLine));
-  Writer.ClosedPath(LayerSeam, UpAll(Piece.Outline));
-  if Piece.GrainKind <> gkNone then
+  if Profile.Allowance = apNone then
+    Writer.ClosedPath(LayerCut, UpAll(Piece.Outline))
+  else
+  begin
+    Writer.ClosedPath(LayerCut, UpAll(Piece.CutLine));
+    if pkSeamLine in Profile.PieceMarks then
+      Writer.ClosedPath(LayerSeam, UpAll(Piece.Outline));
+  end;
+  if (Piece.GrainKind <> gkNone) and (pkGrainline in Profile.PieceMarks) then
     Writer.Line(LayerGrain, UpLine(Piece.Grainline));
-  if Piece.OnFold then
+  if Piece.OnFold and (pkFoldBracket in Profile.PieceMarks) then
     Writer.Line(LayerFold, UpLine(Piece.FoldLine));
-  // An angle as seen on screen is already DXF's anticlockwise angle
-  for Mark in Piece.NotchMarks do
-    Writer.Notch(Up(Mark.Cut), Distance(Mark.Cut, Mark.Tip), Line2(Mark.Cut, Mark.Tip).Angle);
+  // An angle as seen on screen is already DXF's anticlockwise angle; cut on
+  // the seam line, a notch starts there
+  if pkNotches in Profile.PieceMarks then
+    for Mark in Piece.NotchMarks do
+      if Profile.Allowance = apNone then
+        Writer.Notch(Up(Mark.Seam), Distance(Mark.Cut, Mark.Tip), Line2(Mark.Cut, Mark.Tip).Angle)
+      else
+        Writer.Notch(Up(Mark.Cut), Distance(Mark.Cut, Mark.Tip), Line2(Mark.Cut, Mark.Tip).Angle);
   for Marking in Piece.MarkingMarks do
   begin
+    case Marking.Kind of
+      mkLine:
+        if not (Marking.Role in Profile.Roles) then
+          Continue;
+      mkPoint:
+        if not (pkHoles in Profile.PieceMarks) then
+          Continue;
+      else
+        if not (pkStitchHoles in Profile.PieceMarks) then
+          Continue;
+    end;
     for Index := 1 to High(Marking.Line) do
       Writer.Line(LayerInternal, UpLine(Line2(Marking.Line[Index - 1], Marking.Line[Index])));
     for Hole in Marking.Holes do
@@ -454,7 +479,7 @@ begin
       if (Layout.Sources.Count > 1) and (SizeName <> '') then
         BlockName := BlockName + '_' + BlockNameFrom(SizeName);
       BlockName := FreeBlockName(BlockName, Names);
-      WritePieceBlock(Writer, Source.Pattern, Piece, BlockName, SizeName);
+      WritePieceBlock(Writer, Source.Pattern, Piece, BlockName, SizeName, Layout.ActiveOutputProfile);
       System.Insert(BlockName, Blocks, Length(Blocks));
     end;
     Writer.EndSection;
@@ -568,10 +593,13 @@ begin
       ltScore: Strokes(Layer, Shape.ScoreLines);
       ltMark:
       begin
-        Writer.ClosedPath(Layer, UpAll(Shape.SeamLine));
+        if Length(Shape.SeamLine) > 0 then
+          Writer.ClosedPath(Layer, UpAll(Shape.SeamLine));
         Strokes(Layer, Shape.MarkLines);
       end;
-      ltEngrave: Writer.TextAt(Layer, Up(Shape.LabelAt), Shape.Caption);
+      ltEngrave:
+        if Shape.ShowLabel then
+          Writer.TextAt(Layer, Up(Shape.LabelAt), Shape.Caption);
       ltHole:
         for Hole in Shape.Holes do
           Writer.Circle(Layer, Up(Hole.Centre), Hole.Diameter / 2);

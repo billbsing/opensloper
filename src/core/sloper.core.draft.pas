@@ -32,7 +32,8 @@ type
   // Construction lines are guides and outlines bound pieces. The rest are
   // marking lines, printed with the pieces they lie in (see Markings in the
   // design document).
-  TEdgeRole = (erConstruction, erOutline, erPlacement, erStitch, erFold, erCut);
+  TEdgeRole = (erConstruction, erOutline, erPlacement, erStitch, erFold, erCut, erSkive, erEdgeFinish);
+  TEdgeRoles = set of TEdgeRole;
   TOffsetMode = (omPolar, omCartesian);
   TAlongMode = (amLength, amRatio);
   TProjectDirection = (pdPerpendicular, pdAngle);
@@ -47,21 +48,30 @@ type
   TDashPattern = array[0..3] of double;
 
 const
-  MarkingRoles = [erPlacement, erStitch, erFold, erCut];
+  MarkingRoles = [erPlacement, erStitch, erFold, erCut, erSkive, erEdgeFinish];
+  // The roles that can be hidden in the drafting app: all but Outline, which
+  // pieces are made from
+  HideableRoles = [erConstruction] + MarkingRoles;
   // As written in pattern files and the Automation API
   PointMarkerNames: array[TPointMarker] of string = ('plain', 'hole', 'button', 'match');
   // The formula field of a marker's size, across in mm, and what it starts at
   MarkerSizeField = 'markerSize';
   DefaultMarkerSizes: array[TPointMarker] of string = ('', '4', '15', '3');
   // As written in pattern files and the Automation API
-  EdgeRoleNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut');
+  EdgeRoleNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut', 'skive', 'edgeFinish');
+  // The class of each role's group in the publish app's SVG
+  RoleClassNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut', 'skive', 'edge-finish');
   // How marking lines are printed: placement thin and solid, stitch in short
-  // dashes (shorter than the seam line's 2 mm), fold dash-dot, and cut solid
-  // at the cutting line's width
-  RoleDashes: array[TEdgeRole] of TDashPattern = ((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (1, 1, 0, 0), (6, 1.5, 1, 1.5), (0, 0, 0, 0));
+  // dashes (shorter than the seam line's 2 mm), fold dash-dot, cut solid at
+  // the cutting line's width, skive line in 4 mm dashes and edge finish dotted
+  RoleDashes: array[TEdgeRole] of TDashPattern = ((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (1, 1, 0, 0), (6, 1.5, 1, 1.5), (0, 0, 0, 0),
+    (4, 2, 0, 0), (0.4, 0.8, 0, 0));
   // How they are told apart on screen and in draft SVG; red and orange mean
   // problems there, so no role uses them
-  RoleColors: array[TEdgeRole] of string = ('', '', '#1f6fd1', '#2a9d3a', '#8a3fc4', '#00838f');
+  RoleColors: array[TEdgeRole] of string = ('', '', '#1f6fd1', '#2a9d3a', '#8a3fc4', '#00838f', '#8b5a2b', '#757575');
+  // Where lines lie in the same place, the higher is drawn on top and picked
+  // first: the lines a piece is cut and sewn by over the guides
+  RolePriorities: array[TEdgeRole] of integer = (0, 7, 3, 5, 4, 6, 2, 1);
 
 type
 
@@ -570,6 +580,12 @@ function MarkerStrokes(AMarker: TPointMarker; const Centre: TVec2; Size: double)
 // Where a point's or repeat's marker goes: the point, or every point of the
 // repeat; empty for anything else
 function MarkerPositions(DraftObject: TDraftObject): TVec2Array;
+// The edges among Objects in the order to draw them: by role priority, the
+// highest last so it is on top, and otherwise in the order given
+function EdgesInDrawOrder(const Objects: TDraftObjectArray): TDraftObjectArray;
+// Role names as written in files, in role order; False when one is unknown
+function RolesToNames(Roles: TEdgeRoles): TStringArray;
+function NamesToRoles(const Names: array of string; out Roles: TEdgeRoles): boolean;
 
 resourcestring
   rsDraftMarkerSize = 'A marker needs a size above 0';
@@ -645,6 +661,54 @@ end;
 
 procedure TDraftObject.RedirectPoint(const OldKey, NewKey: string);
 begin
+end;
+
+function RolesToNames(Roles: TEdgeRoles): TStringArray;
+var
+  Role: TEdgeRole;
+begin
+  Result := nil;
+  for Role := Low(TEdgeRole) to High(TEdgeRole) do
+    if Role in Roles then
+      System.Insert(EdgeRoleNames[Role], Result, System.Length(Result));
+end;
+
+function NamesToRoles(const Names: array of string; out Roles: TEdgeRoles): boolean;
+var
+  RoleName: string;
+  Role: TEdgeRole;
+  Found: boolean;
+begin
+  Roles := [];
+  for RoleName in Names do
+  begin
+    Found := False;
+    for Role := Low(TEdgeRole) to High(TEdgeRole) do
+      if EdgeRoleNames[Role] = RoleName then
+      begin
+        Include(Roles, Role);
+        Found := True;
+      end;
+    if not Found then
+      Exit(False);
+  end;
+  Result := True;
+end;
+
+function EdgesInDrawOrder(const Objects: TDraftObjectArray): TDraftObjectArray;
+var
+  DraftObject: TDraftObject;
+  Role: TEdgeRole;
+  Priority, Highest: integer;
+begin
+  Result := nil;
+  Highest := 0;
+  for Role := Low(TEdgeRole) to High(TEdgeRole) do
+    Highest := Max(Highest, RolePriorities[Role]);
+  for Priority := 0 to Highest do
+    for DraftObject in Objects do
+      if (DraftObject is TEdgeObject) and (RolePriorities[TEdgeObject(DraftObject).Role] = Priority) then
+        System.Insert(DraftObject, Result, System.Length(Result));
 end;
 
 function MarkerPositions(DraftObject: TDraftObject): TVec2Array;

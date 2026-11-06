@@ -431,9 +431,12 @@ begin
   if Shape.Look.Filled then
     FBitmap.FillPolyAntialias(ScreenPoints(Shape.CutLine), PieceTint(Shape.Look));
   FBitmap.DrawPolygonAntialias(ScreenPoints(Shape.CutLine), Ink, LineWidth);
-  FBitmap.PenStyle := psDash;
-  FBitmap.DrawPolygonAntialias(ScreenPoints(Shape.SeamLine), Ink, 1);
-  FBitmap.PenStyle := psSolid;
+  if Length(Shape.SeamLine) > 0 then
+  begin
+    FBitmap.PenStyle := psDash;
+    FBitmap.DrawPolygonAntialias(ScreenPoints(Shape.SeamLine), Ink, 1);
+    FBitmap.PenStyle := psSolid;
+  end;
   for Mark in Shape.Marks do
   begin
     First := FView.ToScreen(Mark.P1);
@@ -447,6 +450,8 @@ begin
     FBitmap.DrawPolyLineAntialias(ScreenPoints(Line.Points), Ink, 1);
     FBitmap.PenStyle := psSolid;
   end;
+  if not Shape.ShowLabel then
+    Exit;
   Spot := FView.ToScreen(Shape.LabelAt);
   FBitmap.FontHeight := LabelHeight;
   FBitmap.TextOut(Spot.X, Spot.Y, Shape.Caption, Ink);

@@ -86,16 +86,21 @@ begin
       Result := Result + ' L ' + PointText(Points[Index]);
 end;
 
-function DashArray(Role: TEdgeRole): string;
+function DashText(const Dashes: TDashPattern): string;
 var
   Length: double;
 begin
   Result := '';
-  for Length in RoleDashes[Role] do
+  for Length in Dashes do
     if Length > 0 then
       Result := Result + ' ' + SVGNumber(Length);
   if Result <> '' then
     Result := Format(' stroke-dasharray="%s"', [Trim(Result)]);
+end;
+
+function DashArray(Role: TEdgeRole): string;
+begin
+  Result := DashText(RoleDashes[Role]);
 end;
 
 // One group per role, as the roles print differently
@@ -110,8 +115,14 @@ begin
     Width := MarkWidth;
     if Line.Role = erCut then
       Width := CutWidth;
-    Result := Result + Format('<g class="line-%s"><path d="%s" stroke-width="%s"%s/></g>',
-      [EdgeRoleNames[Line.Role], OpenPath(Line.Points), SVGNumber(Width), DashArray(Line.Role)]) + #10;
+    // An output profile's own look, or the built-in one
+    if Line.Style.Custom then
+      Result := Result + Format('<g class="line-%s"><path d="%s" stroke="%s" stroke-width="%s"%s/></g>',
+        [RoleClassNames[Line.Role], OpenPath(Line.Points), LowerCase(Line.Style.Color), SVGNumber(Line.Style.Width),
+        DashText(Line.Style.Dashes)]) + #10
+    else
+      Result := Result + Format('<g class="line-%s"><path d="%s" stroke-width="%s"%s/></g>',
+        [RoleClassNames[Line.Role], OpenPath(Line.Points), SVGNumber(Width), DashArray(Line.Role)]) + #10;
   end;
 end;
 
@@ -121,14 +132,17 @@ var
 begin
   Marks := StrokesPath(Shape.Marks);
   Result := Format('<g id="piece%d" data-name="%s" fill="none" stroke="%s">', [Number, EscapeXML(Shape.Caption), InkColor]) + #10 +
-    Format('<g class="cut"><path d="%s" stroke-width="%s"/></g>', [ClosedPath(Shape.CutLine), SVGNumber(CutWidth)]) + #10 +
-    Format('<g class="seam"><path d="%s" stroke-width="%s" stroke-dasharray="%s %s"/></g>',
-    [ClosedPath(Shape.SeamLine), SVGNumber(SeamWidth), SVGNumber(SeamDash), SVGNumber(SeamDash)]) + #10;
+    Format('<g class="cut"><path d="%s" stroke-width="%s"/></g>', [ClosedPath(Shape.CutLine), SVGNumber(CutWidth)]) + #10;
+  if Length(Shape.SeamLine) > 0 then
+    Result := Result + Format('<g class="seam"><path d="%s" stroke-width="%s" stroke-dasharray="%s %s"/></g>',
+      [ClosedPath(Shape.SeamLine), SVGNumber(SeamWidth), SVGNumber(SeamDash), SVGNumber(SeamDash)]) + #10;
   if Marks <> '' then
     Result := Result + Format('<g class="marks"><path d="%s" stroke-width="%s"/></g>', [Marks, SVGNumber(MarkWidth)]) + #10;
   Result := Result + LinesGroup(Shape);
-  Result := Result + Format('<g class="label"><text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s" stroke="none">%s</text></g>',
-    [SVGNumber(Shape.LabelAt.X), SVGNumber(Shape.LabelAt.Y), SVGNumber(LabelSize), InkColor, EscapeXML(Shape.Caption)]) + #10 + '</g>' + #10;
+  if Shape.ShowLabel then
+    Result := Result + Format('<g class="label"><text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s" stroke="none">%s</text></g>',
+      [SVGNumber(Shape.LabelAt.X), SVGNumber(Shape.LabelAt.Y), SVGNumber(LabelSize), InkColor, EscapeXML(Shape.Caption)]) + #10;
+  Result := Result + '</g>' + #10;
 end;
 
 // What one line type draws of a piece, without its style
@@ -149,12 +163,15 @@ begin
         Result := Format('<path d="%s"/>', [StrokesPath(Shape.ScoreLines)]);
     ltMark:
     begin
-      Result := Format('<path d="%s"/>', [ClosedPath(Shape.SeamLine)]);
+      if Length(Shape.SeamLine) > 0 then
+        Result := Format('<path d="%s"/>', [ClosedPath(Shape.SeamLine)]);
       if Length(Shape.MarkLines) > 0 then
         Result := Result + Format('<path d="%s"/>', [StrokesPath(Shape.MarkLines)]);
     end;
-    ltEngrave: Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s" stroke="none">%s</text>',
-        [SVGNumber(Shape.LabelAt.X), SVGNumber(Shape.LabelAt.Y), SVGNumber(LabelSize), Style.Color, EscapeXML(Shape.Caption)]);
+    ltEngrave:
+      if Shape.ShowLabel then
+        Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s" stroke="none">%s</text>',
+          [SVGNumber(Shape.LabelAt.X), SVGNumber(Shape.LabelAt.Y), SVGNumber(LabelSize), Style.Color, EscapeXML(Shape.Caption)]);
     ltHole:
       for Hole in Shape.Holes do
         Result := Result + Format('<circle cx="%s" cy="%s" r="%s"/>', [SVGNumber(Hole.Centre.X), SVGNumber(Hole.Centre.Y), SVGNumber(Hole.Diameter / 2)]);

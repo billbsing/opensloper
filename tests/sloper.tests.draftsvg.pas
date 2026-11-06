@@ -59,6 +59,7 @@ type
     procedure TestNoFillsLeavesPieceUnfilled;
     procedure TestNoFillsLeavesOutHatching;
     procedure TestLooseMarkerIsDrawn;
+    procedure TestHiddenRolesLeftOut;
   end;
 
 implementation
@@ -104,6 +105,21 @@ end;
 procedure TTestDraftSVG.AssertLacks(const Msg, Part, Text: string);
 begin
   AssertTrue(Msg + ': did not expect ' + Part, Pos(Part, Text) = 0);
+end;
+
+procedure TTestDraftSVG.TestHiddenRolesLeftOut;
+var
+  Options: TDraftSVGOptions;
+  Stitch: string;
+begin
+  Build;
+  Stitch := FPattern.AddLine('2', '3', erStitch).Key;
+  FPattern.Evaluate;
+  Options := DefaultDraftSVGOptions;
+  AssertHas('shown by default', 'data-id="' + Stitch + '"', DraftToSVG(FPattern, Options));
+  Options.HiddenRoles := [erStitch];
+  AssertLacks('hidden', 'data-id="' + Stitch + '"', DraftToSVG(FPattern, Options));
+  AssertHas('the outline stays', 'data-id="4"', DraftToSVG(FPattern, Options));
 end;
 
 // No piece yet, as on the canvas

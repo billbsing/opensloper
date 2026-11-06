@@ -674,7 +674,8 @@ end;
 
 function SaveView(Pattern: TPattern): TJSONObject;
 var
-  Centre: TJSONArray;
+  Centre, Roles: TJSONArray;
+  RoleName: string;
 begin
   Result := TJSONObject.Create;
   try
@@ -685,6 +686,14 @@ begin
       Result.Add('centre', Centre);
       Centre.Add(JSONFloat(Pattern.View.CentreX));
       Centre.Add(JSONFloat(Pattern.View.CentreY));
+    end;
+    // Left out when every role shows
+    if Pattern.View.HiddenRoles <> [] then
+    begin
+      Roles := TJSONArray.Create;
+      Result.Add('hiddenRoles', Roles);
+      for RoleName in RolesToNames(Pattern.View.HiddenRoles) do
+        Roles.Add(RoleName);
     end;
   except
     FreeAndNil(Result);
@@ -698,6 +707,8 @@ var
   Root: TJSONObject;
   List: TJSONData;
   Zoom: double;
+  Index: integer;
+  Role: TEdgeRole;
 begin
   Pattern.View := Default(TPatternView);
   if not Assigned(Data) or (Data.JSONType <> jtObject) then
@@ -712,6 +723,14 @@ begin
     Pattern.View.CentreY := List.Items[1].AsFloat;
     Pattern.View.HasView := True;
   end;
+  // Unknown roles are passed over, and Outline is always shown
+  List := Root.Find('hiddenRoles');
+  if Assigned(List) and (List.JSONType = jtArray) then
+    for Index := 0 to List.Count - 1 do
+      if List.Items[Index].JSONType = jtString then
+        for Role := Low(TEdgeRole) to High(TEdgeRole) do
+          if (EdgeRoleNames[Role] = List.Items[Index].AsString) and (Role in HideableRoles) then
+            Include(Pattern.View.HiddenRoles, Role);
 end;
 
 function PatternViewToText(Pattern: TPattern): string;
@@ -766,7 +785,7 @@ begin
     // The untouched Main writes nothing, so simple files stay simple
     if Pattern.Fabrics[0].Key <> '' then
       Root.Add('fabrics', SaveFabrics(Pattern));
-    if WithNextId and Pattern.View.HasView then
+    if WithNextId and (Pattern.View.HasView or (Pattern.View.HiddenRoles <> [])) then
       Root.Add('view', SaveView(Pattern));
     Result := JSONToText(Root);
   finally

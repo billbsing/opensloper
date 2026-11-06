@@ -55,6 +55,9 @@ type
     // Set once the canvas has shown the pattern
     HasView: boolean;
     Zoom, CentreX, CentreY: double;
+    // Roles the drafting app does not show (see Visibility, styles and
+    // output in the design); never Outline
+    HiddenRoles: TEdgeRoles;
   end;
 
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
@@ -270,6 +273,8 @@ type
     function PiecesWithMarking(const Key: string): TPieceObjectArray;
     // A marking line or a point or repeat with a marker
     function IsMarking(DraftObject: TDraftObject): boolean;
+    // An edge whose role the view hides
+    function IsHidden(DraftObject: TDraftObject): boolean;
     function AddStitchMarking(Piece: TPieceObject; const EdgeId, Spacing, Size: string): boolean;
     function RemoveMarking(Piece: TPieceObject; Index: integer): boolean;
     function SetCut(Piece: TPieceObject; Count: integer; Mirrored: boolean): boolean;
@@ -2351,6 +2356,11 @@ begin
   else if not WasMarking then
     QueueMarking(Edge);
   Result := True;
+end;
+
+function TPattern.IsHidden(DraftObject: TDraftObject): boolean;
+begin
+  Result := (DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in View.HiddenRoles);
 end;
 
 function TPattern.IsMarking(DraftObject: TDraftObject): boolean;

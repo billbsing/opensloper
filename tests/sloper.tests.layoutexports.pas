@@ -69,6 +69,15 @@ type
     procedure TestPlacedHoleIsWhole;
     procedure TestPlacedHoleFollowsFlip;
     procedure TestPlacedButtonIsAMark;
+    procedure TestLeatherRolesPrint;
+    procedure TestOutputProfileSaved;
+    procedure TestUnknownOutputProfileBlocksExport;
+    procedure TestLeatherCutsOnSeamLine;
+    procedure TestCutterProfileKeepsCutAndHoles;
+    procedure TestInstructionsProfile;
+    procedure TestProfileStylesOnPaper;
+    procedure TestMachineProfileAfterOutputProfile;
+    procedure TestAAMAFollowsOutputProfile;
     procedure TestPaperMarksKeepEverything;
     procedure TestFoldStaysHalfOnPaper;
     procedure TestFoldOpensWithProfile;
@@ -139,7 +148,7 @@ type
 implementation
 
 uses
-  Math, Sloper.Core.MachineProfiles, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.EvalTypes, Sloper.Core.PatternFile,
+  Math, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.EvalTypes, Sloper.Core.PatternFile,
   Sloper.Core.PieceDetect, Sloper.Output.LayoutSVG,
   Sloper.Output.LayoutDXF, Sloper.Output.LayoutExport, Sloper.Output.Packing, Sloper.Output.Tiling, Sloper.Output.DraftSVG, StrUtils;
 
@@ -569,6 +578,156 @@ begin
     if Distance(Stroke.P1, Vec2(80, 70)) < 5.01 then
       Inc(Near);
   AssertEquals('a circle and a cross, as marks', 18, Near);
+end;
+
+// Skive and edge finish lines join the piece and print as marks, in their
+// own groups
+procedure TTestLayoutExports.TestLeatherRolesPrint;
+var
+  Pattern: TPattern;
+  Text: string;
+begin
+  AddMarkedPattern('a.sloper');
+  Pattern := FLayout.Sources[0].Pattern;
+  Pattern.AddLine(Pattern.AddFreePoint('', '10', '-10').Key, Pattern.AddFreePoint('', '90', '-10').Key, erSkive);
+  Pattern.AddLine(Pattern.AddFreePoint('', '10', '-90').Key, Pattern.AddFreePoint('', '90', '-90').Key, erEdgeFinish);
+  Pattern.Evaluate;
+  FLayout.PlaceNewPieces;
+  Text := LayoutToSVG(FLayout);
+  AssertTrue('skive', Pos('<g class="line-skive">', Text) > 0);
+  AssertTrue('edge finish', Pos('<g class="line-edge-finish">', Text) > 0);
+  AssertEquals('only the fold line scores', 1, Length(FLayout.PlacedPieces[0].ScoreLines));
+end;
+
+procedure TTestLayoutExports.TestOutputProfileSaved;
+var
+  Loaded: TLayout;
+  Reason: string;
+begin
+  FLayout.Output.OutputProfile := 'Leather';
+  AssertTrue('written', Pos('"outputProfile"', FLayout.SaveToText) > 0);
+  Loaded := TLayout.Create;
+  try
+    AssertTrue(Reason, Loaded.LoadFromText(FLayout.SaveToText, Reason));
+    AssertEquals('Leather', Loaded.Output.OutputProfile);
+  finally
+    FreeAndNil(Loaded);
+  end;
+  FLayout.Output.OutputProfile := '';
+  AssertEquals('left out when none', 0, Pos('outputProfile', FLayout.SaveToText));
+end;
+
+procedure TTestLayoutExports.TestUnknownOutputProfileBlocksExport;
+var
+  Reason: string;
+  Problem: TLayoutProblem;
+  Found: boolean;
+begin
+  AddMarkedPattern('a.sloper');
+  FLayout.PlaceNewPieces;
+  FLayout.Output.OutputProfile := 'Not there';
+  Found := False;
+  for Problem in FLayout.Problems do
+    Found := Found or (Problem.Blocking and (Problem.Text = Format(rsLayoutUnknownOutputProfile, ['Not there'])));
+  AssertTrue('blocking', Found);
+  AssertFalse(ExportLayout(FLayout, efSVG, ConcatPaths([FFolder, 'x.svg']), Reason));
+end;
+
+// The marked piece is 100 by 100 inside a 10 mm allowance
+procedure TTestLayoutExports.TestLeatherCutsOnSeamLine;
+var
+  Shape: TPlacedPiece;
+  Line: TPlacedLine;
+begin
+  AddMarkedPattern('a.sloper');
+  FLayout.Output.OutputProfile := 'Leather';
+  FLayout.PlaceNewPieces;
+  Shape := FLayout.PlacedPieces[0];
+  AssertEquals('cut on the seam line', 100 * 100, Abs(SignedArea(Shape.CutLine)), 1e-3);
+  AssertEquals('no seam line drawn', 0, Length(Shape.SeamLine));
+  AssertEquals('placed from its own top left', 0, Shape.Bounds.MinX, 1e-6);
+  for Line in Shape.Lines do
+    AssertFalse('no placement or fold lines', Line.Role in [erPlacement, erFold]);
+  AssertEquals('the hole and five stitch holes', 6, Length(Shape.Holes));
+  AssertTrue(Shape.ShowLabel);
+end;
+
+procedure TTestLayoutExports.TestCutterProfileKeepsCutAndHoles;
+var
+  Shape: TPlacedPiece;
+begin
+  AddMarkedPattern('a.sloper');
+  FLayout.Output.OutputProfile := 'Plotter or laser cutter';
+  FLayout.PlaceNewPieces;
+  Shape := FLayout.PlacedPieces[0];
+  AssertEquals('no marking lines', 0, Length(Shape.Lines));
+  AssertEquals('no fold line to score', 0, Length(Shape.ScoreLines));
+  AssertEquals(6, Length(Shape.Holes));
+  AssertEquals('no seam line', 0, Length(Shape.SeamLine));
+  AssertFalse('no label', Shape.ShowLabel);
+  AssertEquals('only hole circles as marks', 6 * 16, Length(Shape.Marks));
+end;
+
+procedure TTestLayoutExports.TestInstructionsProfile;
+var
+  Shape: TPlacedPiece;
+begin
+  AddMarkedPattern('a.sloper');
+  FLayout.Output.OutputProfile := 'Instructions sheet';
+  FLayout.PlaceNewPieces;
+  Shape := FLayout.PlacedPieces[0];
+  AssertTrue('seam line', Length(Shape.SeamLine) > 0);
+  AssertEquals('placement and fold lines', 2, Length(Shape.Lines));
+  AssertEquals('no holes', 0, Length(Shape.Holes));
+end;
+
+procedure TTestLayoutExports.TestProfileStylesOnPaper;
+var
+  Profile: TOutputProfile;
+  Text: string;
+begin
+  AddMarkedPattern('a.sloper');
+  Profile := FullOutputProfile;
+  Profile.Name := 'Blue folds';
+  Profile.Styles[erFold].Custom := True;
+  Profile.Styles[erFold].Color := '#0000FF';
+  Profile.Styles[erFold].Dashes[0] := 3;
+  Profile.Styles[erFold].Dashes[1] := 2;
+  Profile.Styles[erFold].Width := 0.5;
+  FLayout.OutputProfiles := [Profile];
+  FLayout.Output.OutputProfile := 'Blue folds';
+  FLayout.PlaceNewPieces;
+  Text := LayoutToSVG(FLayout);
+  AssertTrue(Text, Pos('<g class="line-fold"><path d="', Text) > 0);
+  AssertTrue('its own look', Pos('stroke="#0000ff" stroke-width="0.5" stroke-dasharray="3 2"', Text) > 0);
+  AssertTrue('others keep theirs', Pos('<g class="line-placement"><path d="', Text) > 0);
+end;
+
+// The profile leaves the fold line out, so the machine has nothing to score
+procedure TTestLayoutExports.TestMachineProfileAfterOutputProfile;
+var
+  Text: string;
+begin
+  AddMarkedPattern('a.sloper');
+  FLayout.Output.OutputProfile := 'Plotter or laser cutter';
+  FLayout.Output.Profile := StandardProfileName;
+  FLayout.PlaceNewPieces;
+  Text := LayoutToSVG(FLayout);
+  AssertEquals('no score lines', 0, Pos('class="score"', Text));
+  AssertTrue('holes cut', Pos('<circle', Text) > 0);
+end;
+
+procedure TTestLayoutExports.TestAAMAFollowsOutputProfile;
+var
+  Text: string;
+begin
+  AddMarkedPattern('a.sloper');
+  FLayout.Output.OutputProfile := 'Leather';
+  FLayout.PlaceNewPieces;
+  Text := LayoutToDXF(FLayout);
+  AssertEquals('no seam line', 0, Count('POLYLINE'#13#10'  8'#13#10'14'#13#10, Text));
+  AssertEquals('no placement or fold lines', 0, Count('LINE'#13#10'  8'#13#10'8'#13#10, Text));
+  AssertEquals('every hole, as a point', 6, Count('POINT'#13#10'  8'#13#10'13'#13#10, Text));
 end;
 
 // Paper keeps drawing every mark, holes as strokes, in one list

@@ -52,12 +52,20 @@ type
     procedure TestSavingPreferencesKeepsTheRest;
     procedure TestSavingPreferencesLeavesUnreadableFile;
     procedure TestCorrectedCalibration;
+    procedure TestRolePresetsRoundTrip;
+    procedure TestRolePresetsPassOverOddEntries;
+    procedure TestSavingPresetsKeepsTheRest;
+    procedure TestPutRolePresetReplacesByName;
+    procedure TestOutputProfilesRoundTrip;
+    procedure TestBuiltInOutputProfiles;
+    procedure TestBuiltInProfileCannotBeChanged;
+    procedure TestOutputProfileBadStyleIgnored;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.Measurements, Sloper.Core.JSON;
+  SysUtils, Sloper.Core.Measurements, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.OutputProfiles;
 
 procedure TTestSettings.SetUp;
 begin
@@ -325,6 +333,149 @@ begin
   // Printed with 1.01 and still 1 % short: the new factor builds on the old
   AssertNear('again', 1.01 * 100 / 99, CorrectedCalibration(1.01, 100, 99));
   AssertNear('nothing measured', 1.02, CorrectedCalibration(1.02, 100, 0));
+end;
+
+procedure TTestSettings.TestRolePresetsRoundTrip;
+var
+  Preset: TRolePreset;
+  Loaded: TAppSettings;
+  Err: string;
+begin
+  Preset.Name := 'Seams only';
+  Preset.Hidden := [erConstruction, erPlacement];
+  PutRolePreset(FSettings.RolePresets, Preset);
+  Loaded := TAppSettings.Create;
+  try
+    AssertTrue(Err, Loaded.LoadFromText(FSettings.SaveToText, Err));
+    AssertEquals(1, Length(Loaded.RolePresets));
+    AssertEquals('Seams only', Loaded.RolePresets[0].Name);
+    AssertTrue(Loaded.RolePresets[0].Hidden = [erConstruction, erPlacement]);
+  finally
+    FreeAndNil(Loaded);
+  end;
+end;
+
+procedure TTestSettings.TestRolePresetsPassOverOddEntries;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "rolePresets": [' +
+    '{"name": "", "hidden": ["stitch"]}, 4, {"name": "Leather", "hidden": ["outline", "fold", "hem"]}]}', Err));
+  AssertEquals(1, Length(FSettings.RolePresets));
+  AssertTrue('outline never hidden', FSettings.RolePresets[0].Hidden = [erFold]);
+end;
+
+procedure TTestSettings.TestSavingPresetsKeepsTheRest;
+var
+  FileName, Err: string;
+  Presets: TRolePresetArray;
+begin
+  FileName := GetTempFileName(GetTempDir, 'oss');
+  try
+    FSettings.ShowRulers := False;
+    AssertTrue(Err, FSettings.SaveToFile(FileName, Err));
+    Presets := nil;
+    SetLength(Presets, 1);
+    Presets[0].Name := 'Cut';
+    Presets[0].Hidden := [erStitch];
+    AssertTrue(Err, SaveRolePresetsToFile(FileName, Presets, Err));
+    AssertTrue(Err, FSettings.LoadFromFile(FileName, Err));
+    AssertFalse('rulers kept', FSettings.ShowRulers);
+    AssertEquals(1, Length(FSettings.RolePresets));
+  finally
+    DeleteFile(FileName);
+  end;
+end;
+
+procedure TTestSettings.TestPutRolePresetReplacesByName;
+var
+  Presets: TRolePresetArray;
+  Preset: TRolePreset;
+begin
+  Presets := nil;
+  Preset.Name := 'Mine';
+  Preset.Hidden := [erStitch];
+  PutRolePreset(Presets, Preset);
+  Preset.Name := 'MINE';
+  Preset.Hidden := [erFold];
+  PutRolePreset(Presets, Preset);
+  AssertEquals(1, Length(Presets));
+  AssertTrue(Presets[0].Hidden = [erFold]);
+  RemoveRolePreset(Presets, 'mine');
+  AssertEquals(0, Length(Presets));
+end;
+
+procedure TTestSettings.TestOutputProfilesRoundTrip;
+var
+  Profile, Found: TOutputProfile;
+  Loaded: TAppSettings;
+  Err: string;
+begin
+  Profile := FullOutputProfile;
+  Profile.Name := 'Topstitch sheet';
+  Profile.Roles := [erStitch];
+  Profile.PieceMarks := [pkNotches, pkLabels];
+  Profile.Allowance := apNone;
+  Profile.Styles[erStitch].Custom := True;
+  Profile.Styles[erStitch].Color := '#336699';
+  Profile.Styles[erStitch].Dashes[0] := 2;
+  Profile.Styles[erStitch].Dashes[1] := 1;
+  Profile.Styles[erStitch].Width := 0.5;
+  FSettings.OutputProfiles := [Profile];
+  Loaded := TAppSettings.Create;
+  try
+    AssertTrue(Err, Loaded.LoadFromText(FSettings.SaveToText, Err));
+    AssertTrue(FindOutputProfile(Loaded.OutputProfiles, 'topstitch SHEET', Found));
+    AssertTrue(Found.Roles = [erStitch]);
+    AssertTrue(Found.PieceMarks = [pkNotches, pkLabels]);
+    AssertTrue(Found.Allowance = apNone);
+    AssertTrue(Found.Styles[erStitch].Custom);
+    AssertEquals('#336699', Found.Styles[erStitch].Color);
+    AssertEquals(1, Found.Styles[erStitch].Dashes[1], 1e-9);
+    AssertFalse('others keep their look', Found.Styles[erFold].Custom);
+  finally
+    FreeAndNil(Loaded);
+  end;
+end;
+
+procedure TTestSettings.TestBuiltInOutputProfiles;
+var
+  Found: TOutputProfile;
+begin
+  AssertEquals(4, Length(BuiltInOutputProfiles));
+  AssertTrue(FindOutputProfile(nil, 'Leather', Found));
+  AssertTrue(Found.Allowance = apNone);
+  AssertTrue(Found.Roles = [erStitch, erCut, erSkive, erEdgeFinish]);
+  AssertFalse('no seam line', pkSeamLine in Found.PieceMarks);
+  AssertTrue(FindOutputProfile(nil, 'Plotter or laser cutter', Found));
+  AssertTrue(Found.Roles = [erCut]);
+  AssertFalse('unknown', FindOutputProfile(nil, 'Nothing like it', Found));
+  AssertTrue('falls back to everything', Found.Roles = MarkingRoles);
+end;
+
+// A copy must take a new name; one under a built-in name is left out
+procedure TTestSettings.TestBuiltInProfileCannotBeChanged;
+var
+  Found: TOutputProfile;
+  Err: string;
+begin
+  AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "outputProfiles": [' +
+    '{"name": "leather", "roles": ["fold"], "allowance": "keep"}, {"name": "My leather", "roles": ["stitch"]}]}', Err));
+  AssertEquals(1, Length(FSettings.OutputProfiles));
+  AssertTrue(FindOutputProfile(FSettings.OutputProfiles, 'Leather', Found));
+  AssertTrue('the built-in one', Found.Allowance = apNone);
+  AssertEquals(5, Length(AllOutputProfiles(FSettings.OutputProfiles)));
+end;
+
+procedure TTestSettings.TestOutputProfileBadStyleIgnored;
+var
+  Err: string;
+begin
+  AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "outputProfiles": [' +
+    '{"name": "Odd", "styles": {"stitch": {"color": "blue", "width": 1}, "fold": {"color": "#000000", "width": 0.2, "dash": [3, -1]}}}]}', Err));
+  AssertFalse(FSettings.OutputProfiles[0].Styles[erStitch].Custom);
+  AssertFalse(FSettings.OutputProfiles[0].Styles[erFold].Custom);
+  AssertTrue('everything when not listed', FSettings.OutputProfiles[0].Roles = MarkingRoles);
 end;
 
 initialization

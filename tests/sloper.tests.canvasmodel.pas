@@ -85,12 +85,17 @@ type
     procedure TestEdgesCoincide;
     procedure TestCoincidentEdgeSlots;
     procedure TestSecondLineTakesNextName;
+    procedure TestHigherRolePickedFirst;
+    procedure TestEdgesDrawnByPriority;
+    procedure TestHiddenRoleNotPicked;
+    procedure TestHiddenRoleNotSnappedTo;
   end;
 
 implementation
 
 uses
-  Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.PieceDetect, Sloper.Core.Settings, Sloper.UI.View,
+  StrUtils, Sloper.UI.Snap, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.PieceDetect,
+  Sloper.Core.Settings, Sloper.UI.View,
   Sloper.UI.Scene;
 
 function MakeRect(MinX, MinY, MaxX, MaxY: double): TRect2;
@@ -677,7 +682,7 @@ begin
   AssertLabels('not computed yet', '', LabelKeys(FPattern, lmAll, nil, '', nil));
 end;
 
-// Two lines A-B and a third over them, inside the piece Front
+// A stitch and a fold line between P and Q, inside the piece Front
 procedure TTestCanvasModel.TestObjectsAtPickOrder;
 var
   Piece: TPieceObject;
@@ -689,10 +694,10 @@ begin
   Second := FPattern.AddLine(FPattern.FindObject('P').Key, FPattern.FindObject('Q').Key, erFold).Key;
   FPattern.Evaluate;
   Keys := ObjectsAt(FPattern, Vec2(50, -50), 2, 2);
-  AssertEquals('the top line, the one under it, then the piece', Second + ',' + First + ',' + Piece.Key, KeysText(Keys));
+  AssertEquals('stitch over fold, then the piece', First + ',' + Second + ',' + Piece.Key, KeysText(Keys));
   Keys := ObjectsAt(FPattern, Vec2(20.5, -50), 2, 2);
   AssertEquals('a point first', FPattern.FindObject('P').Key, Keys[0]);
-  AssertEquals('only the edges', Second + ',' + First, KeysText(EdgeKeys(FPattern, Keys)));
+  AssertEquals('only the edges', First + ',' + Second, KeysText(EdgeKeys(FPattern, Keys)));
   AssertEquals('outside everything', '', KeysText(ObjectsAt(FPattern, Vec2(500, 500), 2, 2)));
 end;
 
@@ -751,6 +756,85 @@ begin
   B := FPattern.AddFreePoint('B', '100', '0').Key;
   AssertEquals('Line_A_B', FPattern.AddLine(A, B, erOutline).DisplayName);
   AssertEquals('Line_A_B2', FPattern.AddLine(A, B, erStitch).DisplayName);
+end;
+
+
+// A cut line drawn before a construction line in the same place is still on top
+procedure TTestCanvasModel.TestHigherRolePickedFirst;
+var
+  A, B, CutKey: string;
+begin
+  A := FPattern.AddFreePoint('A', '0', '0').Key;
+  B := FPattern.AddFreePoint('B', '100', '0').Key;
+  CutKey := FPattern.AddLine(A, B, erCut).Key;
+  FPattern.AddLine(A, B, erConstruction);
+  FPattern.Evaluate;
+  AssertEquals(CutKey, ObjectsAt(FPattern, Vec2(50, 0), 1, 2)[0]);
+  AssertEquals(CutKey, EdgeAt(FPattern, Vec2(50, 0), 2).Key);
+end;
+
+procedure TTestCanvasModel.TestEdgesDrawnByPriority;
+var
+  A, B: string;
+  Edges: TDraftObjectArray;
+  Index: integer;
+begin
+  A := FPattern.AddFreePoint('A', '0', '0').Key;
+  B := FPattern.AddFreePoint('B', '100', '0').Key;
+  FPattern.AddLine(A, B, erOutline);
+  FPattern.AddLine(A, B, erConstruction);
+  FPattern.AddLine(A, B, erStitch);
+  Edges := nil;
+  for Index := 0 to FPattern.ObjectCount - 1 do
+    Insert(FPattern.Objects[Index], Edges, Length(Edges));
+  Edges := EdgesInDrawOrder(Edges);
+  AssertEquals(3, Length(Edges));
+  AssertTrue('construction first, under the rest', TEdgeObject(Edges[0]).Role = erConstruction);
+  AssertTrue('outline last, on top', TEdgeObject(Edges[2]).Role = erOutline);
+end;
+
+function KeysOf(const Objects: TDraftObjectArray): TStringArray;
+var
+  Index: integer;
+begin
+  Result := nil;
+  SetLength(Result, Length(Objects));
+  for Index := 0 to High(Objects) do
+    Result[Index] := Objects[Index].Key;
+end;
+
+// Hidden stitch lines are left out of drawing, clicks, boxes and labels,
+// unless selected; an outline is never hidden
+procedure TTestCanvasModel.TestHiddenRoleNotPicked;
+var
+  A, B, StitchKey, OutlineKey: string;
+begin
+  A := FPattern.AddFreePoint('A', '0', '0').Key;
+  B := FPattern.AddFreePoint('B', '100', '0').Key;
+  StitchKey := FPattern.AddLine(A, B, erStitch).Key;
+  OutlineKey := FPattern.AddLine(FPattern.AddFreePoint('C', '0', '50').Key, FPattern.AddFreePoint('D', '100', '50').Key, erOutline).Key;
+  FPattern.Evaluate;
+  FPattern.View.HiddenRoles := [erStitch];
+  AssertEquals('not clicked', 0, Length(ObjectsAt(FPattern, Vec2(50, 0), 1, 2)));
+  AssertNull(EdgeAt(FPattern, Vec2(50, 0), 2));
+  AssertEquals('not in a box', -1, IndexStr(StitchKey, ObjectsInBox(FPattern, Box(-10, -10, 110, 60))));
+  AssertTrue('the outline is', IndexStr(OutlineKey, ObjectsInBox(FPattern, Box(-10, -10, 110, 60))) >= 0);
+  AssertEquals('not drawn', -1, IndexStr(StitchKey, KeysOf(ShownObjects(FPattern))));
+  AssertEquals('not labelled', -1, IndexStr(StitchKey, LabelKeys(FPattern, lmAll, [], '', [])));
+  AssertTrue('labelled while selected', IndexStr(StitchKey, LabelKeys(FPattern, lmAll, [StitchKey], '', [])) >= 0);
+  FPattern.View.HiddenRoles := [];
+  AssertEquals(StitchKey, EdgeAt(FPattern, Vec2(50, 0), 2).Key);
+end;
+
+procedure TTestCanvasModel.TestHiddenRoleNotSnappedTo;
+var
+  Snap: TSnap;
+begin
+  FPattern.AddLine(FPattern.AddFreePoint('A', '0', '0').Key, FPattern.AddFreePoint('B', '100', '0').Key, erFold);
+  FPattern.Evaluate;
+  AssertTrue('on the line when shown', FindSnap(FPattern, Vec2(50, 1), 3).Kind = snEdge);
+  FPattern.View.HiddenRoles := [erFold];
+  AssertFalse('not when hidden', FindSnap(FPattern, Vec2(50, 1), 3).Kind = snEdge);
 end;
 
 

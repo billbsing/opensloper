@@ -129,7 +129,7 @@ resourcestring
 implementation
 
 uses
-  Math, Generics.Collections, Sloper.Core.Bezier, Sloper.Core.Evaluator;
+  Math, StrUtils, Generics.Collections, Sloper.Core.Bezier, Sloper.Core.Evaluator;
 
 type
   TKeySet = specialize THashSet<string>;
@@ -222,25 +222,14 @@ begin
 end;
 
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
+  // The first edge a click there picks
 var
-  Index: integer;
-  DraftObject: TDraftObject;
-  Best, Position, Offset: double;
+  Keys: TStringArray;
 begin
   Result := nil;
-  Best := Radius;
-  for Index := 0 to Pattern.ObjectCount - 1 do
-  begin
-    DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (Length(TEdgeObject(DraftObject).Segments) = 0) then
-      Continue;
-    TEdgeObject(DraftObject).Locate(At, Position, Offset);
-    if Offset <= Best then
-    begin
-      Best := Offset;
-      Result := TEdgeObject(DraftObject);
-    end;
-  end;
+  Keys := ObjectsAt(Pattern, At, -1, Radius);
+  if Length(Keys) > 0 then
+    Result := TEdgeObject(Pattern.FindNode(Keys[0]));
 end;
 
 function ObjectsInBox(Pattern: TPattern; const Box: TRect2): TStringArray;
@@ -250,7 +239,7 @@ function ObjectsInBox(Pattern: TPattern; const Box: TRect2): TStringArray;
     Bounds: TRect2;
     Empty: boolean;
   begin
-    if not ((DraftObject is TPointObject) or (DraftObject is TEdgeObject) or (DraftObject is TPieceObject)) then
+    if not ((DraftObject is TPointObject) or (DraftObject is TEdgeObject) or (DraftObject is TPieceObject)) or Pattern.IsHidden(DraftObject) then
       Exit;
     Empty := True;
     IncludeObject(Bounds, Empty, DraftObject);
@@ -280,9 +269,9 @@ var
   Index: integer;
 begin
   Result := nil;
-  SetLength(Result, Pattern.ObjectCount);
   for Index := 0 to Pattern.ObjectCount - 1 do
-    Result[Index] := Pattern.Objects[Index];
+    if not Pattern.IsHidden(Pattern.Objects[Index]) then
+      Insert(Pattern.Objects[Index], Result, Length(Result));
 end;
 
 function ShownPoints(Pattern: TPattern): TPointObjectArray;
@@ -312,19 +301,33 @@ begin
 end;
 
 function ObjectsAt(Pattern: TPattern; const At: TVec2; PointRadius, EdgeRadius: double): TStringArray;
+const
+  // Lines in the same place are this close in mm
+  RankTolerance = 1e-6;
 type
   TFound = record
     Key: string;
     Rank: double;
+    // Among equal ranks, the higher comes first
+    Priority: integer;
   end;
 var
   Found: array of TFound;
 
-  procedure Add(const AKey: string; ARank: double);
+  procedure Add(const AKey: string; ARank: double; APriority: integer = 0);
   begin
     SetLength(Found, Length(Found) + 1);
     Found[High(Found)].Key := AKey;
     Found[High(Found)].Rank := ARank;
+    Found[High(Found)].Priority := APriority;
+  end;
+
+  function Before(const Item, Other: TFound): boolean;
+  begin
+    if Abs(Item.Rank - Other.Rank) > RankTolerance then
+      Result := Item.Rank < Other.Rank
+    else
+      Result := Item.Priority > Other.Priority;
   end;
 
   // Stable, so equals keep the order they were added in
@@ -336,7 +339,7 @@ var
     for Item := First + 1 to High(Found) do
     begin
       Place := Item;
-      while (Place > First) and (Found[Place].Rank < Found[Place - 1].Rank) do
+      while (Place > First) and Before(Found[Place], Found[Place - 1]) do
       begin
         Swap := Found[Place];
         Found[Place] := Found[Place - 1];
@@ -362,11 +365,12 @@ begin
   for Index := Pattern.ObjectCount - 1 downto 0 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (Length(TEdgeObject(DraftObject).Segments) = 0) then
+    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (Length(TEdgeObject(DraftObject).Segments) = 0) or
+      Pattern.IsHidden(DraftObject) then
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
     if Offset <= EdgeRadius then
-      Add(DraftObject.Key, Offset);
+      Add(DraftObject.Key, Offset, RolePriorities[TEdgeObject(DraftObject).Role]);
   end;
   SortFrom(First);
   First := Length(Found);
@@ -456,7 +460,7 @@ begin
   Result := nil;
   Edges := nil;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if (Pattern.Objects[Index] is TEdgeObject) and Pattern.Objects[Index].HasResult and
+    if (Pattern.Objects[Index] is TEdgeObject) and Pattern.Objects[Index].HasResult and not Pattern.IsHidden(Pattern.Objects[Index]) and
       (Length(TEdgeObject(Pattern.Objects[Index]).Segments) > 0) then
       Insert(TEdgeObject(Pattern.Objects[Index]), Edges, Length(Edges));
   Taken := nil;
@@ -785,9 +789,11 @@ begin
     for Index := 0 to Pattern.ObjectCount - 1 do
     begin
       DraftObject := Pattern.Objects[Index];
-      // A seam has no place of its own to put a label
+      // A seam has no place of its own to put a label, and a hidden line
+      // shows only while it is selected
       if DraftObject.HasResult and not (DraftObject is TSeamObject) and not (DraftObject is TTransformObject) and
-        ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) then
+        ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) and
+        (not Pattern.IsHidden(DraftObject) or (IndexStr(DraftObject.Key, Selection) >= 0)) then
       begin
         Result[Count] := DraftObject.Key;
         Inc(Count);

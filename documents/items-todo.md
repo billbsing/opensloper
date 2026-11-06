@@ -25,10 +25,11 @@ Have the anotations appear at the highest Z-order , over the design. The user ca
 Add, Edit, Delete, Move anotations in the design page.
 Set font, and font size for anotations, change direction, anchored from a point.
 
-Decided 2026-11-03 (see Annotations in the design document; not started):
-- The user chooses the font name (installed fonts) and size (points) for each annotation.
-- The PDF embeds the chosen TrueType font so prints match the screen; OpenType/CFF or a missing font falls back to Helvetica with a warning.
-- First version is everything in the design: notes, callouts, live fields, bold/italic, alignment, box/background, leader ends, print-or-screen, show/hide.
+Rescoped 2026-11-06 into four stages (see Stages under Annotations in the design document; not started):
+- Stage 1, anchored notes: plain text anchored to a point, edge or piece, Text tool, drag, show and hide, document fields, printing with their piece; one sans-serif font.
+- Stage 2: callouts, `{=…}` draft values, alignment and the white box.
+- Stage 3: font name, bold and italic, with the chosen TrueType font embedded in PDF.
+- Stage 4: SVG stamps, anchored path-only drawings.
 
 #### Preferences
 Done 2026-11-05 (see Preferences in the design document): one dialog in all three apps, Edit → Preferences…, with General (unit), Design (grid spacing per unit) and Publish (printer calibration, worked out from a measured test square). Calibration moved out of layout files; older layouts' values are ignored.
@@ -38,7 +39,7 @@ Still to do:
 - An app already open picks up a preference changed in another app only when restarted.
 
 #### Marking line roles
-Done 2026-11-05 (see Markings in the design document): edges can be placement, stitch, fold or cut lines, which join the pieces they lie in and print in their own style. Finished 2026-11-06: point markers (hole, button, match dot) on points and repeats, Draw As for the role of new lines, several lines in the same place (click again or Alt-click to cycle, right-click list, screen offset), and the offset edge along a run (inside/outside a piece, mitred and trimmed corners, invalid when it collapses). Still to try by hand: Alt-click on a real desktop, as some window managers take it for moving windows.
+Done 2026-11-05 (see Markings in the design document): edges can be placement, stitch, fold or cut lines, which join the pieces they lie in and print in their own style. Finished 2026-11-06: point markers (hole, button, match dot) on points and repeats, Draw As for the role of new lines, several lines in the same place (click again or Alt-click to cycle, right-click list, screen offset), and the offset edge along a run (inside/outside a piece, mitred and trimmed corners, invalid when it collapses). Still to try by hand: Alt-click on a real desktop, as some window managers take it for moving windows. Also done 2026-11-06: the skive line and edge finish roles, the Lines tab for hiding roles with presets, and output profiles in the publish app; still to do: overriding role styles in Preferences, and a print with the Leather profile tried by hand.
 
 #### File Format Standards
 For future claude creating new patterns and measurements, do we need to create storage file standards as part of the documents folder.

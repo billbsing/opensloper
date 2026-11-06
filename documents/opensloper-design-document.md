@@ -520,7 +520,7 @@ Handling the edge cases:
 
 ## Markings
 
-Decided 2026-11-05. Edge roles, automatic assignment, point markers, choosing a role before drawing, several lines in the same place and the offset edge along a run are built (2026-11-06); visibility, styles and output profiles are not yet. Roles replace the Mark Placement Line and Mark Fold Line tools, and point markers replace the hole marking that each piece kept with its own diameter. Stitch holes stay a piece marking along an edge (see Markings inside a piece under Accessories).
+Decided 2026-11-05. Edge roles, automatic assignment, point markers, choosing a role before drawing, several lines in the same place the offset edge along a run, the two leather roles, role visibility and output profiles are built (2026-11-06); overriding role styles in Preferences is not yet. Roles replace the Mark Placement Line and Mark Fold Line tools, and point markers replace the hole marking that each piece kept with its own diameter. Stitch holes stay a piece marking along an edge (see Markings inside a piece under Accessories).
 
 Internal markings (placement lines, stitching lines, fold lines, drill and stitch holes) are drawn like any other line or point and given a role. The app attaches them to the right piece itself, so there is no "select a piece, then pick an edge" step.
 
@@ -536,12 +536,12 @@ Seamly2D and Valentina use a two-step workflow: draw the line in draft mode, the
 | Stitch | Topstitching or internal seam line | Yes, with its piece |
 | Fold | Fold or pleat line | Yes, with its piece |
 | Cut | Slit or internal cut | Yes, with its piece |
-| Skive line | Extent of thinning at a leather edge (planned) | Yes, with its piece |
-| Edge finish | How far edge paint, burnishing or binding runs (planned) | Yes, with its piece |
+| Skive line | Extent of thinning at a leather edge | Yes, with its piece |
+| Edge finish | How far edge paint, burnishing or binding runs | Yes, with its piece |
 
 **As built.** `TEdgeRole` has the six roles; `MarkingRoles` are the last four. On the canvas and in draft SVG each marking role has its own colour (placement blue, stitch green, fold purple, cut teal, since red and orange mean problems there) and dash, drawn at a fixed size on screen. On paper (PDF, the publish app's plain SVG and its preview) they are black: placement thin and solid, stitch in 1 mm dashes (shorter than the seam line's 2 mm), fold dash-dot, and cut solid at the cutting line's width (`RoleDashes` in `Sloper.Core.Draft`). For machines, fold lines are score lines, cut lines are cut with the cutting line, and placement and stitch lines are marks; DXF-AAMA writes them all on layer 8. The publish app's SVG puts each in a group of class `line-placement`, `line-stitch` and so on.
 
-**Planned roles.** Skive line and Edge finish join `MarkingRoles`, making six, and are assigned to pieces like the others. On the canvas, skive line is brown in long dashes and edge finish is grey and dotted, keeping clear of red and orange. On paper they are black: skive line thin in 4 mm dashes, edge finish dotted. For machines both are marks, and DXF-AAMA writes them on layer 8 with the other marking lines. The publish app's SVG groups them as `line-skive` and `line-edge-finish`.
+**Leather roles** (built 2026-11-06). Skive line and Edge finish join `MarkingRoles`, making six, and are assigned to pieces like the others. In files and the Automation API they are `skive` and `edgeFinish`. On the canvas, skive line is brown in long dashes and edge finish is grey and dotted, keeping clear of red and orange. On paper they are black: skive line thin in 4 mm dashes, edge finish dotted. For machines both are marks, and DXF-AAMA writes them on layer 8 with the other marking lines. The publish app's SVG groups them as `line-skive` and `line-edge-finish`.
 
 ### Point markers
 
@@ -624,9 +624,9 @@ Markings created before their piece exists are assigned when the piece is create
 
 ### Visibility, styles and output
 
-Planned 2026-11-05, not built yet. Marking roles say what a line means, like KiCad's fixed technical layers (silkscreen, edge cuts): the list is the app's, not the file's, so output settings can rely on it. New roles are added to the built-in list, never defined per pattern.
+Planned 2026-11-05 and built 2026-11-06, except overriding styles in Preferences (see As built at the end of this section). Marking roles say what a line means, like KiCad's fixed technical layers (silkscreen, edge cuts): the list is the app's, not the file's, so output settings can rely on it. New roles are added to the built-in list, never defined per pattern.
 
-**More roles for leather.** Skive line and Edge finish (see Planned roles under Edge roles), beside the stitch holes already among the markings (see Accessories).
+**More roles for leather.** Skive line and Edge finish (see Leather roles under Edge roles), beside the stitch holes already among the markings (see Accessories).
 
 **Styles.** Each role keeps its built-in colour, dash and weight (see As built under Edge roles), chosen so that every role can be shown at once and read at a glance. Users can override them in Preferences, but the defaults should be distinct enough that few need to. Where lines coincide, each role has a draw priority, and the higher one is drawn on top, alongside the screen-only offset that shows there is more than one.
 
@@ -665,6 +665,16 @@ Planned 2026-11-05, not built yet. Marking roles say what a line means, like KiC
     "allowance": "none" }
 ]
 ```
+
+**As built** (2026-11-06).
+
+- **Draw priority** (`RolePriorities` in `Sloper.Core.Draft`), lowest first: construction, edge finish, skive line, placement, fold, stitch, cut, outline. The canvas and draft SVG draw edges in that order (`EdgesInDrawOrder`), and among lines in the same place a click picks the highest first.
+- **Role visibility panel.** The Lines tab of the side panel (`Sloper.UI.RolesPanel`), docked with the other tabs: a checkbox, a sample of the line and a Solo button for Construction and each marking role, then Show All, Hide All and the presets. Choosing a preset applies it; Save As… stores the hidden roles under a name, replacing one of the same name, and Delete removes the chosen one; both write `rolePresets` at once, the settings file being read again first as for Preferences. The preset box shows the preset that matches what is hidden, if any. A change is a view change (`TPatternDocument.ViewChanged`): no undo step, no modified flag, and it is saved with the zoom when the pattern is next saved.
+- **Hidden lines** are left out of drawing (`ShownObjects`), clicks (`ObjectsAt`, `EdgeAt`), box selection, snapping, labels and the screen offset for lines in the same place; a selected one is drawn and labelled. The status bar adds "1 kind of line hidden" or "3 kinds of line hidden" to the problem count.
+- **Draft export** from the app passes the view's `hiddenRoles`; `render` takes `hiddenRoles`, a list of role names, and refuses an unknown one.
+- **Output profiles** (`Sloper.Core.OutputProfiles`). The built-in names are kept in English, not translated, since layouts store them. A settings profile with a built-in name is ignored, so a copy needs a new name; one with no name is skipped, and unknown roles, marks and bad styles are passed over. `holes` covers every point marker, so buttons and match dots too. A style needs a `#rrggbb` `color` and a `width` above 0, and `dash` is up to four lengths above 0. Styles change the PDF and the plain SVG; the publish preview keeps the built-in look.
+- **In the layout.** `TLayout.ChosenOutputProfile` gives the profile, or everything when there is none; an unknown name is a blocking problem ("The output profile Leather 2 is not in the settings, so nothing can be exported") and the preview shows everything meanwhile. `PlaceShape` applies it, so the preview, overlap checks, packing and every export agree: it leaves out what is not listed, cuts on the seam line for `allowance` `none` (notches then start at the seam line), and marks the label hidden (`ShowLabel`) rather than dropping the piece's name. DXF-AAMA follows it too, but always writes the piece's name, size, quantity and material, which the format asks for.
+- **Publish app.** An Output profile choice above Machine profile lists Everything, the built-in profiles and the user's, keeping a name the user does not have, as the machine profile choice does. The CLI and the Automation API's `export` read the user's profiles from the settings.
 
 **Open questions:**
 
@@ -1044,7 +1054,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Problems.** A missing or unreadable file, a deleted piece, a failing piece and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, a pattern with no pieces, overlaps, pieces off the sheet and a rotation that is not a multiple of 90° (only possible in a hand-edited file) are warnings. A source's `size` must be in its measurement file; with none given, a size table uses its first size. The title block names the size.
 - **The PDF** starts with a cover page: the test square, the print-at-full-size reminder and the page map. Each tile then shows its caption, the cutting line, a dashed seam line, grainline, fold bracket, notches and the piece's label, with diamonds in the middle of each overlap. Tiles with nothing on them are left out. Calibration (from Preferences) scales everything drawn at true size, including the test square.
 - **On the fold.** A piece cut on a fold prints as the half drawn, with its bracket, as on a paper pattern. Material sheets and layouts with a machine profile open it out to a whole piece instead (see Accessories).
-- **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font. Annotations will add TrueType embedding for their chosen fonts (see Annotations).
+- **PDF writer.** `TPDFWriter` is our own, about 200 lines of straight PDF rather than fcl-pdf: scale is exact, output is uncompressed and the same layout gives the same bytes, which tests can compare. It uses the built-in Helvetica, so text outside Latin-1 prints as `?`; a pattern with such names will need an embedded font. Annotations add TrueType embedding for their chosen fonts in their third stage (see Annotations).
 - **The window** (`Sloper.Publish.MainForm`, `Sloper.Publish.PreviewCanvas`, with the LCL-free `Sloper.Output.Preview`) is one screen: the pages with the pieces on them, and beside them four tabs (Pieces: turn, flip, pack, the tray; Patterns: the sources; Output: paper settings and the exports; Notes: title block and sheet notes) above an always-visible problems list. It takes a `.slayout`, or a `.sloper` to start a layout for. A page's printable area is drawn white, and grey when blank. Click selects a piece and dragging moves it, on a 0.5 mm grid, as one undo step; Escape cancels. The wheel zooms about the cursor; middle-drag or Space+drag pans.
 - **Undo** (`TLayoutDocument`) records the layout's text before each change, as `TPatternDocument` does, and reads the patterns again on undo. A run of paper setting changes merges into one step.
 - **Keeping in step.** Once a second the window compares a checksum of each source's pattern and measurement files, since file times only go to the second. A changed file has to read the same on two checks before it is loaded, so a save still in progress is not read. The status bar then says what was read, and new pieces show as unplaced. Reload Patterns reads everything again by hand.
@@ -1060,7 +1070,7 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Output profile** (planned, see Visibility, styles and output under Markings). The Output tab chooses one from the settings, or None for everything. Changing it is one undo step, and the preview follows it.
 - **Custom paper.** Choosing Custom on the Output tab opens the width and height fields, and the layout saves `paperWidth` and `paperHeight`, as for any paper name it does not know. A size that cannot print is left alone while it is being typed, since 400 passes through 4, and goes back to the last good one on leaving the field.
 - **Piece fill.** `fill` in `output` is `none`, which is left out of the file, `tint`, a light tint of each piece's colour under the lines of paper and large-format PDFs, or `hatch`, grey lines 6 mm apart at each fabric's angle, for black-and-white printers, set on the Output tab. Either choice applies to every piece for that print, whatever its fabric's own fill style, and a piece with no fabric stays unfilled. It does nothing on projector output, which is dark, and not in SVG or DXF. The window's preview always tints pieces, in their fabric's colour.
-- Not done yet: bold, italic, alignment and boxes in notes, and `{=Line_A_B.length}` fields, which come with pattern-space annotations.
+- Not done yet: printing pattern notes with their pieces (annotations stage 1), alignment, boxes and `{=Line_A_B.length}` fields (stage 2), and bold, italic and fonts (stage 3); see Annotations.
 
 ### Draft export
 
@@ -1188,18 +1198,19 @@ Notes, callouts and a title block are first-class objects that print with the pa
 | Title block | Sheet space | A page corner or the layout | Pattern name, measurement set or size, date, version, author, scale square |
 | Sheet note | Sheet space | A position on the printed layout | General instructions, fabric and notions list, assembly order |
 
-**Anchored, so annotations stay parametric.** A note or callout tip stores the anchor's ID and an offset, not absolute coordinates. When measurements change, it moves with the geometry; if its anchor is deleted, it becomes a free note and is flagged in the problems panel rather than silently lost.
+**Anchored, so annotations stay parametric.** A note or callout tip stores the anchor's ID and an offset, not absolute coordinates. When measurements change, it moves with the geometry. Deleting its anchor is refused while the note uses it, so nothing is silently lost (see Stage 1 below).
 
 **Live text fields.** Text can include fields filled in at display and print time:
 
 - `{pattern.name}`, `{pattern.version}`, `{measurements.name}`, `{date}`, `{page}`, `{pages}`, `{cutlist}` (cut list grouped by fabric), `{fabrics}` (fabric names)
 - Values from the draft, e.g. `Seam length {=Line_A_B.length} mm`, using the formula engine and the same name-to-ID storage, so renames never break a note
 
-**Text and style:**
+**Text and style** (by stage, see Stages below):
 
-- The user chooses each annotation's font by name, from the fonts installed on the computer, and its size in points at true print size, so text prints at a known size whatever the zoom
-- Multi-line text, bold and italic, left/centre/right alignment, optional box or white background so text stays readable over lines
-- Leader arrows with a small set of end styles (arrow, dot, none)
+- Each annotation has a size in points at true print size, so text prints at a known size whatever the zoom
+- Multi-line text from stage 1; left/centre/right alignment and an optional white box, so text stays readable over lines, from stage 2
+- Leader arrows with a small set of end styles (arrow, dot, none), with callouts in stage 2
+- A font chosen by name from the fonts installed on the computer, with bold and italic, in stage 3; until then every annotation uses one sans-serif font (Helvetica in PDF)
 
 **Visibility:**
 
@@ -1209,20 +1220,32 @@ Notes, callouts and a title block are first-class objects that print with the pa
 
 **Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and pattern-space annotations are saved in the pattern file with everything else. Sheet-space annotations (title block, sheet notes) belong to a printed layout, so they are edited in the publish app and saved in the layout file.
 
-**Decided (2026-11-03), not built yet:**
+**Stages** (decided 2026-11-06, replacing the all-at-once scope of 2026-11-03). Not built yet.
 
-- **Scope.** The first version is everything above in one go: notes and callouts, anchoring, live fields (`{pattern.name}` and the others, and `{=Line_A_B.length}`), font name and size, bold, italic, alignment, box or white background, leader end styles, print-or-screen, and showing or hiding annotations. The to-do list's asks (drawn above the pattern, show and hide, add, edit, delete and move on the canvas, font and size) are part of it.
-- **Fonts on screen and in SVG.** The canvas draws with the chosen font. SVG files name it in `font-family`, so a viewer without it substitutes another.
-- **Fonts in PDF.** `TPDFWriter` embeds the chosen font's TrueType file, so a print matches the screen. TrueType outlines only at first, with WinAnsi (Latin-1) text; an OpenType (CFF) font, or one not installed, falls back to Helvetica with a warning in the problems list. A PDF grows by the font file's size. The writer stays deterministic, since the whole file is embedded as it is.
-- **To settle when building:** which annotations a layout prints (likely those anchored to a piece, or lying inside its cutting line, following that piece's placement, and only those marked print), whether DXF carries text, how the font file is found from its name on each platform (likely FCL's `fpttf` font cache), and how a note's file stores the font (likely `font`, `bold`, `italic` beside `size`).
+**Stage 1: anchored notes.** The to-do list's asks (drawn above the pattern, show and hide, add, edit, delete and move on the canvas, size) are all here.
+
+- **What a note is.** Plain text, one or more lines, anchored to a point, an edge and a position along it (a ratio, as for Along edge), or a piece, plus an offset `dx`, `dy` in the pattern unit; or free, at `x`, `y`. `dx`, `dy`, `x` and `y` are formulas like any other field. `size` is in points; `print` is true for print and screen, false for screen only.
+- **Fields.** The document fields sheet notes already fill (`{pattern.name}`, `{measurements.name}`, `{date}`, `{cutlist}`, `{fabrics}`), using the same substitution code; `{page}` and `{pages}` print in layouts. `{=…}` draft values wait for stage 2.
+- **In the evaluator.** A note is a node whose input is its anchor, so it is blocked while the anchor fails, drawn faded at its last good place. Deleting an anchor is refused while a note uses it, as for any input; the message names the note, which can be deleted or made free first. (Changed from turning the note free automatically: the refusal is already built and loses nothing.)
+- **Text tool** (X). A click places a note; snapping chooses the anchor the way it chooses a point's operation (a point, a place on an edge, inside a piece, or free), and the offset is where the click was. The new note is selected, and its text is typed in the properties panel, which has a multi-line field for it; Enter adds a line and leaving the field commits one undo step. Typing on the canvas itself is left for later.
+- **On the canvas.** Notes draw above pieces, edges and points, in one sans-serif font at their true size for the zoom, and are picked first. Dragging a note changes its offset (or `x`, `y` when free) when those are plain numbers, as one undo step, and is refused when they are formulas, as for points. Delete removes it. Selecting a note shows a faint line to its anchor.
+- **Show and hide.** View → Annotations shows or hides every note, kept in the pattern's `view` as `hideAnnotations` (left out when shown) and out of undo, like `hiddenRoles`. Screen-only notes never print or export, whatever this setting.
+- **Objects panel** lists notes with the first line of their text, under a Notes filter.
+- **Output.** Draft SVG follows the screen, with `font-family="Helvetica, Arial, sans-serif"`. In the publish app a note prints with a piece when it is anchored to that piece, to one of the piece's points or edges, or lies inside its cutting line, and follows that piece's placement, rotation and flip (text stays upright when the piece is flipped). Other pattern notes are left out of layouts. PDF uses the built-in Helvetica, so text outside Latin-1 prints as `?`, as for sheet notes. DXF carries no notes.
+- **Automation API.** `add_note` takes `text`, `anchor` (`point`; `edge` and `position`; `piece`; or none), `dx`, `dy` or `x`, `y`, `size` and `print`. `set_text` changes a note's text; offsets go through `set_formula`. `render` takes `annotations` (default true).
+- **Problems.** A note whose anchor fails is listed. A note marked print that falls inside no piece is a warning ("does not print in layouts").
 
 ```json
-{ "id": 20, "type": "callout",
-  "text": "Ease cap between notches ({=Curve_SC.length} mm)",
+{ "id": 20, "type": "note", "text": "Stay-stitch neckline",
   "anchor": { "edge": 7, "position": "0.5" },
-  "box": { "dx": "40", "dy": "-25" },
-  "size": "4mm", "print": true }
+  "dx": "10", "dy": "-15", "size": 10, "print": true }
 ```
+
+**Stage 2: callouts and draft values.** Callouts, with the box placed by `dx`, `dy` and the leader tip on the anchor, end styles arrow, dot or none, and the box and tip dragged separately. `{=Line_A_B.length}` fields through the formula engine, stored in ID form so renames never break a note, with the value shown in the pattern unit and its references added to the note's inputs. Alignment and the white box, for notes and sheet notes alike.
+
+**Stage 3: fonts.** A font name, `bold` and `italic` beside `size`. The canvas draws with the chosen font, and SVG names it in `font-family`, so a viewer without it substitutes another. `TPDFWriter` embeds the chosen font's TrueType file, so a print matches the screen: TrueType outlines only at first, with WinAnsi (Latin-1) text; an OpenType (CFF) font, or one not installed, falls back to Helvetica with a warning in the problems list. A PDF grows by the font file's size, and the writer stays deterministic, since the whole file is embedded as it is. The font file is found from its name with FCL's `fpttf` font cache. Sheet notes and piece labels can use the same embedding, which also fixes non-Latin-1 names.
+
+**Stage 4: SVG stamps** (see Planned under Roadmap and open questions).
 
 ## Preferences
 
@@ -1307,6 +1330,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Transforms | Each transform against hand-checked positions, curves and split parts exact, lengths kept by rotate and move, a failing source blocking only its copy, deleting as a group, files |
 | View and older files | The view (zoom, centre, piece order, isolated piece) is saved and stays out of undo and the modified flag; files with drafts and layers load onto one canvas with their IDs retired |
 | Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces, invalid and blocked states, suggestions |
+| Annotations | A note follows its anchor when measurements change; a failing anchor blocks it; deleting an anchor is refused; dragging changes plain offsets and refuses formulas; document fields filled; hidden notes kept out of undo and draft export; notes print with the right piece, placed, turned and flipped with it, and screen-only notes never print |
 | Storage | Save → load → save produces identical JSON |
 | Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
 | Undo/redo | Execute then undo restores the exact previous state, including random command sequences |
@@ -1514,7 +1538,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `add_seam`, `flip_seam`, `suggest_seams` | Add a seam from `sideA` and `sideB`, with optional `ease` and `tolerance`; flip its direction; list likely pairs without storing them |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
-| `render` | PNG or SVG of the draft or a piece, with options for labels and a region |
+| `render` | PNG or SVG of the draft or a piece, with options for labels, a region and `hiddenRoles` |
 | `export` | A layout file as PDF, SVG, DXF or machine DXF to a given path; `format` and `profile` are optional |
 | `ui_state` (GUI only) | Selection, label mode, viewport, canvas snapshot |
 
@@ -1680,6 +1704,8 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 Further work agreed but not yet designed in detail or placed in the numbered steps above.
 
 - **Locking an object.** A locked object cannot be moved, edited or deleted, but its formulas still run, so it keeps following the values they read. This brings back locking per object, after layers were taken out (see One canvas).
+- **Annotations in stages.** Stage 1, anchored notes, comes first; callouts and draft values, then fonts, follow (see Annotations).
+- **SVG stamps.** An SVG drawn in another app (a logo, a fold or assembly diagram) placed on the canvas and anchored like a note, by ID plus offset, so it moves with the geometry. Paths only: `<text>` is refused with a message asking for it to be converted to paths, which keeps fonts out of it. Drawn at true size from the SVG's own mm units (a file in px is taken at 96 px per inch, with a warning), with BGRASVG on the canvas and our own path translation in `TPDFWriter`. Prints with a piece by the same rules as notes, and is stored in the pattern file as the SVG's path data, so the pattern does not depend on the outside file.
 - **Linked copies on the canvas.** The diamond marker, link line, refused-drag message and Go to Source for transform copies (see Copies under Drafting experience).
 - **Isolate piece and piece stacking order.** View options for overlapping pieces (see Drafting experience).
 - **Separate Piece command.** One undoable command for steps 2 to 4 of separating front and back (see Transforms): pick a region, Move Copy it aside, make the leftover back-only edges construction and make the piece. Added only if the manual steps prove tedious.
@@ -1688,6 +1714,6 @@ Further work agreed but not yet designed in detail or placed in the numbered ste
 - **Fabric needed.** Estimate from the design the fabric it needs: the area in square millimetres and the minimum width and length. Given the width of the supplier's fabric, work out the actual length to buy, and warn when the design is too big to cut from a single piece of fabric.
 - **G-code export.** Export the pattern as a G-code file for CNC machines, from the publish app.
 - **Translation.** gettext `.po` files for the apps, the CLI and the measurement catalogue, a language preference, and a language per output profile (see Translation).
-- **Marking visibility and output profiles.** The role visibility panel and presets in the drafting app, the two leather roles, and output profiles in the publish app (see Visibility, styles and output under Markings).
+- **Role styles in Preferences.** Overriding a role's colour, dash and weight on screen (see Styles under Visibility, styles and output). Role visibility, presets, the leather roles and output profiles were built 2026-11-06.
 
 **Open question:** whether `pieceOrder` should list every piece or only those moved, and what happens to a piece left out when another is brought to front.

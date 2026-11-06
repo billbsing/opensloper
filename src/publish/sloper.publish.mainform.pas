@@ -47,7 +47,7 @@ type
     FStatus: TStatusBar;
     FPatternsSide: TWinControl;
     FOutputScroll: TScrollBox;
-    FKindBox, FPaperBox, FMarksBox, FFillBox, FProfileBox, FFabricBox, FSizeBox: TComboBox;
+    FKindBox, FPaperBox, FMarksBox, FFillBox, FProfileBox, FOutputProfileBox, FFabricBox, FSizeBox: TComboBox;
     FAllowTurnsBox: TCheckBox;
     FSourceBox: TListBox;
     FSourceSetLabel: TLabel;
@@ -229,6 +229,8 @@ resourcestring
   rsExportMachineDXF = 'Export Machine DXF...';
   rsProfile = 'Machine profile';
   rsProfileNone = 'None';
+  rsOutputProfile = 'Output profile';
+  rsOutputProfileAll = 'Everything';
   rsPackPieces = 'Pack pieces';
   rsPackChange = 'Pack pieces';
   rsPackedPages = 'Packed %d copies on %d pages';
@@ -255,7 +257,7 @@ resourcestring
 implementation
 
 uses
-  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.RecentFiles, Sloper.Core.Settings, Sloper.UI.IconSet,
+  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.RecentFiles, Sloper.Core.Settings, Sloper.UI.IconSet,
   Sloper.UI.Preferences, Sloper.Output.LayoutExport,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
@@ -290,6 +292,7 @@ begin
   OnCloseQuery := @CloseAsked;
   FDocument := TLayoutDocument.Create;
   FDocument.Layout.MachineProfiles := UserMachineProfiles;
+  FDocument.Layout.OutputProfiles := UserOutputProfiles;
   FDocument.Layout.Calibration := UserCalibration;
   FDocument.OnChange := @DocumentChanged;
   BuildMenu;
@@ -644,6 +647,7 @@ begin
   FFillBox.Items.Add(rsFillNone);
   FFillBox.Items.Add(rsFillTint);
   FFillBox.Items.Add(rsFillHatch);
+  FOutputProfileBox := AddChoice(rsOutputProfile);
   FProfileBox := AddChoice(rsProfile);
   FFabricBox := AddChoice(rsFabricLimit);
   AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
@@ -684,6 +688,7 @@ end;
 procedure TPublishForm.RefreshProfiles;
 var
   Profile: TMachineProfile;
+  Output: TOutputProfile;
   Layout: TLayout;
 begin
   Layout := FDocument.Layout;
@@ -698,6 +703,15 @@ begin
   FProfileBox.ItemIndex := 0;
   if Layout.Output.Profile <> '' then
     FProfileBox.ItemIndex := FProfileBox.Items.IndexOf(Layout.Output.Profile);
+  FOutputProfileBox.Items.Clear;
+  FOutputProfileBox.Items.Add(rsOutputProfileAll);
+  for Output in AllOutputProfiles(Layout.OutputProfiles) do
+    FOutputProfileBox.Items.Add(Output.Name);
+  if (Layout.Output.OutputProfile <> '') and (FOutputProfileBox.Items.IndexOf(Layout.Output.OutputProfile) < 0) then
+    FOutputProfileBox.Items.Add(Layout.Output.OutputProfile);
+  FOutputProfileBox.ItemIndex := 0;
+  if Layout.Output.OutputProfile <> '' then
+    FOutputProfileBox.ItemIndex := FOutputProfileBox.Items.IndexOf(Layout.Output.OutputProfile);
 end;
 
 // Every fabric in the layout's patterns, each name once; a name no pattern has
@@ -1098,6 +1112,10 @@ begin
     Output.Profile := FProfileBox.Items[FProfileBox.ItemIndex]
   else
     Output.Profile := '';
+  if FOutputProfileBox.ItemIndex > 0 then
+    Output.OutputProfile := FOutputProfileBox.Items[FOutputProfileBox.ItemIndex]
+  else
+    Output.OutputProfile := '';
   Output.Tiles.Margin := FMarginEdit.Value;
   Output.Tiles.Overlap := FOverlapEdit.Value;
   // Page names mean other sheets once the grid moves

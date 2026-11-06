@@ -29,7 +29,8 @@ unit Sloper.Output.Layout;
 interface
 
 uses
-  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.Measurements,
+  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles,
+  Sloper.Core.Measurements,
   Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Core.Draft,
   Sloper.Output.Tiling;
 
@@ -72,6 +73,8 @@ type
     Fill: TLayoutFill;
     // A machine profile's name; empty for plain output
     Profile: string;
+    // An output profile's name; empty to print everything
+    OutputProfile: string;
     // okMaterial's sheet; MaterialLength is 0 for a roll
     MaterialWidth, MaterialLength: double;
     // Whether packing may turn pieces across a material with no grain
@@ -122,6 +125,8 @@ type
   TPlacedLine = record
     Role: TEdgeRole;
     Points: TVec2Array;
+    // The output profile's look for its role on paper, if it sets one
+    Style: TRoleStyle;
   end;
 
   TPlacedLineArray = array of TPlacedLine;
@@ -141,6 +146,8 @@ type
     MarkLines, ScoreLines, SlitLines: TLine2Array;
     Holes: TPlacedHoleArray;
     LabelAt: TVec2;
+    // False when the output profile leaves labels out; Caption still names it
+    ShowLabel: boolean;
     Bounds: TRect2;
   end;
 
@@ -216,6 +223,8 @@ type
     PrintDate: string;
     // Known to this user, from the settings. Not saved.
     MachineProfiles: TMachineProfileArray;
+    // The user's own, besides the built-in ones, from the settings. Not saved.
+    OutputProfiles: TOutputProfileArray;
     // The user's printer, from the settings, since it belongs to the printer
     // rather than the layout. Not saved; older layouts' factors are ignored.
     Calibration: TCalibration;
@@ -265,8 +274,13 @@ type
     // The layout's machine profile, or Standard if it has none. False when it
     // names one not known, which only stops the exports that need it.
     function ChosenProfile(out Profile: TMachineProfile): boolean;
+    // The layout's output profile, or everything if it has none. False when
+    // it names one not known, which blocks every export.
+    function ChosenOutputProfile(out Profile: TOutputProfile): boolean;
     // Whether pieces are cut as they lie, so fold pieces open out to whole ones
     function OpensFolds: boolean;
+    // The chosen output profile, or everything when it has none or is unknown
+    function ActiveOutputProfile: TOutputProfile;
     // Whether the piece is on the fabric the layout is limited to, if any
     function InFabric(Source: TLayoutSource; Piece: TPieceObject): boolean;
     // How wide a sheet pieces can be laid across; large format and material only
@@ -336,6 +350,7 @@ resourcestring
   rsLayoutRollUsed = 'Uses %s mm of the %s mm wide material';
   rsLayoutSheetUsed = 'Pieces take %s%% of the %s by %s mm sheet';
   rsLayoutUnknownProfile = 'The machine profile %s is not in the settings';
+  rsLayoutUnknownOutputProfile = 'The output profile %s is not in the settings, so nothing can be exported';
   rsLayoutCutAcross = '%s: %s lies across the fabric''s grain here, and a machine would cut it that way';
   rsLayoutProjectedAcross = '%s: %s lies across the fabric''s grain here. Projected as it is, it would be cut that way';
   rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
@@ -746,6 +761,8 @@ begin
       Result.Add('fill', FillNames[Output.Fill]);
     if Output.Profile <> '' then
       Result.Add('profile', Output.Profile);
+    if Output.OutputProfile <> '' then
+      Result.Add('outputProfile', Output.OutputProfile);
     if Output.MaterialWidth <> DefaultMaterialWidth then
       Result.Add('materialWidth', JSONFloat(Output.MaterialWidth));
     if Output.MaterialLength > 0 then
@@ -920,6 +937,8 @@ begin
   ReadOptionalNumber(Item, 'rollWidth', Output.RollWidth);
   if not GetJSONString(Item, 'profile', Output.Profile) then
     Output.Profile := '';
+  if not GetJSONString(Item, 'outputProfile', Output.OutputProfile) then
+    Output.OutputProfile := '';
   if not GetJSONString(Item, 'fabric', Output.Fabric) then
     Output.Fabric := '';
   ReadOptionalNumber(Item, 'materialWidth', Output.MaterialWidth);
@@ -1187,7 +1206,9 @@ begin
     Result[Index] := Vec2(Joined[Best][Index].X, Joined[Best][Index].Y);
 end;
 
-function PlaceShape(Piece: TPieceObject; const Placement: TPlacement; Whole: boolean): TPlacedPiece;
+// Only what the output profile includes; with its allowance none, the seam
+// line is the cutting line, so every export, overlap check and packing agrees
+function PlaceShape(Piece: TPieceObject; const Placement: TPlacement; Whole: boolean; const Profile: TOutputProfile): TPlacedPiece;
 var
   Offset: TVec2;
   Opened, Mirroring: boolean;
@@ -1258,6 +1279,7 @@ var
     SetLength(Result.Lines, Length(Result.Lines) + 1);
     Result.Lines[High(Result.Lines)].Role := Role;
     Result.Lines[High(Result.Lines)].Points := MovedAll(Points);
+    Result.Lines[High(Result.Lines)].Style := Profile.Styles[Role];
   end;
 
   // On both halves of an opened piece, unless it runs along the fold
@@ -1288,6 +1310,24 @@ var
     Stroke: TLine2;
     Hole: TVec2;
   begin
+    case Marking.Kind of
+      mkLine:
+        if not (Marking.Role in Profile.Roles) then
+          Exit;
+      mkPoint:
+        if not (pkHoles in Profile.PieceMarks) then
+          Exit;
+      else
+        if not (pkStitchHoles in Profile.PieceMarks) then
+          Exit;
+    end;
+    // Paper draws holes, buttons and match dots as strokes
+    for Hole in Marking.Holes do
+      for Stroke in MarkerStrokes(pmHole, Hole, Marking.HoleSize) do
+        AddTo(Result.Marks, Stroke);
+    for Hole in Marking.Centres do
+      for Stroke in MarkerStrokes(Marking.Marker, Hole, Marking.HoleSize) do
+        AddTo(Result.Marks, Stroke);
     if Length(Marking.Line) > 1 then
       AddWholeLine(Marking.Role, Marking.Line);
     for Index := 1 to High(Marking.Line) do
@@ -1307,8 +1347,7 @@ var
       if Mirroring and not OnTheFold(Hole) then
         AddHole(Mirror(Hole), Marking.HoleSize);
     end;
-    // Buttons and match dots are drawn, not cut; MarkingStrokes has put them
-    // among the marks on paper
+    // Buttons and match dots are drawn, not cut
     for Hole in Marking.Centres do
       for Stroke in MarkerStrokes(Marking.Marker, Hole, Marking.HoleSize) do
         AddTo(Result.MarkLines, Stroke);
@@ -1326,6 +1365,8 @@ begin
   Mirroring := False;
   Cut := Piece.CutLine;
   Seam := Piece.Outline;
+  if Profile.Allowance = apNone then
+    Cut := Seam;
   if Opened then
   begin
     Cut := WholeOutline(Cut, Piece.FoldLine);
@@ -1345,7 +1386,9 @@ begin
   Result.Bounds.MaxX := -Infinity;
   Result.Bounds.MaxY := -Infinity;
   Result.CutLine := MovedAll(Cut);
-  Result.SeamLine := MovedAll(Seam);
+  // Cut on the seam line, it is not drawn again
+  if (pkSeamLine in Profile.PieceMarks) and (Profile.Allowance = apKeep) then
+    Result.SeamLine := MovedAll(Seam);
   for P in Result.CutLine do
   begin
     Result.Bounds.MinX := Min(Result.Bounds.MinX, P.X);
@@ -1354,20 +1397,26 @@ begin
     Result.Bounds.MaxY := Max(Result.Bounds.MaxY, P.Y);
   end;
   // One piece has one grainline, even opened out
-  for Stroke in Piece.GrainArrow do
-    AddMark(Stroke);
-  Mirroring := Opened;
-  if Opened then
-    AddMark(Piece.FoldLine)
-  else
-    for Stroke in Piece.FoldArrow do
+  if pkGrainline in Profile.PieceMarks then
+    for Stroke in Piece.GrainArrow do
       AddMark(Stroke);
-  for Stroke in Piece.MarkingStrokes do
-    AddTo(Result.Marks, Stroke);
+  Mirroring := Opened;
+  if pkFoldBracket in Profile.PieceMarks then
+    if Opened then
+      AddMark(Piece.FoldLine)
+    else
+      for Stroke in Piece.FoldArrow do
+        AddMark(Stroke);
   for Marking in Piece.MarkingMarks do
     AddMarkingTypes(Marking);
-  for Mark in Piece.NotchMarks do
-    AddMark(Line2(Mark.Cut, Mark.Tip));
+  // Cut on the seam line, a notch starts there
+  if pkNotches in Profile.PieceMarks then
+    for Mark in Piece.NotchMarks do
+      if Profile.Allowance = apNone then
+        AddMark(Line2(Mark.Seam, Mark.Seam + (Mark.Tip - Mark.Cut)))
+      else
+        AddMark(Line2(Mark.Cut, Mark.Tip));
+  Result.ShowLabel := pkLabels in Profile.PieceMarks;
   Result.LabelAt := Moved(Piece.Middle);
   if Opened then
     Result.LabelAt := Moved(Lerp(Piece.Middle, Mirror(Piece.Middle), 0.5));
@@ -1405,7 +1454,7 @@ begin
     if not Item.CanPlace then
       Continue;
     Placement := NewPlacement(Item, Piece);
-    Shape := PlaceShape(Piece, Placement, OpensFolds);
+    Shape := PlaceShape(Piece, Placement, OpensFolds, ActiveOutputProfile);
     if (RowX > 0) and (RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX > ShelfWidth) then
     begin
       RowX := 0;
@@ -1436,7 +1485,7 @@ begin
   if not Item.CanPlace then
     Exit(-1);
   Placement := NewPlacement(Item, Piece);
-  Shape := PlaceShape(Piece, Placement, OpensFolds);
+  Shape := PlaceShape(Piece, Placement, OpensFolds, ActiveOutputProfile);
   Placement.X := Max(0, Round((At.X - (Shape.Bounds.MaxX - Shape.Bounds.MinX) / 2) / Step) * Step);
   Placement.Y := Max(0, Round((At.Y - (Shape.Bounds.MaxY - Shape.Bounds.MinY) / 2) / Step) * Step);
   SetLength(Placements, Length(Placements) + 1);
@@ -1454,20 +1503,27 @@ var
   Index, Count: integer;
   Source: TLayoutSource;
   Piece: TPieceObject;
+  Profile: TOutputProfile;
 begin
+  Profile := ActiveOutputProfile;
   Result := nil;
   SetLength(Result, Length(Placements));
   Count := 0;
   for Index := 0 to High(Placements) do
     if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Length(Piece.CutLine) > 0) and InFabric(Source, Piece) then
     begin
-      Result[Count] := PlaceShape(Piece, Placements[Index], OpensFolds);
+      Result[Count] := PlaceShape(Piece, Placements[Index], OpensFolds, Profile);
       Result[Count].Placement := Index;
       Result[Count].Caption := Source.Pattern.PieceCaption(Piece, OpensFolds);
       Result[Count].Look := Source.Pattern.PieceLook(Piece);
       Inc(Count);
     end;
   SetLength(Result, Count);
+end;
+
+function TLayout.ActiveOutputProfile: TOutputProfile;
+begin
+  ChosenOutputProfile(Result);
 end;
 
 function TLayout.OpensFolds: boolean;
@@ -1512,6 +1568,12 @@ begin
       FormatFloat('0.#', Output.MaterialWidth), FormatFloat('0.#', Output.MaterialLength)])
   else
     Result := Format(rsLayoutRollUsed, [FormatFloat('0.#', Bottom), FormatFloat('0.#', Output.MaterialWidth)]);
+end;
+
+function TLayout.ChosenOutputProfile(out Profile: TOutputProfile): boolean;
+begin
+  Profile := FullOutputProfile;
+  Result := (Output.OutputProfile = '') or FindOutputProfile(OutputProfiles, Output.OutputProfile, Profile);
 end;
 
 function TLayout.ChosenProfile(out Profile: TMachineProfile): boolean;
@@ -1703,6 +1765,7 @@ var
   Probe: TPlacement;
   AllRead: boolean;
   Profile: TMachineProfile;
+  Chosen: TOutputProfile;
 
   procedure Add(const Text: string; Blocking: boolean);
   begin
@@ -1727,6 +1790,10 @@ begin
   AllRead := True;
   if (Output.Profile <> '') and not ChosenProfile(Profile) then
     Add(Format(rsLayoutUnknownProfile, [Output.Profile]), False);
+  // Never a quiet fallback: a print missing its stitch lines would be cut
+  // and sewn wrongly
+  if not ChosenOutputProfile(Chosen) then
+    Add(Format(rsLayoutUnknownOutputProfile, [Output.OutputProfile]), True);
   for Source in FSources do
     if Source.LoadError <> '' then
     begin

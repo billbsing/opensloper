@@ -350,6 +350,7 @@ resourcestring
       end;
       Layout.LoadSources;
       Layout.MachineProfiles := UserMachineProfiles;
+      Layout.OutputProfiles := UserOutputProfiles;
       Layout.Calibration := UserCalibration;
       if ProfileOption <> '' then
         Layout.Output.Profile := ProfileOption;

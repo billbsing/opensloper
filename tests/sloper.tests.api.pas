@@ -54,6 +54,7 @@ type
     procedure TestSetRole;
     procedure TestSetMarker;
     procedure TestOffsetRun;
+    procedure TestRenderHidesRoles;
     procedure TestFabricMethods;
     procedure TestFabricRefusals;
     procedure TestPieceFabricAndFill;
@@ -882,6 +883,18 @@ begin
   Svg := Answer.Get('svg', '');
   AssertTrue('labels', Pos('>B</text>', Svg) > 0);
   AssertTrue('region', Pos('viewBox="0 -10 50 20"', Svg) > 0);
+end;
+
+procedure TTestAPI.TestRenderHidesRoles;
+begin
+  AddSquare;
+  Call('add_edge', '{"type": "line", "start": "A", "end": "C", "role": "stitch", "name": "Diagonal"}');
+  Call('render');
+  AssertTrue('shown', Pos('data-name="Diagonal"', Answer.Get('svg', '')) > 0);
+  Call('render', '{"hiddenRoles": ["stitch"]}');
+  AssertEquals('hidden', 0, Pos('data-name="Diagonal"', Answer.Get('svg', '')));
+  Call('render', '{"hiddenRoles": ["seam"]}');
+  AssertEquals(RpcInvalidParams, ErrorCode);
 end;
 
 procedure TTestAPI.TestRenderFollowsEdits;

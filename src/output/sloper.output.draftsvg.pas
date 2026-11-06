@@ -26,7 +26,7 @@ unit Sloper.Output.DraftSVG;
 interface
 
 uses
-  SysUtils, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
 
 type
   TDraftSVGOptions = record
@@ -41,6 +41,8 @@ type
     // Show only this part of the draft, in model millimetres
     HasRegion: boolean;
     Region: TRect2;
+    // Lines of these roles are left out, as the canvas hides them
+    HiddenRoles: TEdgeRoles;
   end;
 
 function DefaultDraftSVGOptions: TDraftSVGOptions;
@@ -52,7 +54,7 @@ function EscapeXML(const Text: string): string;
 implementation
 
 uses
-  Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece;
+  Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Fabrics, Sloper.Core.Piece;
 
 const
   CoordinateDecimals = 3;
@@ -316,6 +318,16 @@ begin
       Num(Extent * LineShare)]) + #10;
 end;
 
+function AllObjects(Pattern: TPattern): TDraftObjectArray;
+var
+  Index: integer;
+begin
+  Result := nil;
+  SetLength(Result, Pattern.ObjectCount);
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    Result[Index] := Pattern.Objects[Index];
+end;
+
 function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
 var
   View: TDraftView;
@@ -345,10 +357,9 @@ begin
     if (DraftObject is TPieceObject) and DraftObject.HasResult then
       Result := Result + PieceElement(Pattern, TPieceObject(DraftObject), View.Extent, Options.NoFills);
   end;
-  for Index := 0 to Pattern.ObjectCount - 1 do
+  for DraftObject in EdgesInDrawOrder(AllObjects(Pattern)) do
   begin
-    DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TEdgeObject) and DraftObject.HasResult and (Length(TEdgeObject(DraftObject).Segments) > 0) then
+    if DraftObject.HasResult and (Length(TEdgeObject(DraftObject).Segments) > 0) and not (TEdgeObject(DraftObject).Role in Options.HiddenRoles) then
     begin
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
       if Labelled(DraftObject) then

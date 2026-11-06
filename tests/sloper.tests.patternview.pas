@@ -45,12 +45,15 @@ type
     procedure TestOldDraftsLoadOnOneCanvas;
     procedure TestOldDraftIdsStayRetired;
     procedure TestOldFileSavesWithoutDrafts;
+    procedure TestHiddenRolesSaved;
+    procedure TestHiddenRolesKeptOutOfUndo;
+    procedure TestOutlineNeverHidden;
   end;
 
 implementation
 
 uses
-  Sloper.Core.PatternFile, Sloper.Document.PatternDocument;
+  Sloper.Core.Draft, Sloper.Core.PatternFile, Sloper.Document.PatternDocument;
 
 const
   // Two drafts, the second with two layers, and a point on each
@@ -187,6 +190,44 @@ begin
   AssertEquals('no drafts', 0, Pos('"drafts"', Text));
   AssertEquals('no layer', 0, Pos('"layer"', Text));
   AssertTrue('the counter stays above the old IDs', Pos('"nextId": 41', Text) > 0);
+end;
+
+procedure TTestPatternView.TestHiddenRolesSaved;
+begin
+  FPattern.View.HiddenRoles := [erConstruction, erEdgeFinish];
+  AssertTrue('written', Pos('"hiddenRoles"', SavePatternToText(FPattern)) > 0);
+  AssertTrue(Reloaded.View.HiddenRoles = [erConstruction, erEdgeFinish]);
+  AssertFalse('no zoom yet', FLoaded.View.HasView);
+  FPattern.View.HiddenRoles := [];
+  AssertEquals('left out when all show', 0, Pos('hiddenRoles', SavePatternToText(FPattern)));
+end;
+
+procedure TTestPatternView.TestHiddenRolesKeptOutOfUndo;
+var
+  Document: TPatternDocument;
+  Before: string;
+begin
+  Before := SavePatternToText(FPattern, False);
+  FPattern.View.HiddenRoles := [erStitch];
+  AssertEquals('no change to undo', Before, SavePatternToText(FPattern, False));
+  Document := TPatternDocument.Create;
+  try
+    Document.BeginChange('Add point');
+    Document.Pattern.AddFreePoint('A', '0', '0');
+    Document.EndChange;
+    Document.Pattern.View.HiddenRoles := [erFold];
+    Document.ViewChanged;
+    Document.Undo;
+    AssertTrue('kept through undo', Document.Pattern.View.HiddenRoles = [erFold]);
+  finally
+    FreeAndNil(Document);
+  end;
+end;
+
+procedure TTestPatternView.TestOutlineNeverHidden;
+begin
+  RestorePatternView(FPattern, '{"hiddenRoles": ["outline", "stitch", "nonsense", 3]}');
+  AssertTrue(FPattern.View.HiddenRoles = [erStitch]);
 end;
 
 initialization
