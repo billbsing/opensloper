@@ -93,6 +93,7 @@ type
     procedure SelectionChanged(Sender: TObject);
     procedure RefreshControls;
     procedure PreferencesClick(Sender: TObject);
+    procedure AboutClick(Sender: TObject);
     procedure WatchTick(Sender: TObject);
     procedure RefreshProblems;
     procedure RefreshTray;
@@ -151,6 +152,9 @@ resourcestring
   rsMenuUndoNamed = '&Undo %s';
   rsMenuRedo = '&Redo';
   rsMenuPreferences = 'Pre&ferences...';
+  rsMenuHelp = '&Help';
+  rsMenuAbout = '&About %s';
+  rsAboutSummary = 'Pattern layouts and printing.';
   rsMenuView = '&View';
   rsMenuFit = '&Fit Pages';
   rsMenuReload = '&Reload Patterns';
@@ -270,7 +274,7 @@ implementation
 
 uses
   LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.RecentFiles, Sloper.Core.Settings, Sloper.UI.IconSet,
-  Sloper.UI.Preferences, Sloper.Output.LayoutExport,
+  Sloper.UI.About, Sloper.UI.Preferences, Sloper.Output.LayoutExport,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
@@ -419,6 +423,8 @@ begin
   Group := AddMenu(rsMenuView);
   FCommands.AddMenuItem(Group, FitAction);
   FCommands.AddMenuItem(Group, ReloadAction);
+  Group := AddMenu(rsMenuHelp);
+  FCommands.AddMenuItem(Group, FCommands.NewAction(Format(rsMenuAbout, [rsPublishTitle]), aiAbout, @AboutClick));
 
   FCommands.AddButton(OpenAction);
   FCommands.AddButton(SaveAction);
@@ -1393,6 +1399,11 @@ begin
   FDocument.BeginChange(rsFlipChange);
   FDocument.Layout.Placements[Index].Flipped := not FDocument.Layout.Placements[Index].Flipped;
   FDocument.EndChange;
+end;
+
+procedure TPublishForm.AboutClick(Sender: TObject);
+begin
+  ShowAboutDialog(Self, rsPublishTitle, rsAboutSummary);
 end;
 
 procedure TPublishForm.PreferencesClick(Sender: TObject);

@@ -197,7 +197,7 @@ implementation
 
 uses
   Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
-  Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
+  Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
   Sloper.Core.AppPaths, Sloper.Core.Measurements,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
 
@@ -293,10 +293,7 @@ resourcestring
   rsHintKey = '%s (%s)';
   rsMenuHelp = '&Help';
   rsMenuHelpAbout = '&About OpenSloper';
-  rsAboutText = '%s %s'#10#10 + 'Parametric sewing pattern drafting.'#10#10 + 'This program is free software: you can redistribute it and/or modify ' +
-    'it under the terms of the GNU General Public License as published by ' + 'the Free Software Foundation, either version 3 of the License, or ' +
-    '(at your option) any later version.'#10#10 + 'This program comes with ABSOLUTELY NO WARRANTY.'#10#10 +
-    'Icons from Tabler Icons (tabler.io), MIT licence.';
+  rsAboutSummary = 'Parametric sewing pattern drafting.';
   rsUntitled = 'Untitled';
   rsTitle = '%s%s - %s';
   rsPatternFilter = 'OpenSloper patterns (*.sloper)|*.sloper|All files|%s';
@@ -1466,7 +1463,7 @@ end;
 
 procedure TMainForm.MenuHelpAboutClick(Sender: TObject);
 begin
-  MessageDlg(Format(rsAboutText, [AppName, AppVersion]), mtInformation, [mbOK], 0);
+  ShowAboutDialog(Self, AppName, rsAboutSummary);
 end;
 
 end.

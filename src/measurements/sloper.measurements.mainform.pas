@@ -95,6 +95,7 @@ type
     procedure RefreshLater(Data: PtrInt);
     procedure RefreshAll;
     procedure PreferencesClick(Sender: TObject);
+    procedure AboutClick(Sender: TObject);
     procedure RefreshGrid;
     function CellText(Row, Column: integer): string;
     function ValueColumns: integer;
@@ -164,6 +165,9 @@ resourcestring
   rsMenuUndoNamed = '&Undo %s';
   rsMenuRedo = '&Redo';
   rsMenuPreferences = 'Pre&ferences...';
+  rsMenuHelp = '&Help';
+  rsMenuAbout = '&About %s';
+  rsAboutSummary = 'Measurement sets and size tables.';
   rsName = 'Name';
   rsNotes = 'Notes';
   rsShowIn = 'Show in';
@@ -240,7 +244,8 @@ resourcestring
 implementation
 
 uses
-  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.RecentFiles, Sloper.Core.SeamlyFormat, Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Preferences;
+  Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.RecentFiles, Sloper.Core.SeamlyFormat, Sloper.Core.Settings,
+  Sloper.UI.About, Sloper.UI.IconSet, Sloper.UI.Preferences;
 
 const
   HeaderHeight = 30;
@@ -353,6 +358,8 @@ begin
   FCommands.AddMenuItem(Group, FRedoAction);
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuPreferences, aiPreferences, @PreferencesClick, ShortCut(VK_OEM_COMMA, [ssModifier])));
+  Group := AddMenu(rsMenuHelp);
+  FCommands.AddMenuItem(Group, FCommands.NewAction(Format(rsMenuAbout, [rsMeasurementsTitle]), aiAbout, @AboutClick));
 
   FCommands.AddButton(NewAction);
   FCommands.AddButton(OpenAction);
@@ -1501,6 +1508,11 @@ begin
     FDocument.MoveSize(Index, Index + 1);
     SelectCell(RowIndex(FGrid.Row), FGrid.Col + 1);
   end;
+end;
+
+procedure TMeasurementsForm.AboutClick(Sender: TObject);
+begin
+  ShowAboutDialog(Self, rsMeasurementsTitle, rsAboutSummary);
 end;
 
 procedure TMeasurementsForm.PreferencesClick(Sender: TObject);
