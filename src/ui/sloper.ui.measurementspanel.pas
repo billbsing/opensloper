@@ -38,7 +38,7 @@ type
   TMeasurementsPanel = class(TListPanel)
   private
     FFileLabel: TLabel;
-    FEditors: TPanel;
+    FEditors: TGroupBox;
     FKeyEdit, FValueEdit, FDescriptionEdit: TEdit;
     FSaveButton: TButton;
     FSizeBar: TPanel;
@@ -101,6 +101,8 @@ resourcestring
   rsMeasurementsTestReset = '&Reset';
   rsMeasurementsTestHint = 'Tries the pattern with every measurement larger or smaller, 1% a step. Nothing is saved.';
   rsMeasurementsTestTitle = 'Test Sizes';
+  rsMeasurementsSetTitle = 'Measurement Set';
+  rsMeasurementsEditorsTitle = 'Measurement';
 
 implementation
 
@@ -125,12 +127,21 @@ end;
 constructor TMeasurementsPanel.Create(AOwner: TComponent);
 var
   FileBar, Buttons: TPanel;
+  SetGroup: TGroupBox;
   SizeLabel: TLabel;
 begin
   inherited Create(AOwner);
   MultiSelect := False;
+  // Above the search box
+  SetGroup := TGroupBox.Create(Self);
+  SetGroup.Parent := FHeader;
+  SetGroup.Align := alTop;
+  SetGroup.Top := -1;
+  SetGroup.BorderSpacing.Bottom := 6;
+  SetGroup.AutoSize := True;
+  SetGroup.Caption := rsMeasurementsSetTitle;
   FileBar := TPanel.Create(Self);
-  FileBar.Parent := FHeader;
+  FileBar.Parent := SetGroup;
   FileBar.Align := alTop;
   FileBar.Top := -1;
   FileBar.BevelOuter := bvNone;
@@ -144,12 +155,12 @@ begin
   FFileLabel.Layout := tlCenter;
   FFileLabel.Caption := rsMeasurementsNoSet;
   FSizeBar := TPanel.Create(Self);
-  FSizeBar.Parent := FHeader;
+  FSizeBar.Visible := False;
+  FSizeBar.Parent := SetGroup;
   FSizeBar.Align := alTop;
-  FSizeBar.Top := 0;
+  FSizeBar.Top := 1000;
   FSizeBar.BevelOuter := bvNone;
   FSizeBar.AutoSize := True;
-  FSizeBar.Visible := False;
   SizeLabel := TLabel.Create(Self);
   SizeLabel.Parent := FSizeBar;
   SizeLabel.Align := alLeft;
@@ -162,11 +173,12 @@ begin
   FSizeBox.Style := csDropDownList;
   FSizeBox.OnChange := @SizeChange;
 
-  FEditors := TPanel.Create(Self);
+  FEditors := TGroupBox.Create(Self);
   FEditors.Parent := Self;
   FEditors.Align := alBottom;
-  FEditors.BevelOuter := bvNone;
+  FEditors.BorderSpacing.Top := 6;
   FEditors.AutoSize := True;
+  FEditors.Caption := rsMeasurementsEditorsTitle;
   FKeyEdit := AddEditor(rsMeasurementsKey);
   FValueEdit := AddEditor(rsMeasurementsValue);
   FDescriptionEdit := AddEditor(rsMeasurementsDescription);
@@ -259,7 +271,7 @@ begin
   FTestGroup.Align := alBottom;
   // Below the editors, which are docked at the bottom too
   FTestGroup.Top := 100000;
-  FTestGroup.Caption:= rsMeasurementsTestTitle;
+  FTestGroup.Caption := rsMeasurementsTestTitle;
   FTestGroup.BorderSpacing.Top := 6;
   FTestGroup.AutoSize := True;
   FTestGroup.Hint := rsMeasurementsTestHint;

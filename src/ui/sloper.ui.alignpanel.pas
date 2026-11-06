@@ -42,6 +42,8 @@ type
     FOnMessage: TAlignMessageEvent;
     FOnSelect: TAlignSelectEvent;
     FNextTop: integer;
+    // The box that controls are placed in, the last heading's
+    FGroup: TGroupBox;
     procedure RepeatClick(Sender: TObject);
     procedure AddButton(const ACaption: string; AAction: TArrangeAction);
     procedure AddHeading(const ACaption: string);
@@ -100,7 +102,6 @@ uses
 const
   DefaultRepeatCount = '3';
   RowGap = 6;
-  HeadingGap = 14;
   ActionTags: array[TArrangeAction] of integer = (0, 1, 2, 3, 4, 5);
 
 constructor TAlignPanel.Create(AOwner: TComponent);
@@ -142,7 +143,7 @@ end;
 
 procedure TAlignPanel.Place(Control: TControl);
 begin
-  Control.Parent := Self;
+  Control.Parent := FGroup;
   Control.Align := alTop;
   Control.Top := FNextTop;
   Inc(FNextTop, 1000);
@@ -151,14 +152,18 @@ begin
   Control.BorderSpacing.Top := RowGap div 2;
 end;
 
+// A captioned box that the controls after it go in
 procedure TAlignPanel.AddHeading(const ACaption: string);
-var
-  Heading: TLabel;
 begin
-  Heading := TLabel.Create(Self);
-  Heading.Caption := ACaption;
-  Place(Heading);
-  Heading.BorderSpacing.Top := HeadingGap;
+  FGroup := TGroupBox.Create(Self);
+  FGroup.Parent := Self;
+  FGroup.Align := alTop;
+  FGroup.Top := FNextTop;
+  Inc(FNextTop, 1000);
+  FGroup.AutoSize := True;
+  FGroup.Caption := ACaption;
+  FGroup.BorderSpacing.Around := RowGap;
+  FGroup.ChildSizing.TopBottomSpacing := RowGap div 2;
 end;
 
 procedure TAlignPanel.AddButton(const ACaption: string; AAction: TArrangeAction);

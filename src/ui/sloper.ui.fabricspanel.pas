@@ -36,6 +36,7 @@ type
     FGrid: TStringGrid;
     FButtons: TPanel;
     FCutList: TMemo;
+    FCutGroup: TGroupBox;
     FRefreshing: boolean;
     FOnMessage: TFabricsMessageEvent;
     procedure SetDocument(ADocument: TPatternDocument);
@@ -89,6 +90,7 @@ resourcestring
   rsFabricChangeFill = 'Change fabric fill';
   rsFabricRenameCaption = 'Fabric name';
   rsFabricRenamePrompt = 'Name';
+  rsFabricCutList = 'Cut List';
 
 implementation
 
@@ -143,9 +145,14 @@ constructor TFabricsPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   BevelOuter := bvNone;
+  FCutGroup := TGroupBox.Create(Self);
+  FCutGroup.Parent := Self;
+  FCutGroup.Align := alBottom;
+  FCutGroup.AutoSize := True;
+  FCutGroup.Caption := rsFabricCutList;
   FCutList := TMemo.Create(Self);
-  FCutList.Parent := Self;
-  FCutList.Align := alBottom;
+  FCutList.Parent := FCutGroup;
+  FCutList.Align := alTop;
   FCutList.Height := CutListHeight;
   FCutList.ReadOnly := True;
   FButtons := TPanel.Create(Self);

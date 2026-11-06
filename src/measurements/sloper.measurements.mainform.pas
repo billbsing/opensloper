@@ -45,7 +45,8 @@ type
     // The key the mouse is over in the table, ''  when none
     FGridHover: string;
     FGrid: TStringGrid;
-    FTableColumn, FMissingPanel: TPanel;
+    FTableColumn: TPanel;
+    FMissingPanel: TGroupBox;
     FMissingLabel: TLabel;
     FMissingList: TListBox;
     FMissingButton: TButton;
@@ -175,7 +176,7 @@ resourcestring
   rsDeleteSize = 'Delete size';
   rsSizeLeft = 'Size left';
   rsSizeRight = 'Size right';
-  rsCatalogueTitle = 'Add from the catalogue';
+  rsCatalogueTitle = 'Add From the Catalogue';
   rsAddKnown = 'Add to the file';
   rsAllGroups = 'All groups';
   rsGroupHeights = 'Heights and lengths';
@@ -231,6 +232,7 @@ resourcestring
   rsMissingKey = '@%s';
   rsMissingSizes = '@%s: no value for size %s';
   rsMissingFix = 'Add or go to it';
+  rsMissingTitle = 'Pattern Check';
   rsPatternFailed = 'Could not read %s: %s';
   rsPatternReread = '%s was saved, so it was checked again';
   rsFilterPattern = 'Patterns (*.sloper)|*.sloper';
@@ -472,8 +474,8 @@ end;
 
 procedure TMeasurementsForm.BuildSide;
 var
-  Side, Browser, Buttons: TPanel;
-  Title: TLabel;
+  Side, Buttons: TPanel;
+  Browser: TGroupBox;
   Group: string;
 begin
   Side := TPanel.Create(Self);
@@ -481,16 +483,12 @@ begin
   Side.Align := alRight;
   Side.Width := SideWidth;
   Side.BevelOuter := bvNone;
-  Browser := TPanel.Create(Self);
+  Browser := TGroupBox.Create(Self);
   Browser.Parent := Side;
   Browser.Align := alBottom;
   Browser.Height := CatalogueHeight;
-  Browser.BevelOuter := bvNone;
-  Title := TLabel.Create(Self);
-  Title.Parent := Browser;
-  Title.Align := alTop;
-  Title.Caption := rsCatalogueTitle;
-  Title.BorderSpacing.Around := SideGap;
+  Browser.BorderSpacing.Around := SideGap;
+  Browser.Caption := rsCatalogueTitle;
   FGroupBox := TComboBox.Create(Self);
   FGroupBox.Parent := Browser;
   FGroupBox.Align := alTop;
@@ -551,11 +549,12 @@ procedure TMeasurementsForm.BuildMissing;
 var
   Buttons: TPanel;
 begin
-  FMissingPanel := TPanel.Create(Self);
+  FMissingPanel := TGroupBox.Create(Self);
   FMissingPanel.Parent := FTableColumn;
   FMissingPanel.Align := alBottom;
   FMissingPanel.Height := MissingHeight;
-  FMissingPanel.BevelOuter := bvNone;
+  FMissingPanel.BorderSpacing.Top := SideGap;
+  FMissingPanel.Caption := rsMissingTitle;
   FMissingPanel.Visible := False;
   Buttons := TPanel.Create(Self);
   Buttons.Parent := FMissingPanel;

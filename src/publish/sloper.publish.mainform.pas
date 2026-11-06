@@ -65,8 +65,12 @@ type
     FRefreshing: boolean;
     // Rows stack in the order their Top says, so each takes the next one
     FNextRowTop: integer;
+    // Where FRowParent goes back to when the open group ends
+    FGroupOuter: TWinControl;
     function ScrollingRows(Side: TWinControl): TScrollBox;
     procedure PlaceRow(Row: TControl);
+    procedure BeginGroup(const ACaption: string);
+    procedure EndGroup;
     procedure BuildMenu;
     procedure BuildPiecesTab;
     procedure BuildPatternsTab;
@@ -165,13 +169,20 @@ resourcestring
   rsMargin = 'Margin (mm)';
   rsOverlap = 'Overlap (mm)';
   rsTray = 'Unplaced: drag onto the pages';
+  rsTrayGroup = 'Tray';
+  rsSelectedPiece = 'Selected Piece';
+  rsArrange = 'Arrange';
+  rsContent = 'Content';
+  rsExportGroup = 'Export';
+  rsProblemsGroup = 'Problems';
+  rsSheetNotes = 'Sheet Notes';
   rsTrayEmpty = 'Every piece is placed';
   rsTrayNoPieces = 'No pieces to place';
   rsRemove = 'Back to tray';
   rsTabPieces = 'Pieces';
   rsTabOutput = 'Output';
   rsTabPatterns = 'Patterns';
-  rsPatternsLabel = 'Patterns in this layout';
+  rsPatternsLabel = 'Patterns in This Layout';
   rsAddPattern = 'Add pattern...';
   rsRemovePattern = 'Remove pattern';
   rsSourceSet = 'Measurements';
@@ -197,7 +208,8 @@ resourcestring
   rsPaperWidth = 'Paper width (mm)';
   rsPaperHeight = 'Paper height (mm)';
   rsTabNotes = 'Notes';
-  rsTitleBlock = 'Title block';
+  rsTitleBlock = 'Title Block';
+  rsShowTitleBlock = 'Show the title block';
   rsEveryPage = 'On every page';
   rsCorner = 'Corner';
   rsCornerBottomRight = 'Bottom right';
@@ -283,6 +295,8 @@ const
   MaxPaperSide = 2000;
 
 constructor TPublishForm.Create(AOwner: TComponent);
+var
+  ProblemsGroup: TGroupBox;
 begin
   inherited CreateNew(AOwner);
   Caption := rsPublishTitle;
@@ -303,9 +317,15 @@ begin
   FColumn.Align := alRight;
   FColumn.Width := SideWidth;
   FColumn.BevelOuter := bvNone;
+  ProblemsGroup := TGroupBox.Create(Self);
+  ProblemsGroup.Parent := FColumn;
+  ProblemsGroup.Align := alBottom;
+  ProblemsGroup.AutoSize := True;
+  ProblemsGroup.BorderSpacing.Around := SideGap;
+  ProblemsGroup.Caption := rsProblemsGroup;
   FProblems := TListBox.Create(Self);
-  FProblems.Parent := FColumn;
-  FProblems.Align := alBottom;
+  FProblems.Parent := ProblemsGroup;
+  FProblems.Align := alTop;
   FProblems.Height := ProblemsHeight;
   FProblems.ShowHint := True;
   FProblems.BorderSpacing.Around := SideGap;
@@ -433,6 +453,30 @@ begin
   Row.Parent := FRowParent;
 end;
 
+// The rows placed after this go in a captioned box, until the next group or
+// EndGroup
+procedure TPublishForm.BeginGroup(const ACaption: string);
+var
+  Group: TGroupBox;
+begin
+  EndGroup;
+  Group := TGroupBox.Create(Self);
+  Group.Caption := ACaption;
+  Group.AutoSize := True;
+  PlaceRow(Group);
+  Group.BorderSpacing.Top := SideGap;
+  Group.ChildSizing.TopBottomSpacing := SideGap div 2;
+  FGroupOuter := FRowParent;
+  FRowParent := Group;
+end;
+
+procedure TPublishForm.EndGroup;
+begin
+  if Assigned(FGroupOuter) then
+    FRowParent := FGroupOuter;
+  FGroupOuter := nil;
+end;
+
 function TPublishForm.AddCheck(const ACaption: string): TCheckBox;
 begin
   Result := TCheckBox.Create(Self);
@@ -447,7 +491,8 @@ const
 var
   Index: integer;
 begin
-  FTitleBox := AddCheck(rsTitleBlock);
+  BeginGroup(rsTitleBlock);
+  FTitleBox := AddCheck(rsShowTitleBlock);
   for Index := 0 to High(FFieldBoxes) do
     FFieldBoxes[Index] := AddCheck(FieldCaptions[Index]);
   FEveryPageBox := AddCheck(rsEveryPage);
@@ -460,6 +505,7 @@ begin
   FCornerBox.Items.Add(rsCornerBottomLeft);
   FCornerBox.Items.Add(rsCornerTopRight);
   FCornerBox.OnChange := @TitleChange;
+  BeginGroup(rsSheetNotes);
   AddButton(rsAddNote, @AddNoteClick);
   AddLabel(rsSheetNote);
   FNoteMemo := TMemo.Create(Self);
@@ -471,6 +517,7 @@ begin
   FNoteSizeEdit.MinValue := 1;
   FNoteSizeEdit.OnChange := @NoteChange;
   FDeleteNoteButton := AddButton(rsDeleteNote, @DeleteNoteClick);
+  EndGroup;
 end;
 
 procedure TPublishForm.RefreshNotesTab;
@@ -606,7 +653,7 @@ var
   end;
 
 begin
-  AddLabel(rsOutput);
+  BeginGroup(rsOutput);
   FKindBox := TComboBox.Create(Self);
   PlaceRow(FKindBox);
   FKindBox.Style := csDropDownList;
@@ -623,7 +670,7 @@ begin
   FAllowTurnsBox.Caption := rsAllowTurns;
   PlaceRow(FAllowTurnsBox);
   FAllowTurnsBox.OnClick := @SettingChange;
-  AddLabel(rsPaper);
+  BeginGroup(rsPaper);
   FPaperBox := TComboBox.Create(Self);
   PlaceRow(FPaperBox);
   FPaperBox.Style := csDropDownList;
@@ -642,6 +689,7 @@ begin
   FMarksBox.Items.Add(rsMarksDiamond);
   FMarksBox.Items.Add(rsMarksNone);
   FMarksBox.Items.Add(rsMarksHalfCircle);
+  BeginGroup(rsContent);
   FFillBox := AddChoice(rsFill);
   // In the order of TLayoutFill
   FFillBox.Items.Add(rsFillNone);
@@ -650,22 +698,24 @@ begin
   FOutputProfileBox := AddChoice(rsOutputProfile);
   FProfileBox := AddChoice(rsProfile);
   FFabricBox := AddChoice(rsFabricLimit);
+  BeginGroup(rsExportGroup);
   AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
   AddButton(rsExportSVG, @ExportClick).Tag := Ord(efSVG);
   AddButton(rsExportDXF, @ExportClick).Tag := Ord(efDXF);
   AddButton(rsExportMachineDXF, @ExportClick).Tag := Ord(efMachineDXF);
+  EndGroup;
 end;
 
 procedure TPublishForm.BuildPatternsTab;
 begin
-  AddLabel(rsPatternsLabel);
+  BeginGroup(rsPatternsLabel);
   FSourceBox := TListBox.Create(Self);
   PlaceRow(FSourceBox);
   FSourceBox.Height := PatternListHeight;
   FSourceBox.OnClick := @SourceSelected;
   AddButton(rsAddPattern, @AddSourceClick);
   FRemoveSourceButton := AddButton(rsRemovePattern, @RemoveSourceClick);
-  AddLabel(rsSourceSet);
+  BeginGroup(rsSourceSet);
   FSourceSetLabel := AddLabel('');
   FChooseSetButton := AddButton(rsChooseSet, @ChooseSetClick);
   FPatternSetButton := AddButton(rsPatternSet, @PatternSetClick);
@@ -674,6 +724,7 @@ begin
   PlaceRow(FSizeBox);
   FSizeBox.Style := csDropDownList;
   FSizeBox.OnChange := @SizeChange;
+  EndGroup;
 end;
 
 function TPublishForm.CurrentSource: TLayoutSource;
@@ -862,15 +913,27 @@ begin
 end;
 
 procedure TPublishForm.BuildPiecesTab;
+var
+  TrayGroup: TGroupBox;
 begin
+  BeginGroup(rsSelectedPiece);
   FTurnButton := AddButton(rsTurn, @TurnClick);
   FFlipButton := AddButton(rsFlip, @FlipClick);
   FRemoveButton := AddButton(rsRemove, @RemoveClick);
+  BeginGroup(rsArrange);
   AddButton(rsPlaceNew, @PlaceClick);
   FPackButton := AddButton(rsPackPieces, @PackClick);
+  EndGroup;
+  // The rest of the tab, under the other groups
+  TrayGroup := TGroupBox.Create(Self);
+  TrayGroup.Parent := FPiecesSide;
+  TrayGroup.Align := alClient;
+  TrayGroup.BorderSpacing.Around := SideGap;
+  TrayGroup.Caption := rsTrayGroup;
+  FRowParent := TrayGroup;
   AddLabel(rsTray);
   FTray := TListBox.Create(Self);
-  FTray.Parent := FPiecesSide;
+  FTray.Parent := TrayGroup;
   FTray.Align := alClient;
   FTray.BorderSpacing.Around := SideGap;
   FTray.OnMouseDown := @TrayMouseDown;

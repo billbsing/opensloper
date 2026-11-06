@@ -41,18 +41,20 @@ resourcestring
   rsPreferencesGeneral = 'General';
   rsPreferencesDesign = 'Design';
   rsPreferencesPublish = 'Publish';
-  rsPreferencesUnit = 'Units';
+  rsPreferencesUnitGroup = 'Units';
+  rsPreferencesUnit = 'Unit';
   rsPreferencesUnitMillimetre = 'Millimetres (mm)';
   rsPreferencesUnitCentimetre = 'Centimetres (cm)';
   rsPreferencesUnitInch = 'Inches (in)';
   rsPreferencesUnitNote = 'Measurements, and the drafting app''s rulers, grid and cursor position, are shown in this unit. ' +
     'New patterns will start in it once patterns can have units other than millimetres.';
-  rsPreferencesGrid = 'Grid spacing';
+  rsPreferencesGrid = 'Grid Spacing';
   rsPreferencesGridNote = 'Each unit keeps its own spacing. Zoomed out too far to see the lines, the grid spaces them further apart, always on multiples of this spacing.';
   rsPreferencesCalibrationX = 'Calibration across';
   rsPreferencesCalibrationY = 'Calibration down';
+  rsPreferencesCalibration = 'Printer Calibration';
   rsPreferencesCalibrationNote = 'Everything printed at true size is scaled by these factors, for a printer that is consistently a little off.';
-  rsPreferencesTestPrint = 'Work out from a test print';
+  rsPreferencesTestPrint = 'Work Out From a Test Print';
   rsPreferencesTestPrintNote = 'Print a layout with the factors above, measure the test square on its first page, and type what you measured.';
   rsPreferencesTestSquare = 'Test square';
   rsPreferencesSquareMetric = '10 cm (A4, A3 and others)';
@@ -69,7 +71,7 @@ uses
 
 const
   DialogWidth = 560;
-  DialogHeight = 440;
+  DialogHeight = 500;
   DialogBorder = 8;
   RowSpacing = 6;
   ColumnSpacing = 12;
@@ -91,8 +93,9 @@ type
     // The unit the measured sizes are typed in, which follows the Units box
     FMeasuredUnit: TMeasureUnit;
     function AddTab(const ACaption: string): TTabSheet;
-    function AddRows(Sheet: TTabSheet): TPanel;
-    function AddNote(Sheet: TTabSheet; const AText: string; Bold: boolean = False): TLabel;
+    function AddGroup(Sheet: TTabSheet; const ACaption: string): TGroupBox;
+    function AddRows(Host: TWinControl): TPanel;
+    function AddNote(Host: TWinControl; const AText: string): TLabel;
     function AddRow(Rows: TPanel; const ACaption: string; Control: TControl): TLabel;
     function NewSpin(MinValue, MaxValue, Increment: double; Decimals: integer): TFloatSpinEdit;
     procedure BuildGeneralTab;
@@ -137,24 +140,33 @@ begin
   Result.Caption := ACaption;
 end;
 
-// Below everything already on the sheet, since top-aligned controls are
-// stacked in the order of their tops
-procedure StackOnSheet(Sheet: TTabSheet; Control: TControl);
+// Below everything already in Host, since top-aligned controls are stacked
+// in the order of their tops
+procedure StackIn(Host: TWinControl; Control: TControl);
 var
   Index, Bottom: integer;
 begin
   Bottom := 0;
-  for Index := 0 to Sheet.ControlCount - 1 do
-    if Sheet.Controls[Index] <> Control then
-      Bottom := Max(Bottom, Sheet.Controls[Index].Top + Sheet.Controls[Index].Height);
+  for Index := 0 to Host.ControlCount - 1 do
+    if Host.Controls[Index] <> Control then
+      Bottom := Max(Bottom, Host.Controls[Index].Top + Host.Controls[Index].Height);
   Control.Top := Bottom + 1;
   Control.Align := alTop;
   Control.BorderSpacing.Around := DialogBorder;
-  Control.Parent := Sheet;
+  Control.Parent := Host;
+end;
+
+// A captioned box around one section of a sheet
+function TPreferencesDialog.AddGroup(Sheet: TTabSheet; const ACaption: string): TGroupBox;
+begin
+  Result := TGroupBox.Create(Self);
+  Result.Caption := ACaption;
+  Result.AutoSize := True;
+  StackIn(Sheet, Result);
 end;
 
 // Controls in two columns, captions on the left
-function TPreferencesDialog.AddRows(Sheet: TTabSheet): TPanel;
+function TPreferencesDialog.AddRows(Host: TWinControl): TPanel;
 begin
   Result := TPanel.Create(Self);
   Result.AutoSize := True;
@@ -164,19 +176,17 @@ begin
   Result.ChildSizing.HorizontalSpacing := ColumnSpacing;
   Result.ChildSizing.VerticalSpacing := RowSpacing;
   Result.ChildSizing.EnlargeHorizontal := crsHomogenousChildResize;
-  StackOnSheet(Sheet, Result);
+  StackIn(Host, Result);
 end;
 
-// Wrapped text across the sheet
-function TPreferencesDialog.AddNote(Sheet: TTabSheet; const AText: string; Bold: boolean): TLabel;
+// Wrapped text across the host
+function TPreferencesDialog.AddNote(Host: TWinControl; const AText: string): TLabel;
 begin
   Result := TLabel.Create(Self);
   Result.WordWrap := True;
   Result.AutoSize := True;
   Result.Caption := AText;
-  if Bold then
-    Result.Font.Style := [fsBold];
-  StackOnSheet(Sheet, Result);
+  StackIn(Host, Result);
 end;
 
 function TPreferencesDialog.AddRow(Rows: TPanel; const ACaption: string; Control: TControl): TLabel;
@@ -199,9 +209,9 @@ end;
 
 procedure TPreferencesDialog.BuildGeneralTab;
 var
-  Sheet: TTabSheet;
+  Group: TGroupBox;
 begin
-  Sheet := AddTab(rsPreferencesGeneral);
+  Group := AddGroup(AddTab(rsPreferencesGeneral), rsPreferencesUnitGroup);
   FUnitBox := TComboBox.Create(Self);
   FUnitBox.Style := csDropDownList;
   // In the order of TMeasureUnit
@@ -209,46 +219,47 @@ begin
   FUnitBox.Items.Add(rsPreferencesUnitCentimetre);
   FUnitBox.Items.Add(rsPreferencesUnitInch);
   FUnitBox.OnChange := @UnitChange;
-  AddRow(AddRows(Sheet), rsPreferencesUnit, FUnitBox);
-  AddNote(Sheet, rsPreferencesUnitNote);
+  AddRow(AddRows(Group), rsPreferencesUnit, FUnitBox);
+  AddNote(Group, rsPreferencesUnitNote);
 end;
 
 procedure TPreferencesDialog.BuildDesignTab;
 const
   Captions: array[TMeasureUnit] of string = (rsPreferencesUnitMillimetre, rsPreferencesUnitCentimetre, rsPreferencesUnitInch);
 var
-  Sheet: TTabSheet;
+  Group: TGroupBox;
   Rows: TPanel;
   AUnit: TMeasureUnit;
 begin
-  Sheet := AddTab(rsPreferencesDesign);
-  AddNote(Sheet, rsPreferencesGrid, True);
-  Rows := AddRows(Sheet);
+  Group := AddGroup(AddTab(rsPreferencesDesign), rsPreferencesGrid);
+  Rows := AddRows(Group);
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
   begin
     FGridEdits[AUnit] := NewSpin(IntPower(10, -GridDecimals[AUnit]), MaxGridStep / MillimetresPerUnit[AUnit], GridIncrements[AUnit],
       GridDecimals[AUnit]);
     AddRow(Rows, Captions[AUnit], FGridEdits[AUnit]);
   end;
-  AddNote(Sheet, rsPreferencesGridNote);
+  AddNote(Group, rsPreferencesGridNote);
 end;
 
 procedure TPreferencesDialog.BuildPublishTab;
 var
   Sheet: TTabSheet;
+  Group: TGroupBox;
   Rows: TPanel;
   WorkOut: TButton;
 begin
   Sheet := AddTab(rsPreferencesPublish);
-  Rows := AddRows(Sheet);
+  Group := AddGroup(Sheet, rsPreferencesCalibration);
+  Rows := AddRows(Group);
   FCalibrationXEdit := NewSpin(MinCalibration, MaxCalibration, CalibrationIncrement, CalibrationDecimals);
   AddRow(Rows, rsPreferencesCalibrationX, FCalibrationXEdit);
   FCalibrationYEdit := NewSpin(MinCalibration, MaxCalibration, CalibrationIncrement, CalibrationDecimals);
   AddRow(Rows, rsPreferencesCalibrationY, FCalibrationYEdit);
-  AddNote(Sheet, rsPreferencesCalibrationNote);
-  AddNote(Sheet, rsPreferencesTestPrint, True);
-  AddNote(Sheet, rsPreferencesTestPrintNote);
-  Rows := AddRows(Sheet);
+  AddNote(Group, rsPreferencesCalibrationNote);
+  Group := AddGroup(Sheet, rsPreferencesTestPrint);
+  AddNote(Group, rsPreferencesTestPrintNote);
+  Rows := AddRows(Group);
   FSquareBox := TComboBox.Create(Self);
   FSquareBox.Style := csDropDownList;
   FSquareBox.Items.Add(rsPreferencesSquareMetric);

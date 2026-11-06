@@ -158,7 +158,7 @@ begin
   Buttons := TPanel.Create(Self);
   Buttons.Parent := FViewGroup;
   Buttons.Align := alTop;
-  Buttons.BorderSpacing.Top:= 8;
+  Buttons.BorderSpacing.Top := 8;
   Buttons.Top := 10000;
   Buttons.BevelOuter := bvNone;
   Buttons.AutoSize := True;
@@ -168,12 +168,12 @@ begin
   Note.Parent := FViewGroup;
   Note.Align := alTop;
   Note.Top := 10001;
-  Note.BorderSpacing.Top:= 8;
+  Note.BorderSpacing.Top := 8;
   Note.WordWrap := True;
   Note.Caption := rsRolesOutlineNote;
   FPresetGroup := TGroupBox.Create(Self);
   FPresetGroup.Parent := Self;
-  FPresetGroup.Align:= alTop;
+  FPresetGroup.Align := alTop;
   FPresetGroup.BorderSpacing.Top := 8;
   FPresetGroup.Top := 10002;
   FPresetGroup.Caption := rsRolesPresets;
