@@ -108,6 +108,7 @@ type
     procedure TestEveryPointType;
     procedure TestCurves;
     procedure TestSeams;
+    procedure TestNotes;
     procedure TestTransforms;
     procedure TestNoDraftsOrLayers;
     procedure TestExport;
@@ -1237,6 +1238,44 @@ begin
   AssertEquals('piece in use', RpcRefused, ErrorCode);
   Call('suggest_seams');
   AssertEquals('one piece has no pairs', 0, Answer.Arrays['suggestions'].Count);
+end;
+
+procedure TTestAPI.TestNotes;
+begin
+  AddSquare;
+  Call('add_note', '{"text": "Stay-stitch", "anchor": {"point": "A"}, "dx": 5, "dy": "-3", "name": "Stay"}');
+  AssertEquals('type', 'note', Answer.Get('type', ''));
+  AssertEquals('x', 5, Answer.Get('x', 0.0), 0.001);
+  AssertEquals('y', -3, Answer.Get('y', 0.0), 0.001);
+  AssertEquals('anchor', 'point', Answer.Get('anchor', ''));
+  AssertTrue('prints', Answer.Get('print', False));
+  Call('add_note', '{"text": "Ease", "anchor": {"edge": "Line_A_B", "position": 0.5}, "dy": 10, "size": 14, "print": false}');
+  AssertEquals('halfway', 50, Answer.Get('x', 0.0), 0.001);
+  AssertEquals('size', 14, Answer.Get('size', 0.0), 0.001);
+  Call('add_note', '{"text": "Free", "x": 7, "y": 8}');
+  AssertEquals('free', 'free', Answer.Get('anchor', ''));
+  Call('set_text', '{"name": "Stay", "text": "Stay-stitch neckline", "size": 12}');
+  AssertEquals('text', 'Stay-stitch neckline', Answer.Get('text', ''));
+  AssertEquals('new size', 12, Answer.Get('size', 0.0), 0.001);
+  Call('set_formula', '{"name": "Stay", "field": "dx", "formula": "20"}');
+  AssertEquals('offset through set_formula', 20, Answer.Get('x', 0.0), 0.001);
+  Call('render');
+  AssertTrue('drawn', Pos('Stay-stitch neckline', Answer.Get('svg', '')) > 0);
+  AssertEquals('screen-only left out', 0, Pos('>Ease<', Answer.Get('svg', '')));
+  Call('render', '{"annotations": false}');
+  AssertEquals('hidden', 0, Pos('Stay-stitch neckline', Answer.Get('svg', '')));
+  Call('delete', '{"name": "A"}');
+  AssertEquals('anchor in use', RpcRefused, ErrorCode);
+  Call('set_text', '{"name": "Stay", "size": 0}');
+  AssertEquals('bad size', RpcRefused, ErrorCode);
+  Call('set_text', '{"name": "A", "text": "x"}');
+  AssertEquals('not a note', RpcRefused, ErrorCode);
+  Call('add_note', '{"text": "x", "anchor": {"edge": "Line_A_B"}}');
+  AssertEquals('edge needs a position', RpcInvalidParams, ErrorCode);
+  Call('add_note', '{"text": "x", "anchor": {"point": "Line_A_B"}}');
+  AssertEquals('wrong kind', RpcRefused, ErrorCode);
+  Call('add_note', '{"anchor": {"point": "A"}}');
+  AssertEquals('no text', RpcInvalidParams, ErrorCode);
 end;
 
 procedure TTestAPI.TestSplitEdge;

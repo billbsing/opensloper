@@ -27,7 +27,7 @@ unit Sloper.Core.Drag;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.FormulaLexer, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.FormulaLexer, Sloper.Core.Draft, Sloper.Core.Note, Sloper.Core.Pattern;
 
 const
   // Dragged values are rounded to these decimals: mm, degrees, ratio
@@ -64,6 +64,11 @@ function CanDrag(Point: TPointObject; out ErrorMessage: string): boolean;
 // change and evaluate afterwards. False, with ErrorMessage, when the point
 // cannot be dragged.
 function DragPoint(Pattern: TPattern; Point: TPointObject; const Target: TVec2; out ErrorMessage: string): boolean;
+// True when the note's offset, or a free note's place, is plain numbers
+function CanDragNote(Note: TNoteObject; out ErrorMessage: string): boolean;
+// Sets the note's offset, or a free note's place, so its top left lies at
+// Target. Call inside a document change and evaluate afterwards.
+function DragNote(Pattern: TPattern; Note: TNoteObject; const Target: TVec2; out ErrorMessage: string): boolean;
 // The handles of a curve or curve path, as computed; empty for other edges,
 // and for one not computed. A split part follows its source and has none.
 function CurveHandles(Edge: TEdgeObject): TCurveHandleArray;
@@ -154,6 +159,34 @@ begin
       Exit(False);
     end;
   Result := True;
+end;
+
+function CanDragNote(Note: TNoteObject; out ErrorMessage: string): boolean;
+var
+  FieldName: string;
+begin
+  ErrorMessage := '';
+  for FieldName in Note.PlaceFields do
+    if not Note.Field(FieldName).IsLiteral then
+    begin
+      ErrorMessage := Format(rsDragFormula, [Note.DisplayName]);
+      Exit(False);
+    end;
+  Result := True;
+end;
+
+function DragNote(Pattern: TPattern; Note: TNoteObject; const Target: TVec2; out ErrorMessage: string): boolean;
+var
+  Fields: TStringArray;
+  Offset: TVec2;
+begin
+  if not CanDragNote(Note, ErrorMessage) then
+    Exit(False);
+  Fields := Note.PlaceFields;
+  Offset := Target - Note.AnchorPosition;
+  if Note.Anchor = naFree then
+    Offset := Target;
+  Result := SetFields(Pattern, Note, Fields, [DraggedLength(Note, Fields[0], Offset.X), DraggedLength(Note, Fields[1], Offset.Y)], ErrorMessage);
 end;
 
 function DragPoint(Pattern: TPattern; Point: TPointObject; const Target: TVec2; out ErrorMessage: string): boolean;

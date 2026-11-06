@@ -29,7 +29,8 @@ interface
 uses
   Classes, SysUtils, Controls, StdCtrls, Menus, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
-  Sloper.Core.Measurements, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap, Sloper.UI.Scene;
+  Sloper.Core.Measurements, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
+  Sloper.UI.Scene;
 
 type
   // cmRefused: a drag was refused; the reason stays up until the button is released
@@ -38,8 +39,8 @@ type
   // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
   // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
   // or removes a notch on a piece's seam line; ctSeam picks the edges of the
-  // two sides of a seam
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam);
+  // two sides of a seam; ctText places a note, hung from what it snaps to
+  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam, ctText);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -71,6 +72,8 @@ type
     // Where a click would go, while a drawing tool is in use
     FSnap: TSnap;
     FSnapShown: boolean;
+    // Where the cursor was when the snap was found, for the Text tool
+    FSnapClick: TVec2;
     // The first click of a line or curve
     FStartSnap: TSnap;
     FHasStart: boolean;
@@ -101,6 +104,11 @@ type
     FReportedView: TViewTransform;
     FOnMessage: TCanvasMessageEvent;
     FOnSelectionChange: TNotifyEvent;
+    FOnNoteAdded: TNotifyEvent;
+    function NoteValues: TFieldValues;
+    function NotesHere(X, Y: integer): TStringArray;
+    procedure AddNoteHere;
+    procedure DrawNotes;
     function MarkerKey(const Key: string): string;
     procedure MarkHoles;
     procedure FinishOffset(Added: TOffsetEdge);
@@ -244,6 +252,9 @@ type
     // A hint or the reason something could not be done
     property OnMessage: TCanvasMessageEvent read FOnMessage write FOnMessage;
     property OnSelectionChange: TNotifyEvent read FOnSelectionChange write FOnSelectionChange;
+    // After the Text tool places a note, which is then selected, so its text
+    // can be typed
+    property OnNoteAdded: TNotifyEvent read FOnNoteAdded write FOnNoteAdded;
     property Tool: TCanvasTool read FTool write SetTool;
     property OnToolChange: TNotifyEvent read FOnToolChange write FOnToolChange;
     property LabelMode: TLabelMode read FLabelMode write SetLabelMode;
@@ -259,6 +270,10 @@ type
 
 resourcestring
   rsCanvasMovePoint = 'Move point';
+  rsCanvasMoveNote = 'Move note';
+  rsCanvasAddNote = 'Add note';
+  rsCanvasNewNoteText = 'Text';
+  rsCanvasToolText = 'Text: click to place a note; it hangs from the point, edge or piece it snaps to';
   rsCanvasMoveHandle = 'Move curve handle';
   rsCanvasNudge = 'Nudge';
   rsCanvasTransform = 'Add %s';
@@ -364,6 +379,10 @@ const
   // Arrow-key nudges in mm
   NudgeStep = 1;
   NudgeStepLarge = 10;
+  // A click this many pixels around a note's text picks it
+  NoteHitPixels = 2;
+  // Text smaller than this many pixels is drawn as a faint bar
+  MinNotePixels = 3;
 
 function Paper: TBGRAPixel;
 begin
@@ -512,6 +531,7 @@ end;
 // edges over pieces, which fill the space around them
 function TPatternCanvas.ObjectKeyAt(X, Y: integer): string;
 var
+  Notes: TStringArray;
   Point: TPointObject;
   Edge: TEdgeObject;
   Piece: TPieceObject;
@@ -519,6 +539,10 @@ begin
   Result := '';
   if not Assigned(FDocument) then
     Exit;
+  // Notes are drawn over everything, so they are picked first
+  Notes := NotesHere(X, Y);
+  if Length(Notes) > 0 then
+    Exit(Notes[0]);
   Point := PointAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius));
   if Assigned(Point) then
     Exit(Point.Key);
@@ -528,6 +552,17 @@ begin
   Piece := PieceAt(FDocument.Pattern, ModelAt(X, Y));
   if Assigned(Piece) then
     Result := Piece.Key;
+end;
+
+// The fields notes show on the canvas
+function TPatternCanvas.NoteValues: TFieldValues;
+begin
+  Result := PatternFieldValues(FDocument.Pattern, FDocument.FileName);
+end;
+
+function TPatternCanvas.NotesHere(X, Y: integer): TStringArray;
+begin
+  Result := NotesAt(FDocument.Pattern, ModelAt(X, Y), NoteValues, FView.PixelsToMM(NoteHitPixels));
 end;
 
 function TPatternCanvas.IsSelected(const Key: string): boolean;
@@ -687,7 +722,7 @@ procedure TPatternCanvas.ZoomToFit;
 var
   Bounds: TRect2;
 begin
-  if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds) then
+  if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds, not FDocument.Pattern.View.HideAnnotations) then
     FView.Fit(Bounds, ClientWidth, ClientHeight, FitMargin)
   else
     FView := DefaultView;
@@ -704,10 +739,25 @@ end;
 
 procedure TPatternCanvas.StartDrag;
 var
+  Node: TEvalNode;
   Point: TPointObject;
   Reason: string;
 begin
-  Point := TPointObject(FDocument.Pattern.FindNode(FPressKey));
+  Node := FDocument.Pattern.FindNode(FPressKey);
+  if Node is TNoteObject then
+  begin
+    if not CanDragNote(TNoteObject(Node), Reason) then
+    begin
+      ShowMessageText(Reason);
+      FMode := cmRefused;
+      Exit;
+    end;
+    FDragOffset := TNoteObject(Node).Position - ModelAt(FPressPos.X, FPressPos.Y);
+    FDocument.BeginChange(rsCanvasMoveNote);
+    FMode := cmDragging;
+    Exit;
+  end;
+  Point := TPointObject(Node);
   if not CanDrag(Point, Reason) then
   begin
     ShowMessageText(Reason);
@@ -737,6 +787,7 @@ end;
 
 procedure TPatternCanvas.DragTo(X, Y: integer);
 var
+  Node: TEvalNode;
   Point: TPointObject;
   Reason: string;
 begin
@@ -748,7 +799,16 @@ begin
       ShowMessageText(Reason);
     Exit;
   end;
-  Point := TPointObject(FDocument.Pattern.FindNode(FPressKey));
+  Node := FDocument.Pattern.FindNode(FPressKey);
+  if Node is TNoteObject then
+  begin
+    if DragNote(FDocument.Pattern, TNoteObject(Node), ModelAt(X, Y) + FDragOffset, Reason) then
+      FDocument.LiveUpdate
+    else
+      ShowMessageText(Reason);
+    Exit;
+  end;
+  Point := TPointObject(Node);
   if DragPoint(FDocument.Pattern, Point, ModelAt(X, Y) + FDragOffset, Reason) then
     FDocument.LiveUpdate
   else
@@ -785,7 +845,7 @@ procedure TPatternCanvas.Nudge(DX, DY: double);
 var
   Selected, Reason, MergeKey: string;
   Node: TEvalNode;
-  Moved: boolean;
+  Moved, Done: boolean;
 begin
   if not Assigned(FDocument) or (Length(FSelection) = 0) then
     Exit;
@@ -795,10 +855,14 @@ begin
   for Selected in FSelection do
   begin
     Node := FDocument.Pattern.FindNode(Selected);
-    if not (Node is TPointObject) then
+    if not (Node is TPointObject) and not (Node is TNoteObject) then
       Continue;
     MergeKey := MergeKey + ':' + Selected;
-    if not DragPoint(FDocument.Pattern, TPointObject(Node), TPointObject(Node).Position + Vec2(DX, DY), Reason) then
+    if Node is TNoteObject then
+      Done := DragNote(FDocument.Pattern, TNoteObject(Node), TNoteObject(Node).Position + Vec2(DX, DY), Reason)
+    else
+      Done := DragPoint(FDocument.Pattern, TPointObject(Node), TPointObject(Node).Position + Vec2(DX, DY), Reason);
+    if not Done then
     begin
       ShowMessageText(Reason);
       FDocument.CancelChange;
@@ -1395,6 +1459,7 @@ begin
     ctSeam: ShowMessageText(rsCanvasToolSeam);
     ctCircle: ShowMessageText(rsCanvasToolCircle);
     ctRectangle: ShowMessageText(rsCanvasToolRectangle);
+    ctText: ShowMessageText(rsCanvasToolText);
   end;
   Invalidate;
   if Assigned(FOnToolChange) then
@@ -1403,7 +1468,7 @@ end;
 
 function TPatternCanvas.UsesSnap: boolean;
 begin
-  Result := FTool in [ctPoint, ctLine, ctCurve, ctCircle, ctRectangle];
+  Result := FTool in [ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctText];
 end;
 
 procedure TPatternCanvas.UpdateSnap(X, Y: integer);
@@ -1415,6 +1480,7 @@ begin
   if FHasStart and (FStartSnap.Kind = snPoint) then
     AnchorKey := FStartSnap.PointKey;
   FSnap := FindSnap(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius), AnchorKey);
+  FSnapClick := ModelAt(X, Y);
   FSnapShown := True;
   // The second click of a circle or rectangle makes no point, only its size
   if FHasStart and (FTool = ctCircle) then
@@ -1422,6 +1488,8 @@ begin
   else if FHasStart and (FTool = ctRectangle) then
     ShowMessageText(Format(rsCanvasRectangleSize, [RoundedText(Abs(FSnap.Position.X - FStartSnap.Position.X), 1),
       RoundedText(Abs(FSnap.Position.Y - FStartSnap.Position.Y), 1)]))
+  else if FTool = ctText then
+    ShowMessageText(NoteSnapDescription(FDocument.Pattern, FSnap, FSnapClick))
   else
     ShowMessageText(SnapDescription(FDocument.Pattern, FSnap));
   Invalidate;
@@ -1485,6 +1553,28 @@ begin
     Result := SnapObjectKeys(FStartSnap);
   if FSnapShown and (FTool <> ctSelect) then
     Result := Concat(Result, SnapObjectKeys(FSnap));
+end;
+
+// The note is selected, ready for its text to be typed in the properties
+procedure TPatternCanvas.AddNoteHere;
+var
+  Note: TNoteObject;
+  Key, Reason: string;
+begin
+  FDocument.BeginChange(rsCanvasAddNote);
+  Note := NoteFromSnap(FDocument.Pattern, FSnap, FSnapClick, rsCanvasNewNoteText);
+  Reason := FDocument.Pattern.LastError;
+  Key := '';
+  if Assigned(Note) then
+    Key := Note.Key;
+  if not FDocument.Commit(Assigned(Note)) then
+  begin
+    ShowMessageText(Reason);
+    Exit;
+  end;
+  SetSelection([Key]);
+  if Assigned(FOnNoteAdded) then
+    FOnNoteAdded(Self);
 end;
 
 procedure TPatternCanvas.AddPointHere;
@@ -1733,6 +1823,8 @@ begin
   case FTool of
     ctPoint:
       AddPointHere;
+    ctText:
+      AddNoteHere;
     ctLine, ctCurve:
       if not FHasStart then
       begin
@@ -1846,7 +1938,7 @@ begin
           if FMode = cmDragging then
             DragTo(X, Y);
         end
-        else if (FPressKey <> '') and (FDocument.Pattern.FindNode(FPressKey) is TPointObject) then
+        else if (FPressKey <> '') and ((FDocument.Pattern.FindNode(FPressKey) is TPointObject) or (FDocument.Pattern.FindNode(FPressKey) is TNoteObject)) then
         begin
           StartDrag;
           if FMode = cmDragging then
@@ -1926,7 +2018,7 @@ var
   Index: integer;
 begin
   Result := FPressKey;
-  Here := ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius));
+  Here := Concat(NotesHere(X, Y), ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius)));
   Again := FHasLastClick and (Max(Abs(X - FLastClickPos.X), Abs(Y - FLastClickPos.Y)) < DragThreshold) and (Length(FSelection) = 1);
   FLastClickPos := Point(X, Y);
   FHasLastClick := True;
@@ -1955,7 +2047,7 @@ var
   Node: TEvalNode;
   Screen: TPoint;
 begin
-  Here := ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius));
+  Here := Concat(NotesHere(X, Y), ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius)));
   if Length(Here) = 0 then
     Exit;
   if not Assigned(FPickMenu) then
@@ -2047,7 +2139,7 @@ begin
         Exit;
       MakeSeam;
     end;
-    VK_S, VK_P, VK_L, VK_C, VK_O, VK_R, VK_K, VK_T, VK_E:
+    VK_S, VK_P, VK_L, VK_C, VK_O, VK_R, VK_K, VK_T, VK_E, VK_X:
     begin
       if Shift <> [] then
         Exit;
@@ -2061,6 +2153,7 @@ begin
         VK_E: SetTool(ctSeam);
         VK_O: SetTool(ctCircle);
         VK_R: SetTool(ctRectangle);
+        VK_X: SetTool(ctText);
       end;
     end;
     VK_N:
@@ -2438,6 +2531,66 @@ begin
       DrawPoint(Point);
 end;
 
+// Over the pattern, at their true size for the zoom. A selected note shows a
+// faint line to what it hangs from, and a hovered one a halo.
+procedure TPatternCanvas.DrawNotes;
+var
+  Index, LineIndex: integer;
+  Note: TNoteObject;
+  Values: TFieldValues;
+  Lines: TStringArray;
+  Box: TRect2;
+  TopLeft, BottomRight, Anchor, Spot: TVec2;
+  InkColor: TBGRAPixel;
+  EmPixels, LinePixels: double;
+begin
+  if FDocument.Pattern.View.HideAnnotations then
+    Exit;
+  Values := NoteValues;
+  for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
+  begin
+    if not (FDocument.Pattern.Objects[Index] is TNoteObject) or not FDocument.Pattern.Objects[Index].HasResult then
+      Continue;
+    Note := TNoteObject(FDocument.Pattern.Objects[Index]);
+    Box := NoteBox(Note, Values);
+    TopLeft := FView.ToScreen(Vec2(Box.MinX, Box.MinY));
+    BottomRight := FView.ToScreen(Vec2(Box.MaxX, Box.MaxY));
+    if IsSelected(Note.Key) then
+    begin
+      InkColor := SelectedInk;
+      if Note.Anchor <> naFree then
+      begin
+        Anchor := FView.ToScreen(Note.AnchorPosition);
+        FBitmap.PenStyle := psDot;
+        FBitmap.DrawLineAntialias(Anchor.X, Anchor.Y, TopLeft.X, TopLeft.Y, HoverHalo, 1);
+        FBitmap.PenStyle := psSolid;
+      end;
+    end
+    else
+      InkColor := Faded(StateInk(Note.State, Ink), Note.State);
+    if (Note.Key = FHoverKey) or IsSelected(Note.Key) then
+      FBitmap.FillRectAntialias(TopLeft.X - 2, TopLeft.Y - 1, BottomRight.X + 2, BottomRight.Y + 1, PieceHoverTint);
+    // A screen-only note is drawn lighter, as it never prints
+    if not Note.Print then
+      InkColor.alpha := InkColor.alpha div 2;
+    EmPixels := Note.Size * PointsToMM * FView.Scale;
+    LinePixels := LineHeight(Note.Size) * FView.Scale;
+    if EmPixels < MinNotePixels then
+    begin
+      FBitmap.FillRectAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, BGRA(InkColor.red, InkColor.green, InkColor.blue, 40));
+      Continue;
+    end;
+    FBitmap.FontHeight := Round(EmPixels);
+    Lines := TextLines(ExpandFields(Note.Text, Values));
+    for LineIndex := 0 to High(Lines) do
+    begin
+      Spot := Vec2(TopLeft.X, TopLeft.Y + LineIndex * LinePixels);
+      FBitmap.TextOut(Spot.X, Spot.Y, Lines[LineIndex], InkColor);
+    end;
+  end;
+  FBitmap.FontHeight := LabelFontHeight;
+end;
+
 procedure TPatternCanvas.DrawMarker(DraftObject: TDraftObject);
 var
   Centre: TVec2;
@@ -2504,14 +2657,16 @@ begin
     end
     else if Node is TPieceObject then
       Screen := FView.ToScreen(PieceMiddle(TPieceObject(Node)))
-    else
+    else if Node is TEdgeObject then
     begin
       Model := EdgePolyline(TEdgeObject(Node), FView.PixelsToMM(FlattenPixels));
       if Length(Model) = 0 then
         Continue;
       Screen := FView.ToScreen(PolylineMiddle(Model));
       Screen := Vec2(Screen.X + 4, Screen.Y + 2);
-    end;
+    end
+    else
+      Continue;
     if IsSelected(Key) then
       InkColor := SelectedInk
     else
@@ -2638,7 +2793,7 @@ var
 begin
   if not Assigned(FHorzBar) or not Assigned(FVertBar) or FThumbHeld then
     Exit;
-  if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds) then
+  if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds, not FDocument.Pattern.View.HideAnnotations) then
   begin
     TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MinY));
     BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MaxY));
@@ -2680,6 +2835,7 @@ begin
   if Assigned(FDocument) then
   begin
     DrawPattern;
+    DrawNotes;
     DrawHandles;
     DrawLabels;
     DrawSnap;

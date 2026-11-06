@@ -25,7 +25,7 @@ interface
 
 uses
   SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Piece,
-  Sloper.Output.Layout, Sloper.Output.Tiling;
+  Sloper.Core.TextFields, Sloper.Output.Layout, Sloper.Output.Tiling;
 
 type
   TTestLayout = class(TOSTestCase)
@@ -35,6 +35,9 @@ type
     // A 100 mm square piece "Front" (10 mm allowance) saved to a file
     procedure WritePattern(CutCount: integer = 1; Mirrored: boolean = False; const Allowance: string = '10');
     procedure WriteSizedPattern(const Width38: string);
+    // The square, with a printing note "Hello" on the piece, a screen-only
+    // note "Private" on it, and a printing note "Loose" in no piece
+    procedure WriteNotedPattern;
     procedure Prepare;
     function ProblemText: string;
     function Tiles: TTileSettings;
@@ -72,6 +75,9 @@ type
     procedure TestCopiesAndMirror;
     procedure TestPlacementStaysAtTopLeft;
     procedure TestRotationHalfTurn;
+    procedure TestPatternNotesPrintWithPiece;
+    procedure TestPatternNotesStayUpright;
+    procedure TestPatternNotesInPDFAndSVG;
     procedure TestRotationQuarterTurn;
     procedure TestModelYPointsUp;
     procedure TestUnplacedIsAWarning;
@@ -166,7 +172,8 @@ implementation
 
 uses
   Classes, Math, Sloper.Core.AppPaths, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.Measurements, Sloper.Core.PatternFile, Sloper.Core.PieceDetect,
-  Sloper.Output.LayoutDocument, Sloper.Output.LayoutPDF, Sloper.Output.PDFWriter, Sloper.Output.Preview;
+  Sloper.Output.LayoutDocument, Sloper.Output.LayoutPDF, Sloper.Output.PDFWriter, Sloper.Output.Preview, Sloper.Output.LayoutSVG,
+  Sloper.Core.Note;
 
 function CountOf(const Part, Text: rawbytestring): integer;
 var
@@ -224,6 +231,26 @@ begin
     AssertTrue(Reason, DetectPiecePath(Pattern, Vec2(50, 50), Path, Reason));
     Piece := Pattern.AddPiece('Front', Path, Allowance);
     Pattern.SetCut(Piece, CutCount, Mirrored);
+    AssertTrue(Reason, SavePatternToFile(Pattern, FPatternPath, Reason));
+  finally
+    FreeAndNil(Pattern);
+  end;
+end;
+
+procedure TTestLayout.WriteNotedPattern;
+var
+  Pattern: TPattern;
+  Reason: string;
+  Piece: TPieceObject;
+begin
+  WritePattern;
+  Pattern := TPattern.Create;
+  try
+    AssertTrue(Reason, LoadPatternFromFile(Pattern, FPatternPath, Reason));
+    Piece := TPieceObject(Pattern.FindObject('Front'));
+    AssertNotNull(Pattern.AddNote('', 'Hello', naPiece, Piece.Key, '', '0', '0'));
+    AssertNotNull(Pattern.AddNote('', 'Private', naPiece, Piece.Key, '', '0', '20', DefaultNoteSize, False));
+    AssertNotNull(Pattern.AddNote('', 'Loose', naFree, '', '', '500', '500'));
     AssertTrue(Reason, SavePatternToFile(Pattern, FPatternPath, Reason));
   finally
     FreeAndNil(Pattern);
@@ -707,6 +734,61 @@ begin
   Turned := FLayout.PlacedPieces;
   AssertNear('same corner', Plain[0].Bounds.MinX, Turned[0].Bounds.MinX);
   AssertNear('same size', Plain[0].Bounds.MaxY, Turned[0].Bounds.MaxY);
+end;
+
+procedure TTestLayout.TestPatternNotesPrintWithPiece;
+var
+  Shapes: TPlacedPieceArray;
+begin
+  WriteNotedPattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Shapes := FLayout.PlacedPieces;
+  AssertEquals('only the printing note on the piece', 1, Length(Shapes[0].Notes));
+  AssertEquals('Hello', Shapes[0].Notes[0].Text);
+  AssertNear('size kept', DefaultNoteSize, Shapes[0].Notes[0].Size);
+  // At the piece's middle, where its label goes
+  AssertNear('x', Shapes[0].LabelAt.X, Shapes[0].Notes[0].X);
+  AssertNear('y', Shapes[0].LabelAt.Y, Shapes[0].Notes[0].Y);
+end;
+
+// The text's middle turns with the piece; the text itself stays upright
+procedure TTestLayout.TestPatternNotesStayUpright;
+var
+  Shapes: TPlacedPieceArray;
+  Width, Height: double;
+begin
+  WriteNotedPattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Width := TextWidth('Hello', DefaultNoteSize);
+  Height := LineHeight(DefaultNoteSize);
+  FLayout.Placements[0].Rotation := 180;
+  Shapes := FLayout.PlacedPieces;
+  AssertNear('half turn x', Shapes[0].LabelAt.X - Width, Shapes[0].Notes[0].X);
+  AssertNear('half turn y', Shapes[0].LabelAt.Y - Height, Shapes[0].Notes[0].Y);
+  FLayout.Placements[0].Rotation := 0;
+  FLayout.Placements[0].Flipped := True;
+  Shapes := FLayout.PlacedPieces;
+  AssertNear('flipped x', Shapes[0].LabelAt.X - Width, Shapes[0].Notes[0].X);
+  AssertNear('flipped y', Shapes[0].LabelAt.Y, Shapes[0].Notes[0].Y);
+end;
+
+procedure TTestLayout.TestPatternNotesInPDFAndSVG;
+var
+  PDF: rawbytestring;
+  SVG: string;
+begin
+  WriteNotedPattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  PDF := LayoutToPDF(FLayout);
+  AssertTrue('printed', Pos('(Hello)', PDF) > 0);
+  AssertEquals('screen only', 0, Pos('Private', PDF));
+  AssertEquals('in no piece', 0, Pos('Loose', PDF));
+  SVG := LayoutToSVG(FLayout);
+  AssertTrue('in SVG', Pos('>Hello<', SVG) > 0);
+  AssertEquals('screen only in SVG', 0, Pos('Private', SVG));
 end;
 
 procedure TTestLayout.TestRotationQuarterTurn;

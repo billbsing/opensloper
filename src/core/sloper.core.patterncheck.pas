@@ -44,7 +44,8 @@ function ReportFloat(Value: double): TJSONData;
 function StateName(State: TEvalState): string;
 // One line per measurement, variable or object in error or invalid, as
 // "Name (error): message", then one per seam out of tolerance and one per piece
-// with no fabric, and one per marking line in no piece or outside its piece.
+// with no fabric, one per marking line in no piece or outside its piece, and
+// one per printing note in no piece.
 // Blocked ones fail because of these, so they are only counted.
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
 // Every variable's value and every object's position (points), length (edges)
@@ -61,12 +62,13 @@ resourcestring
   rsCheckLineLoose = '%s is a marking line in no piece, so it does not print';
   rsCheckMarkerLoose = '%s has a marker but is in no piece, so it does not print';
   rsCheckSeam = '%s: side A is %s mm and side B %s mm, %s mm from the expected %s mm';
+  rsCheckNoteLoose = '%s is marked to print but lies in no piece, so it does not print in layouts';
 
 implementation
 
 uses
   Classes, Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry,
-  Sloper.Core.Piece, Sloper.Core.Seam;
+  Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note;
 
 function StateName(State: TEvalState): string;
 begin
@@ -189,6 +191,10 @@ begin
       Result[High(Result)] := Format(rsCheckNoFabric, [Pattern.Objects[Index].DisplayName]);
     end;
   AddMarkingLineProblems(Pattern, Result);
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if (Pattern.Objects[Index] is TNoteObject) and TNoteObject(Pattern.Objects[Index]).Print and (Pattern.Objects[Index].State = esValid) and
+      (Length(Pattern.NotePieces(TNoteObject(Pattern.Objects[Index]))) = 0) then
+      Insert(Format(rsCheckNoteLoose, [Pattern.Objects[Index].DisplayName]), Result, Length(Result));
 end;
 
 function ReportFloat(Value: double): TJSONData;
@@ -260,6 +266,11 @@ begin
           Item.Add('area', ReportFloat(TPieceObject(DraftObject).Area));
           Item.Add('perimeter', ReportFloat(TPieceObject(DraftObject).Perimeter));
           Item.Add('cutArea', ReportFloat(Abs(SignedArea(TPieceObject(DraftObject).CutLine))));
+        end
+        else if DraftObject is TNoteObject then
+        begin
+          Item.Add('x', ReportFloat(TNoteObject(DraftObject).Position.X));
+          Item.Add('y', ReportFloat(TNoteObject(DraftObject).Position.Y));
         end
         else if DraftObject is TSeamObject then
         begin

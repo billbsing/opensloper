@@ -27,7 +27,7 @@ unit Sloper.Output.LayoutDXF;
 interface
 
 uses
-  Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Output.Layout;
+  Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.TextFields, Sloper.Output.Layout;
 
 const
   LayerCut = '1';

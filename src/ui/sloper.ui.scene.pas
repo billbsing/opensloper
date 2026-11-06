@@ -29,7 +29,7 @@ interface
 
 uses
   SysUtils, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Pattern, Sloper.Core.Piece,
-  Sloper.Core.Seam, Sloper.Core.Transform, Sloper.Core.Settings;
+  Sloper.Core.Seam, Sloper.Core.Transform, Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.TextFields;
 
 const
   MinFocusSize = 60;
@@ -80,6 +80,9 @@ function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
 // PointRadius mm, nearest first; edges within EdgeRadius mm, nearest first and
 // the one drawn on top first among equals; then pieces, smallest first
 function ObjectsAt(Pattern: TPattern; const At: TVec2; PointRadius, EdgeRadius: double): TStringArray;
+// The notes whose text, with its fields filled from Values, lies within
+// Margin mm of At, the one drawn on top first; none while notes are hidden
+function NotesAt(Pattern: TPattern; const At: TVec2; const Values: TFieldValues; Margin: double): TStringArray;
 // The edges among Keys
 function EdgeKeys(Pattern: TPattern; const Keys: TStringArray): TStringArray;
 // The key after Current in Keys, going round to the first; the first when
@@ -239,7 +242,8 @@ function ObjectsInBox(Pattern: TPattern; const Box: TRect2): TStringArray;
     Bounds: TRect2;
     Empty: boolean;
   begin
-    if not ((DraftObject is TPointObject) or (DraftObject is TEdgeObject) or (DraftObject is TPieceObject)) or Pattern.IsHidden(DraftObject) then
+    if not ((DraftObject is TPointObject) or (DraftObject is TEdgeObject) or (DraftObject is TPieceObject) or (DraftObject is TNoteObject)) or
+      Pattern.IsHidden(DraftObject) then
       Exit;
     Empty := True;
     IncludeObject(Bounds, Empty, DraftObject);
@@ -385,6 +389,25 @@ begin
   SetLength(Result, Length(Found));
   for Index := 0 to High(Found) do
     Result[Index] := Found[Index].Key;
+end;
+
+function NotesAt(Pattern: TPattern; const At: TVec2; const Values: TFieldValues; Margin: double): TStringArray;
+var
+  Index: integer;
+  DraftObject: TDraftObject;
+  Box: TRect2;
+begin
+  Result := nil;
+  // Later notes are drawn over earlier ones
+  for Index := Pattern.ObjectCount - 1 downto 0 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if not (DraftObject is TNoteObject) or not DraftObject.HasResult or Pattern.IsHidden(DraftObject) then
+      Continue;
+    Box := NoteBox(TNoteObject(DraftObject), Values);
+    if (At.X >= Box.MinX - Margin) and (At.X <= Box.MaxX + Margin) and (At.Y >= Box.MinY - Margin) and (At.Y <= Box.MaxY + Margin) then
+      Insert(DraftObject.Key, Result, Length(Result));
+  end;
 end;
 
 function EdgeKeys(Pattern: TPattern; const Keys: TStringArray): TStringArray;
@@ -789,9 +812,9 @@ begin
     for Index := 0 to Pattern.ObjectCount - 1 do
     begin
       DraftObject := Pattern.Objects[Index];
-      // A seam has no place of its own to put a label, and a hidden line
-      // shows only while it is selected
-      if DraftObject.HasResult and not (DraftObject is TSeamObject) and not (DraftObject is TTransformObject) and
+      // A seam has no place of its own to put a label, a note's text is its
+      // label, and a hidden line shows only while it is selected
+      if DraftObject.HasResult and not (DraftObject is TSeamObject) and not (DraftObject is TTransformObject) and not (DraftObject is TNoteObject) and
         ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) and
         (not Pattern.IsHidden(DraftObject) or (IndexStr(DraftObject.Key, Selection) >= 0)) then
       begin

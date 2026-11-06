@@ -30,7 +30,7 @@ interface
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
   Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Transform;
+  Sloper.Core.Transform, Sloper.Core.Note;
 
 type
   // What AddTransform needs. Sources are expanded: an edge brings its ends.
@@ -58,6 +58,8 @@ type
     // Roles the drafting app does not show (see Visibility, styles and
     // output in the design); never Outline
     HiddenRoles: TEdgeRoles;
+    // Notes are not drawn on the canvas or in draft export
+    HideAnnotations: boolean;
   end;
 
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
@@ -273,7 +275,7 @@ type
     function PiecesWithMarking(const Key: string): TPieceObjectArray;
     // A marking line or a point or repeat with a marker
     function IsMarking(DraftObject: TDraftObject): boolean;
-    // An edge whose role the view hides
+    // An edge whose role the view hides, or a note while notes are hidden
     function IsHidden(DraftObject: TDraftObject): boolean;
     // Sets LastError, for a caller that refuses before changing anything;
     // always False
@@ -291,6 +293,25 @@ type
     // Whether Side has edges, each once and each on the piece beside it. For
     // loaders too: a fold set after the seam is made only makes it invalid.
     function CheckSeamSide(const Side: TSeamSide): boolean;
+    // A note anchored to AnchorKey, which must be of the anchor's kind, with
+    // its offset dx and dy as formulas (x and y for a free note) and, on an
+    // edge, Position as a ratio from its start. An empty name takes the next
+    // free one: Note, Note2 and so on. Nil with LastError set when refused.
+    function AddNote(const AName, AText: string; Anchor: TNoteAnchor; const AnchorKey, Position, DxOrX, DyOrY: string;
+      ASize: double = DefaultNoteSize; APrint: boolean = True): TNoteObject;
+    procedure SetNoteText(Note: TNoteObject; const AText: string);
+    // Refused unless above 0 and at most MaxNoteSize points
+    function SetNoteSize(Note: TNoteObject; ASize: double): boolean;
+    procedure SetNotePrint(Note: TNoteObject; APrint: boolean);
+    // Unhooks an anchored note, leaving it where it was last drawn, so that
+    // its anchor can be deleted
+    function MakeNoteFree(Note: TNoteObject): boolean;
+    // The pieces a note prints with: the piece it is anchored to, the pieces
+    // whose outline, notches or markings use its point or edge, and those
+    // whose cutting line its top left lies in
+    function NotePieces(Note: TNoteObject): TPieceObjectArray;
+    // The notes that print with the piece, in pattern order
+    function PieceNotes(Piece: TPieceObject): TNoteObjectArray;
 
     // Editing returns False when refused, with the reason in LastError
     function SetFormula(Node: TEvalNode; const AField, Text: string): boolean;
@@ -464,17 +485,26 @@ resourcestring
   rsPatternNoMarker = '%s has no marker; give it one such as Hole or Button first';
   rsPatternBadCutCount = 'A piece must be cut at least once';
   rsPatternFoldNotStraight = 'A fold has to be straight, and %s is not';
+  rsPatternNoteAnchor = 'A note cannot hang from %s: it must be a %s';
+  rsPatternNoteAnchorPoint = 'point';
+  rsPatternNoteAnchorEdge = 'line or curve';
+  rsPatternNoteAnchorPiece = 'piece';
+  rsPatternNoteSize = 'A note''s size must be above 0 and at most %d points';
+  rsPatternNoteIsFree = '%s is not anchored to anything';
 
 implementation
 
 uses
-  Math, Sloper.Core.Geometry, Sloper.Core.Names;
+  Math, Sloper.Core.Geometry, Sloper.Core.Names, Sloper.Core.JSON;
 
 const
   // Not translated: a name has to keep to the name rules
   NewVariableBaseName = 'variable';
   NewPieceBaseName = 'Piece';
   NewSeamBaseName = 'Seam';
+  NewNoteBaseName = 'Note';
+  // A free note keeps its place to a tenth of a mm
+  NoteFreeDecimals = 1;
   TransformBaseNames: array[TTransformKind] of string = ('Rotate', 'Mirror', 'Move');
   TransformSuffixLetters: array[TTransformKind] of string = ('_r', '_m', '_t');
 
@@ -2196,16 +2226,22 @@ begin
   end;
 end;
 
-// A file lists an object's inputs before it. Only seams use a piece, so a piece
-// that takes on a newer point can simply move to the end, with its seams after it.
+// A file lists an object's inputs before it. Only seams and notes use a piece,
+// and nothing uses them, so a piece that takes on a newer point can simply
+// move to the end, with what uses it after it.
 procedure TPattern.KeepInputsBefore(Piece: TPieceObject);
 var
   Index: integer;
+  InputKey: string;
 begin
   FObjects.Move(FObjects.IndexOf(Piece), FObjects.Count - 1);
   for Index := FObjects.Count - 2 downto 0 do
-    if (Objects[Index] is TSeamObject) and TSeamObject(Objects[Index]).UsesPiece(Piece.Key) then
-      FObjects.Move(Index, FObjects.Count - 1);
+    for InputKey in Objects[Index].InputKeys do
+      if InputKey = Piece.Key then
+      begin
+        FObjects.Move(Index, FObjects.Count - 1);
+        Break;
+      end;
 end;
 
 function TPattern.SetGrainAngle(Piece: TPieceObject; const Text: string): boolean;
@@ -2368,7 +2404,8 @@ end;
 
 function TPattern.IsHidden(DraftObject: TDraftObject): boolean;
 begin
-  Result := (DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in View.HiddenRoles);
+  Result := ((DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in View.HiddenRoles)) or
+    ((DraftObject is TNoteObject) and View.HideAnnotations);
 end;
 
 function TPattern.IsMarking(DraftObject: TDraftObject): boolean;
@@ -2635,6 +2672,176 @@ begin
   Inc(FNextId);
   Result.Name := SeamName;
   AddObjectNode(Result);
+end;
+
+function TPattern.AddNote(const AName, AText: string; Anchor: TNoteAnchor; const AnchorKey, Position, DxOrX, DyOrY: string;
+  ASize: double; APrint: boolean): TNoteObject;
+var
+  Msg, NoteName, Key: string;
+  Node: TEvalNode;
+  KindText: string;
+  Fits: boolean;
+begin
+  Result := nil;
+  Key := '';
+  if Anchor <> naFree then
+  begin
+    Node := FindNode(AnchorKey);
+    if not Assigned(Node) then
+    begin
+      SetError(Format(rsPatternUnknownObject, [AnchorKey]));
+      Exit;
+    end;
+    case Anchor of
+      naPoint:
+      begin
+        Fits := Node is TPointObject;
+        KindText := rsPatternNoteAnchorPoint;
+      end;
+      naEdge:
+      begin
+        Fits := Node is TEdgeObject;
+        KindText := rsPatternNoteAnchorEdge;
+      end;
+      else
+      begin
+        Fits := Node is TPieceObject;
+        KindText := rsPatternNoteAnchorPiece;
+      end;
+    end;
+    if not Fits then
+    begin
+      SetError(Format(rsPatternNoteAnchor, [Node.DisplayName, KindText]));
+      Exit;
+    end;
+    Key := AnchorKey;
+    if Anchor = naPoint then
+      Key := UsePoint(AnchorKey);
+  end;
+  if (ASize <= 0) or (ASize > MaxNoteSize) then
+  begin
+    SetError(Format(rsPatternNoteSize, [MaxNoteSize]));
+    Exit;
+  end;
+  NoteName := AName;
+  if NoteName = '' then
+  begin
+    FNameExclude := nil;
+    NoteName := NextFreeName(NewNoteBaseName, @ObjectNameTaken);
+  end
+  else if not CheckObjectName(NoteName, nil, Msg) then
+  begin
+    SetError(Msg);
+    Exit;
+  end;
+  Result := TNoteObject.Create(IntToStr(FNextId), Anchor, Key);
+  if ((Anchor = naFree) and not ParseFields(Result, [NoteXField, NoteYField], [DxOrX, DyOrY])) or
+    ((Anchor = naEdge) and not ParseFields(Result, [NotePositionField], [Position])) or
+    ((Anchor <> naFree) and not ParseFields(Result, [NoteDxField, NoteDyField], [DxOrX, DyOrY])) then
+  begin
+    FreeAndNil(Result);
+    Exit;
+  end;
+  Inc(FNextId);
+  Result.Name := NoteName;
+  Result.Text := AText;
+  Result.Size := ASize;
+  Result.Print := APrint;
+  AddObjectNode(Result);
+end;
+
+procedure TPattern.SetNoteText(Note: TNoteObject; const AText: string);
+begin
+  Note.Text := AText;
+end;
+
+function TPattern.SetNoteSize(Note: TNoteObject; ASize: double): boolean;
+begin
+  if (ASize <= 0) or (ASize > MaxNoteSize) then
+    Exit(SetError(Format(rsPatternNoteSize, [MaxNoteSize])));
+  Note.Size := ASize;
+  Result := True;
+end;
+
+procedure TPattern.SetNotePrint(Note: TNoteObject; APrint: boolean);
+begin
+  Note.Print := APrint;
+end;
+
+function TPattern.MakeNoteFree(Note: TNoteObject): boolean;
+var
+  At: TVec2;
+begin
+  if Note.Anchor = naFree then
+    Exit(SetError(Format(rsPatternNoteIsFree, [Note.DisplayName])));
+  At := Note.Position;
+  Note.MakeFree;
+  Result := ParseFields(Note, [NoteXField, NoteYField], [FormatJSONFloat(RoundTo(At.X, -NoteFreeDecimals)),
+    FormatJSONFloat(RoundTo(At.Y, -NoteFreeDecimals))]);
+end;
+
+function TPattern.NotePieces(Note: TNoteObject): TPieceObjectArray;
+var
+  Index: integer;
+  Piece: TPieceObject;
+
+  function UsesAnchor: boolean;
+  var
+    Entry: TPieceEdge;
+    Edge: TEvalNode;
+    Notch: TPieceNotch;
+    Marking: TPieceMarking;
+  begin
+    case Note.Anchor of
+      naPiece: Exit(Note.AnchorKey = Piece.Key);
+      naFree: Exit(False);
+    end;
+    for Entry in Piece.Path do
+    begin
+      if Entry.EdgeKey = Note.AnchorKey then
+        Exit(True);
+      Edge := FindNode(Entry.EdgeKey);
+      if (Edge is TEdgeObject) and ((TEdgeObject(Edge).StartKey = Note.AnchorKey) or (TEdgeObject(Edge).EndKey = Note.AnchorKey)) then
+        Exit(True);
+    end;
+    for Notch in Piece.Notches do
+      if Notch.PointKey = Note.AnchorKey then
+        Exit(True);
+    for Marking in Piece.Markings do
+      if (Marking.PointKey = Note.AnchorKey) or (Marking.EdgeKey = Note.AnchorKey) then
+        Exit(True);
+    Result := False;
+  end;
+
+begin
+  Result := nil;
+  for Index := 0 to FObjects.Count - 1 do
+    if Objects[Index] is TPieceObject then
+    begin
+      Piece := TPieceObject(Objects[Index]);
+      if UsesAnchor or (Note.HasResult and Piece.HasResult and (Length(Piece.CutLine) > 2) and PointInPolygon(Note.Position, Piece.CutLine)) then
+        Insert(Piece, Result, System.Length(Result));
+    end;
+end;
+
+function TPattern.PieceNotes(Piece: TPieceObject): TNoteObjectArray;
+var
+  Index: integer;
+  Note: TNoteObject;
+  Candidate: TPieceObject;
+begin
+  Result := nil;
+  for Index := 0 to FObjects.Count - 1 do
+    if (Objects[Index] is TNoteObject) and TNoteObject(Objects[Index]).Print then
+    begin
+      Note := TNoteObject(Objects[Index]);
+      for Candidate in NotePieces(Note) do
+        if Candidate = Piece then
+        begin
+          Insert(Note, Result, System.Length(Result));
+          Break;
+        end;
+    end;
 end;
 
 function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boolean;

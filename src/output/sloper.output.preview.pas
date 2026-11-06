@@ -27,7 +27,7 @@ unit Sloper.Output.Preview;
 interface
 
 uses
-  Sloper.Core.Geometry, Sloper.Output.Layout, Sloper.Output.Tiling;
+  Sloper.Core.Geometry, Sloper.Core.TextFields, Sloper.Output.Layout, Sloper.Output.Tiling;
 
 const
   PreviewZoomStep = 1.25;

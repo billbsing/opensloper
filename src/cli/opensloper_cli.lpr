@@ -224,6 +224,7 @@ resourcestring
       Pattern.Evaluate;
       Options := DefaultDraftSVGOptions;
       Options.Labels := WithLabels;
+      Options.PatternFileName := PatternFile;
       Target := OutputOption;
       if Target = '' then
         // ExtractFilePath keeps its separator, and is empty for a file in this folder

@@ -28,12 +28,12 @@ interface
 
 uses
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.Variables, Sloper.Core.Draft,
-  Sloper.Core.Pattern, Sloper.Core.Seam, Sloper.Core.SeamSuggest;
+  Sloper.Core.Pattern, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Note;
 
 type
-  // ofPieces: pieces and seams; ofProblems: anything not valid, seams out of
-  // tolerance and pieces with no fabric
-  TObjectFilter = (ofAll, ofPoints, ofEdges, ofPieces, ofProblems);
+  // ofPieces: pieces and seams; ofNotes: notes; ofProblems: anything not
+  // valid, seams out of tolerance and pieces with no fabric
+  TObjectFilter = (ofAll, ofPoints, ofEdges, ofPieces, ofNotes, ofProblems);
 
   TObjectRow = record
     Key: string;
@@ -43,6 +43,8 @@ type
     Formulas: string;
     State: TEvalState;
     StateText: string;
+    // A note's whole text, which search looks through; empty for the rest
+    Text: string;
   end;
   TObjectRowArray = array of TObjectRow;
 
@@ -172,6 +174,11 @@ resourcestring
   rsTypePointCopy = 'Copy of a point';
   rsTypeEdgeCopy = 'Copy of an edge';
   rsTypeVariable = 'Variable';
+  rsTypeNote = 'Note';
+  rsTypeNotePoint = 'Note on a point';
+  rsTypeNoteEdge = 'Note on an edge';
+  rsTypeNotePiece = 'Note on a piece';
+  rsFieldPosition = 'Along the edge (ratio)';
 
 implementation
 
@@ -234,6 +241,7 @@ begin
     'angle2': Result := rsFieldAngle2;
     'length2': Result := rsFieldLength2;
     'formula': Result := rsFieldFormula;
+    NotePositionField: Result := rsFieldPosition;
     MarkerSizeField: Result := rsFieldMarkerSize;
     else
       Result := FieldName;
@@ -284,6 +292,14 @@ begin
     Result := rsTypePiece
   else if Node is TSeamObject then
     Result := rsTypeSeam
+  else if Node is TNoteObject then
+    case TNoteObject(Node).Anchor of
+      naPoint: Result := rsTypeNotePoint;
+      naEdge: Result := rsTypeNoteEdge;
+      naPiece: Result := rsTypeNotePiece;
+      else
+        Result := rsTypeNote;
+    end
   else if Node is TPointCopy then
     Result := rsTypePointCopy
   else if Node is TEdgeCopy then
@@ -325,7 +341,9 @@ begin
   else if DraftObject is TPieceObject then
     Result := Format(rsObjectPerimeter, [RoundedText(TPieceObject(DraftObject).Perimeter, 1)])
   else if DraftObject is TSeamObject then
-    Result := Format(rsObjectSeamLengths, [RoundedText(TSeamObject(DraftObject).LengthA, 1), RoundedText(TSeamObject(DraftObject).LengthB, 1)]);
+    Result := Format(rsObjectSeamLengths, [RoundedText(TSeamObject(DraftObject).LengthA, 1), RoundedText(TSeamObject(DraftObject).LengthB, 1)])
+  else if DraftObject is TNoteObject then
+    Result := TNoteObject(DraftObject).FirstLine;
 end;
 
 function SeamEntryText(Pattern: TPattern; const Entry: TSeamEntry): string;
@@ -385,6 +403,9 @@ begin
   Result.Formulas := FormulasText(Pattern, DraftObject);
   Result.State := DraftObject.State;
   Result.StateText := StateCaption(DraftObject.State);
+  Result.Text := '';
+  if DraftObject is TNoteObject then
+    Result.Text := TNoteObject(DraftObject).Text;
 end;
 
 function PassesFilter(Pattern: TPattern; DraftObject: TDraftObject; Filter: TObjectFilter): boolean;
@@ -393,6 +414,7 @@ begin
     ofPoints: Result := (DraftObject is TPointObject) or (DraftObject is TRepeatObject);
     ofEdges: Result := DraftObject is TEdgeObject;
     ofPieces: Result := (DraftObject is TPieceObject) or (DraftObject is TSeamObject);
+    ofNotes: Result := DraftObject is TNoteObject;
     ofProblems: Result := (DraftObject.State <> esValid) or ((DraftObject is TSeamObject) and TSeamObject(DraftObject).OutOfTolerance) or
         ((DraftObject is TPieceObject) and not Assigned(Pattern.FabricOf(TPieceObject(DraftObject))));
     else
@@ -403,7 +425,7 @@ end;
 function Matches(const Row: TObjectRow; const LowerSearch: string): boolean;
 begin
   Result := (LowerSearch = '') or (Pos(LowerSearch, LowerCase(Row.Name)) > 0) or (Pos(LowerSearch, LowerCase(Row.Operation)) > 0) or
-    (Pos(LowerSearch, LowerCase(Row.Formulas)) > 0);
+    (Pos(LowerSearch, LowerCase(Row.Formulas)) > 0) or (Pos(LowerSearch, LowerCase(Row.Text)) > 0);
 end;
 
 function ObjectRows(Pattern: TPattern; Filter: TObjectFilter; const Search: string): TObjectRowArray;

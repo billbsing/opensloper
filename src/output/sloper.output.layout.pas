@@ -31,19 +31,10 @@ interface
 uses
   SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles,
   Sloper.Core.Measurements,
-  Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Core.Draft,
+  Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.TextFields,
   Sloper.Output.Tiling;
 
 const
-  // The fields a title block can show; also usable as {pattern.name} in text
-  FieldPatternName = 'pattern.name';
-  FieldMeasurementsName = 'measurements.name';
-  FieldLayoutName = 'layout.name';
-  FieldDate = 'date';
-  FieldPage = 'page';
-  FieldPages = 'pages';
-  FieldCutList = 'cutlist';
-  FieldFabrics = 'fabrics';
   LayoutFormat = 'layout';
   LayoutVersion = 1;
   LayoutExtension = '.slayout';
@@ -113,6 +104,15 @@ type
 
   TPlacementArray = array of TPlacement;
 
+  // Text on the layout, with its top left at (X, Y) and Size in points. It may
+  // run to several lines, and may hold fields such as {date}.
+  TSheetNote = record
+    Text: string;
+    X, Y, Size: double;
+  end;
+
+  TSheetNoteArray = array of TSheetNote;
+
   // A hole in layout space. Machines cut it as one true circle
   TPlacedHole = record
     Centre: TVec2;
@@ -149,6 +149,8 @@ type
     // False when the output profile leaves labels out; Caption still names it
     ShowLabel: boolean;
     Bounds: TRect2;
+    // The pattern's notes that print with the piece, upright in layout space
+    Notes: TSheetNoteArray;
   end;
 
   TPlacedPieceArray = array of TPlacedPiece;
@@ -164,20 +166,6 @@ type
     Fields: TStringArray;
     // A copy on every tile as well as the cover
     EveryPage: boolean;
-  end;
-
-  // Text on the layout, with its top left at (X, Y) and Size in points. It may
-  // run to several lines, and may hold fields such as {date}.
-  TSheetNote = record
-    Text: string;
-    X, Y, Size: double;
-  end;
-
-  TSheetNoteArray = array of TSheetNote;
-
-  // What fields stand for in text; an empty value leaves the field as typed
-  TFieldValues = record
-    PatternName, MeasurementsName, LayoutName, Date, Page, Pages, CutList, Fabrics: string;
   end;
 
   // Blocking problems stop export; the others are only warnings
@@ -292,16 +280,10 @@ type
     property Sources: TLayoutSourceList read FSources;
   end;
 
-// Text with its known {fields} filled in
-function ExpandFields(const Text: string; const Values: TFieldValues): string;
-// Text as lines, however it was broken
-function TextLines(const Text: string): TStringArray;
-// About how far a line of text runs, in mm, at Size points in Helvetica
-function TextWidth(const Text: string; Size: double): double;
-// The height of one line of text, in mm
-function LineHeight(Size: double): double;
 // The rough area a note covers, in layout space
 function NoteBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
+// The layout's own notes, then the pattern notes printed with each piece
+function PrintedNotes(Layout: TLayout; const Shapes: TPlacedPieceArray): TSheetNoteArray;
 
 // What the publish app should open for a pattern: its layout, when there is
 // one beside it, otherwise the pattern itself
@@ -359,15 +341,12 @@ resourcestring
 implementation
 
 uses
-  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
+  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.PatternFile,
+  Sloper.Core.Note;
 
 const
   CornerNames: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
   DefaultNoteSize = 12;
-  PointsToMM = 25.4 / 72;
-  // Line spacing, and the average width of a Helvetica letter, as shares of its size
-  LineSpacing = 1.25;
-  LetterWidth = 0.52;
   DefaultPaper = 'A4';
   DefaultMargin = 6;
   DefaultOverlap = 10;
@@ -419,53 +398,6 @@ begin
   end;
 end;
 
-function ExpandFields(const Text: string; const Values: TFieldValues): string;
-
-  procedure Fill(const Field, Value: string);
-  begin
-    if Value <> '' then
-      Result := StringReplace(Result, '{' + Field + '}', Value, [rfReplaceAll]);
-  end;
-
-begin
-  Result := Text;
-  Fill(FieldPatternName, Values.PatternName);
-  Fill(FieldMeasurementsName, Values.MeasurementsName);
-  Fill(FieldLayoutName, Values.LayoutName);
-  Fill(FieldDate, Values.Date);
-  Fill(FieldPage, Values.Page);
-  Fill(FieldPages, Values.Pages);
-  Fill(FieldCutList, Values.CutList);
-  Fill(FieldFabrics, Values.Fabrics);
-end;
-
-function TextLines(const Text: string): TStringArray;
-var
-  Unified: string;
-  Start, Position: integer;
-begin
-  Result := nil;
-  Unified := StringReplace(Text, #13#10, #10, [rfReplaceAll]);
-  Unified := StringReplace(Unified, #13, #10, [rfReplaceAll]);
-  Start := 1;
-  for Position := 1 to Length(Unified) + 1 do
-    if (Position > Length(Unified)) or (Unified[Position] = #10) then
-    begin
-      Insert(Copy(Unified, Start, Position - Start), Result, Length(Result));
-      Start := Position + 1;
-    end;
-end;
-
-function TextWidth(const Text: string; Size: double): double;
-begin
-  Result := Length(UTF8Decode(Text)) * Size * LetterWidth * PointsToMM;
-end;
-
-function LineHeight(Size: double): double;
-begin
-  Result := Size * LineSpacing * PointsToMM;
-end;
-
 function NoteBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
 var
   Lines: TStringArray;
@@ -480,6 +412,15 @@ begin
   Result.MinY := Note.Y;
   Result.MaxX := Note.X + Widest;
   Result.MaxY := Note.Y + Length(Lines) * LineHeight(Note.Size);
+end;
+
+function PrintedNotes(Layout: TLayout; const Shapes: TPlacedPieceArray): TSheetNoteArray;
+var
+  Shape: TPlacedPiece;
+begin
+  Result := Copy(Layout.Notes);
+  for Shape in Shapes do
+    Result := Concat(Result, Shape.Notes);
 end;
 
 function DefaultOutput: TLayoutOutput;
@@ -571,7 +512,7 @@ begin
   Result.Pages := APages;
   Result.Date := PrintDate;
   if Result.Date = '' then
-    Result.Date := FormatDateTime('yyyy-mm-dd', Date);
+    Result.Date := FieldDateText;
   for Source in FSources do
   begin
     if Result.PatternName <> '' then
@@ -1208,7 +1149,9 @@ end;
 
 // Only what the output profile includes; with its allowance none, the seam
 // line is the cutting line, so every export, overlap check and packing agrees
-function PlaceShape(Piece: TPieceObject; const Placement: TPlacement; Whole: boolean; const Profile: TOutputProfile): TPlacedPiece;
+// Notes are placed upright, centred where their text's middle goes
+function PlaceShape(Piece: TPieceObject; const Placement: TPlacement; Whole: boolean; const Profile: TOutputProfile;
+  const Notes: TNoteObjectArray = nil): TPlacedPiece;
 var
   Offset: TVec2;
   Opened, Mirroring: boolean;
@@ -1359,6 +1302,9 @@ var
   Mark: TNotchMark;
   Marking: TMarkingMark;
   Cut, Seam: TVec2Array;
+  Note: TNoteObject;
+  Box: TRect2;
+  Placed: TSheetNote;
 begin
   Result := Default(TPlacedPiece);
   Opened := Whole and Piece.OnFold;
@@ -1420,6 +1366,17 @@ begin
   Result.LabelAt := Moved(Piece.Middle);
   if Opened then
     Result.LabelAt := Moved(Lerp(Piece.Middle, Mirror(Piece.Middle), 0.5));
+  for Note in Notes do
+    if Note.HasResult then
+    begin
+      Box := NoteBox(Note, Default(TFieldValues));
+      P := Moved(Vec2((Box.MinX + Box.MaxX) / 2, (Box.MinY + Box.MaxY) / 2));
+      Placed.Text := Note.Text;
+      Placed.Size := Note.Size;
+      Placed.X := P.X - (Box.MaxX - Box.MinX) / 2;
+      Placed.Y := P.Y - (Box.MaxY - Box.MinY) / 2;
+      Insert(Placed, Result.Notes, Length(Result.Notes));
+    end;
 end;
 
 // Even copies are the other side of a mirrored pair
@@ -1512,7 +1469,7 @@ begin
   for Index := 0 to High(Placements) do
     if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Length(Piece.CutLine) > 0) and InFabric(Source, Piece) then
     begin
-      Result[Count] := PlaceShape(Piece, Placements[Index], OpensFolds, Profile);
+      Result[Count] := PlaceShape(Piece, Placements[Index], OpensFolds, Profile, Source.Pattern.PieceNotes(Piece));
       Result[Count].Placement := Index;
       Result[Count].Caption := Source.Pattern.PieceCaption(Piece, OpensFolds);
       Result[Count].Look := Source.Pattern.PieceLook(Piece);

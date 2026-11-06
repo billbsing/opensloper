@@ -71,7 +71,8 @@ resourcestring
 implementation
 
 uses
-  Math, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Names, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform;
+  Math, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Names, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
+  Sloper.Core.Note;
 
 const
   TypeFreePoint = 'freePoint';
@@ -98,6 +99,7 @@ const
   TypeSplitPart = 'splitPart';
   TypePiece = 'piece';
   TypeSeam = 'seam';
+  TypeNote = 'note';
   TypePointCopy = 'pointCopy';
   TypeEdgeCopy = 'edgeCopy';
   TransformTypes: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
@@ -139,6 +141,8 @@ type
     function CreatePiece(Item: TJSONObject): TDraftObject;
     function ReadSeamSide(Item: TJSONObject; const AName: string; out Side: TSeamSide): boolean;
     function CreateSeam(Item: TJSONObject): TDraftObject;
+    function CreateNote(Item: TJSONObject): TDraftObject;
+    function ReadNoteValues(Item: TJSONObject; Note: TNoteObject): boolean;
     function ReadSources(Item: TJSONObject; out Sources: TStringArray): boolean;
     function ReadTransformKey(Item: TJSONObject; out Key: string): boolean;
     function CreateTransform(Item: TJSONObject; Kind: TTransformKind): TDraftObject;
@@ -204,6 +208,8 @@ begin
     Result := TypePiece
   else if DraftObject is TSeamObject then
     Result := TypeSeam
+  else if DraftObject is TNoteObject then
+    Result := TypeNote
   else if DraftObject is TTransformObject then
     Result := TransformTypes[TTransformObject(DraftObject).Kind]
   else if DraftObject is TPointCopy then
@@ -487,6 +493,28 @@ end;
 
 // id, type and name; then inputs and options; then formulas under their
 // field names; then the role of an edge
+// The anchor, with an edge's position, then the offset or place, the text,
+// its size and whether it prints
+procedure SaveNote(Note: TNoteObject; Into: TJSONObject);
+var
+  Anchor: TJSONObject;
+  FieldName: string;
+begin
+  if Note.Anchor <> naFree then
+  begin
+    Anchor := TJSONObject.Create;
+    Into.Add('anchor', Anchor);
+    Anchor.Add(NoteAnchorNames[Note.Anchor], JSONId(Note.AnchorKey));
+    if Note.Anchor = naEdge then
+      Anchor.Add(NotePositionField, Note.Field(NotePositionField).StoredText);
+  end;
+  for FieldName in Note.PlaceFields do
+    Into.Add(FieldName, Note.Field(FieldName).StoredText);
+  Into.Add('text', Note.Text);
+  Into.Add('size', JSONFloat(Note.Size));
+  Into.Add('print', Note.Print);
+end;
+
 function SaveObject(DraftObject: TDraftObject): TJSONObject;
 var
   Index: integer;
@@ -634,6 +662,8 @@ begin
       if (TPieceObject(DraftObject).FillColor <> '') or (TPieceObject(DraftObject).FillStyle <> pfFabric) then
         Result.Add('fill', SavePieceFill(TPieceObject(DraftObject)));
     end
+    else if DraftObject is TNoteObject then
+      SaveNote(TNoteObject(DraftObject), Result)
     else
       for Index := 0 to DraftObject.FieldCount - 1 do
         Result.Add(DraftObject.Fields[Index].Name, DraftObject.Fields[Index].Formula.StoredText);
@@ -695,6 +725,9 @@ begin
       for RoleName in RolesToNames(Pattern.View.HiddenRoles) do
         Roles.Add(RoleName);
     end;
+    // Left out when they show
+    if Pattern.View.HideAnnotations then
+      Result.Add('hideAnnotations', True);
   except
     FreeAndNil(Result);
     raise;
@@ -731,6 +764,7 @@ begin
         for Role := Low(TEdgeRole) to High(TEdgeRole) do
           if (EdgeRoleNames[Role] = List.Items[Index].AsString) and (Role in HideableRoles) then
             Include(Pattern.View.HiddenRoles, Role);
+  GetJSONBoolean(Root, 'hideAnnotations', Pattern.View.HideAnnotations);
 end;
 
 function PatternViewToText(Pattern: TPattern): string;
@@ -785,7 +819,7 @@ begin
     // The untouched Main writes nothing, so simple files stay simple
     if Pattern.Fabrics[0].Key <> '' then
       Root.Add('fabrics', SaveFabrics(Pattern));
-    if WithNextId and (Pattern.View.HasView or (Pattern.View.HiddenRoles <> [])) then
+    if WithNextId and (Pattern.View.HasView or (Pattern.View.HiddenRoles <> []) or Pattern.View.HideAnnotations) then
       Root.Add('view', SaveView(Pattern));
     Result := JSONToText(Root);
   finally
@@ -1385,6 +1419,95 @@ begin
   TSeamObject(Result).Reversed := Flipped;
 end;
 
+// The anchor names one point, edge or piece, which must come earlier in the
+// file; a note without one is free
+function TPatternLoader.CreateNote(Item: TJSONObject): TDraftObject;
+var
+  Data: TJSONData;
+  Anchor: TJSONObject;
+  Kind, Found: TNoteAnchor;
+  Id, Count: integer;
+  Key: string;
+  Node: TEvalNode;
+  Fits: boolean;
+begin
+  Result := nil;
+  Found := naFree;
+  Key := '';
+  Anchor := nil;
+  Data := Item.Find('anchor');
+  if Assigned(Data) then
+  begin
+    if Data.JSONType <> jtObject then
+    begin
+      Missing('anchor');
+      Exit;
+    end;
+    Anchor := TJSONObject(Data);
+    Count := 0;
+    for Kind := naPoint to naPiece do
+      if Assigned(Anchor.Find(NoteAnchorNames[Kind])) then
+      begin
+        Inc(Count);
+        Found := Kind;
+      end;
+    if (Count <> 1) or not GetJSONInteger(Anchor, NoteAnchorNames[Found], Id) or (Id < 1) then
+    begin
+      Missing('anchor');
+      Exit;
+    end;
+    Key := IntToStr(Id);
+    Node := FPattern.FindNode(Key);
+    if not Assigned(Node) then
+    begin
+      Fail(Format(rsPatternObjectNotBefore, [FId, Key]));
+      Exit;
+    end;
+    case Found of
+      naPoint: Fits := Node is TPointObject;
+      naEdge: Fits := Node is TEdgeObject;
+      else
+        Fits := Node is TPieceObject;
+    end;
+    if not Fits then
+    begin
+      Problem(Format(rsPatternNoteAnchor, [NodeLabel(Node), NoteAnchorNames[Found]]));
+      Exit;
+    end;
+  end;
+  Result := TNoteObject.Create(FId, Found, Key);
+  if (Found = naEdge) and not ReadFormula(Anchor, NotePositionField, Result, NotePositionField) then
+    FreeAndNil(Result);
+end;
+
+// Its fields other than an edge's position, text, size and print
+function TPatternLoader.ReadNoteValues(Item: TJSONObject; Note: TNoteObject): boolean;
+var
+  FieldName, Text: string;
+  Size: double;
+  Print: boolean;
+begin
+  for FieldName in Note.PlaceFields do
+    if not ReadFormula(Item, FieldName, Note, FieldName) then
+      Exit(False);
+  if not GetJSONString(Item, 'text', Text) then
+    Exit(Missing('text'));
+  Note.Text := Text;
+  if Assigned(Item.Find('size')) then
+  begin
+    if not GetJSONNumber(Item, 'size', Size) or (Size <= 0) or (Size > MaxNoteSize) then
+      Exit(Missing('size'));
+    Note.Size := Size;
+  end;
+  if Assigned(Item.Find('print')) then
+  begin
+    if not GetJSONBoolean(Item, 'print', Print) then
+      Exit(Missing('print'));
+    Note.Print := Print;
+  end;
+  Result := True;
+end;
+
 function TPatternLoader.ReadSources(Item: TJSONObject; out Sources: TStringArray): boolean;
 var
   List: TJSONData;
@@ -1624,6 +1747,8 @@ begin
     Result := CreatePiece(Item)
   else if TypeText = TypeSeam then
     Result := CreateSeam(Item)
+  else if TypeText = TypeNote then
+    Result := CreateNote(Item)
   else if TypeText = TransformTypes[tkRotate] then
     Result := CreateTransform(Item, tkRotate)
   else if TypeText = TransformTypes[tkMirror] then
@@ -1765,7 +1890,7 @@ begin
     ObjectName := '';
     HasName := Assigned(Item.Find('name'));
     if HasName or (DraftObject is TPointObject) or (DraftObject is TPieceObject) or (DraftObject is TSeamObject) or
-      (DraftObject is TTransformObject) or (DraftObject is TRepeatObject) then
+      (DraftObject is TNoteObject) or (DraftObject is TTransformObject) or (DraftObject is TRepeatObject) then
     begin
       if not GetJSONString(Item, 'name', ObjectName) then
         Exit(Missing('name'));
@@ -1779,7 +1904,12 @@ begin
         Exit(False);
       DraftObject.SetMarker(TPointMarker(Choice));
     end;
-    if not (DraftObject is TCurvePathObject) and not (DraftObject is TPieceObject) then
+    if DraftObject is TNoteObject then
+    begin
+      if not ReadNoteValues(Item, TNoteObject(DraftObject)) then
+        Exit(False);
+    end
+    else if not (DraftObject is TCurvePathObject) and not (DraftObject is TPieceObject) then
       for Index := 0 to DraftObject.FieldCount - 1 do
         if not ReadFormula(Item, DraftObject.Fields[Index].Name, DraftObject, DraftObject.Fields[Index].Name) then
           Exit(False);

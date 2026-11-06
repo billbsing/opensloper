@@ -28,7 +28,7 @@ unit Sloper.UI.Snap;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.Note;
 
 type
   // snHorizontal and snVertical: level with or square to a point
@@ -73,7 +73,22 @@ function CircleFromSnap(Pattern: TPattern; const Centre: TSnap; const Rim: TVec2
 function RectangleFromSnap(Pattern: TPattern; const Corner: TSnap; const Opposite: TVec2; Role: TEdgeRole;
   out Edges: TRectangleEdges): boolean;
 
+// Where the Text tool hangs a note clicked at Click: the snapped point, or
+// the place on the snapped edge (a crossing goes on its first edge); otherwise
+// the piece Click is inside, or nothing. The offset is from there to Click.
+procedure NoteAnchorFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; out Anchor: TNoteAnchor; out AnchorKey: string;
+  out Ratio: double);
+// A note with AText hung as NoteAnchorFromSnap says, its offset to the click
+// rounded to 0.1 mm. nil when refused, with the reason in Pattern.LastError.
+function NoteFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; const AText: string): TNoteObject;
+// What a click of the Text tool would hang the note from, in words
+function NoteSnapDescription(Pattern: TPattern; const Snap: TSnap; const Click: TVec2): string;
+
 resourcestring
+  rsSnapNotePoint = 'New note on point %s';
+  rsSnapNoteEdge = 'New note on %s';
+  rsSnapNotePiece = 'New note on piece %s';
+  rsSnapNoteFree = 'New note at %s, %s';
   rsSnapTooSmall = 'Too small: move further from the first click';
   rsSnapFree = 'New point at %s, %s';
   rsSnapPoint = 'Point %s';
@@ -87,7 +102,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Drag, Sloper.UI.Scene;
+  Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.UI.Scene;
 
 const
   LengthDecimals = 1;
@@ -348,6 +363,83 @@ begin
     Result := ''
   else
     Result := Added.Key;
+end;
+
+procedure NoteAnchorFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; out Anchor: TNoteAnchor; out AnchorKey: string;
+  out Ratio: double);
+var
+  Edge: TEdgeObject;
+  Piece: TPieceObject;
+  Along, Offset: double;
+begin
+  Anchor := naFree;
+  AnchorKey := '';
+  Ratio := 0;
+  case Snap.Kind of
+    snPoint:
+    begin
+      Anchor := naPoint;
+      AnchorKey := Snap.PointKey;
+      Exit;
+    end;
+    snEdge, snCrossing:
+    begin
+      Edge := TEdgeObject(Pattern.FindNode(Snap.EdgeKey));
+      if Assigned(Edge) and (Edge.Length > 0) then
+      begin
+        Edge.Locate(Snap.Position, Along, Offset);
+        Anchor := naEdge;
+        AnchorKey := Edge.Key;
+        Ratio := EnsureRange(Along / Edge.Length, 0, 1);
+        Exit;
+      end;
+    end;
+  end;
+  Piece := PieceAt(Pattern, Click);
+  if Assigned(Piece) then
+  begin
+    Anchor := naPiece;
+    AnchorKey := Piece.Key;
+  end;
+end;
+
+function NoteFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; const AText: string): TNoteObject;
+var
+  Anchor: TNoteAnchor;
+  AnchorKey, RatioText: string;
+  Ratio: double;
+  Base: TVec2;
+  Node: TEvalNode;
+begin
+  NoteAnchorFromSnap(Pattern, Snap, Click, Anchor, AnchorKey, Ratio);
+  RatioText := RoundedText(Ratio, DragRatioDecimals);
+  if Anchor = naFree then
+    Exit(Pattern.AddNote('', AText, naFree, '', '', RoundedText(Click.X, LengthDecimals), RoundedText(Click.Y, LengthDecimals)));
+  Node := Pattern.FindNode(AnchorKey);
+  case Anchor of
+    naPoint: Base := TPointObject(Node).Position;
+    naEdge: Base := TEdgeObject(Node).PointAtLength(RoundTo(Ratio, -DragRatioDecimals) * TEdgeObject(Node).Length);
+    else
+      Base := TPieceObject(Node).Middle;
+  end;
+  Result := Pattern.AddNote('', AText, Anchor, AnchorKey, RatioText, RoundedText(Click.X - Base.X, LengthDecimals),
+    RoundedText(Click.Y - Base.Y, LengthDecimals));
+end;
+
+function NoteSnapDescription(Pattern: TPattern; const Snap: TSnap; const Click: TVec2): string;
+var
+  Anchor: TNoteAnchor;
+  AnchorKey: string;
+  Ratio: double;
+begin
+  NoteAnchorFromSnap(Pattern, Snap, Click, Anchor, AnchorKey, Ratio);
+  case Anchor of
+    naPoint: Result := Format(rsSnapNotePoint, [Pattern.FindNode(AnchorKey).DisplayName]);
+    naEdge: Result := Format(rsSnapNoteEdge, [Pattern.FindNode(AnchorKey).DisplayName]);
+    naPiece: Result := Format(rsSnapNotePiece, [Pattern.FindNode(AnchorKey).DisplayName]);
+    else
+      Result := Format(rsSnapNoteFree, [RoundedText(Click.X, LengthDecimals), RoundedText(Click.Y, LengthDecimals)]);
+  end;
 end;
 
 function SnapObjectKeys(const Snap: TSnap): TStringArray;

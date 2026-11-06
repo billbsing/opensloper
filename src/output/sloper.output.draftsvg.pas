@@ -43,6 +43,10 @@ type
     Region: TRect2;
     // Lines of these roles are left out, as the canvas hides them
     HiddenRoles: TEdgeRoles;
+    // Notes are left out, as View -> Annotations off hides them
+    HideAnnotations: boolean;
+    // For {pattern.name} in notes; empty leaves it as typed
+    PatternFileName: string;
   end;
 
 function DefaultDraftSVGOptions: TDraftSVGOptions;
@@ -54,7 +58,8 @@ function EscapeXML(const Text: string): string;
 implementation
 
 uses
-  Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Fabrics, Sloper.Core.Piece;
+  Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Fabrics, Sloper.Core.Piece,
+  Sloper.Core.Note, Sloper.Core.TextFields;
 
 const
   CoordinateDecimals = 3;
@@ -153,7 +158,7 @@ begin
   if Options.HasRegion then
     Bounds := Options.Region
   else
-    Found := PatternBounds(Pattern, Bounds);
+    Found := PatternBounds(Pattern, Bounds, not Options.HideAnnotations);
   if not Found then
   begin
     Bounds := Default(TRect2);
@@ -318,6 +323,20 @@ begin
       Num(Extent * LineShare)]) + #10;
 end;
 
+// At its true printed size, a text element per line, over everything else
+function NoteElement(Note: TNoteObject; const Values: TFieldValues): string;
+var
+  Lines: TStringArray;
+  Index: integer;
+begin
+  Result := '';
+  Lines := TextLines(ExpandFields(Note.Text, Values));
+  for Index := 0 to High(Lines) do
+    Result := Result + Format('<text data-id="%s" x="%s" y="%s" font-family="Helvetica, Arial, sans-serif" font-size="%s" fill="%s">%s</text>',
+      [Note.Key, Num(Note.Position.X), Num(Note.Position.Y + (Index + 1) * LineHeight(Note.Size)), Num(Note.Size * PointsToMM),
+      StateColor(Note.State, InkColor), EscapeXML(Lines[Index])]) + #10;
+end;
+
 function AllObjects(Pattern: TPattern): TDraftObjectArray;
 var
   Index: integer;
@@ -385,6 +404,14 @@ begin
   for Point in Pattern.AllPoints do
     if Point.HasResult then
       Result := Result + PointElement(Point, View.Extent, Labelled(Point));
+  // Screen-only notes never leave the app
+  if not Options.HideAnnotations then
+    for Index := 0 to Pattern.ObjectCount - 1 do
+    begin
+      DraftObject := Pattern.Objects[Index];
+      if (DraftObject is TNoteObject) and DraftObject.HasResult and TNoteObject(DraftObject).Print then
+        Result := Result + NoteElement(TNoteObject(DraftObject), PatternFieldValues(Pattern, Options.PatternFileName));
+    end;
   Result := Result + '</svg>' + #10;
 end;
 

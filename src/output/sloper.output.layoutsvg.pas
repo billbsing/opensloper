@@ -34,7 +34,7 @@ function LayoutToSVG(Layout: TLayout): string;
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.MachineProfiles, Sloper.Output.DraftSVG;
+  SysUtils, Math, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.MachineProfiles, Sloper.Core.TextFields, Sloper.Output.DraftSVG;
 
 const
   // Around the pieces, so that a line on the edge is drawn whole
@@ -126,7 +126,27 @@ begin
   end;
 end;
 
-function PieceGroup(const Shape: TPlacedPiece; Number: integer): string;
+// The pattern's notes printed with the piece, a text element per line
+function NotesGroup(const Shape: TPlacedPiece; const Values: TFieldValues): string;
+var
+  Note: TSheetNote;
+  Lines: TStringArray;
+  Index: integer;
+begin
+  Result := '';
+  for Note in Shape.Notes do
+  begin
+    Lines := TextLines(ExpandFields(Note.Text, Values));
+    for Index := 0 to High(Lines) do
+      Result := Result + Format('<text x="%s" y="%s" font-family="Helvetica, Arial, sans-serif" font-size="%s" fill="%s" stroke="none">%s</text>',
+        [SVGNumber(Note.X), SVGNumber(Note.Y + (Index + 1) * LineHeight(Note.Size)), SVGNumber(Note.Size * PointsToMM), InkColor,
+        EscapeXML(Lines[Index])]);
+  end;
+  if Result <> '' then
+    Result := '<g class="notes">' + Result + '</g>' + #10;
+end;
+
+function PieceGroup(const Shape: TPlacedPiece; Number: integer; const Values: TFieldValues): string;
 var
   Marks: string;
 begin
@@ -142,6 +162,7 @@ begin
   if Shape.ShowLabel then
     Result := Result + Format('<g class="label"><text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s" stroke="none">%s</text></g>',
       [SVGNumber(Shape.LabelAt.X), SVGNumber(Shape.LabelAt.Y), SVGNumber(LabelSize), InkColor, EscapeXML(Shape.Caption)]) + #10;
+  Result := Result + NotesGroup(Shape, Values);
   Result := Result + '</g>' + #10;
 end;
 
@@ -222,7 +243,7 @@ begin
     if ForMachine then
       Result := Result + MachinePieceGroup(Shapes[Index], Index + 1, Profile)
     else
-      Result := Result + PieceGroup(Shapes[Index], Index + 1);
+      Result := Result + PieceGroup(Shapes[Index], Index + 1, Layout.FieldValues('', ''));
   Result := Result + '</svg>' + #10;
 end;
 

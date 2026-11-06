@@ -95,7 +95,7 @@ type
     // for disabled buttons: a grey copy of a black icon is still black
     FToolIcons, FDisabledIcons, FMenuIcons: TImageList;
     FCommandBar, FToolBar: TToolBar;
-    FUndoAction, FRedoAction, FPieceFillsAction, FSideAction, FRulersAction: TAction;
+    FUndoAction, FRedoAction, FPieceFillsAction, FSideAction, FRulersAction, FAnnotationsAction: TAction;
     FRulerTop: TPanel;
     FRulerCorner: TRulerCorner;
     FHorzRuler, FVertRuler: TCanvasRuler;
@@ -140,6 +140,8 @@ type
     procedure SetDrawRole(Role: TEdgeRole);
     procedure CreateDrawRoleBox;
     procedure PieceFillsClick(Sender: TObject);
+    procedure AnnotationsClick(Sender: TObject);
+    procedure CanvasNoteAdded(Sender: TObject);
     procedure CreateSidePanel;
     procedure SetSideShown(Shown: boolean);
     procedure SideItemClick(Sender: TObject);
@@ -254,6 +256,7 @@ resourcestring
   rsTabAlign = 'Align';
   rsMenuViewLabels = '&Labels';
   rsMenuViewPieceFills = 'Piece &Fills';
+  rsMenuViewAnnotations = '&Annotations';
   rsLabelsContextual = '&Contextual';
   rsLabelsAll = '&All (hold N)';
   rsLabelsNone = '&None';
@@ -265,6 +268,7 @@ resourcestring
   rsToolPiece = 'Piece';
   rsToolNotch = 'Notch';
   rsToolSeam = 'Seam';
+  rsToolText = 'Text';
   rsMenuToolsSplit = 'Sp&lit Edge';
   rsToolCircle = 'Circle';
   rsMenuToolsArc = '&Arc';
@@ -359,6 +363,7 @@ begin
   FCanvas.OnMessage := @CanvasMessage;
   FCanvas.OnToolChange := @CanvasToolChange;
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
+  FCanvas.OnNoteAdded := @CanvasNoteAdded;
   SetLabelMode(FSettings.LabelMode);
   SetDrawRole(erOutline);
   FPieceFillsAction.Checked := FSettings.ShowPieceFills;
@@ -796,6 +801,25 @@ begin
   end;
   FPieceFillsAction := NewAction(rsMenuViewPieceFills, aiPieceFills, @PieceFillsClick);
   AddMenuItem(MenuView, FPieceFillsAction);
+  FAnnotationsAction := NewAction(rsMenuViewAnnotations, aiAnnotations, @AnnotationsClick);
+  AddMenuItem(MenuView, FAnnotationsAction);
+end;
+
+// Kept in the pattern's view, outside undo, like the hidden roles
+procedure TMainForm.AnnotationsClick(Sender: TObject);
+begin
+  FDocument.Pattern.View.HideAnnotations := not FDocument.Pattern.View.HideAnnotations;
+  FDocument.ViewChanged;
+  FCanvas.Invalidate;
+end;
+
+// Its text is typed in the properties, which share the side panel with the lists
+procedure TMainForm.CanvasNoteAdded(Sender: TObject);
+begin
+  if not FSidePanel.Visible then
+    Exit;
+  FSidePanel.ActivePage := FProperties.Parent as TTabSheet;
+  FProperties.FocusNoteText;
 end;
 
 procedure TMainForm.PieceFillsClick(Sender: TObject);
@@ -851,8 +875,8 @@ end;
 // TOffsetSide, or Ord(True) for inside a piece.
 procedure TMainForm.CreateToolCommands;
 const
-  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'O', 'R', 'K', 'T', 'E');
-  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiCircle, aiRectangle, aiPiece, aiNotch, aiSeam);
+  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'O', 'R', 'K', 'T', 'E', 'X');
+  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiCircle, aiRectangle, aiPiece, aiNotch, aiSeam, aiText);
   MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
   TransformIcons: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
 var
@@ -894,6 +918,7 @@ begin
   Captions[ctSeam] := rsToolSeam;
   Captions[ctCircle] := rsToolCircle;
   Captions[ctRectangle] := rsToolRectangle;
+  Captions[ctText] := rsToolText;
   MenuTools := TMenuItem.Create(MainMenu);
   MenuTools.Caption := rsMenuTools;
   MainMenu.Items.Insert(MainMenu.Items.IndexOf(MenuHelp), MenuTools);
@@ -1214,6 +1239,7 @@ begin
   else
     FRedoAction.Caption := rsMenuEditRedo;
   SetActionHint(FRedoAction);
+  FAnnotationsAction.Checked := not FDocument.Pattern.View.HideAnnotations;
 end;
 
 procedure TMainForm.UpdateStatus;
@@ -1369,6 +1395,8 @@ begin
     Options := DefaultDraftSVGOptions;
     Options.NoFills := not FCanvas.ShowPieceFills;
     Options.HiddenRoles := FDocument.Pattern.View.HiddenRoles;
+    Options.HideAnnotations := FDocument.Pattern.View.HideAnnotations;
+    Options.PatternFileName := FDocument.FileName;
     // The names the canvas is showing: all, none, or for Contextual the
     // selection and what it uses and is used by
     Options.LabelChosen := True;

@@ -25,8 +25,8 @@ Have the anotations appear at the highest Z-order , over the design. The user ca
 Add, Edit, Delete, Move anotations in the design page.
 Set font, and font size for anotations, change direction, anchored from a point.
 
-Rescoped 2026-11-06 into four stages (see Stages under Annotations in the design document; not started):
-- Stage 1, anchored notes: plain text anchored to a point, edge or piece, Text tool, drag, show and hide, document fields, printing with their piece; one sans-serif font.
+Rescoped 2026-11-06 into four stages (see Stages under Annotations in the design document):
+- Stage 1, anchored notes: done 2026-11-06. Plain text anchored to a point, edge or piece, Text tool (X), drag, show and hide (View → Annotations), document fields, printing with their piece; one sans-serif font.
 - Stage 2: callouts, `{=…}` draft values, alignment and the white box.
 - Stage 3: font name, bold and italic, with the chosen TrueType font embedded in PDF.
 - Stage 4: SVG stamps, anchored path-only drawings.

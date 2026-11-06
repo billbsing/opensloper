@@ -28,15 +28,16 @@ interface
 uses
   Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
 
-// Extent of everything shown; False when nothing is
-function PatternBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
+// Extent of everything shown, notes too unless WithNotes is False; False when
+// nothing is
+function PatternBounds(Pattern: TPattern; out Bounds: TRect2; WithNotes: boolean = True): boolean;
 // Widens Bounds to take in DraftObject. Start with Empty True.
 procedure IncludeObject(var Bounds: TRect2; var Empty: boolean; DraftObject: TDraftObject);
 
 implementation
 
 uses
-  Math, Sloper.Core.Bezier, Sloper.Core.Piece;
+  Math, Sloper.Core.Bezier, Sloper.Core.Piece, Sloper.Core.Note, Sloper.Core.TextFields;
 
 procedure Include(var Bounds: TRect2; var Empty: boolean; const P: TVec2);
 begin
@@ -58,12 +59,19 @@ end;
 procedure IncludeObject(var Bounds: TRect2; var Empty: boolean; DraftObject: TDraftObject);
 var
   Segment: TEdgeSegment;
-  CurveBounds: TRect2;
+  CurveBounds, Box: TRect2;
   Corner: TVec2;
 begin
   if not DraftObject.HasResult then
     Exit;
-  if DraftObject is TPointObject then
+  // Its text as typed, since the fields are not known here
+  if DraftObject is TNoteObject then
+  begin
+    Box := NoteBox(TNoteObject(DraftObject), Default(TFieldValues));
+    Include(Bounds, Empty, Vec2(Box.MinX, Box.MinY));
+    Include(Bounds, Empty, Vec2(Box.MaxX, Box.MaxY));
+  end
+  else if DraftObject is TPointObject then
     Include(Bounds, Empty, TPointObject(DraftObject).Position)
   else if DraftObject is TPieceObject then
     for Corner in TPieceObject(DraftObject).CutLine do
@@ -83,7 +91,7 @@ begin
       end;
 end;
 
-function PatternBounds(Pattern: TPattern; out Bounds: TRect2): boolean;
+function PatternBounds(Pattern: TPattern; out Bounds: TRect2; WithNotes: boolean): boolean;
 var
   Index: integer;
   Empty: boolean;
@@ -91,7 +99,8 @@ begin
   Bounds := Default(TRect2);
   Empty := True;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
+    if WithNotes or not (Pattern.Objects[Index] is TNoteObject) then
+      IncludeObject(Bounds, Empty, Pattern.Objects[Index]);
   Result := not Empty;
 end;
 

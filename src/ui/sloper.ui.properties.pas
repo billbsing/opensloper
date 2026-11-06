@@ -29,7 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Transform, Sloper.Core.Pattern, Sloper.Core.Evaluator,
+  Sloper.Core.Transform, Sloper.Core.Pattern, Sloper.Core.Evaluator, Sloper.Core.Note,
   Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
 type
@@ -96,6 +96,12 @@ type
     FFillColorBox: TComboBox;
     FMadeByText: TGridLabel;
     FSideAText, FSideBText, FDifferenceText: TGridLabel;
+    // A note's text, size, whether it prints, and what it hangs from
+    FNoteText: TMemo;
+    FNoteSize: TFloatSpinEdit;
+    FNotePrint: TCheckBox;
+    FNoteAnchorText: TGridLabel;
+    FFreeButton: TButton;
     FEdits: array of TEdit;
     // Each field's row for a refused entry, hidden until needed; see RefusalRow
     FRefusals: array of TLabel;
@@ -147,6 +153,16 @@ type
     function MarkedOnText(DraftObject: TDraftObject): string;
     procedure AddPieceRows(Piece: TPieceObject);
     procedure AddSeamRows;
+    procedure AddNoteTextRow;
+    procedure AddNoteRows(Note: TNoteObject);
+    procedure RefreshNoteRows(Note: TNoteObject);
+    function NoteAnchorText(Note: TNoteObject): string;
+    procedure CommitNoteText;
+    procedure NoteTextExit(Sender: TObject);
+    procedure NoteTextKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
+    procedure NoteSizeChange(Sender: TObject);
+    procedure NotePrintClick(Sender: TObject);
+    procedure FreeClick(Sender: TObject);
     procedure RefreshSeamRows(Seam: TSeamObject);
     procedure FlipClick(Sender: TObject);
     procedure AddRepeatRows(ARepeat: TRepeatObject);
@@ -175,6 +191,8 @@ type
     property Document: TPatternDocument read FDocument write SetDocument;
     // Puts the cursor in the name field, with the name selected, ready to replace
     procedure FocusName;
+    // Puts the cursor in a note's text, with the text selected, ready to replace
+    procedure FocusNoteText;
     // The part of a row's width given to names; kept between sessions by the main form
     property NameShare: double read FNameShare write SetNameShare;
     // Says why a change was refused
@@ -215,6 +233,21 @@ resourcestring
   rsPropMarkerMatch = 'Match dot';
   rsPropChangeMarker = 'Change marker';
   rsPropPosition = 'Position';
+  rsPropNoteText = 'Text';
+  rsPropNoteSize = 'Size (points)';
+  rsPropNotePrint = 'Print';
+  rsPropNotePrintCaption = 'Print and export it';
+  rsPropNoteAnchor = 'Hangs from';
+  rsPropNoteAnchorPoint = 'Point %s';
+  rsPropNoteAnchorEdge = '%s';
+  rsPropNoteAnchorPiece = 'Piece %s';
+  rsPropNoteAnchorFree = 'Nothing (free)';
+  rsPropNoteFree = 'Make free';
+  rsPropNoteFreeHint = 'Unhook the note, leaving it where it is, so what it hangs from can be deleted';
+  rsPropChangeNoteText = 'Change note text';
+  rsPropChangeNoteSize = 'Change note size';
+  rsPropChangeNotePrint = 'Change note printing';
+  rsPropFreeNote = 'Make note free';
   rsPropLength = 'Length';
   rsPropPerimeter = 'Perimeter';
   rsPropSideA = 'Side A';
@@ -252,7 +285,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
+  Math, Sloper.Core.EvalTypes, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
   Sloper.UI.FabricsPanel, Sloper.UI.GridColumns, Sloper.UI.ObjectList;
 
 function RoleCaption(Role: TEdgeRole): string;
@@ -282,6 +315,9 @@ const
   DescriptionTag = -2;
   RefusalBase = 2;
   MaxCutCount = 99;
+  // A note's text field, at 96 pixels per inch
+  NoteTextHeight96 = 64;
+  NoteSizeStep = 1;
 
 function SameNames(const First, Second: TStringArray): boolean;
 var
@@ -490,6 +526,13 @@ begin
   FSideAText := nil;
   FSideBText := nil;
   FDifferenceText := nil;
+  if Assigned(FNoteText) then
+    FNoteText.OnExit := nil;
+  FNoteText := nil;
+  FNoteSize := nil;
+  FNotePrint := nil;
+  FNoteAnchorText := nil;
+  FFreeButton := nil;
   FEdits := nil;
   FRefusals := nil;
   FResult := nil;
@@ -696,6 +739,8 @@ begin
       AddTextRow(rsPropName, TRepeatPoint(Node).Name, RowGap)
     else if (Node is TDraftObject) or (Node is TVariable) then
       FNameEdit := AddEditRow(rsPropName, NameTag);
+    if Node is TNoteObject then
+      AddNoteTextRow;
     SetLength(FEdits, Node.FieldCount);
     // A marker's size goes under the marker
     for Index := 0 to Node.FieldCount - 1 do
@@ -737,6 +782,8 @@ begin
       AddPieceRows(TPieceObject(Node));
     if Node is TSeamObject then
       AddSeamRows;
+    if Node is TNoteObject then
+      AddNoteRows(TNoteObject(Node));
     if CopyTransformKey(Node) <> '' then
       FMadeByText := AddTextRow(rsPropMadeBy, '', RowGap);
     if Node is TPointObject then
@@ -748,7 +795,9 @@ begin
     else if Node is TSeamObject then
       FResult := AddTextRow(rsPropSeamLengths, '', Gap)
     else if Node is TVariable then
-      FResult := AddTextRow(rsPropValue, '', Gap);
+      FResult := AddTextRow(rsPropValue, '', Gap)
+    else if Node is TNoteObject then
+      FResult := AddTextRow(rsPropPosition, '', Gap);
     if Node is TSeamObject then
       FDifferenceText := AddTextRow(rsPropSeamDifference, '', RowGap);
     FProblem := AddLabel('', Gap);
@@ -823,9 +872,13 @@ begin
     RefreshPieceRows(TPieceObject(Node));
   if Node is TSeamObject then
     RefreshSeamRows(TSeamObject(Node));
+  if Node is TNoteObject then
+    RefreshNoteRows(TNoteObject(Node));
   RefreshTransformRows(Node);
   if Assigned(FResult) then
-    if Node is TDraftObject then
+    if (Node is TNoteObject) and Node.HasResult then
+      FResult.Caption := Format(rsObjectPosition, [RoundedText(TNoteObject(Node).Position.X, 1), RoundedText(TNoteObject(Node).Position.Y, 1)])
+    else if Node is TDraftObject then
       FResult.Caption := ResultText(TDraftObject(Node))
     else
       FResult.Caption := '';
@@ -949,6 +1002,15 @@ begin
   CommitEdit(TEdit(Sender));
 end;
 
+procedure TPropertiesPanel.FocusNoteText;
+begin
+  if Assigned(FNoteText) and FNoteText.CanFocus then
+  begin
+    FNoteText.SetFocus;
+    FNoteText.SelectAll;
+  end;
+end;
+
 procedure TPropertiesPanel.FocusName;
 begin
   // A hidden tab or side panel cannot take the focus, and SetFocus would raise
@@ -1004,6 +1066,177 @@ begin
   Flip.Caption := rsPropFlip;
   Flip.OnClick := @FlipClick;
   AddRow(rsPropDirection, Flip, RowGap);
+end;
+
+// Enter adds a line; leaving the field commits it as one undo step
+procedure TPropertiesPanel.AddNoteTextRow;
+begin
+  FNoteText := TMemo.Create(Self);
+  FNoteText.Height := Scale96ToForm(NoteTextHeight96);
+  FNoteText.ScrollBars := ssAutoVertical;
+  FNoteText.WantReturns := True;
+  FNoteText.WordWrap := False;
+  FNoteText.OnExit := @NoteTextExit;
+  FNoteText.OnKeyDown := @NoteTextKeyDown;
+  AddRow(rsPropNoteText, FNoteText, RowGap);
+end;
+
+procedure TPropertiesPanel.AddNoteRows(Note: TNoteObject);
+begin
+  FNoteSize := TFloatSpinEdit.Create(Self);
+  FNoteSize.MinValue := NoteSizeStep;
+  FNoteSize.MaxValue := MaxNoteSize;
+  FNoteSize.Increment := NoteSizeStep;
+  FNoteSize.DecimalPlaces := 1;
+  FNoteSize.OnChange := @NoteSizeChange;
+  AddRow(rsPropNoteSize, FNoteSize, RowGap);
+  FNotePrint := TCheckBox.Create(Self);
+  FNotePrint.Caption := rsPropNotePrintCaption;
+  FNotePrint.OnClick := @NotePrintClick;
+  AddRow(rsPropNotePrint, FNotePrint, RowGap);
+  FNoteAnchorText := AddTextRow(rsPropNoteAnchor, '', RowGap);
+  if Note.Anchor <> naFree then
+  begin
+    FFreeButton := TButton.Create(Self);
+    FFreeButton.Caption := rsPropNoteFree;
+    FFreeButton.Hint := rsPropNoteFreeHint;
+    FFreeButton.ShowHint := True;
+    FFreeButton.OnClick := @FreeClick;
+    AddRow('', FFreeButton, RowGap);
+  end;
+end;
+
+function TPropertiesPanel.NoteAnchorText(Note: TNoteObject): string;
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(Note.AnchorKey);
+  if (Note.Anchor = naFree) or not Assigned(Node) then
+    Exit(rsPropNoteAnchorFree);
+  case Note.Anchor of
+    naPoint: Result := Format(rsPropNoteAnchorPoint, [Node.DisplayName]);
+    naEdge: Result := Format(rsPropNoteAnchorEdge, [Node.DisplayName]);
+    else
+      Result := Format(rsPropNoteAnchorPiece, [Node.DisplayName]);
+  end;
+end;
+
+// The text field keeps what is being typed in it
+procedure TPropertiesPanel.RefreshNoteRows(Note: TNoteObject);
+begin
+  FFillingPieceRows := True;
+  try
+    if Assigned(FNoteText) and (not FNoteText.Focused or FRefreshFocused) then
+      FNoteText.Text := Note.Text;
+    if Assigned(FNoteSize) and not FNoteSize.Focused then
+      FNoteSize.Value := Note.Size;
+    if Assigned(FNotePrint) then
+      FNotePrint.Checked := Note.Print;
+    if Assigned(FNoteAnchorText) then
+      FNoteAnchorText.Caption := NoteAnchorText(Note);
+  finally
+    FFillingPieceRows := False;
+  end;
+end;
+
+// The memo's own line breaks are stored as line feeds
+procedure TPropertiesPanel.CommitNoteText;
+var
+  Node: TEvalNode;
+  NewText: string;
+begin
+  if not Assigned(FDocument) or not Assigned(FNoteText) then
+    Exit;
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TNoteObject) then
+    Exit;
+  NewText := StringReplace(FNoteText.Text, #13#10, #10, [rfReplaceAll]);
+  NewText := StringReplace(NewText, #13, #10, [rfReplaceAll]);
+  // The memo adds a line break after the last line
+  while (NewText <> '') and (NewText[Length(NewText)] = #10) do
+    SetLength(NewText, Length(NewText) - 1);
+  if NewText = TNoteObject(Node).Text then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeNoteText);
+    FDocument.Pattern.SetNoteText(TNoteObject(Node), NewText);
+    FDocument.EndChange;
+  finally
+    FCommitting := False;
+  end;
+end;
+
+procedure TPropertiesPanel.NoteTextExit(Sender: TObject);
+begin
+  CommitNoteText;
+end;
+
+// Escape puts the text back
+procedure TPropertiesPanel.NoteTextKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
+var
+  Node: TEvalNode;
+begin
+  if Key <> VK_ESCAPE then
+    Exit;
+  Node := FDocument.Pattern.FindNode(FKey);
+  if Node is TNoteObject then
+    FNoteText.Text := TNoteObject(Node).Text;
+  Key := 0;
+end;
+
+procedure TPropertiesPanel.NoteSizeChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  if FFillingPieceRows then
+    Exit;
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TNoteObject) or SameValue(TNoteObject(Node).Size, FNoteSize.Value) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeNoteSize);
+    FDocument.Commit(FDocument.Pattern.SetNoteSize(TNoteObject(Node), FNoteSize.Value), 'notesize:' + FKey);
+  finally
+    FCommitting := False;
+  end;
+end;
+
+procedure TPropertiesPanel.NotePrintClick(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  if FFillingPieceRows then
+    Exit;
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TNoteObject) or (TNoteObject(Node).Print = FNotePrint.Checked) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeNotePrint);
+    FDocument.Pattern.SetNotePrint(TNoteObject(Node), FNotePrint.Checked);
+    FDocument.EndChange;
+  finally
+    FCommitting := False;
+  end;
+end;
+
+procedure TPropertiesPanel.FreeClick(Sender: TObject);
+var
+  Node: TEvalNode;
+  Reason: string;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TNoteObject) then
+    Exit;
+  FDocument.BeginChange(rsPropFreeNote);
+  Reason := '';
+  if not FDocument.Pattern.MakeNoteFree(TNoteObject(Node)) then
+    Reason := FDocument.Pattern.LastError;
+  FDocument.Commit(Reason = '');
+  if (Reason <> '') and Assigned(FOnMessage) then
+    FOnMessage(Self, Reason);
 end;
 
 procedure TPropertiesPanel.RefreshSeamRows(Seam: TSeamObject);

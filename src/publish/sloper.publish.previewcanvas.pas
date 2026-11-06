@@ -26,7 +26,8 @@ unit Sloper.Publish.PreviewCanvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.Output.Layout,
+  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Fabrics, Sloper.Core.Geometry,
+  Sloper.Core.TextFields, Sloper.Output.Layout,
   Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 type
@@ -457,28 +458,38 @@ begin
   FBitmap.TextOut(Spot.X, Spot.Y, Shape.Caption, Ink);
 end;
 
+// The layout's notes, which can be selected, and the pattern notes that print
+// with the pieces, which move with them
 procedure TPreviewCanvas.DrawNotes;
 var
-  Index, LineIndex: integer;
-  Note: TSheetNote;
-  Lines: TStringArray;
+  Index: integer;
   Values: TFieldValues;
-  Spot: TVec2;
-  Ink: TBGRAPixel;
-begin
-  Values := FDocument.Layout.FieldValues('', '');
-  for Index := 0 to High(FDocument.Layout.Notes) do
+  Shape: TPlacedPiece;
+  Note: TSheetNote;
+
+  procedure DrawNote(const Item: TSheetNote; const Ink: TBGRAPixel);
+  var
+    Lines: TStringArray;
+    LineIndex: integer;
+    Spot: TVec2;
   begin
-    Note := FDocument.Layout.Notes[Index];
-    Lines := TextLines(ExpandFields(Note.Text, Values));
-    Ink := PieceInk;
-    if Index = FSelectedNote then
-      Ink := SelectedInk;
-    FBitmap.FontHeight := Max(MinNoteHeight, Round(LineHeight(Note.Size) * FView.Scale));
-    Spot := FView.ToScreen(Vec2(Note.X, Note.Y));
+    Lines := TextLines(ExpandFields(Item.Text, Values));
+    FBitmap.FontHeight := Max(MinNoteHeight, Round(LineHeight(Item.Size) * FView.Scale));
+    Spot := FView.ToScreen(Vec2(Item.X, Item.Y));
     for LineIndex := 0 to High(Lines) do
       FBitmap.TextOut(Spot.X, Spot.Y + LineIndex * FBitmap.FontHeight, Lines[LineIndex], Ink);
   end;
+
+begin
+  Values := FDocument.Layout.FieldValues('', '');
+  for Shape in FShapes do
+    for Note in Shape.Notes do
+      DrawNote(Note, PieceInk);
+  for Index := 0 to High(FDocument.Layout.Notes) do
+    if Index = FSelectedNote then
+      DrawNote(FDocument.Layout.Notes[Index], SelectedInk)
+    else
+      DrawNote(FDocument.Layout.Notes[Index], PieceInk);
 end;
 
 procedure TPreviewCanvas.Paint;

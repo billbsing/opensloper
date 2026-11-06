@@ -27,7 +27,7 @@ unit Sloper.Output.LayoutPDF;
 interface
 
 uses
-  Sloper.Output.Layout;
+  Sloper.Core.TextFields, Sloper.Output.Layout;
 
 // The PDF as bytes, whatever problems the layout has; callers check first
 function LayoutToPDF(Layout: TLayout): rawbytestring;
@@ -349,7 +349,7 @@ var
   Index: integer;
   Spread: TRect2;
 begin
-  for Note in FLayout.Notes do
+  for Note in PrintedNotes(FLayout, FShapes) do
   begin
     Spread := NoteBounds(Note, PageValues);
     if (Spread.MaxX < Page.Area.MinX) or (Spread.MinX > Page.Area.MaxX) or (Spread.MaxY < Page.Area.MinY) or (Spread.MinY > Page.Area.MaxY) then

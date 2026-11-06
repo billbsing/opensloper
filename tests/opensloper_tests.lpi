@@ -92,6 +92,11 @@
         <UnitName Value="Sloper.Tests.Seam"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.notes.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Notes"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.layoutexports.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.LayoutExports"/>

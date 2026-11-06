@@ -56,6 +56,7 @@ uses
   Sloper.Tests.Clipper,
   Sloper.Tests.Piece,
   Sloper.Tests.Seam,
+  Sloper.Tests.Notes,
   Sloper.Tests.PatternView,
   Sloper.Tests.IconSet,
   Sloper.Tests.ConvertEdge,

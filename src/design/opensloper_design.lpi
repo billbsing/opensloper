@@ -159,6 +159,16 @@
         <UnitName Value="Sloper.Core.Transform"/>
       </Unit>
       <Unit>
+        <Filename Value="../core/sloper.core.note.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.Note"/>
+      </Unit>
+      <Unit>
+        <Filename Value="../core/sloper.core.textfields.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Core.TextFields"/>
+      </Unit>
+      <Unit>
         <Filename Value="../core/sloper.core.piecedetect.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.PieceDetect"/>

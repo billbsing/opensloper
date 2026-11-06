@@ -115,6 +115,8 @@ type
     function DoAddSeam(Params: TJSONObject): TJSONData;
     function DoFlipSeam(Params: TJSONObject): TJSONData;
     function DoSuggestSeams: TJSONData;
+    function DoAddNote(Params: TJSONObject): TJSONData;
+    function DoSetText(Params: TJSONObject): TJSONData;
     function DoExport(Params: TJSONObject): TJSONData;
   public
     constructor Create;
@@ -178,19 +180,23 @@ resourcestring
   rsApiBadGrainline = 'Give an "angle", a "start" and "end" point, or "none": true';
   rsApiBadNotch = 'Give a "point", or an "edge" and a "position"';
   rsApiBadRegion = 'A region needs minX, minY, maxX and maxY, with each max above its min';
+  rsApiBadAnchor = 'An "anchor" needs one of "point", "edge" (with a "position") or "piece"';
+  rsApiNotANote = '%s is not a note';
+  rsApiChangeNote = 'Change note';
 
 implementation
 
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
-  Sloper.Core.Settings, Sloper.Output.DraftSVG, Sloper.Output.Layout,
+  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Output.DraftSVG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport;
 
 const
   VariableType = 'variable';
   PieceType = 'piece';
   SeamType = 'seam';
+  NoteType = 'note';
   RenderFormatSVG = 'svg';
 
 constructor EApiError.Create(ACode: integer; const AMessage: string; const AFieldName: string; APosition: integer);
@@ -400,7 +406,21 @@ begin
         Result.Add('lengthB', ReportFloat(TSeamObject(Node).LengthB));
         Result.Add('difference', ReportFloat(TSeamObject(Node).Difference));
         Result.Add('outOfTolerance', TSeamObject(Node).OutOfTolerance);
+      end
+      else if Node is TNoteObject then
+      begin
+        Result.Add('x', ReportFloat(TNoteObject(Node).Position.X));
+        Result.Add('y', ReportFloat(TNoteObject(Node).Position.Y));
       end;
+    if Node is TNoteObject then
+    begin
+      Result.Add('text', TNoteObject(Node).Text);
+      Result.Add('size', JSONFloat(TNoteObject(Node).Size));
+      Result.Add('print', TNoteObject(Node).Print);
+      Result.Add('anchor', NoteAnchorNames[TNoteObject(Node).Anchor]);
+      if TNoteObject(Node).Anchor <> naFree then
+        Result.Add('anchorId', StrToInt(TNoteObject(Node).AnchorKey));
+    end;
     Formulas := TJSONObject.Create;
     Result.Add('formulas', Formulas);
     for Index := 0 to Node.FieldCount - 1 do
@@ -896,6 +916,8 @@ begin
     GetJSONBoolean(Params, 'labels', Options.Labels);
     if Assigned(Params.Find('hiddenRoles')) and not NamesToRoles(StringListParam(Params, 'hiddenRoles'), Options.HiddenRoles) then
       raise EApiError.Create(RpcInvalidParams, Format(rsApiBadChoice, ['hiddenRoles', JoinedRoleNames]));
+    if Assigned(Params.Find('annotations')) then
+      Options.HideAnnotations := not BooleanParam(Params, 'annotations');
     Region := Params.Find('region');
     if Assigned(Region) then
     begin
@@ -1802,6 +1824,99 @@ begin
   Result := AddedNode(Target);
 end;
 
+// The anchor as {"point": ...}, {"edge": ..., "position": ...} or
+// {"piece": ...}, by ID or name; none makes a free note at x, y
+function TApiServer.DoAddNote(Params: TJSONObject): TJSONData;
+var
+  Text, AnchorKey, Position, First, Second: string;
+  Anchor: TNoteAnchor;
+  AnchorData: TJSONData;
+  AnchorItem: TJSONObject;
+  Kind: TNoteAnchor;
+  Size: double;
+  Print: boolean;
+begin
+  Text := RequireString(Params, 'text');
+  Anchor := naFree;
+  AnchorKey := '';
+  Position := '';
+  AnchorData := Params.Find('anchor');
+  if Assigned(AnchorData) then
+  begin
+    if AnchorData.JSONType <> jtObject then
+      raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
+    AnchorItem := TJSONObject(AnchorData);
+    for Kind := naPoint to naPiece do
+      if Assigned(AnchorItem.Find(NoteAnchorNames[Kind])) then
+      begin
+        if Anchor <> naFree then
+          raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
+        Anchor := Kind;
+      end;
+    if Anchor = naFree then
+      raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
+    AnchorKey := Reference(AnchorItem, NoteAnchorNames[Anchor]);
+    if Anchor = naEdge then
+    begin
+      if not Assigned(AnchorItem.Find(NotePositionField)) then
+        raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
+      Position := FormulaParam(AnchorItem, NotePositionField);
+    end;
+  end;
+  if Anchor = naFree then
+  begin
+    First := OptionalFormula(Params, NoteXField);
+    Second := OptionalFormula(Params, NoteYField);
+  end
+  else
+  begin
+    First := OptionalFormula(Params, NoteDxField);
+    Second := OptionalFormula(Params, NoteDyField);
+  end;
+  if First = '' then
+    First := '0';
+  if Second = '' then
+    Second := '0';
+  Size := DefaultNoteSize;
+  if Assigned(Params.Find('size')) and not GetJSONNumber(Params, 'size', Size) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['size']));
+  Print := True;
+  if Assigned(Params.Find('print')) then
+    Print := BooleanParam(Params, 'print');
+  FDocument.BeginChange(Format(rsApiAdd, [NoteType]));
+  Result := AddedNode(FDocument.Pattern.AddNote(OptionalString(Params, 'name'), Text, Anchor, AnchorKey, Position, First, Second, Size, Print));
+end;
+
+// The text, and optionally the size and whether it prints
+function TApiServer.DoSetText(Params: TJSONObject): TJSONData;
+var
+  Target: TEvalNode;
+  Note: TNoteObject;
+  Text: string;
+  Size: double;
+  Print: boolean;
+begin
+  Target := FindTarget(Params);
+  if not (Target is TNoteObject) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotANote, [Target.DisplayName]));
+  Note := TNoteObject(Target);
+  Text := Note.Text;
+  if Assigned(Params.Find('text')) then
+    Text := RequireString(Params, 'text');
+  Size := Note.Size;
+  if Assigned(Params.Find('size')) and not GetJSONNumber(Params, 'size', Size) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['size']));
+  Print := Note.Print;
+  if Assigned(Params.Find('print')) then
+    Print := BooleanParam(Params, 'print');
+  FDocument.BeginChange(rsApiChangeNote);
+  FDocument.Pattern.SetNoteText(Note, Text);
+  FDocument.Pattern.SetNotePrint(Note, Print);
+  if not FDocument.Pattern.SetNoteSize(Note, Size) then
+    RefuseChange;
+  Result := AddedNode(Note);
+end;
+
 // Names, so that a suggestion can go straight back to add_seam
 function TApiServer.DoSuggestSeams: TJSONData;
 var
@@ -1936,6 +2051,8 @@ begin
     'add_seam': Result := DoAddSeam(Params);
     'flip_seam': Result := DoFlipSeam(Params);
     'suggest_seams': Result := DoSuggestSeams;
+    'add_note': Result := DoAddNote(Params);
+    'set_text': Result := DoSetText(Params);
     'export': Result := DoExport(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));

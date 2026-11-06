@@ -26,7 +26,8 @@ unit Sloper.Publish.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Output.Layout, Sloper.Output.LayoutDocument,
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Core.TextFields,
+  Sloper.Output.Layout, Sloper.Output.LayoutDocument,
   Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.UI.RecentMenu;
 
 type
