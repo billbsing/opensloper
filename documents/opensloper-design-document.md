@@ -367,6 +367,15 @@ Uses: dart rotation, slash and spread, mirroring a half piece, and moving a trac
 4. Make the original edges that were rotated construction edges, so they no longer split the region the new outline encloses.
 5. Click inside the new outline to form the piece from original and rotated edges.
 
+**Example: separating front and back.** The way Seamly2D users work, except that the separated piece stays parametric:
+
+1. Draft front and back overlapping on the block.
+2. Select the back's outline edges and Move Copy them aside (for example `dx = 300`).
+3. Make the back-only original edges (back neckline, back armhole) construction edges, so they stay as guides but no longer split the front's region. Shared edges such as the side seam stay outlines, because the front uses them.
+4. Click inside each outline to make the front piece from the originals and the back piece from the copies.
+
+Each piece then sits on clear canvas for notches, markings and selection. Move keeps lengths, so the front side seam and the copied back side seam match exactly and Suggest Seams proposes the pair. A measurement change moves both pieces together. A copy cannot be dragged, so the back is reshaped by editing its source in the overlapped draft, and the copy follows: the block stays the master. This is interim; a better front/back method can replace it later without changing the file format.
+
 Slash and spread repeats this: each slash rotates everything beyond it by the spread amount. A convenience Spread tool that generates the chain can come later.
 
 **Behaviour:**
@@ -434,6 +443,11 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Navigation:** the wheel scrolls and Shift+wheel scrolls sideways. Ctrl/Cmd+wheel zooms about the cursor. Middle-drag or Space+drag pans. Ctrl/Cmd+0 fits the pattern and Ctrl/Cmd+1 shows it at true size (the screen's pixels per inch).
 - **Selection:** click selects a point or edge (points win when they overlap) and Shift adds. Hover highlights, and shows a failing object's message in the status bar. A drag that starts on empty canvas or a piece, not on a point or handle, draws a dotted box; on release everything wholly inside it is selected, as in Inkscape (points, edges, and pieces whose cutting line fits), and Shift adds to the selection. Escape cancels the box. `ObjectsInBox` in `Sloper.UI.Scene` does the choosing.
 - **Dragging points:** only fields that are plain numbers change (free x/y, offset length/angle or dx/dy, along-edge value), rounded to 0.1 mm, 0.1° or 0.0001. A point placed by a formula or by other objects is refused, with the reason shown until the mouse button is released. One drag is one undo step; Escape cancels it.
+- **Copies** (planned, 2026-11-05). A point that is a transform copy shows before it is clicked that it follows another point:
+  - **Marker.** Always drawn as a small diamond instead of the usual dot. Not hollow, since a hollow handle already means one locked by a formula, and in a neutral colour, since red and orange mean problems. Copied edges keep their normal look; their endpoints carry the diamond.
+  - **Link line.** Hovering or selecting a copy draws a faint dashed line back to its source point and highlights the source (see Links and problem display). With a whole moved piece selected, one line joins the middles of the two pieces' extents instead of one per point.
+  - **Refused drag.** The status bar names the source and the transform: "A_r1 follows A (Move Copy 'Back'). Edit A to change it."
+  - **Go to Source** (Tools menu, or double-click on a copy) selects the source point and brings it into view, since it may be off-screen on the overlapped block. The properties show "Copy of A" as a link that does the same.
 - **Nudging:** arrow keys move the selected points by 1 mm (10 mm with Shift), merged into one step per run of presses.
 - **Deleting:** Delete removes the selection, dependents first. It is refused with a message when anything else uses an object.
 - **Changing an edge's type:** a line becomes a curve and a curve or arc a line, from the Type row in the properties or Tools → Change to Line / Change to Curve, which work on every selected edge as one undo step. The edge is replaced in place (`TPattern.ConvertToLine`, `ConvertToCurve`): it keeps its ID, role and place, so pieces, seams, notches and formulas that use it go on using it. A name the user gave it is kept; a derived one follows the new type (`Curve_A_B` becomes `Line_A_B`). A new curve starts straight, its handles a third of the way along. An arc's ends are not points, so it becomes a line between two new points, offsets from its centre by its own radius and angle formulas, which still follow measurement changes. Refused: a whole circle (no ends), an arc to a curve, transform copies, split parts and other derived edges, and a line whose `.angle` a formula reads, since only a line has it. `convert_edge` in the Automation API does the same.
@@ -467,6 +481,13 @@ This is construction-based (an explicit dependency graph), not constraint-based 
 - **Curve handles** (`CurveHandles` in `Sloper.Core.Drag`): selecting a curve or curve path shows its tangent lines. Dragging a handle's end sets its angle and length, rounded like point drags, as one undo step; Escape cancels. As with points, only plain numbers change: a handle whose angle or length is a formula is drawn hollow and refuses the drag with the reason. The two handles at a path's inner node share one angle, so dragging either turns both and the join stays smooth, while each keeps its own length. A split part follows its source curve and has no handles. A handle lies over the objects under it.
 - **Pieces:** with the Piece tool, one click inside a closed outline makes a piece with a 10 mm allowance, as one undo step, and selects it; a refusal shows in the status bar, and a region that already has a piece selects that piece instead of adding another. The tool stays on until Escape. The cutting line is filled with its fabric under the edges (see Fabrics). In the Select tool a click inside a piece selects it, with points and edges taking precedence, so to clear the selection click off the piece or press Escape. Hovering or selecting a piece shows chevrons at each edge's middle (see Links and problem display). Its name label sits in the middle of its extent. The properties show its allowance and any per-edge allowances; adding an edge's own allowance is only in the Automation API so far.
 - **Grainlines and notches** are drawn over the edges. The grainline's angle is edited in the properties; running it between two points is only in the Automation API so far. The properties also set a piece's cut count (a run of spin clicks is one undo step), mirrored, and its fold, offering the piece's straight edges. With the Notch tool a click near a piece's edge adds a notch to every piece using that edge, so both sides of a shared seam match; on a point it follows the point, and elsewhere it stores a position rounded to 0.1 mm. A click on a notch removes every notch there. Either is one undo step.
+
+**View options for overlapping pieces** (planned, 2026-11-05). Both are view state, like zoom and centre: saved in the pattern's `view`, kept out of undo and the modified flag, and never affecting geometry, references or output.
+
+- **Isolate piece.** With a piece selected, View → Isolate Piece dims everything the piece does not use. Its outline edges, their points and the inputs those points are built from stay at full strength. The set comes from the dependency graph, so nothing is assigned to a piece, and a point two pieces share shows for whichever is isolated.
+- **Piece stacking order.** Bring to Front and Send to Back on a piece change only which fill and outline draw over which.
+
+These work alongside the role visibility panel (see Visibility, styles and output under Markings) and piece fills, which are semi-transparent so overlapping pieces stay readable.
 
 **Automatic piece detection.** Instead of clicking around an outline clockwise, the user clicks inside a region:
 
@@ -664,6 +685,10 @@ A pattern is one drafting area: every object is on the same canvas, drawn in pat
 
 **Drafts and layers were taken out** (2026-11-03), with the draft tabs, the Layers panel and the Garment view, to reduce clutter. Drafts held separate drafting areas (bodice, sleeve) as tabs in one file, and layers gave each draft a drawing order and hidden, locked and solo states. They added rules (direct inputs on the same draft, moving between layers, what shows versus what prints) for little use so far. Locking comes back per object (see Planned under Roadmap and open questions).
 
+**One garment or product per file.** Garments that share no geometry (a skirt and a top) are separate pattern files, brought together in the publish app, which already takes several patterns into one layout. Pieces whose geometry depends on each other stay in one file: a sleeve cap drafted from the armhole length, a collar from the neckline, a facing traced off a bodice, a gusset that reads the panel edge it is sewn to. Formulas and seams only work within one file, and references between files would need a dependency graph across files and IDs unique beyond one file, so they are not planned.
+
+**Overlapping pieces.** Front and back are drafted overlapping on the block, as on paper, and each is then separated with Move Copy (see Separating front and back under Transforms). Layers, a draft tab per piece and a z-order between tabs were considered and rejected (2026-11-05): front and back share points and lines (side seam, shoulder, hem), so a shared point would belong to one layer or tab while both pieces need it, and a tab per piece means deciding the pieces before drawing, which works against making a piece by clicking inside an outline. Isolate piece and piece stacking order cover what layers were wanted for, as view state only (see View options for overlapping pieces under Drafting experience).
+
 **View state is kept out of undo.** Undo restores the pattern's saved text, so anything in that text is part of the history. The canvas's zoom and centre are view state: saved in the pattern file under `view` (`{"zoom": 1.5, "centre": [120, -200]}`) once the canvas has shown the pattern, so it reopens as it was left, but left out of the undo snapshots and the modified flag. Undo keeps the view text aside and puts it back after replacing the pattern. The ID counter is also kept out of the undo snapshots but is not view state: it is saved at the top level as `nextId` (see Names and IDs).
 
 **Older files.** A file written while patterns had drafts and layers still loads: its `drafts` list and each object's `layer` are passed over, so every object lands on the one canvas, hidden layers included, and the old `view` is ignored. The drafts' and layers' IDs stay retired, as the counter is kept above them. Saving writes the file without them.
@@ -678,6 +703,7 @@ Direction and dependency arrows appear only on hover, selection or piece creatio
 | --- | --- | --- |
 | Piece direction (clockwise path) | Creating a piece (animated along the detected path); hovering or selecting a piece; optional "Show piece direction" toggle, off by default | Small chevrons at each edge's midpoint, not arrowheads at the ends |
 | Dependencies (what a point is built from) | Hovering or selecting an object; optional "Show dependencies" toggle for the whole draft | Faint arrows to its inputs, optionally to its dependents |
+| Copy source (what a transform copy follows) | Hovering or selecting a copy | Faint dashed line to the source point, which is highlighted; one line between the pieces for a whole moved piece |
 
 **Check pattern overlay.** A display option that highlights problems:
 
@@ -847,6 +873,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
 - Each object has `id`, `type` and `name`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
+- `view` may also hold `pieceOrder`, the piece IDs in drawing order from back to front (only pieces moved from creation order need listing), and `isolate`, the ID of an isolated piece. Both are left out when unused and, like zoom and centre, kept out of undo and the modified flag. Planned, 2026-11-05.
 - Loading checks IDs (positive integers, unique across variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
 
 | `type` | Members besides `id`, `type`, `name` |
@@ -1262,7 +1289,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2; automatic marking assignment (single piece, overlapping pieces, none, moved outside after a measurement change) |
 | Markings | Hidden roles kept out of undo and draft export; output profiles include and leave out roles and marks; machine profile applied after the output profile; `allowance` `none` cuts on the seam line in preview, packing and every export; an unknown profile name blocks export |
 | Transforms | Each transform against hand-checked positions, curves and split parts exact, lengths kept by rotate and move, a failing source blocking only its copy, deleting as a group, files |
-| View and older files | The view is saved and stays out of undo and the modified flag; files with drafts and layers load onto one canvas with their IDs retired |
+| View and older files | The view (zoom, centre, piece order, isolated piece) is saved and stays out of undo and the modified flag; files with drafts and layers load onto one canvas with their IDs retired |
 | Seams | Side lengths, default direction and flip, ease and tolerance limits, sides spanning pieces, invalid and blocked states, suggestions |
 | Storage | Save → load → save produces identical JSON |
 | Measurements | Personal sets and size tables, missing values per size, atomic save, merge by key with unsaved edits |
@@ -1634,9 +1661,14 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 Further work agreed but not yet designed in detail or placed in the numbered steps above.
 
 - **Locking an object.** A locked object cannot be moved, edited or deleted, but its formulas still run, so it keeps following the values they read. This brings back locking per object, after layers were taken out (see One canvas).
+- **Linked copies on the canvas.** The diamond marker, link line, refused-drag message and Go to Source for transform copies (see Copies under Drafting experience).
+- **Isolate piece and piece stacking order.** View options for overlapping pieces (see Drafting experience).
+- **Separate Piece command.** One undoable command for steps 2 to 4 of separating front and back (see Transforms): pick a region, Move Copy it aside, make the leftover back-only edges construction and make the piece. Added only if the manual steps prove tedious.
 - **Circles and rectangles without a point first.** Now that points can be merged and broken apart, the Circle and Rectangle tools draw straight onto the canvas instead of needing a point selected first (see Accessories). A new circle places its centre point automatically, and a new rectangle places its four corner points.
 - **Claude integration.** Building on Automation API phase 2: the Claude API key is stored in Preferences so Claude can reach the app. Open question: how Claude tells the user about the changes it makes to the design, and whether the API needs to report which objects are selected so Claude can work on them.
 - **Fabric needed.** Estimate from the design the fabric it needs: the area in square millimetres and the minimum width and length. Given the width of the supplier's fabric, work out the actual length to buy, and warn when the design is too big to cut from a single piece of fabric.
 - **G-code export.** Export the pattern as a G-code file for CNC machines, from the publish app.
 - **Translation.** gettext `.po` files for the apps, the CLI and the measurement catalogue, a language preference, and a language per output profile (see Translation).
 - **Marking visibility and output profiles.** The role visibility panel and presets in the drafting app, the two leather roles, and output profiles in the publish app (see Visibility, styles and output under Markings).
+
+**Open question:** whether `pieceOrder` should list every piece or only those moved, and what happens to a piece left out when another is brought to front.
