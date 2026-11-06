@@ -270,6 +270,11 @@ Numbers whose role cannot be settled (`400 * 2` in a length field, a variable us
 
 **Code.** `Sloper.Core.Units` holds the unit type, names and scale factors, shared with the measurement code's `TMeasureUnit`. The formula context supplies lengths in the pattern unit and each length field converts its result to mm; the role analysis for conversion works on the parsed expression tree, in the core.
 
+**Stages** (decided 2026-11-06). Neither is built yet.
+
+- **Stage 1: the pattern's unit.** The file's `units` field (`mm`, `cm` or `in`), and new patterns taking the unit from Preferences. Formulas worked out in the pattern unit, with measurements, variables and properties arriving in it, and each length field converting its result to mm. The properties panel, status bar, rulers, grid, snapping read-outs and drag rounding in the pattern unit, and new objects starting at round values per unit. Note draft values (see Annotations) shown in the pattern unit. The Automation API, Seamly2D/Valentina import keeping its own unit, and tests. This alone makes cm and inch patterns usable; an existing pattern keeps the unit it was made in.
+- **Stage 2: converting a pattern.** Tools → Convert Pattern Units…, as described above: the role of each plain number worked out from the parsed expression tree, the dialog listing the numbers whose role cannot be settled for the user to mark, and the conversion as one undo step that rounds converted lengths and leaves suffixed numbers alone.
+
 ## Operation set
 
 Nine point operations and six edge types cover basic bodice, skirt and trouser blocks; circles, arcs, rounded corners and offset edges are added for accessories (see Accessories); many of Valentina's \~30 tools become special cases once formulas can read properties like `{4}.angle`.
