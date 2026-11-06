@@ -48,7 +48,8 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Output.PDFWriter, Sloper.Output.Tiling;
+  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.Note,
+  Sloper.Output.PDFWriter, Sloper.Output.Tiling;
 
 const
   CoverMargin = 15;
@@ -341,23 +342,59 @@ begin
   DrawTitle(Left, Top, True);
 end;
 
+// A white box goes under the text in the paper's colour, which on a
+// projector is black; a callout's leader is drawn as the marks are
 procedure TLayoutPrinter.DrawNotes(const Page: TTilePage);
 var
   Note: TSheetNote;
-  Spot: TVec2;
+  Spot, Start: TVec2;
   Lines: TStringArray;
   Index: integer;
-  Spread: TRect2;
+  Spread, Frame, Area: TRect2;
+  Stroke: TLine2;
+  Ink: double;
 begin
+  Ink := 0;
+  if FLayout.Output.Kind = okProjector then
+    Ink := 1;
   for Note in PrintedNotes(FLayout, FShapes) do
   begin
-    Spread := NoteBounds(Note, PageValues);
+    Spread := NoteFrameBounds(Note, PageValues);
+    Frame := Spread;
+    if Note.Leader <> nlNone then
+    begin
+      Spread.MinX := Min(Spread.MinX, Note.Tip.X);
+      Spread.MinY := Min(Spread.MinY, Note.Tip.Y);
+      Spread.MaxX := Max(Spread.MaxX, Note.Tip.X);
+      Spread.MaxY := Max(Spread.MaxY, Note.Tip.Y);
+    end;
     if (Spread.MaxX < Page.Area.MinX) or (Spread.MinX > Page.Area.MaxX) or (Spread.MaxY < Page.Area.MinY) or (Spread.MinY > Page.Area.MaxY) then
       Continue;
+    FWriter.SetGray(Ink);
+    if (Note.Leader <> nlNone) and LeaderStart(Frame, Note.Tip, Start) then
+    begin
+      FWriter.SetLineWidth(FMarkWidth);
+      for Stroke in LeaderStrokes(Start, Note.Tip, Note.Leader) do
+        FWriter.Line(PagePoint(Page, Stroke.P1), PagePoint(Page, Stroke.P2));
+      if Note.Leader = nlDot then
+        FWriter.FillPolygon(PagePoints(Page, LeaderDot(Note.Tip)));
+    end;
+    if Note.Boxed then
+    begin
+      Spot := PagePoint(Page, Vec2(Frame.MinX, Frame.MinY));
+      Area.MinX := Spot.X;
+      Area.MinY := Spot.Y;
+      Spot := PagePoint(Page, Vec2(Frame.MaxX, Frame.MaxY));
+      Area.MaxX := Spot.X;
+      Area.MaxY := Spot.Y;
+      FWriter.SetGray(1 - Ink);
+      FWriter.FillRectangle(Area);
+      FWriter.SetGray(Ink);
+    end;
     Lines := TextLines(ExpandFields(Note.Text, PageValues));
     for Index := 0 to High(Lines) do
     begin
-      Spot := PagePoint(Page, Vec2(Note.X, Note.Y + (Index + 1) * LineHeight(Note.Size)));
+      Spot := PagePoint(Page, Vec2(NoteLineLeft(Note, PageValues, Lines[Index]), Note.Y + (Index + 1) * LineHeight(Note.Size)));
       FWriter.Text(Spot.X, Spot.Y, Note.Size, Lines[Index]);
     end;
   end;

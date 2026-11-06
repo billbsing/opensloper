@@ -34,7 +34,7 @@ function LayoutToSVG(Layout: TLayout): string;
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.MachineProfiles, Sloper.Core.TextFields, Sloper.Output.DraftSVG;
+  SysUtils, Math, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.MachineProfiles, Sloper.Core.TextFields, Sloper.Core.Note, Sloper.Output.DraftSVG;
 
 const
   // Around the pieces, so that a line on the edge is drawn whole
@@ -126,21 +126,36 @@ begin
   end;
 end;
 
-// The pattern's notes printed with the piece, a text element per line
+// The pattern's notes printed with the piece: a callout's leader, a white box
+// when it has one, and a text element per line
 function NotesGroup(const Shape: TPlacedPiece; const Values: TFieldValues): string;
 var
   Note: TSheetNote;
   Lines: TStringArray;
   Index: integer;
+  Frame: TRect2;
+  Start: TVec2;
 begin
   Result := '';
   for Note in Shape.Notes do
   begin
+    Frame := NoteFrameBounds(Note, Values);
+    if (Note.Leader <> nlNone) and LeaderStart(Frame, Note.Tip, Start) then
+    begin
+      Result := Result + Format('<path d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
+        [StrokesPath(LeaderStrokes(Start, Note.Tip, Note.Leader)), InkColor, SVGNumber(MarkWidth)]);
+      if Note.Leader = nlDot then
+        Result := Result + Format('<circle cx="%s" cy="%s" r="%s" fill="%s" stroke="none"/>',
+          [SVGNumber(Note.Tip.X), SVGNumber(Note.Tip.Y), SVGNumber(LeaderDotRadius), InkColor]);
+    end;
+    if Note.Boxed then
+      Result := Result + Format('<rect x="%s" y="%s" width="%s" height="%s" fill="#ffffff" stroke="none"/>',
+        [SVGNumber(Frame.MinX), SVGNumber(Frame.MinY), SVGNumber(Frame.MaxX - Frame.MinX), SVGNumber(Frame.MaxY - Frame.MinY)]);
     Lines := TextLines(ExpandFields(Note.Text, Values));
     for Index := 0 to High(Lines) do
       Result := Result + Format('<text x="%s" y="%s" font-family="Helvetica, Arial, sans-serif" font-size="%s" fill="%s" stroke="none">%s</text>',
-        [SVGNumber(Note.X), SVGNumber(Note.Y + (Index + 1) * LineHeight(Note.Size)), SVGNumber(Note.Size * PointsToMM), InkColor,
-        EscapeXML(Lines[Index])]);
+        [SVGNumber(NoteLineLeft(Note, Values, Lines[Index])), SVGNumber(Note.Y + (Index + 1) * LineHeight(Note.Size)),
+        SVGNumber(Note.Size * PointsToMM), InkColor, EscapeXML(Lines[Index])]);
   end;
   if Result <> '' then
     Result := '<g class="notes">' + Result + '</g>' + #10;

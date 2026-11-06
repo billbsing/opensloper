@@ -39,8 +39,9 @@ type
   // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
   // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
   // or removes a notch on a piece's seam line; ctSeam picks the edges of the
-  // two sides of a seam; ctText places a note, hung from what it snaps to
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam, ctText);
+  // two sides of a seam; ctText places a note, hung from what it snaps to;
+  // ctCallout takes what its tip points at, then where its text goes
+  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam, ctText, ctCallout);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -74,6 +75,10 @@ type
     FSnapShown: boolean;
     // Where the cursor was when the snap was found, for the Text tool
     FSnapClick: TVec2;
+    // Where the Callout tool's first click was
+    FStartClick: TVec2;
+    // A press on a selected callout's tip, and the tip being dragged
+    FPressTip, FTipDragging: boolean;
     // The first click of a line or curve
     FStartSnap: TSnap;
     FHasStart: boolean;
@@ -108,6 +113,9 @@ type
     function NoteValues: TFieldValues;
     function NotesHere(X, Y: integer): TStringArray;
     procedure AddNoteHere;
+    procedure StartCallout;
+    procedure AddCalloutHere;
+    procedure FinishTipDrag;
     procedure DrawNotes;
     function MarkerKey(const Key: string): string;
     procedure MarkHoles;
@@ -274,6 +282,10 @@ resourcestring
   rsCanvasAddNote = 'Add note';
   rsCanvasNewNoteText = 'Text';
   rsCanvasToolText = 'Text: click to place a note; it hangs from the point, edge or piece it snaps to';
+  rsCanvasToolCallout = 'Callout: click what it points at, then where its text goes; Escape stops';
+  rsCanvasCalloutBox = 'Click where the callout''s text goes';
+  rsCanvasAddCallout = 'Add callout';
+  rsCanvasMoveTip = 'Move callout tip';
   rsCanvasMoveHandle = 'Move curve handle';
   rsCanvasNudge = 'Nudge';
   rsCanvasTransform = 'Add %s';
@@ -817,7 +829,14 @@ end;
 
 procedure TPatternCanvas.CancelDrag;
 begin
-  if FMode = cmDragging then
+  // A tip being dragged has changed nothing yet
+  if FTipDragging then
+  begin
+    FTipDragging := False;
+    FSnapShown := False;
+    Invalidate;
+  end
+  else if FMode = cmDragging then
     FDocument.CancelChange;
   FMode := cmIdle;
   FDraggingHandle := False;
@@ -1460,6 +1479,7 @@ begin
     ctCircle: ShowMessageText(rsCanvasToolCircle);
     ctRectangle: ShowMessageText(rsCanvasToolRectangle);
     ctText: ShowMessageText(rsCanvasToolText);
+    ctCallout: ShowMessageText(rsCanvasToolCallout);
   end;
   Invalidate;
   if Assigned(FOnToolChange) then
@@ -1468,7 +1488,7 @@ end;
 
 function TPatternCanvas.UsesSnap: boolean;
 begin
-  Result := FTool in [ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctText];
+  Result := FTool in [ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctText, ctCallout];
 end;
 
 procedure TPatternCanvas.UpdateSnap(X, Y: integer);
@@ -1490,6 +1510,10 @@ begin
       RoundedText(Abs(FSnap.Position.Y - FStartSnap.Position.Y), 1)]))
   else if FTool = ctText then
     ShowMessageText(NoteSnapDescription(FDocument.Pattern, FSnap, FSnapClick))
+  else if (FTool = ctCallout) and FHasStart then
+    ShowMessageText(rsCanvasCalloutBox)
+  else if (FTool = ctCallout) or FTipDragging then
+    ShowMessageText(CalloutSnapDescription(FDocument.Pattern, FSnap, FSnapClick))
   else
     ShowMessageText(SnapDescription(FDocument.Pattern, FSnap));
   Invalidate;
@@ -1575,6 +1599,70 @@ begin
   SetSelection([Key]);
   if Assigned(FOnNoteAdded) then
     FOnNoteAdded(Self);
+end;
+
+// The first click says what the tip points at, which cannot be nothing
+procedure TPatternCanvas.StartCallout;
+var
+  Anchor: TNoteAnchor;
+  AnchorKey: string;
+  Ratio: double;
+begin
+  NoteAnchorFromSnap(FDocument.Pattern, FSnap, FSnapClick, Anchor, AnchorKey, Ratio);
+  if Anchor = naFree then
+  begin
+    ShowMessageText(rsPatternCalloutFree);
+    Exit;
+  end;
+  FStartSnap := FSnap;
+  FStartClick := FSnapClick;
+  FHasStart := True;
+  ShowMessageText(rsCanvasCalloutBox);
+end;
+
+// The second click: the text goes where it was, and the tip where the first snapped
+procedure TPatternCanvas.AddCalloutHere;
+var
+  Note: TNoteObject;
+  Key, Reason: string;
+begin
+  FHasStart := False;
+  FDocument.BeginChange(rsCanvasAddCallout);
+  Note := CalloutFromSnap(FDocument.Pattern, FStartSnap, FStartClick, FSnapClick, rsCanvasNewNoteText, nlArrow);
+  Reason := FDocument.Pattern.LastError;
+  Key := '';
+  if Assigned(Note) then
+    Key := Note.Key;
+  if not FDocument.Commit(Assigned(Note)) then
+  begin
+    ShowMessageText(Reason);
+    Exit;
+  end;
+  ShowMessageText(rsCanvasToolCallout);
+  SetSelection([Key]);
+  if Assigned(FOnNoteAdded) then
+    FOnNoteAdded(Self);
+end;
+
+// The dropped tip hangs the callout from what it snaps to; its text stays put
+procedure TPatternCanvas.FinishTipDrag;
+var
+  Node: TEvalNode;
+  Reason: string;
+  Done: boolean;
+begin
+  FTipDragging := False;
+  FSnapShown := False;
+  Node := FDocument.Pattern.FindNode(FPressKey);
+  if not (Node is TNoteObject) then
+    Exit;
+  FDocument.BeginChange(rsCanvasMoveTip);
+  Done := ReanchorFromSnap(FDocument.Pattern, TNoteObject(Node), FSnap, FSnapClick);
+  Reason := FDocument.Pattern.LastError;
+  FDocument.Commit(Done);
+  if not Done then
+    ShowMessageText(Reason);
+  Invalidate;
 end;
 
 procedure TPatternCanvas.AddPointHere;
@@ -1825,6 +1913,11 @@ begin
       AddPointHere;
     ctText:
       AddNoteHere;
+    ctCallout:
+      if FHasStart then
+        AddCalloutHere
+      else
+        StartCallout;
     ctLine, ctCurve:
       if not FHasStart then
       begin
@@ -1907,11 +2000,13 @@ begin
   end;
   if Button <> mbLeft then
     Exit;
-  // A handle lies over whatever else is there
-  FPressHandle := HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FHandle);
+  // A callout's tip or a curve's handle lies over whatever else is there
+  FPressKey := CalloutTipAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius));
+  FPressTip := FPressKey <> '';
+  FPressHandle := not FPressTip and HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FHandle);
   if FPressHandle then
     FPressKey := FHandle.EdgeKey
-  else
+  else if not FPressTip then
     FPressKey := ObjectKeyAt(X, Y);
   FMode := cmPressed;
 end;
@@ -1932,7 +2027,13 @@ begin
     end;
     cmPressed:
       if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DragThreshold then
-        if FPressHandle then
+        if FPressTip then
+        begin
+          FTipDragging := True;
+          FMode := cmDragging;
+          UpdateSnap(X, Y);
+        end
+        else if FPressHandle then
         begin
           StartHandleDrag;
           if FMode = cmDragging then
@@ -1950,7 +2051,10 @@ begin
           Invalidate;
         end;
     cmDragging:
-      DragTo(X, Y);
+      if FTipDragging then
+        UpdateSnap(X, Y)
+      else
+        DragTo(X, Y);
     cmBoxing:
       Invalidate;
     cmIdle:
@@ -1981,20 +2085,23 @@ begin
   inherited MouseUp(Button, Shift, X, Y);
   case FMode of
     cmDragging:
-    begin
-      FDocument.EndChange;
-      FDraggingHandle := False;
-      if not IsSelected(FPressKey) then
-        SetSelection([FPressKey]);
-    end;
+      if FTipDragging then
+        FinishTipDrag
+      else
+      begin
+        FDocument.EndChange;
+        FDraggingHandle := False;
+        if not IsSelected(FPressKey) then
+          SetSelection([FPressKey]);
+      end;
     cmBoxing:
     begin
       SelectBox(X, Y, ssShift in Shift);
       Invalidate;
     end;
     cmPressed:
-      // A click on a handle leaves the selection as it is
-      if not FPressHandle then
+      // A click on a handle or a callout's tip leaves the selection as it is
+      if not FPressHandle and not FPressTip then
         if FPressKey = '' then
         begin
           if not (ssShift in Shift) then
@@ -2139,7 +2246,7 @@ begin
         Exit;
       MakeSeam;
     end;
-    VK_S, VK_P, VK_L, VK_C, VK_O, VK_R, VK_K, VK_T, VK_E, VK_X:
+    VK_S, VK_P, VK_L, VK_C, VK_O, VK_R, VK_K, VK_T, VK_E, VK_X, VK_A:
     begin
       if Shift <> [] then
         Exit;
@@ -2154,6 +2261,7 @@ begin
         VK_O: SetTool(ctCircle);
         VK_R: SetTool(ctRectangle);
         VK_X: SetTool(ctText);
+        VK_A: SetTool(ctCallout);
       end;
     end;
     VK_N:
@@ -2539,10 +2647,12 @@ var
   Note: TNoteObject;
   Values: TFieldValues;
   Lines: TStringArray;
-  Box: TRect2;
-  TopLeft, BottomRight, Anchor, Spot: TVec2;
+  Box, Frame: TRect2;
+  TopLeft, BottomRight, Anchor, Spot, Tip, Start, First, Last: TVec2;
   InkColor: TBGRAPixel;
-  EmPixels, LinePixels: double;
+  EmPixels, LinePixels, BoxPixels: double;
+  Stroke: TLine2;
+  Selected: boolean;
 begin
   if FDocument.Pattern.View.HideAnnotations then
     Exit;
@@ -2552,27 +2662,58 @@ begin
     if not (FDocument.Pattern.Objects[Index] is TNoteObject) or not FDocument.Pattern.Objects[Index].HasResult then
       Continue;
     Note := TNoteObject(FDocument.Pattern.Objects[Index]);
+    Selected := IsSelected(Note.Key);
     Box := NoteBox(Note, Values);
+    Frame := NoteFrame(Note, Values);
     TopLeft := FView.ToScreen(Vec2(Box.MinX, Box.MinY));
     BottomRight := FView.ToScreen(Vec2(Box.MaxX, Box.MaxY));
-    if IsSelected(Note.Key) then
-    begin
-      InkColor := SelectedInk;
-      if Note.Anchor <> naFree then
-      begin
-        Anchor := FView.ToScreen(Note.AnchorPosition);
-        FBitmap.PenStyle := psDot;
-        FBitmap.DrawLineAntialias(Anchor.X, Anchor.Y, TopLeft.X, TopLeft.Y, HoverHalo, 1);
-        FBitmap.PenStyle := psSolid;
-      end;
-    end
+    if Selected then
+      InkColor := SelectedInk
     else
       InkColor := Faded(StateInk(Note.State, Ink), Note.State);
-    if (Note.Key = FHoverKey) or IsSelected(Note.Key) then
-      FBitmap.FillRectAntialias(TopLeft.X - 2, TopLeft.Y - 1, BottomRight.X + 2, BottomRight.Y + 1, PieceHoverTint);
     // A screen-only note is drawn lighter, as it never prints
     if not Note.Print then
       InkColor.alpha := InkColor.alpha div 2;
+    // A callout's leader, to where its tip is being dragged while it is
+    Tip := Note.AnchorPosition;
+    if FTipDragging and (Note.Key = FPressKey) then
+      Tip := FSnap.Position;
+    if (Note.Leader <> nlNone) and LeaderStart(Frame, Tip, Start) then
+    begin
+      for Stroke in LeaderStrokes(Start, Tip, Note.Leader) do
+      begin
+        First := FView.ToScreen(Stroke.P1);
+        Last := FView.ToScreen(Stroke.P2);
+        FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, InkColor, 1);
+      end;
+      if Note.Leader = nlDot then
+      begin
+        Spot := FView.ToScreen(Tip);
+        FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, Max(1.5, LeaderDotRadius * FView.Scale), Max(1.5, LeaderDotRadius * FView.Scale), InkColor);
+      end;
+    end
+    else if Selected and (Note.Anchor <> naFree) then
+    begin
+      // A plain note shows faintly what it hangs from
+      Anchor := FView.ToScreen(Note.AnchorPosition);
+      FBitmap.PenStyle := psDot;
+      FBitmap.DrawLineAntialias(Anchor.X, Anchor.Y, TopLeft.X, TopLeft.Y, HoverHalo, 1);
+      FBitmap.PenStyle := psSolid;
+    end;
+    // A selected callout's tip can be dragged to something else
+    if Selected and (Note.Leader <> nlNone) and (FTool = ctSelect) then
+    begin
+      Spot := FView.ToScreen(Tip);
+      FBitmap.EllipseAntialias(Spot.X, Spot.Y, HandleRadius, HandleRadius, SelectedInk, 1.5, Paper);
+    end;
+    if Note.Boxed then
+    begin
+      First := FView.ToScreen(Vec2(Frame.MinX, Frame.MinY));
+      Last := FView.ToScreen(Vec2(Frame.MaxX, Frame.MaxY));
+      FBitmap.FillRectAntialias(First.X, First.Y, Last.X, Last.Y, BGRA(255, 255, 255));
+    end;
+    if (Note.Key = FHoverKey) or Selected then
+      FBitmap.FillRectAntialias(TopLeft.X - 2, TopLeft.Y - 1, BottomRight.X + 2, BottomRight.Y + 1, PieceHoverTint);
     EmPixels := Note.Size * PointsToMM * FView.Scale;
     LinePixels := LineHeight(Note.Size) * FView.Scale;
     if EmPixels < MinNotePixels then
@@ -2581,10 +2722,11 @@ begin
       Continue;
     end;
     FBitmap.FontHeight := Round(EmPixels);
-    Lines := TextLines(ExpandFields(Note.Text, Values));
+    BoxPixels := BottomRight.X - TopLeft.X;
+    Lines := TextLines(ExpandFields(Note.ShownText, Values));
     for LineIndex := 0 to High(Lines) do
     begin
-      Spot := Vec2(TopLeft.X, TopLeft.Y + LineIndex * LinePixels);
+      Spot := Vec2(AlignedLeft(TopLeft.X, BoxPixels, FBitmap.TextSize(Lines[LineIndex]).cx, Note.Align), TopLeft.Y + LineIndex * LinePixels);
       FBitmap.TextOut(Spot.X, Spot.Y, Lines[LineIndex], InkColor);
     end;
   end;
@@ -2685,7 +2827,7 @@ var
   Node: TEvalNode;
   Size: single;
 begin
-  if not FSnapShown or (FTool = ctSelect) then
+  if not FSnapShown or ((FTool = ctSelect) and not FTipDragging) then
     Exit;
   Screen := FView.ToScreen(FSnap.Position);
   Size := SnapMarkerSize;

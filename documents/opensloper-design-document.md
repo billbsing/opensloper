@@ -1071,7 +1071,8 @@ Sources have IDs from the layout's own counter, under the same never-reused rule
 - **Custom paper.** Choosing Custom on the Output tab opens the width and height fields, and the layout saves `paperWidth` and `paperHeight`, as for any paper name it does not know. A size that cannot print is left alone while it is being typed, since 400 passes through 4, and goes back to the last good one on leaving the field.
 - **Piece fill.** `fill` in `output` is `none`, which is left out of the file, `tint`, a light tint of each piece's colour under the lines of paper and large-format PDFs, or `hatch`, grey lines 6 mm apart at each fabric's angle, for black-and-white printers, set on the Output tab. Either choice applies to every piece for that print, whatever its fabric's own fill style, and a piece with no fabric stays unfilled. It does nothing on projector output, which is dark, and not in SVG or DXF. The window's preview always tints pieces, in their fabric's colour.
 - **Pattern notes.** A pattern's printing notes print with the pieces they belong to, upright, on every copy (see Annotations), in the window, PDF and SVG, with the same fields as sheet notes. They cannot be selected or moved here; that is done in the drafting app.
-- Not done yet: alignment, boxes and `{=Line_A_B.length}` fields (annotations stage 2), and bold, italic and fonts (stage 3); see Annotations.
+- **Alignment and boxes.** Sheet notes can be left, centred or right aligned and put on a white box, from the Notes tab, saved as `align` and `box`; pattern notes bring their own, and callouts their leaders (see Annotations).
+- Not done yet: bold, italic and fonts (annotations stage 3); see Annotations.
 
 ### Draft export
 
@@ -1221,7 +1222,7 @@ Notes, callouts and a title block are first-class objects that print with the pa
 
 **Editing:** a Text tool and a Callout tool on the canvas; click to place, type in place, drag the box and the arrow tip separately; anchoring is inferred by snapping, like points. Creating, editing and moving annotations are ordinary undoable commands. Annotations can be added at any stage of drafting, not only at the end: a note anchored to an early construction point stays with it as the draft develops, and pattern-space annotations are saved in the pattern file with everything else. Sheet-space annotations (title block, sheet notes) belong to a printed layout, so they are edited in the publish app and saved in the layout file.
 
-**Stages** (decided 2026-11-06, replacing the all-at-once scope of 2026-11-03). Stage 1 is built; stages 2 to 4 are not.
+**Stages** (decided 2026-11-06, replacing the all-at-once scope of 2026-11-03). Stages 1 and 2 are built; stages 3 and 4 are not.
 
 **Stage 1: anchored notes.** Built 2026-11-06. The to-do list's asks (drawn above the pattern, show and hide, add, edit, delete and move on the canvas, size) are all here.
 
@@ -1243,7 +1244,14 @@ Notes, callouts and a title block are first-class objects that print with the pa
   "dx": "10", "dy": "-15", "size": 10, "print": true }
 ```
 
-**Stage 2: callouts and draft values.** Callouts, with the box placed by `dx`, `dy` and the leader tip on the anchor, end styles arrow, dot or none, and the box and tip dragged separately. `{=Line_A_B.length}` fields through the formula engine, stored in ID form so renames never break a note, with the value shown in the pattern unit and its references added to the note's inputs. Alignment and the white box, for notes and sheet notes alike.
+**Stage 2: callouts and draft values.** Built 2026-11-06. Callouts, with the box placed by `dx`, `dy` and the leader tip on the anchor, end styles arrow, dot or none, and the box and tip dragged separately. `{=Line_A_B.length}` fields through the formula engine, stored in ID form so renames never break a note, with the value shown in the pattern unit and its references added to the note's inputs. Alignment and the white box, for notes and sheet notes alike.
+
+- **A callout is a note with a leader.** `leader` is `arrow`, `dot` or `line` (the spec's "none" end style: a bare line), left out of the file for a plain note, so there is one object and one file type. The tip is the anchor's place, so a free note cannot have a leader: adding one is refused, and Make free drops it. The leader leaves the text's frame (its white box when it has one) at the place nearest the tip, and is not drawn when the tip is inside it. An arrow head is 3 mm long at 25° either side and a dot 0.8 mm across its radius, at true size.
+- **Callout tool** (A). The first click is what the tip points at, by snapping as for the Text tool, and is refused on nothing; the second is where the text's top left goes. The new callout has an arrow and the text "Text", selected in the properties. A selected callout's tip shows as a hollow handle; dragging it hangs the callout from whatever it is dropped on (a point, a place on an edge, a piece), keeping its text where it is, as one undo step (`SetNoteAnchor`); dropping it on nothing is refused. Dragging the text moves the offset, as for any note. The properties' Leader list turns a plain note into a callout and back.
+- **Draft values.** Each `{=…}` becomes a formula field of the note, `value1`, `value2` and so on, so the evaluator gives it the note as an input: a failing value blocks the note (which keeps its last good text), deleting what it reads is refused, a rename shows in its text, and measurements it reads are fetched. The file keeps them inline in the text in stored ID form (`"text": "Hem {={12}.length} mm"`), braces inside counted. The text is typed with names; a value that does not parse, or a `{=` without its `}`, is refused with the reason under the text field, which keeps what was typed. Values show to a tenth, without a unit, so the text says "mm" itself; once Pattern units is built they will show in the pattern's unit. The fields are edited in the text, so the properties show no row of their own for them.
+- **Alignment and the box.** `align` (`left`, `centre`, `right`; left out at `left`) places each line within the widest, whose box stays where it was; `box` puts a white box 1 mm wider than the text all round under it. Both are the same for pattern notes and sheet notes, in the drafting app's properties, the publish app's Notes tab, the layout and pattern files, the canvas, the publish window, PDF and SVG. On projector output the box is black, the sheet's colour.
+- **Which pieces a callout prints with.** A callout goes with what it points at, so the inside-the-cutting-line test uses its tip rather than its text's top left; its text keeps its place relative to the piece, wherever that falls in the layout.
+- **Automation API.** `add_note` and `set_text` take `leader`, `align` and `box`, and text with `{=…}` in names; `set_text` refuses a value that does not parse, changing nothing. `get_object` gives `text` with names, `shownText` with the values, `leader`, `align` and `box`.
 
 **Stage 3: fonts.** A font name, `bold` and `italic` beside `size`. The canvas draws with the chosen font, and SVG names it in `font-family`, so a viewer without it substitutes another. `TPDFWriter` embeds the chosen font's TrueType file, so a print matches the screen: TrueType outlines only at first, with WinAnsi (Latin-1) text; an OpenType (CFF) font, or one not installed, falls back to Helvetica with a warning in the problems list. A PDF grows by the font file's size, and the writer stays deterministic, since the whole file is embedded as it is. The font file is found from its name with FCL's `fpttf` font cache. Sheet notes and piece labels can use the same embedding, which also fixes non-Latin-1 names.
 
@@ -1538,7 +1546,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `set_marker` | Give a point or repeat a `marker` and optional `size`; it joins the pieces it lies in, listed in the reply |
 | `add_notch`, `remove_notch` | Add a notch on a `point` or at an `edge` and `position`; remove one by number from 1 |
 | `add_seam`, `flip_seam`, `suggest_seams` | Add a seam from `sideA` and `sideB`, with optional `ease` and `tolerance`; flip its direction; list likely pairs without storing them |
-| `add_note`, `set_text` | Add a note, anchored or free (see Annotations); change its text, size or printing |
+| `add_note`, `set_text` | Add a note or callout, anchored or free (see Annotations); change its text, size, printing, leader, alignment or box |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
 | `undo`, `redo` | Step through history |
 | `render` | PNG or SVG of the draft or a piece, with options for labels, a region and `hiddenRoles` |
@@ -1707,7 +1715,7 @@ Save/load and undo come before the canvas, so the canvas is built on document co
 Further work agreed but not yet designed in detail or placed in the numbered steps above.
 
 - **Locking an object.** A locked object cannot be moved, edited or deleted, but its formulas still run, so it keeps following the values they read. This brings back locking per object, after layers were taken out (see One canvas).
-- **Annotations in stages.** Stage 1, anchored notes, is built; callouts and draft values, then fonts, follow (see Annotations).
+- **Annotations in stages.** Stage 1, anchored notes, and stage 2, callouts and draft values, are built; fonts and SVG stamps follow (see Annotations).
 - **SVG stamps.** An SVG drawn in another app (a logo, a fold or assembly diagram) placed on the canvas and anchored like a note, by ID plus offset, so it moves with the geometry. Paths only: `<text>` is refused with a message asking for it to be converted to paths, which keeps fonts out of it. Drawn at true size from the SVG's own mm units (a file in px is taken at 96 px per inch, with a warning), with BGRASVG on the canvas and our own path translation in `TPDFWriter`. Prints with a piece by the same rules as notes, and is stored in the pattern file as the SVG's path data, so the pattern does not depend on the outside file.
 - **Linked copies on the canvas.** The diamond marker, link line, refused-drag message and Go to Source for transform copies (see Copies under Drafting experience).
 - **Isolate piece and piece stacking order.** View options for overlapping pieces (see Drafting experience).

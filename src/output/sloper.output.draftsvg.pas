@@ -77,6 +77,8 @@ const
   BlockedColor = '#e08000';
   // Share of the view's size between hatching lines
   HatchShare = 0.012;
+  // A callout's leader, in mm, as printed
+  NoteLineWidth = 0.25;
 
 type
   TDraftView = record
@@ -323,18 +325,40 @@ begin
       Num(Extent * LineShare)]) + #10;
 end;
 
-// At its true printed size, a text element per line, over everything else
+// At its true printed size over everything else: a callout's leader, a white
+// box when it has one, and a text element per line
 function NoteElement(Note: TNoteObject; const Values: TFieldValues): string;
 var
   Lines: TStringArray;
   Index: integer;
+  Box, Frame: TRect2;
+  Start: TVec2;
+  Color, PathText: string;
+  Stroke: TLine2;
 begin
   Result := '';
-  Lines := TextLines(ExpandFields(Note.Text, Values));
+  Color := StateColor(Note.State, InkColor);
+  Box := NoteBox(Note, Values);
+  Frame := NoteFrame(Note, Values);
+  if (Note.Leader <> nlNone) and LeaderStart(Frame, Note.AnchorPosition, Start) then
+  begin
+    PathText := '';
+    for Stroke in LeaderStrokes(Start, Note.AnchorPosition, Note.Leader) do
+      PathText := PathText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
+    Result := Result + Format('<path data-id="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
+      [Note.Key, Trim(PathText), Color, Num(NoteLineWidth)]) + #10;
+    if Note.Leader = nlDot then
+      Result := Result + Format('<circle data-id="%s" cx="%s" cy="%s" r="%s" fill="%s"/>',
+        [Note.Key, Num(Note.AnchorPosition.X), Num(Note.AnchorPosition.Y), Num(LeaderDotRadius), Color]) + #10;
+  end;
+  if Note.Boxed then
+    Result := Result + Format('<rect data-id="%s" x="%s" y="%s" width="%s" height="%s" fill="#ffffff"/>',
+      [Note.Key, Num(Frame.MinX), Num(Frame.MinY), Num(Frame.MaxX - Frame.MinX), Num(Frame.MaxY - Frame.MinY)]) + #10;
+  Lines := TextLines(ExpandFields(Note.ShownText, Values));
   for Index := 0 to High(Lines) do
     Result := Result + Format('<text data-id="%s" x="%s" y="%s" font-family="Helvetica, Arial, sans-serif" font-size="%s" fill="%s">%s</text>',
-      [Note.Key, Num(Note.Position.X), Num(Note.Position.Y + (Index + 1) * LineHeight(Note.Size)), Num(Note.Size * PointsToMM),
-      StateColor(Note.State, InkColor), EscapeXML(Lines[Index])]) + #10;
+      [Note.Key, Num(AlignedLeft(Box.MinX, Box.MaxX - Box.MinX, TextWidth(Lines[Index], Note.Size), Note.Align)),
+      Num(Note.Position.Y + (Index + 1) * LineHeight(Note.Size)), Num(Note.Size * PointsToMM), Color, EscapeXML(Lines[Index])]) + #10;
 end;
 
 function AllObjects(Pattern: TPattern): TDraftObjectArray;

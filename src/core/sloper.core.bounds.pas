@@ -67,9 +67,11 @@ begin
   // Its text as typed, since the fields are not known here
   if DraftObject is TNoteObject then
   begin
-    Box := NoteBox(TNoteObject(DraftObject), Default(TFieldValues));
+    Box := NoteFrame(TNoteObject(DraftObject), Default(TFieldValues));
     Include(Bounds, Empty, Vec2(Box.MinX, Box.MinY));
     Include(Bounds, Empty, Vec2(Box.MaxX, Box.MaxY));
+    if TNoteObject(DraftObject).Leader <> nlNone then
+      Include(Bounds, Empty, TNoteObject(DraftObject).AnchorPosition);
   end
   else if DraftObject is TPointObject then
     Include(Bounds, Empty, TPointObject(DraftObject).Position)

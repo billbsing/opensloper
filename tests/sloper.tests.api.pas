@@ -1276,6 +1276,27 @@ begin
   AssertEquals('wrong kind', RpcRefused, ErrorCode);
   Call('add_note', '{"anchor": {"point": "A"}}');
   AssertEquals('no text', RpcInvalidParams, ErrorCode);
+  // Stage 2: callouts, draft values, alignment and the box
+  Call('add_note', '{"text": "Top {=Line_A_B.length} mm", "anchor": {"point": "B"}, "dx": 10, "dy": 10, "leader": "arrow", ' +
+    '"align": "right", "box": true, "name": "Top"}');
+  AssertEquals('leader', 'arrow', Answer.Get('leader', ''));
+  AssertEquals('align', 'right', Answer.Get('align', ''));
+  AssertTrue('box', Answer.Get('box', False));
+  AssertEquals('shown', 'Top 100 mm', Answer.Get('shownText', ''));
+  AssertEquals('with names', 'Top {=Line_A_B.length} mm', Answer.Get('text', ''));
+  Call('set_text', '{"name": "Top", "text": "{=Nope.x}"}');
+  AssertEquals('bad draft value', RpcRefused, ErrorCode);
+  Call('get_object', '{"name": "Top"}');
+  AssertEquals('unchanged', 'Top 100 mm', Answer.Get('shownText', ''));
+  Call('set_text', '{"name": "Top", "leader": "dot", "align": "middle"}');
+  AssertEquals('unknown alignment', RpcInvalidParams, ErrorCode);
+  Call('set_text', '{"name": "Top", "leader": "dot", "box": false}');
+  AssertEquals('dot', 'dot', Answer.Get('leader', ''));
+  AssertFalse('no box', Answer.Get('box', True));
+  Call('add_note', '{"text": "x", "x": 1, "y": 1, "leader": "arrow"}');
+  AssertEquals('free callout', RpcRefused, ErrorCode);
+  Call('delete', '{"name": "Line_A_B"}');
+  AssertEquals('a draft value reads it', RpcRefused, ErrorCode);
 end;
 
 procedure TTestAPI.TestSplitEdge;

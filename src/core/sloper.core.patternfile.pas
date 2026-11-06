@@ -510,9 +510,16 @@ begin
   end;
   for FieldName in Note.PlaceFields do
     Into.Add(FieldName, Note.Field(FieldName).StoredText);
-  Into.Add('text', Note.Text);
+  Into.Add('text', Note.StoredText);
   Into.Add('size', JSONFloat(Note.Size));
   Into.Add('print', Note.Print);
+  // Each left out at its plain value
+  if Note.Leader <> nlNone then
+    Into.Add('leader', NoteLeaderNames[Note.Leader]);
+  if Note.Align <> taLeft then
+    Into.Add('align', TextAlignNames[Note.Align]);
+  if Note.Boxed then
+    Into.Add('box', True);
 end;
 
 function SaveObject(DraftObject: TDraftObject): TJSONObject;
@@ -1480,19 +1487,21 @@ begin
     FreeAndNil(Result);
 end;
 
-// Its fields other than an edge's position, text, size and print
+// Its fields other than an edge's position, text, size, print, leader,
+// alignment and box
 function TPatternLoader.ReadNoteValues(Item: TJSONObject; Note: TNoteObject): boolean;
 var
   FieldName, Text: string;
   Size: double;
-  Print: boolean;
+  Print, Boxed: boolean;
+  Choice: integer;
 begin
   for FieldName in Note.PlaceFields do
     if not ReadFormula(Item, FieldName, Note, FieldName) then
       Exit(False);
   if not GetJSONString(Item, 'text', Text) then
     Exit(Missing('text'));
-  Note.Text := Text;
+  Note.SetStoredText(Text);
   if Assigned(Item.Find('size')) then
   begin
     if not GetJSONNumber(Item, 'size', Size) or (Size <= 0) or (Size > MaxNoteSize) then
@@ -1505,6 +1514,15 @@ begin
       Exit(Missing('print'));
     Note.Print := Print;
   end;
+  if not ReadChoice(Item, 'leader', NoteLeaderNames, Choice) then
+    Exit(False);
+  if (Note.Anchor = naFree) and (TNoteLeader(Choice) <> nlNone) then
+    Exit(Problem(rsPatternCalloutFree));
+  Note.Leader := TNoteLeader(Choice);
+  if not ReadChoice(Item, 'align', TextAlignNames, Choice) or not ReadBoolean(Item, 'box', Boxed) then
+    Exit(False);
+  Note.Align := TTextAlign(Choice);
+  Note.Boxed := Boxed;
   Result := True;
 end;
 

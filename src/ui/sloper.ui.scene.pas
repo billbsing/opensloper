@@ -83,6 +83,8 @@ function ObjectsAt(Pattern: TPattern; const At: TVec2; PointRadius, EdgeRadius: 
 // The notes whose text, with its fields filled from Values, lies within
 // Margin mm of At, the one drawn on top first; none while notes are hidden
 function NotesAt(Pattern: TPattern; const At: TVec2; const Values: TFieldValues; Margin: double): TStringArray;
+// The selected callout whose tip lies within Radius mm of At, or ''
+function CalloutTipAt(Pattern: TPattern; const Selection: TStringArray; const At: TVec2; Radius: double): string;
 // The edges among Keys
 function EdgeKeys(Pattern: TPattern; const Keys: TStringArray): TStringArray;
 // The key after Current in Keys, going round to the first; the first when
@@ -405,10 +407,25 @@ begin
     DraftObject := Pattern.Objects[Index];
     if not (DraftObject is TNoteObject) or not DraftObject.HasResult or Pattern.IsHidden(DraftObject) then
       Continue;
-    Box := NoteBox(TNoteObject(DraftObject), Values);
+    Box := NoteFrame(TNoteObject(DraftObject), Values);
     if (At.X >= Box.MinX - Margin) and (At.X <= Box.MaxX + Margin) and (At.Y >= Box.MinY - Margin) and (At.Y <= Box.MaxY + Margin) then
       Insert(DraftObject.Key, Result, Length(Result));
   end;
+end;
+
+function CalloutTipAt(Pattern: TPattern; const Selection: TStringArray; const At: TVec2; Radius: double): string;
+var
+  Key: string;
+  Node: TEvalNode;
+begin
+  for Key in Selection do
+  begin
+    Node := Pattern.FindNode(Key);
+    if (Node is TNoteObject) and Node.HasResult and (TNoteObject(Node).Leader <> nlNone) and not Pattern.IsHidden(TNoteObject(Node)) and
+      (Distance(TNoteObject(Node).AnchorPosition, At) <= Radius) then
+      Exit(Key);
+  end;
+  Result := '';
 end;
 
 function EdgeKeys(Pattern: TPattern; const Keys: TStringArray): TStringArray;

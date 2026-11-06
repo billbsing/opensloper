@@ -26,7 +26,7 @@ unit Sloper.Publish.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Core.TextFields,
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Core.TextFields, Sloper.Core.Note,
   Sloper.Output.Layout, Sloper.Output.LayoutDocument,
   Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.UI.RecentMenu;
 
@@ -44,6 +44,8 @@ type
     FCornerBox: TComboBox;
     FNoteMemo: TMemo;
     FNoteSizeEdit: TFloatSpinEdit;
+    FNoteAlignBox: TComboBox;
+    FNoteBoxCheck: TCheckBox;
     FDeleteNoteButton: TButton;
     FStatus: TStatusBar;
     FPatternsSide: TWinControl;
@@ -228,6 +230,11 @@ resourcestring
   rsFieldDate = 'Date';
   rsSheetNote = 'Sheet note';
   rsNoteSize = 'Text size (pt)';
+  rsNoteAlign = 'Lines';
+  rsNoteAlignLeft = 'Left';
+  rsNoteAlignCentre = 'Centred';
+  rsNoteAlignRight = 'Right';
+  rsNoteBox = 'On a white box';
   rsAddNote = 'Add note';
   rsDeleteNote = 'Delete note';
   rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages} {cutlist} {fabrics}';
@@ -523,6 +530,17 @@ begin
   FNoteSizeEdit := AddSpin(rsNoteSize, MaxNoteSize, 1, 0);
   FNoteSizeEdit.MinValue := 1;
   FNoteSizeEdit.OnChange := @NoteChange;
+  AddLabel(rsNoteAlign);
+  FNoteAlignBox := TComboBox.Create(Self);
+  PlaceRow(FNoteAlignBox);
+  FNoteAlignBox.Style := csDropDownList;
+  // In the order of TTextAlign
+  FNoteAlignBox.Items.Add(rsNoteAlignLeft);
+  FNoteAlignBox.Items.Add(rsNoteAlignCentre);
+  FNoteAlignBox.Items.Add(rsNoteAlignRight);
+  FNoteAlignBox.OnChange := @NoteChange;
+  FNoteBoxCheck := AddCheck(rsNoteBox);
+  FNoteBoxCheck.OnChange := @NoteChange;
   FDeleteNoteButton := AddButton(rsDeleteNote, @DeleteNoteClick);
   EndGroup;
 end;
@@ -551,12 +569,16 @@ begin
   NoteChosen := FPreview.SelectedNote >= 0;
   FNoteMemo.Enabled := NoteChosen;
   FNoteSizeEdit.Enabled := NoteChosen;
+  FNoteAlignBox.Enabled := NoteChosen;
+  FNoteBoxCheck.Enabled := NoteChosen;
   FDeleteNoteButton.Enabled := NoteChosen;
   if NoteChosen then
   begin
     if FNoteMemo.Text <> Layout.Notes[FPreview.SelectedNote].Text then
       FNoteMemo.Text := Layout.Notes[FPreview.SelectedNote].Text;
     FNoteSizeEdit.Value := Layout.Notes[FPreview.SelectedNote].Size;
+    FNoteAlignBox.ItemIndex := Ord(Layout.Notes[FPreview.SelectedNote].Align);
+    FNoteBoxCheck.Checked := Layout.Notes[FPreview.SelectedNote].Boxed;
   end
   else
     FNoteMemo.Clear;
@@ -592,6 +614,9 @@ begin
   FDocument.BeginChange(rsChangeNote);
   FDocument.Layout.Notes[Index].Text := TrimRight(FNoteMemo.Text);
   FDocument.Layout.Notes[Index].Size := FNoteSizeEdit.Value;
+  if FNoteAlignBox.ItemIndex >= 0 then
+    FDocument.Layout.Notes[Index].Align := TTextAlign(FNoteAlignBox.ItemIndex);
+  FDocument.Layout.Notes[Index].Boxed := FNoteBoxCheck.Checked;
   FDocument.EndChange('note:' + IntToStr(Index));
 end;
 

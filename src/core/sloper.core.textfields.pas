@@ -62,6 +62,9 @@ function FieldDateText: string;
 function PatternFieldValues(Pattern: TPattern; const PatternFileName: string): TFieldValues;
 // The rough area a note's text covers, in mm, from its top left down
 function NoteBox(Note: TNoteObject; const Values: TFieldValues): TRect2;
+// What a note draws round its text: the white box when it has one, or just
+// the text; a callout's leader leaves from its edge
+function NoteFrame(Note: TNoteObject; const Values: TFieldValues): TRect2;
 
 implementation
 
@@ -143,7 +146,7 @@ var
   Line: string;
   Widest: double;
 begin
-  Lines := TextLines(ExpandFields(Note.Text, Values));
+  Lines := TextLines(ExpandFields(Note.ShownText, Values));
   Widest := 0;
   for Line in Lines do
     if TextWidth(Line, Note.Size) > Widest then
@@ -152,6 +155,13 @@ begin
   Result.MinY := Note.Position.Y;
   Result.MaxX := Note.Position.X + Widest;
   Result.MaxY := Note.Position.Y + Length(Lines) * LineHeight(Note.Size);
+end;
+
+function NoteFrame(Note: TNoteObject; const Values: TFieldValues): TRect2;
+begin
+  Result := NoteBox(Note, Values);
+  if Note.Boxed then
+    Result := PaddedBox(Result);
 end;
 
 end.

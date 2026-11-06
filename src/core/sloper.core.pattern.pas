@@ -30,7 +30,7 @@ interface
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
   Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Transform, Sloper.Core.Note;
+  Sloper.Core.Transform, Sloper.Core.Note, Sloper.Core.Geometry;
 
 type
   // What AddTransform needs. Sources are expanded: an edge brings its ends.
@@ -119,6 +119,8 @@ type
     procedure AddObjectNode(DraftObject: TDraftObject);
     procedure KeepInputsBefore(Piece: TPieceObject);
     function CheckSeamEntry(const Entry: TSeamEntry): boolean;
+    function CheckNoteAnchor(Anchor: TNoteAnchor; const AnchorKey: string; out Key: string): boolean;
+    function NoteAnchorPlace(Anchor: TNoteAnchor; const Key: string; Ratio: double): TVec2;
     // Files list each object after its inputs. A changed point may now read
     // objects further down, so they move up; the rest stay in their order.
     procedure OrderObjectsByInputs;
@@ -297,18 +299,31 @@ type
     // its offset dx and dy as formulas (x and y for a free note) and, on an
     // edge, Position as a ratio from its start. An empty name takes the next
     // free one: Note, Note2 and so on. Nil with LastError set when refused.
+    // A leader other than nlNone makes it a callout, which a free note
+    // cannot be.
     function AddNote(const AName, AText: string; Anchor: TNoteAnchor; const AnchorKey, Position, DxOrX, DyOrY: string;
-      ASize: double = DefaultNoteSize; APrint: boolean = True): TNoteObject;
-    procedure SetNoteText(Note: TNoteObject; const AText: string);
+      ASize: double = DefaultNoteSize; APrint: boolean = True; ALeader: TNoteLeader = nlNone): TNoteObject;
+    // Text as typed, draft values {=...} with names. Refused when one does
+    // not parse, with the reason and its place in LastError.
+    function SetNoteText(Note: TNoteObject; const AText: string): boolean;
     // Refused unless above 0 and at most MaxNoteSize points
     function SetNoteSize(Note: TNoteObject; ASize: double): boolean;
     procedure SetNotePrint(Note: TNoteObject; APrint: boolean);
+    // Refused for a free note, which has nothing to point at
+    function SetNoteLeader(Note: TNoteObject; ALeader: TNoteLeader): boolean;
+    procedure SetNoteAlign(Note: TNoteObject; AAlign: TTextAlign);
+    procedure SetNoteBoxed(Note: TNoteObject; ABoxed: boolean);
+    // Hangs the note from another anchor, Ratio along an edge, keeping its
+    // text where it was last drawn, as when a callout's tip is dragged. A
+    // callout cannot be made free.
+    function SetNoteAnchor(Note: TNoteObject; Anchor: TNoteAnchor; const AnchorKey: string; Ratio: double = 0): boolean;
     // Unhooks an anchored note, leaving it where it was last drawn, so that
     // its anchor can be deleted
     function MakeNoteFree(Note: TNoteObject): boolean;
     // The pieces a note prints with: the piece it is anchored to, the pieces
     // whose outline, notches or markings use its point or edge, and those
-    // whose cutting line its top left lies in
+    // whose cutting line its top left lies in. A callout goes with what it
+    // points at, so for it the place is its tip.
     function NotePieces(Note: TNoteObject): TPieceObjectArray;
     // The notes that print with the piece, in pattern order
     function PieceNotes(Piece: TPieceObject): TNoteObjectArray;
@@ -491,11 +506,12 @@ resourcestring
   rsPatternNoteAnchorPiece = 'piece';
   rsPatternNoteSize = 'A note''s size must be above 0 and at most %d points';
   rsPatternNoteIsFree = '%s is not anchored to anything';
+  rsPatternCalloutFree = 'A callout needs a point, an edge or a piece to point at';
 
 implementation
 
 uses
-  Math, Sloper.Core.Geometry, Sloper.Core.Names, Sloper.Core.JSON;
+  Math, Sloper.Core.Names, Sloper.Core.JSON;
 
 const
   // Not translated: a name has to keep to the name rules
@@ -505,6 +521,7 @@ const
   NewNoteBaseName = 'Note';
   // A free note keeps its place to a tenth of a mm
   NoteFreeDecimals = 1;
+  NoteRatioDecimals = 4;
   TransformBaseNames: array[TTransformKind] of string = ('Rotate', 'Mirror', 'Move');
   TransformSuffixLetters: array[TTransformKind] of string = ('_r', '_m', '_t');
 
@@ -2674,50 +2691,57 @@ begin
   AddObjectNode(Result);
 end;
 
-function TPattern.AddNote(const AName, AText: string; Anchor: TNoteAnchor; const AnchorKey, Position, DxOrX, DyOrY: string;
-  ASize: double; APrint: boolean): TNoteObject;
+// The key to store: a repeat's point takes an ID on first use
+function TPattern.CheckNoteAnchor(Anchor: TNoteAnchor; const AnchorKey: string; out Key: string): boolean;
 var
-  Msg, NoteName, Key: string;
   Node: TEvalNode;
   KindText: string;
   Fits: boolean;
 begin
-  Result := nil;
   Key := '';
-  if Anchor <> naFree then
-  begin
-    Node := FindNode(AnchorKey);
-    if not Assigned(Node) then
+  if Anchor = naFree then
+    Exit(True);
+  Node := FindNode(AnchorKey);
+  if not Assigned(Node) then
+    Exit(SetError(Format(rsPatternUnknownObject, [AnchorKey])));
+  case Anchor of
+    naPoint:
     begin
-      SetError(Format(rsPatternUnknownObject, [AnchorKey]));
-      Exit;
+      Fits := Node is TPointObject;
+      KindText := rsPatternNoteAnchorPoint;
     end;
-    case Anchor of
-      naPoint:
-      begin
-        Fits := Node is TPointObject;
-        KindText := rsPatternNoteAnchorPoint;
-      end;
-      naEdge:
-      begin
-        Fits := Node is TEdgeObject;
-        KindText := rsPatternNoteAnchorEdge;
-      end;
-      else
-      begin
-        Fits := Node is TPieceObject;
-        KindText := rsPatternNoteAnchorPiece;
-      end;
-    end;
-    if not Fits then
+    naEdge:
     begin
-      SetError(Format(rsPatternNoteAnchor, [Node.DisplayName, KindText]));
-      Exit;
+      Fits := Node is TEdgeObject;
+      KindText := rsPatternNoteAnchorEdge;
     end;
-    Key := AnchorKey;
-    if Anchor = naPoint then
-      Key := UsePoint(AnchorKey);
+    else
+    begin
+      Fits := Node is TPieceObject;
+      KindText := rsPatternNoteAnchorPiece;
+    end;
   end;
+  if not Fits then
+    Exit(SetError(Format(rsPatternNoteAnchor, [Node.DisplayName, KindText])));
+  Key := AnchorKey;
+  if Anchor = naPoint then
+    Key := UsePoint(AnchorKey);
+  Result := True;
+end;
+
+function TPattern.AddNote(const AName, AText: string; Anchor: TNoteAnchor; const AnchorKey, Position, DxOrX, DyOrY: string;
+  ASize: double; APrint: boolean; ALeader: TNoteLeader): TNoteObject;
+var
+  Msg, NoteName, Key: string;
+begin
+  Result := nil;
+  if (Anchor = naFree) and (ALeader <> nlNone) then
+  begin
+    SetError(rsPatternCalloutFree);
+    Exit;
+  end;
+  if not CheckNoteAnchor(Anchor, AnchorKey, Key) then
+    Exit;
   if (ASize <= 0) or (ASize > MaxNoteSize) then
   begin
     SetError(Format(rsPatternNoteSize, [MaxNoteSize]));
@@ -2737,22 +2761,51 @@ begin
   Result := TNoteObject.Create(IntToStr(FNextId), Anchor, Key);
   if ((Anchor = naFree) and not ParseFields(Result, [NoteXField, NoteYField], [DxOrX, DyOrY])) or
     ((Anchor = naEdge) and not ParseFields(Result, [NotePositionField], [Position])) or
-    ((Anchor <> naFree) and not ParseFields(Result, [NoteDxField, NoteDyField], [DxOrX, DyOrY])) then
+    ((Anchor <> naFree) and not ParseFields(Result, [NoteDxField, NoteDyField], [DxOrX, DyOrY])) or not SetNoteText(Result, AText) then
   begin
     FreeAndNil(Result);
     Exit;
   end;
   Inc(FNextId);
   Result.Name := NoteName;
-  Result.Text := AText;
   Result.Size := ASize;
   Result.Print := APrint;
+  Result.Leader := ALeader;
   AddObjectNode(Result);
 end;
 
-procedure TPattern.SetNoteText(Note: TNoteObject; const AText: string);
+function TPattern.SetNoteText(Note: TNoteObject; const AText: string): boolean;
+var
+  Template: string;
+  Expressions: TStringArray;
+  Formulas: array of TFormula;
+  ErrorPos, Index, Built: integer;
+  Ref: TFormulaReference;
 begin
-  Note.Text := AText;
+  if not SplitDraftValues(AText, Template, Expressions, ErrorPos) then
+    Exit(SetError(rsNoteUnclosed, NoteTextField, ErrorPos));
+  Formulas := nil;
+  SetLength(Formulas, Length(Expressions));
+  Built := 0;
+  try
+    for Index := 0 to High(Expressions) do
+    begin
+      Formulas[Index] := TFormula.Create;
+      Built := Index + 1;
+      if not Formulas[Index].Parse(Expressions[Index], ResolverFor(Note)) then
+        Exit(SetError(Formulas[Index].ErrorMessage, NoteTextField));
+      // Nothing reads a note, so only reading itself could go round
+      for Ref in Formulas[Index].References do
+        if ReferenceKey(Ref) = Note.Key then
+          Exit(SetError(Format(rsPatternUsesItself, [Note.DisplayName]), NoteTextField));
+    end;
+    Note.SetValues(Template, Formulas);
+    Built := 0;
+    Result := True;
+  finally
+    for Index := 0 to Built - 1 do
+      FreeAndNil(Formulas[Index]);
+  end;
 end;
 
 function TPattern.SetNoteSize(Note: TNoteObject; ASize: double): boolean;
@@ -2768,6 +2821,62 @@ begin
   Note.Print := APrint;
 end;
 
+function TPattern.SetNoteLeader(Note: TNoteObject; ALeader: TNoteLeader): boolean;
+begin
+  if (Note.Anchor = naFree) and (ALeader <> nlNone) then
+    Exit(SetError(rsPatternCalloutFree));
+  Note.Leader := ALeader;
+  Result := True;
+end;
+
+procedure TPattern.SetNoteAlign(Note: TNoteObject; AAlign: TTextAlign);
+begin
+  Note.Align := AAlign;
+end;
+
+procedure TPattern.SetNoteBoxed(Note: TNoteObject; ABoxed: boolean);
+begin
+  Note.Boxed := ABoxed;
+end;
+
+// Worked out from the anchor's last good place, as the note's own is
+function TPattern.NoteAnchorPlace(Anchor: TNoteAnchor; const Key: string; Ratio: double): TVec2;
+var
+  Node: TEvalNode;
+begin
+  Node := FindNode(Key);
+  case Anchor of
+    naPoint: Result := TPointObject(Node).Position;
+    naEdge: Result := TEdgeObject(Node).PointAtLength(Ratio * TEdgeObject(Node).Length);
+    naPiece: Result := TPieceObject(Node).Middle;
+    else
+      Result := Vec2(0, 0);
+  end;
+end;
+
+function TPattern.SetNoteAnchor(Note: TNoteObject; Anchor: TNoteAnchor; const AnchorKey: string; Ratio: double): boolean;
+var
+  Key, RatioText: string;
+  Box, Base: TVec2;
+begin
+  if (Anchor = naFree) and (Note.Leader <> nlNone) then
+    Exit(SetError(rsPatternCalloutFree));
+  if (Anchor = naEdge) and ((Ratio < 0) or (Ratio > 1)) then
+    Exit(SetError(Format(rsDraftRatioRange, [FormatFloat('0.###', Ratio)])));
+  if not CheckNoteAnchor(Anchor, AnchorKey, Key) then
+    Exit(False);
+  Box := Note.Position;
+  RatioText := RoundedNumberText(Ratio, NoteRatioDecimals);
+  Base := Vec2(0, 0);
+  if Anchor <> naFree then
+    Base := NoteAnchorPlace(Anchor, Key, RoundTo(Ratio, -NoteRatioDecimals));
+  Note.Reanchor(Anchor, Key);
+  if (Anchor = naEdge) and not ParseFields(Note, [NotePositionField], [RatioText]) then
+    Exit(False);
+  Result := ParseFields(Note, Note.PlaceFields, [RoundedNumberText(Box.X - Base.X, NoteFreeDecimals),
+    RoundedNumberText(Box.Y - Base.Y, NoteFreeDecimals)]);
+end;
+
 function TPattern.MakeNoteFree(Note: TNoteObject): boolean;
 var
   At: TVec2;
@@ -2776,14 +2885,15 @@ begin
     Exit(SetError(Format(rsPatternNoteIsFree, [Note.DisplayName])));
   At := Note.Position;
   Note.MakeFree;
-  Result := ParseFields(Note, [NoteXField, NoteYField], [FormatJSONFloat(RoundTo(At.X, -NoteFreeDecimals)),
-    FormatJSONFloat(RoundTo(At.Y, -NoteFreeDecimals))]);
+  Result := ParseFields(Note, [NoteXField, NoteYField], [RoundedNumberText(At.X, NoteFreeDecimals),
+    RoundedNumberText(At.Y, NoteFreeDecimals)]);
 end;
 
 function TPattern.NotePieces(Note: TNoteObject): TPieceObjectArray;
 var
   Index: integer;
   Piece: TPieceObject;
+  Place: TVec2;
 
   function UsesAnchor: boolean;
   var
@@ -2815,11 +2925,14 @@ var
 
 begin
   Result := nil;
+  Place := Note.Position;
+  if Note.Leader <> nlNone then
+    Place := Note.AnchorPosition;
   for Index := 0 to FObjects.Count - 1 do
     if Objects[Index] is TPieceObject then
     begin
       Piece := TPieceObject(Objects[Index]);
-      if UsesAnchor or (Note.HasResult and Piece.HasResult and (Length(Piece.CutLine) > 2) and PointInPolygon(Note.Position, Piece.CutLine)) then
+      if UsesAnchor or (Note.HasResult and Piece.HasResult and (Length(Piece.CutLine) > 2) and PointInPolygon(Place, Piece.CutLine)) then
         Insert(Piece, Result, System.Length(Result));
     end;
 end;

@@ -83,12 +83,26 @@ procedure NoteAnchorFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: 
 function NoteFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; const AText: string): TNoteObject;
 // What a click of the Text tool would hang the note from, in words
 function NoteSnapDescription(Pattern: TPattern; const Snap: TSnap; const Click: TVec2): string;
+// What the Callout tool's first click would point at, in words
+function CalloutSnapDescription(Pattern: TPattern; const Snap: TSnap; const Click: TVec2): string;
+// A callout pointing where the tip snapped (clicked at TipClick), with its
+// text's top left at BoxAt. nil when refused, as when the tip is on nothing,
+// with the reason in Pattern.LastError.
+function CalloutFromSnap(Pattern: TPattern; const Tip: TSnap; const TipClick, BoxAt: TVec2; const AText: string;
+  Leader: TNoteLeader): TNoteObject;
+// Hangs the note from where Tip snapped, keeping its text in place, as when a
+// callout's tip is dropped there. False when refused, with the reason in
+// Pattern.LastError.
+function ReanchorFromSnap(Pattern: TPattern; Note: TNoteObject; const Tip: TSnap; const TipClick: TVec2): boolean;
 
 resourcestring
   rsSnapNotePoint = 'New note on point %s';
   rsSnapNoteEdge = 'New note on %s';
   rsSnapNotePiece = 'New note on piece %s';
   rsSnapNoteFree = 'New note at %s, %s';
+  rsSnapCalloutPoint = 'Callout to point %s';
+  rsSnapCalloutEdge = 'Callout to %s';
+  rsSnapCalloutPiece = 'Callout to piece %s';
   rsSnapTooSmall = 'Too small: move further from the first click';
   rsSnapFree = 'New point at %s, %s';
   rsSnapPoint = 'Point %s';
@@ -403,7 +417,8 @@ begin
   end;
 end;
 
-function NoteFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; const AText: string): TNoteObject;
+// A note hung where the snap says, its text's top left at BoxAt
+function NoteHungFrom(Pattern: TPattern; const Snap: TSnap; const Click, BoxAt: TVec2; const AText: string; Leader: TNoteLeader): TNoteObject;
 var
   Anchor: TNoteAnchor;
   AnchorKey, RatioText: string;
@@ -414,7 +429,8 @@ begin
   NoteAnchorFromSnap(Pattern, Snap, Click, Anchor, AnchorKey, Ratio);
   RatioText := RoundedText(Ratio, DragRatioDecimals);
   if Anchor = naFree then
-    Exit(Pattern.AddNote('', AText, naFree, '', '', RoundedText(Click.X, LengthDecimals), RoundedText(Click.Y, LengthDecimals)));
+    Exit(Pattern.AddNote('', AText, naFree, '', '', RoundedText(BoxAt.X, LengthDecimals), RoundedText(BoxAt.Y, LengthDecimals), DefaultNoteSize,
+      True, Leader));
   Node := Pattern.FindNode(AnchorKey);
   case Anchor of
     naPoint: Base := TPointObject(Node).Position;
@@ -422,8 +438,46 @@ begin
     else
       Base := TPieceObject(Node).Middle;
   end;
-  Result := Pattern.AddNote('', AText, Anchor, AnchorKey, RatioText, RoundedText(Click.X - Base.X, LengthDecimals),
-    RoundedText(Click.Y - Base.Y, LengthDecimals));
+  Result := Pattern.AddNote('', AText, Anchor, AnchorKey, RatioText, RoundedText(BoxAt.X - Base.X, LengthDecimals),
+    RoundedText(BoxAt.Y - Base.Y, LengthDecimals), DefaultNoteSize, True, Leader);
+end;
+
+function NoteFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; const AText: string): TNoteObject;
+begin
+  Result := NoteHungFrom(Pattern, Snap, Click, Click, AText, nlNone);
+end;
+
+function CalloutFromSnap(Pattern: TPattern; const Tip: TSnap; const TipClick, BoxAt: TVec2; const AText: string;
+  Leader: TNoteLeader): TNoteObject;
+begin
+  Result := NoteHungFrom(Pattern, Tip, TipClick, BoxAt, AText, Leader);
+end;
+
+function ReanchorFromSnap(Pattern: TPattern; Note: TNoteObject; const Tip: TSnap; const TipClick: TVec2): boolean;
+var
+  Anchor: TNoteAnchor;
+  AnchorKey: string;
+  Ratio: double;
+begin
+  NoteAnchorFromSnap(Pattern, Tip, TipClick, Anchor, AnchorKey, Ratio);
+  Result := Pattern.SetNoteAnchor(Note, Anchor, AnchorKey, Ratio);
+end;
+
+// What the Callout tool's first click would point at, in words
+function CalloutSnapDescription(Pattern: TPattern; const Snap: TSnap; const Click: TVec2): string;
+var
+  Anchor: TNoteAnchor;
+  AnchorKey: string;
+  Ratio: double;
+begin
+  NoteAnchorFromSnap(Pattern, Snap, Click, Anchor, AnchorKey, Ratio);
+  case Anchor of
+    naPoint: Result := Format(rsSnapCalloutPoint, [Pattern.FindNode(AnchorKey).DisplayName]);
+    naEdge: Result := Format(rsSnapCalloutEdge, [Pattern.FindNode(AnchorKey).DisplayName]);
+    naPiece: Result := Format(rsSnapCalloutPiece, [Pattern.FindNode(AnchorKey).DisplayName]);
+    else
+      Result := rsPatternCalloutFree;
+  end;
 end;
 
 function NoteSnapDescription(Pattern: TPattern; const Snap: TSnap; const Click: TVec2): string;

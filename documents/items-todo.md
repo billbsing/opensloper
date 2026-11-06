@@ -27,7 +27,7 @@ Set font, and font size for anotations, change direction, anchored from a point.
 
 Rescoped 2026-11-06 into four stages (see Stages under Annotations in the design document):
 - Stage 1, anchored notes: done 2026-11-06. Plain text anchored to a point, edge or piece, Text tool (X), drag, show and hide (View → Annotations), document fields, printing with their piece; one sans-serif font.
-- Stage 2: callouts, `{=…}` draft values, alignment and the white box.
+- Stage 2: done 2026-11-06. Callouts (Callout tool, A; a note with a leader, its tip dragged to re-anchor it), `{=…}` draft values, alignment and the white box for notes and sheet notes.
 - Stage 3: font name, bold and italic, with the chosen TrueType font embedded in PDF.
 - Stage 4: SVG stamps, anchored path-only drawings.
 

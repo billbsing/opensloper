@@ -179,6 +179,8 @@ resourcestring
   rsTypeNoteEdge = 'Note on an edge';
   rsTypeNotePiece = 'Note on a piece';
   rsFieldPosition = 'Along the edge (ratio)';
+  rsFieldNoteValue = 'Value %s';
+  rsTypeCallout = 'Callout';
 
 implementation
 
@@ -208,6 +210,10 @@ begin
       Exit(Format(rsFieldMarkingSpacing, [NodeNumber]));
     Exit(Format(rsFieldMarkingSize, [NodeNumber]));
   end;
+  // A note's draft values: value1, value2
+  if (Length(FieldName) > Length(NoteValueField)) and (Copy(FieldName, 1, Length(NoteValueField)) = NoteValueField) and
+    (StrToIntDef(Copy(FieldName, Length(NoteValueField) + 1, MaxInt), 0) > 0) then
+    Exit(Format(rsFieldNoteValue, [Copy(FieldName, Length(NoteValueField) + 1, MaxInt)]));
   if (Dot > 0) and (Copy(FieldName, 1, 4) = 'node') then
   begin
     NodeNumber := Copy(FieldName, 5, Dot - 5);
@@ -292,6 +298,8 @@ begin
     Result := rsTypePiece
   else if Node is TSeamObject then
     Result := rsTypeSeam
+  else if (Node is TNoteObject) and (TNoteObject(Node).Leader <> nlNone) then
+    Result := rsTypeCallout
   else if Node is TNoteObject then
     case TNoteObject(Node).Anchor of
       naPoint: Result := rsTypeNotePoint;
@@ -405,7 +413,7 @@ begin
   Result.StateText := StateCaption(DraftObject.State);
   Result.Text := '';
   if DraftObject is TNoteObject then
-    Result.Text := TNoteObject(DraftObject).Text;
+    Result.Text := TNoteObject(DraftObject).DisplayText(Pattern.Resolver);
 end;
 
 function PassesFilter(Pattern: TPattern; DraftObject: TDraftObject; Filter: TObjectFilter): boolean;

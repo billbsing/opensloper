@@ -414,9 +414,13 @@ begin
       end;
     if Node is TNoteObject then
     begin
-      Result.Add('text', TNoteObject(Node).Text);
+      Result.Add('text', TNoteObject(Node).DisplayText(Document.Pattern.Resolver));
+      Result.Add('shownText', TNoteObject(Node).ShownText);
       Result.Add('size', JSONFloat(TNoteObject(Node).Size));
       Result.Add('print', TNoteObject(Node).Print);
+      Result.Add('leader', NoteLeaderNames[TNoteObject(Node).Leader]);
+      Result.Add('align', TextAlignNames[TNoteObject(Node).Align]);
+      Result.Add('box', TNoteObject(Node).Boxed);
       Result.Add('anchor', NoteAnchorNames[TNoteObject(Node).Anchor]);
       if TNoteObject(Node).Anchor <> naFree then
         Result.Add('anchorId', StrToInt(TNoteObject(Node).AnchorKey));
@@ -1834,7 +1838,10 @@ var
   AnchorItem: TJSONObject;
   Kind: TNoteAnchor;
   Size: double;
-  Print: boolean;
+  Print, Boxed: boolean;
+  Leader: TNoteLeader;
+  Align: TTextAlign;
+  Note: TNoteObject;
 begin
   Text := RequireString(Params, 'text');
   Anchor := naFree;
@@ -1883,24 +1890,35 @@ begin
   Print := True;
   if Assigned(Params.Find('print')) then
     Print := BooleanParam(Params, 'print');
+  Leader := TNoteLeader(ChoiceParam(Params, 'leader', NoteLeaderNames));
+  Align := TTextAlign(ChoiceParam(Params, 'align', TextAlignNames));
+  Boxed := BooleanParam(Params, 'box');
   FDocument.BeginChange(Format(rsApiAdd, [NoteType]));
-  Result := AddedNode(FDocument.Pattern.AddNote(OptionalString(Params, 'name'), Text, Anchor, AnchorKey, Position, First, Second, Size, Print));
+  Note := FDocument.Pattern.AddNote(OptionalString(Params, 'name'), Text, Anchor, AnchorKey, Position, First, Second, Size, Print, Leader);
+  if Assigned(Note) then
+  begin
+    FDocument.Pattern.SetNoteAlign(Note, Align);
+    FDocument.Pattern.SetNoteBoxed(Note, Boxed);
+  end;
+  Result := AddedNode(Note);
 end;
 
-// The text, and optionally the size and whether it prints
+// Any of the text, size, printing, leader, alignment and box
 function TApiServer.DoSetText(Params: TJSONObject): TJSONData;
 var
   Target: TEvalNode;
   Note: TNoteObject;
   Text: string;
   Size: double;
-  Print: boolean;
+  Print, Boxed: boolean;
+  Leader: TNoteLeader;
+  Align: TTextAlign;
 begin
   Target := FindTarget(Params);
   if not (Target is TNoteObject) then
     raise EApiError.Create(RpcRefused, Format(rsApiNotANote, [Target.DisplayName]));
   Note := TNoteObject(Target);
-  Text := Note.Text;
+  Text := Note.DisplayText(FDocument.Pattern.Resolver);
   if Assigned(Params.Find('text')) then
     Text := RequireString(Params, 'text');
   Size := Note.Size;
@@ -1909,10 +1927,20 @@ begin
   Print := Note.Print;
   if Assigned(Params.Find('print')) then
     Print := BooleanParam(Params, 'print');
+  Leader := Note.Leader;
+  if Assigned(Params.Find('leader')) then
+    Leader := TNoteLeader(ChoiceParam(Params, 'leader', NoteLeaderNames));
+  Align := Note.Align;
+  if Assigned(Params.Find('align')) then
+    Align := TTextAlign(ChoiceParam(Params, 'align', TextAlignNames));
+  Boxed := Note.Boxed;
+  if Assigned(Params.Find('box')) then
+    Boxed := BooleanParam(Params, 'box');
   FDocument.BeginChange(rsApiChangeNote);
-  FDocument.Pattern.SetNoteText(Note, Text);
   FDocument.Pattern.SetNotePrint(Note, Print);
-  if not FDocument.Pattern.SetNoteSize(Note, Size) then
+  FDocument.Pattern.SetNoteAlign(Note, Align);
+  FDocument.Pattern.SetNoteBoxed(Note, Boxed);
+  if not FDocument.Pattern.SetNoteText(Note, Text) or not FDocument.Pattern.SetNoteSize(Note, Size) or not FDocument.Pattern.SetNoteLeader(Note, Leader) then
     RefuseChange;
   Result := AddedNode(Note);
 end;

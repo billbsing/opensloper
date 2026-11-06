@@ -31,7 +31,7 @@ interface
 uses
   SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles,
   Sloper.Core.Measurements,
-  Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.TextFields,
+  Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.TextFields, Sloper.Core.Note,
   Sloper.Output.Tiling;
 
 const
@@ -105,10 +105,15 @@ type
   TPlacementArray = array of TPlacement;
 
   // Text on the layout, with its top left at (X, Y) and Size in points. It may
-  // run to several lines, and may hold fields such as {date}.
+  // run to several lines, and may hold fields such as {date}. A pattern's
+  // callout printed with its piece also has a leader to Tip.
   TSheetNote = record
     Text: string;
     X, Y, Size: double;
+    Align: TTextAlign;
+    Boxed: boolean;
+    Leader: TNoteLeader;
+    Tip: TVec2;
   end;
 
   TSheetNoteArray = array of TSheetNote;
@@ -280,8 +285,12 @@ type
     property Sources: TLayoutSourceList read FSources;
   end;
 
-// The rough area a note covers, in layout space
+// The rough area a note's text covers, in layout space
 function NoteBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
+// The same, with its white box when it has one
+function NoteFrameBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
+// Where each line of the note starts across, in layout space
+function NoteLineLeft(const Note: TSheetNote; const Values: TFieldValues; const Line: string): double;
 // The layout's own notes, then the pattern notes printed with each piece
 function PrintedNotes(Layout: TLayout; const Shapes: TPlacedPieceArray): TSheetNoteArray;
 
@@ -341,12 +350,11 @@ resourcestring
 implementation
 
 uses
-  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.PatternFile,
-  Sloper.Core.Note;
+  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
 
 const
   CornerNames: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
-  DefaultNoteSize = 12;
+  DefaultSheetNoteSize = 12;
   DefaultPaper = 'A4';
   DefaultMargin = 6;
   DefaultOverlap = 10;
@@ -412,6 +420,21 @@ begin
   Result.MinY := Note.Y;
   Result.MaxX := Note.X + Widest;
   Result.MaxY := Note.Y + Length(Lines) * LineHeight(Note.Size);
+end;
+
+function NoteFrameBounds(const Note: TSheetNote; const Values: TFieldValues): TRect2;
+begin
+  Result := NoteBounds(Note, Values);
+  if Note.Boxed then
+    Result := PaddedBox(Result);
+end;
+
+function NoteLineLeft(const Note: TSheetNote; const Values: TFieldValues; const Line: string): double;
+var
+  Box: TRect2;
+begin
+  Box := NoteBounds(Note, Values);
+  Result := AlignedLeft(Box.MinX, Box.MaxX - Box.MinX, TextWidth(Line, Note.Size), Note.Align);
 end;
 
 function PrintedNotes(Layout: TLayout; const Shapes: TPlacedPieceArray): TSheetNoteArray;
@@ -781,6 +804,10 @@ begin
         Item.Add('x', JSONFloat(Note.X));
         Item.Add('y', JSONFloat(Note.Y));
         Item.Add('size', JSONFloat(Note.Size));
+        if Note.Align <> taLeft then
+          Item.Add('align', TextAlignNames[Note.Align]);
+        if Note.Boxed then
+          Item.Add('box', True);
       end;
     end;
     if Title.Enabled then
@@ -822,6 +849,8 @@ var
   Index: integer;
   Item: TJSONObject;
   Note: TSheetNote;
+  AlignText: string;
+  Align: TTextAlign;
 begin
   if Data.JSONType <> jtArray then
     Exit(False);
@@ -831,10 +860,15 @@ begin
       Exit(False);
     Item := TJSONObject(Data.Items[Index]);
     Note := Default(TSheetNote);
-    Note.Size := DefaultNoteSize;
+    Note.Size := DefaultSheetNoteSize;
     if not GetJSONString(Item, 'text', Note.Text) or not GetJSONNumber(Item, 'x', Note.X) or not GetJSONNumber(Item, 'y', Note.Y) then
       Exit(False);
     ReadOptionalNumber(Item, 'size', Note.Size);
+    if GetJSONString(Item, 'align', AlignText) then
+      for Align := Low(TTextAlign) to High(TTextAlign) do
+        if TextAlignNames[Align] = AlignText then
+          Note.Align := Align;
+    GetJSONBoolean(Item, 'box', Note.Boxed);
     Insert(Note, Notes, Length(Notes));
   end;
   Result := True;
@@ -1371,10 +1405,16 @@ begin
     begin
       Box := NoteBox(Note, Default(TFieldValues));
       P := Moved(Vec2((Box.MinX + Box.MaxX) / 2, (Box.MinY + Box.MaxY) / 2));
-      Placed.Text := Note.Text;
+      Placed := Default(TSheetNote);
+      Placed.Text := Note.ShownText;
       Placed.Size := Note.Size;
       Placed.X := P.X - (Box.MaxX - Box.MinX) / 2;
       Placed.Y := P.Y - (Box.MaxY - Box.MinY) / 2;
+      Placed.Align := Note.Align;
+      Placed.Boxed := Note.Boxed;
+      Placed.Leader := Note.Leader;
+      if Note.Leader <> nlNone then
+        Placed.Tip := Moved(Note.AnchorPosition);
       Insert(Placed, Result.Notes, Length(Result.Notes));
     end;
 end;

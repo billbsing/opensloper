@@ -101,6 +101,9 @@ type
     FNoteSize: TFloatSpinEdit;
     FNotePrint: TCheckBox;
     FNoteAnchorText: TGridLabel;
+    FNoteRefusal: TLabel;
+    FNoteLeaderBox, FNoteAlignBox: TComboBox;
+    FNoteBoxCheck: TCheckBox;
     FFreeButton: TButton;
     FEdits: array of TEdit;
     // Each field's row for a refused entry, hidden until needed; see RefusalRow
@@ -162,6 +165,7 @@ type
     procedure NoteTextKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
     procedure NoteSizeChange(Sender: TObject);
     procedure NotePrintClick(Sender: TObject);
+    procedure NoteLookChange(Sender: TObject);
     procedure FreeClick(Sender: TObject);
     procedure RefreshSeamRows(Seam: TSeamObject);
     procedure FlipClick(Sender: TObject);
@@ -248,6 +252,19 @@ resourcestring
   rsPropChangeNoteSize = 'Change note size';
   rsPropChangeNotePrint = 'Change note printing';
   rsPropFreeNote = 'Make note free';
+  rsPropNoteLeader = 'Leader';
+  rsPropNoteLeaderNone = 'None (a plain note)';
+  rsPropNoteLeaderArrow = 'Arrow';
+  rsPropNoteLeaderDot = 'Dot';
+  rsPropNoteLeaderLine = 'Line';
+  rsPropNoteAlign = 'Lines';
+  rsPropNoteAlignLeft = 'Left';
+  rsPropNoteAlignCentre = 'Centred';
+  rsPropNoteAlignRight = 'Right';
+  rsPropNoteBox = 'Box';
+  rsPropNoteBoxCaption = 'On a white box';
+  rsPropChangeNoteLook = 'Change note';
+  rsPropNoteTextHint = 'Draft values go in {= }, such as {=Line_A_B.length}';
   rsPropLength = 'Length';
   rsPropPerimeter = 'Perimeter';
   rsPropSideA = 'Side A';
@@ -318,6 +335,13 @@ const
   // A note's text field, at 96 pixels per inch
   NoteTextHeight96 = 64;
   NoteSizeStep = 1;
+
+// A note's draft value field: value1, value2
+function IsNoteValue(const FieldName: string): boolean;
+begin
+  Result := (Copy(FieldName, 1, Length(NoteValueField)) = NoteValueField) and
+    (StrToIntDef(Copy(FieldName, Length(NoteValueField) + 1, MaxInt), 0) > 0);
+end;
 
 function SameNames(const First, Second: TStringArray): boolean;
 var
@@ -505,7 +529,8 @@ begin
   if Assigned(FDescriptionEdit) then
     FDescriptionEdit.OnExit := nil;
   for Edit in FEdits do
-    Edit.OnExit := nil;
+    if Assigned(Edit) then
+      Edit.OnExit := nil;
   while ControlCount > 0 do
     Controls[0].Free;
   FDivider := nil;
@@ -532,6 +557,10 @@ begin
   FNoteSize := nil;
   FNotePrint := nil;
   FNoteAnchorText := nil;
+  FNoteRefusal := nil;
+  FNoteLeaderBox := nil;
+  FNoteAlignBox := nil;
+  FNoteBoxCheck := nil;
   FFreeButton := nil;
   FEdits := nil;
   FRefusals := nil;
@@ -744,7 +773,7 @@ begin
     SetLength(FEdits, Node.FieldCount);
     // A marker's size goes under the marker
     for Index := 0 to Node.FieldCount - 1 do
-      if Node.Fields[Index].Name <> MarkerSizeField then
+      if (Node.Fields[Index].Name <> MarkerSizeField) and not ((Node is TNoteObject) and IsNoteValue(Node.Fields[Index].Name)) then
         FEdits[Index] := AddEditRow(FieldCaption(Node.Fields[Index].Name), Index);
     if Node is TVariable then
       FDescriptionEdit := AddEditRow(rsPropDescription, DescriptionTag);
@@ -851,8 +880,9 @@ begin
     if not FCommitting then
       ClearRefusal(FNameEdit);
   end;
+  // A note's draft values are edited in its text, so they have no field of their own
   for Edit in FEdits do
-    if not KeepsText(Edit) then
+    if Assigned(Edit) and not KeepsText(Edit) then
     begin
       SetEditText(Edit, OriginalText(Edit));
       if not FCommitting then
@@ -1078,7 +1108,13 @@ begin
   FNoteText.WordWrap := False;
   FNoteText.OnExit := @NoteTextExit;
   FNoteText.OnKeyDown := @NoteTextKeyDown;
+  FNoteText.Hint := rsPropNoteTextHint;
+  FNoteText.ShowHint := True;
   AddRow(rsPropNoteText, FNoteText, RowGap);
+  FNoteRefusal := AddLabel('', RowGap);
+  FNoteRefusal.Font.Color := clRed;
+  FNoteRefusal.WordWrap := True;
+  FNoteRefusal.Visible := False;
 end;
 
 procedure TPropertiesPanel.AddNoteRows(Note: TNoteObject);
@@ -1094,6 +1130,31 @@ begin
   FNotePrint.Caption := rsPropNotePrintCaption;
   FNotePrint.OnClick := @NotePrintClick;
   AddRow(rsPropNotePrint, FNotePrint, RowGap);
+  FNoteAlignBox := TComboBox.Create(Self);
+  FNoteAlignBox.Style := csDropDownList;
+  // In the order of TTextAlign
+  FNoteAlignBox.Items.Add(rsPropNoteAlignLeft);
+  FNoteAlignBox.Items.Add(rsPropNoteAlignCentre);
+  FNoteAlignBox.Items.Add(rsPropNoteAlignRight);
+  FNoteAlignBox.OnChange := @NoteLookChange;
+  AddRow(rsPropNoteAlign, FNoteAlignBox, RowGap);
+  FNoteBoxCheck := TCheckBox.Create(Self);
+  FNoteBoxCheck.Caption := rsPropNoteBoxCaption;
+  FNoteBoxCheck.OnClick := @NoteLookChange;
+  AddRow(rsPropNoteBox, FNoteBoxCheck, RowGap);
+  // A free note has nothing to point at
+  if Note.Anchor <> naFree then
+  begin
+    FNoteLeaderBox := TComboBox.Create(Self);
+    FNoteLeaderBox.Style := csDropDownList;
+    // In the order of TNoteLeader
+    FNoteLeaderBox.Items.Add(rsPropNoteLeaderNone);
+    FNoteLeaderBox.Items.Add(rsPropNoteLeaderArrow);
+    FNoteLeaderBox.Items.Add(rsPropNoteLeaderDot);
+    FNoteLeaderBox.Items.Add(rsPropNoteLeaderLine);
+    FNoteLeaderBox.OnChange := @NoteLookChange;
+    AddRow(rsPropNoteLeader, FNoteLeaderBox, RowGap);
+  end;
   FNoteAnchorText := AddTextRow(rsPropNoteAnchor, '', RowGap);
   if Note.Anchor <> naFree then
   begin
@@ -1127,7 +1188,16 @@ begin
   FFillingPieceRows := True;
   try
     if Assigned(FNoteText) and (not FNoteText.Focused or FRefreshFocused) then
-      FNoteText.Text := Note.Text;
+    begin
+      FNoteText.Text := Note.DisplayText(FDocument.Pattern.Resolver);
+      FNoteRefusal.Visible := False;
+    end;
+    if Assigned(FNoteAlignBox) then
+      FNoteAlignBox.ItemIndex := Ord(Note.Align);
+    if Assigned(FNoteBoxCheck) then
+      FNoteBoxCheck.Checked := Note.Boxed;
+    if Assigned(FNoteLeaderBox) then
+      FNoteLeaderBox.ItemIndex := Ord(Note.Leader);
     if Assigned(FNoteSize) and not FNoteSize.Focused then
       FNoteSize.Value := Note.Size;
     if Assigned(FNotePrint) then
@@ -1155,13 +1225,26 @@ begin
   // The memo adds a line break after the last line
   while (NewText <> '') and (NewText[Length(NewText)] = #10) do
     SetLength(NewText, Length(NewText) - 1);
-  if NewText = TNoteObject(Node).Text then
+  if NewText = TNoteObject(Node).DisplayText(FDocument.Pattern.Resolver) then
+  begin
+    FNoteRefusal.Visible := False;
     Exit;
+  end;
+  // A draft value that does not parse keeps the text as typed, with the reason
   FCommitting := True;
   try
     FDocument.BeginChange(rsPropChangeNoteText);
-    FDocument.Pattern.SetNoteText(TNoteObject(Node), NewText);
-    FDocument.EndChange;
+    if FDocument.Pattern.SetNoteText(TNoteObject(Node), NewText) then
+    begin
+      FDocument.EndChange;
+      FNoteRefusal.Visible := False;
+    end
+    else
+    begin
+      FNoteRefusal.Caption := FDocument.Pattern.LastError;
+      FDocument.CancelChange;
+      FNoteRefusal.Visible := True;
+    end;
   finally
     FCommitting := False;
   end;
@@ -1181,8 +1264,44 @@ begin
     Exit;
   Node := FDocument.Pattern.FindNode(FKey);
   if Node is TNoteObject then
-    FNoteText.Text := TNoteObject(Node).Text;
+    FNoteText.Text := TNoteObject(Node).DisplayText(FDocument.Pattern.Resolver);
+  FNoteRefusal.Visible := False;
   Key := 0;
+end;
+
+// The leader, alignment and box, as one undo step
+procedure TPropertiesPanel.NoteLookChange(Sender: TObject);
+var
+  Node: TEvalNode;
+  Note: TNoteObject;
+  Leader: TNoteLeader;
+  Reason: string;
+begin
+  if FFillingPieceRows then
+    Exit;
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TNoteObject) then
+    Exit;
+  Note := TNoteObject(Node);
+  Leader := Note.Leader;
+  if Assigned(FNoteLeaderBox) and (FNoteLeaderBox.ItemIndex >= 0) then
+    Leader := TNoteLeader(FNoteLeaderBox.ItemIndex);
+  if (Leader = Note.Leader) and (Ord(Note.Align) = FNoteAlignBox.ItemIndex) and (Note.Boxed = FNoteBoxCheck.Checked) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeNoteLook);
+    FDocument.Pattern.SetNoteAlign(Note, TTextAlign(Max(0, FNoteAlignBox.ItemIndex)));
+    FDocument.Pattern.SetNoteBoxed(Note, FNoteBoxCheck.Checked);
+    Reason := '';
+    if not FDocument.Pattern.SetNoteLeader(Note, Leader) then
+      Reason := FDocument.Pattern.LastError;
+    FDocument.Commit(Reason = '');
+  finally
+    FCommitting := False;
+  end;
+  if (Reason <> '') and Assigned(FOnMessage) then
+    FOnMessage(Self, Reason);
 end;
 
 procedure TPropertiesPanel.NoteSizeChange(Sender: TObject);

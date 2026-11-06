@@ -269,6 +269,7 @@ resourcestring
   rsToolNotch = 'Notch';
   rsToolSeam = 'Seam';
   rsToolText = 'Text';
+  rsToolCallout = 'Callout';
   rsMenuToolsSplit = 'Sp&lit Edge';
   rsToolCircle = 'Circle';
   rsMenuToolsArc = '&Arc';
@@ -875,8 +876,9 @@ end;
 // TOffsetSide, or Ord(True) for inside a piece.
 procedure TMainForm.CreateToolCommands;
 const
-  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'O', 'R', 'K', 'T', 'E', 'X');
-  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiCircle, aiRectangle, aiPiece, aiNotch, aiSeam, aiText);
+  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'O', 'R', 'K', 'T', 'E', 'X', 'A');
+  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiCircle, aiRectangle, aiPiece, aiNotch, aiSeam, aiText,
+    aiCallout);
   MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
   TransformIcons: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
 var
@@ -919,6 +921,7 @@ begin
   Captions[ctCircle] := rsToolCircle;
   Captions[ctRectangle] := rsToolRectangle;
   Captions[ctText] := rsToolText;
+  Captions[ctCallout] := rsToolCallout;
   MenuTools := TMenuItem.Create(MainMenu);
   MenuTools.Caption := rsMenuTools;
   MainMenu.Items.Insert(MainMenu.Items.IndexOf(MenuHelp), MenuTools);

@@ -27,3 +27,15 @@ Fixed on `main` of our fork `github.com/billbsing/Clipper2`, which `src/packages
 ## fpcupdeluxe Lazarus 4.99 in ~/Packages/fpc_build: lazbuild fails
 
 `~/Packages/fpc_build/lazarus/lazbuild` stops before reaching any project with `The package "IdeSynedit" is installed but no valid package file (.lpk) was found`, even with a fresh `--pcp` folder. This is the trunk install, not this project: `ide/packages/idesynedit/idesynedit.lpk` was added upstream on 2026-07-19 and the `lazbuild` binary probably predates it. Rebuilding Lazarus in fpcupdeluxe should fix it. Until then the system Lazarus 4.8 / FPC 3.2.2 is used; `build.local.sh.example` shows how to point the scripts at another toolchain.
+
+## `for … in [ … ]` over string constants loops over characters
+
+Found 2026-11-06 while building annotations stage 2. With FPC 3.2.2 in `{$mode ObjFPC}{$H+}`, a list of string constants in a `for … in` is taken as a set of characters, so each item is cut to its first letter:
+
+```pascal
+for Name in ['x', 'position', 'dx'] do   // gives 'x', 'p', 'd'
+```
+
+There is no warning. Single-letter names work by chance, which hides it. `TNoteObject.RemovePlaceFields` removed `x` and `y` but never `dx` or `dy`, so re-anchoring a note left its old offset fields behind. A list built from variables, as in `SnapObjectKeys`, is a real string array and works.
+
+**Fix.** Loop over a typed constant array instead (`const Names: array[0..2] of string = (...)`). `TestSetNoteAnchorKeepsText` in `tests/sloper.tests.notes.pas` covers the case.

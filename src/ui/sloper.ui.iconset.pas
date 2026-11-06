@@ -38,7 +38,7 @@ type
     aiExportPDF, aiExportSVG, aiExportDXF, aiExportMachineDXF, aiReload,
     aiRulers, aiPreferences,
     // Notes
-    aiText, aiAnnotations);
+    aiText, aiAnnotations, aiCallout);
 
 const
   AppIconNames: array[TAppIcon] of string = ('file-plus', 'folder-open', 'device-floppy', 'file-pencil',
@@ -53,7 +53,7 @@ const
     'file-import', 'file-export', 'file-search', 'player-stop',
     'file-type-pdf', 'file-type-svg', 'file-vector', 'cut', 'refresh',
     'ruler-2', 'settings',
-    'typography', 'notes');
+    'typography', 'notes', 'message');
 
 function IconFileName(const Dir: string; Icon: TAppIcon): string;
 // Tabler draws in currentColor; this gives it Color, such as #202020

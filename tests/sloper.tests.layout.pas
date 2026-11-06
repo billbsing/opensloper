@@ -78,6 +78,9 @@ type
     procedure TestPatternNotesPrintWithPiece;
     procedure TestPatternNotesStayUpright;
     procedure TestPatternNotesInPDFAndSVG;
+    procedure TestCalloutPrintsItsLeader;
+    procedure TestSheetNoteLookRoundTrip;
+    procedure TestBoxedNoteAndAlignmentInPDF;
     procedure TestRotationQuarterTurn;
     procedure TestModelYPointsUp;
     procedure TestUnplacedIsAWarning;
@@ -789,6 +792,89 @@ begin
   SVG := LayoutToSVG(FLayout);
   AssertTrue('in SVG', Pos('>Hello<', SVG) > 0);
   AssertEquals('screen only in SVG', 0, Pos('Private', SVG));
+end;
+
+// The tip follows the piece; the text keeps its place relative to it
+procedure TTestLayout.TestCalloutPrintsItsLeader;
+var
+  Pattern: TPattern;
+  Reason: string;
+  Piece: TPieceObject;
+  Shapes: TPlacedPieceArray;
+  Note: TNoteObject;
+  SVG: string;
+begin
+  WritePattern;
+  Pattern := TPattern.Create;
+  try
+    AssertTrue(Reason, LoadPatternFromFile(Pattern, FPatternPath, Reason));
+    Piece := TPieceObject(Pattern.FindObject('Front'));
+    Note := Pattern.AddNote('', 'Hem {=Front.holes}', naPiece, Piece.Key, '', '20', '20', DefaultNoteSize, True, nlArrow);
+    AssertNotNull(Pattern.LastError, Note);
+    Pattern.SetNoteBoxed(Note, True);
+    AssertTrue(Reason, SavePatternToFile(Pattern, FPatternPath, Reason));
+  finally
+    FreeAndNil(Pattern);
+  end;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Shapes := FLayout.PlacedPieces;
+  AssertEquals(1, Length(Shapes[0].Notes));
+  AssertEquals('draft value filled', 'Hem 0', Shapes[0].Notes[0].Text);
+  AssertTrue('a callout', Shapes[0].Notes[0].Leader = nlArrow);
+  AssertTrue('boxed', Shapes[0].Notes[0].Boxed);
+  AssertPointsNear('tip at the piece''s middle', Shapes[0].LabelAt, Shapes[0].Notes[0].Tip);
+  FLayout.Placements[0].Rotation := 180;
+  Shapes := FLayout.PlacedPieces;
+  AssertPointsNear('turned with it', Shapes[0].LabelAt, Shapes[0].Notes[0].Tip);
+  SVG := LayoutToSVG(FLayout);
+  AssertTrue('leader in SVG', Pos('<g class="notes"><path d="M ', SVG) > 0);
+  AssertTrue('box in SVG', Pos('fill="#ffffff"', SVG) > 0);
+end;
+
+procedure TTestLayout.TestSheetNoteLookRoundTrip;
+var
+  Text, ErrorMessage: string;
+  Other: TLayout;
+  Index: integer;
+begin
+  Index := FLayout.AddNote('Centred', 10, 20, 14);
+  FLayout.Notes[Index].Align := taRight;
+  FLayout.Notes[Index].Boxed := True;
+  FLayout.AddNote('Plain', 10, 60, 14);
+  Text := FLayout.SaveToText;
+  AssertEquals('only where set', Pos('"align"', Text), Pos('"align": "right"', Text));
+  Other := TLayout.Create;
+  try
+    AssertTrue(ErrorMessage, Other.LoadFromText(Text, ErrorMessage));
+    AssertTrue('aligned', Other.Notes[0].Align = taRight);
+    AssertTrue('boxed', Other.Notes[0].Boxed);
+    AssertTrue('plain', Other.Notes[1].Align = taLeft);
+    AssertFalse('plain', Other.Notes[1].Boxed);
+    AssertEquals('same text', Text, Other.SaveToText);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestLayout.TestBoxedNoteAndAlignmentInPDF;
+var
+  Plain, Boxed: rawbytestring;
+  Index: integer;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Index := FLayout.AddNote('ab' + #10 + 'abcd', 10, 150, 12);
+  Plain := LayoutToPDF(FLayout);
+  FLayout.Notes[Index].Boxed := True;
+  Boxed := LayoutToPDF(FLayout);
+  AssertTrue('a filled box', CountOf(' re f', Boxed) > CountOf(' re f', Plain));
+  AssertEquals('left: lines start together', NoteLineLeft(FLayout.Notes[Index], Default(TFieldValues), 'ab'),
+    NoteLineLeft(FLayout.Notes[Index], Default(TFieldValues), 'abcd'), 1e-9);
+  FLayout.Notes[Index].Align := taRight;
+  AssertNear('right: lines end together', NoteLineLeft(FLayout.Notes[Index], Default(TFieldValues), 'ab') + TextWidth('ab', 12),
+    NoteLineLeft(FLayout.Notes[Index], Default(TFieldValues), 'abcd') + TextWidth('abcd', 12));
 end;
 
 procedure TTestLayout.TestRotationQuarterTurn;

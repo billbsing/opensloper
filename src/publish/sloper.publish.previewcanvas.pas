@@ -26,7 +26,7 @@ unit Sloper.Publish.PreviewCanvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Fabrics, Sloper.Core.Geometry,
+  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.Core.Note,
   Sloper.Core.TextFields, Sloper.Output.Layout,
   Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling;
 
@@ -471,13 +471,38 @@ var
   var
     Lines: TStringArray;
     LineIndex: integer;
-    Spot: TVec2;
+    Spot, Start, First, Last: TVec2;
+    Frame: TRect2;
+    Stroke: TLine2;
   begin
+    Frame := NoteFrameBounds(Item, Values);
+    if (Item.Leader <> nlNone) and LeaderStart(Frame, Item.Tip, Start) then
+    begin
+      for Stroke in LeaderStrokes(Start, Item.Tip, Item.Leader) do
+      begin
+        First := FView.ToScreen(Stroke.P1);
+        Last := FView.ToScreen(Stroke.P2);
+        FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, Ink, 1);
+      end;
+      if Item.Leader = nlDot then
+      begin
+        Spot := FView.ToScreen(Item.Tip);
+        FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, LeaderDotRadius * FView.Scale + 0.5, LeaderDotRadius * FView.Scale + 0.5, Ink);
+      end;
+    end;
+    if Item.Boxed then
+    begin
+      First := FView.ToScreen(Vec2(Frame.MinX, Frame.MinY));
+      Last := FView.ToScreen(Vec2(Frame.MaxX, Frame.MaxY));
+      FBitmap.FillRectAntialias(First.X, First.Y, Last.X, Last.Y, PaperInk);
+    end;
     Lines := TextLines(ExpandFields(Item.Text, Values));
     FBitmap.FontHeight := Max(MinNoteHeight, Round(LineHeight(Item.Size) * FView.Scale));
-    Spot := FView.ToScreen(Vec2(Item.X, Item.Y));
     for LineIndex := 0 to High(Lines) do
+    begin
+      Spot := FView.ToScreen(Vec2(NoteLineLeft(Item, Values, Lines[LineIndex]), Item.Y));
       FBitmap.TextOut(Spot.X, Spot.Y + LineIndex * FBitmap.FontHeight, Lines[LineIndex], Ink);
+    end;
   end;
 
 begin
