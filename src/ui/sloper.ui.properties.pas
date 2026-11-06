@@ -75,6 +75,7 @@ type
     FNameEdit: TEdit;
     FDescriptionEdit: TEdit;
     FRoleBox: TComboBox;
+    FMarkerBox: TComboBox;
     // The pieces a marking line prints on
     FMarkedOnText: TGridLabel;
     FEndsBox: TComboBox;
@@ -142,7 +143,8 @@ type
     procedure SetEditText(Edit: TEdit; const AText: string);
     function KeepsText(Edit: TEdit): boolean;
     procedure RoleChange(Sender: TObject);
-    function MarkedOnText(Edge: TEdgeObject): string;
+    procedure MarkerChange(Sender: TObject);
+    function MarkedOnText(DraftObject: TDraftObject): string;
     procedure AddPieceRows(Piece: TPieceObject);
     procedure AddSeamRows;
     procedure RefreshSeamRows(Seam: TSeamObject);
@@ -201,6 +203,12 @@ resourcestring
   rsPropMarkedOn = 'Marked on';
   rsPropMarkedOnNone = 'No piece';
   rsPropNotMarking = '-';
+  rsPropMarker = 'Marker';
+  rsPropMarkerPlain = 'Plain';
+  rsPropMarkerHole = 'Hole';
+  rsPropMarkerButton = 'Button';
+  rsPropMarkerMatch = 'Match dot';
+  rsPropChangeMarker = 'Change marker';
   rsPropPosition = 'Position';
   rsPropLength = 'Length';
   rsPropPerimeter = 'Perimeter';
@@ -448,6 +456,7 @@ begin
   FNameEdit := nil;
   FDescriptionEdit := nil;
   FRoleBox := nil;
+  FMarkerBox := nil;
   FMarkedOnText := nil;
   FCutEdit := nil;
   FMirrorBox := nil;
@@ -667,8 +676,10 @@ begin
     else if (Node is TDraftObject) or (Node is TVariable) then
       FNameEdit := AddEditRow(rsPropName, NameTag);
     SetLength(FEdits, Node.FieldCount);
+    // A marker's size goes under the marker
     for Index := 0 to Node.FieldCount - 1 do
-      FEdits[Index] := AddEditRow(FieldCaption(Node.Fields[Index].Name), Index);
+      if Node.Fields[Index].Name <> MarkerSizeField then
+        FEdits[Index] := AddEditRow(FieldCaption(Node.Fields[Index].Name), Index);
     if Node is TVariable then
       FDescriptionEdit := AddEditRow(rsPropDescription, DescriptionTag);
     if Node is TEdgeObject then
@@ -684,6 +695,23 @@ begin
       FRoleBox.Items.Add(rsPropCutRole);
       FRoleBox.OnChange := @RoleChange;
       AddRow(rsPropRole, FRoleBox, RowGap);
+      FMarkedOnText := AddTextRow(rsPropMarkedOn, '', RowGap);
+    end;
+    // A repeat's points share the repeat's marker
+    if ((Node is TPointObject) and not (Node is TRepeatPoint)) or (Node is TRepeatObject) then
+    begin
+      FMarkerBox := TComboBox.Create(Self);
+      FMarkerBox.Style := csDropDownList;
+      // In the order of TPointMarker
+      FMarkerBox.Items.Add(rsPropMarkerPlain);
+      FMarkerBox.Items.Add(rsPropMarkerHole);
+      FMarkerBox.Items.Add(rsPropMarkerButton);
+      FMarkerBox.Items.Add(rsPropMarkerMatch);
+      FMarkerBox.OnChange := @MarkerChange;
+      AddRow(rsPropMarker, FMarkerBox, RowGap);
+      for Index := 0 to Node.FieldCount - 1 do
+        if Node.Fields[Index].Name = MarkerSizeField then
+          FEdits[Index] := AddEditRow(FieldCaption(MarkerSizeField), Index);
       FMarkedOnText := AddTextRow(rsPropMarkedOn, '', RowGap);
     end;
     if Node is TRepeatObject then
@@ -768,8 +796,10 @@ begin
     SetEditText(FDescriptionEdit, OriginalText(FDescriptionEdit));
   if Assigned(FRoleBox) then
     FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
+  if Assigned(FMarkerBox) then
+    FMarkerBox.ItemIndex := Ord(TDraftObject(Node).Marker);
   if Assigned(FMarkedOnText) then
-    FMarkedOnText.Caption := MarkedOnText(TEdgeObject(Node));
+    FMarkedOnText.Caption := MarkedOnText(TDraftObject(Node));
   if Assigned(FEndsBox) then
     FEndsBox.ItemIndex := Ord(not TRepeatObject(Node).IncludeEnds);
   if Node is TPieceObject then
@@ -1276,15 +1306,15 @@ begin
   end;
 end;
 
-// The pieces it prints on, for a marking line
-function TPropertiesPanel.MarkedOnText(Edge: TEdgeObject): string;
+// The pieces it prints on, for a marking line or a marked point
+function TPropertiesPanel.MarkedOnText(DraftObject: TDraftObject): string;
 var
   Piece: TPieceObject;
 begin
-  if not (Edge.Role in MarkingRoles) then
+  if not FDocument.Pattern.IsMarking(DraftObject) then
     Exit(rsPropNotMarking);
   Result := '';
-  for Piece in FDocument.Pattern.PiecesWithLine(Edge.Key) do
+  for Piece in FDocument.Pattern.PiecesWithMarking(DraftObject.Key) do
   begin
     if Result <> '' then
       Result := Result + ', ';
@@ -1292,6 +1322,23 @@ begin
   end;
   if Result = '' then
     Result := rsPropMarkedOnNone;
+end;
+
+procedure TPropertiesPanel.MarkerChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TDraftObject) or (Ord(TDraftObject(Node).Marker) = FMarkerBox.ItemIndex) then
+    Exit;
+  FCommitting := True;
+  try
+    FDocument.BeginChange(rsPropChangeMarker);
+    FDocument.Pattern.SetMarker(Node.Key, TPointMarker(FMarkerBox.ItemIndex));
+    FDocument.EndChange;
+  finally
+    FCommitting := False;
+  end;
 end;
 
 procedure TPropertiesPanel.RoleChange(Sender: TObject);

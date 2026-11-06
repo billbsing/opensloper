@@ -59,7 +59,8 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Classes, Math, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Fabrics, Sloper.Core.Pattern;
+  SysUtils, Classes, Math, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Drag, Sloper.Core.Draft, Sloper.Core.Piece,
+  Sloper.Core.Fabrics, Sloper.Core.Pattern;
 
 const
   NumberDecimals = 3;
@@ -345,6 +346,7 @@ var
   Mark: TNotchMark;
   Marking: TMarkingMark;
   Hole: TVec2;
+  Stroke: TLine2;
   Index: integer;
   Fabric: TPatternFabric;
 
@@ -392,6 +394,9 @@ begin
       Writer.Line(LayerInternal, UpLine(Line2(Marking.Line[Index - 1], Marking.Line[Index])));
     for Hole in Marking.Holes do
       Writer.PointAt(LayerHole, Up(Hole));
+    for Hole in Marking.Centres do
+      for Stroke in MarkerStrokes(Marking.Marker, Hole, Marking.HoleSize) do
+        Writer.Line(LayerInternal, UpLine(Stroke));
   end;
   At := Up(Piece.Middle);
   AddText(Format(rsDXFPieceName, [Piece.DisplayName]));

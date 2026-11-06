@@ -103,9 +103,11 @@ const
   TransformTypes: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
 
   // Marking kinds as read: older files marked placement and fold lines on
-  // the piece, and these become the edge's role
-  ReadMarkingKindNames: array[0..4] of string = ('hole', 'line', 'stitch', 'placement', 'fold');
+  // the piece, and these become the edge's role; and holes, which become
+  // the point's marker
+  ReadMarkingKindNames: array[0..5] of string = ('point', 'line', 'stitch', 'placement', 'fold', 'hole');
   OldMarkingRoles: array[3..4] of TEdgeRole = (erPlacement, erFold);
+  OldHoleKind = 5;
   OffsetModeNames: array[TOffsetMode] of string = ('polar', 'cartesian');
   AlongModeNames: array[TAlongMode] of string = ('length', 'ratio');
   DirectionNames: array[TProjectDirection] of string = ('perpendicular', 'angle');
@@ -121,6 +123,10 @@ type
     function Missing(const AName: string): boolean;
     function Problem(const Msg: string): boolean;
     function ReadInput(Item: TJSONObject; const AName: string; WantEdge: boolean; out Key: string): boolean;
+    function ReadMarkedPoint(Item: TJSONObject; out Key: string): boolean;
+    function ReadRun(Item: TJSONObject; out Run: TRunEdgeArray): boolean;
+    function RunStartKey(const Run: TRunEdgeArray): string;
+    function RunEndKey(const Run: TRunEdgeArray): string;
     function ReadBoolean(Item: TJSONObject; const AName: string; out Value: boolean): boolean;
     function ReadChoice(Item: TJSONObject; const AName: string; const Choices: array of string; out Choice: integer): boolean;
     function ReadPick(Item: TJSONObject; out Pick: integer): boolean;
@@ -249,6 +255,26 @@ begin
         NodeItem.Add('lengthIn', Path.Field(NodeName + '.lengthIn').StoredText);
       if Index < High(Path.NodeKeys) then
         NodeItem.Add('lengthOut', Path.Field(NodeName + '.lengthOut').StoredText);
+    end;
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+function SaveRun(const Run: TRunEdgeArray): TJSONArray;
+var
+  Item: TRunEdge;
+  Entry: TJSONObject;
+begin
+  Result := TJSONArray.Create;
+  try
+    for Item in Run do
+    begin
+      Entry := TJSONObject.Create;
+      Result.Add(Entry);
+      Entry.Add('edge', JSONId(Item.EdgeKey));
+      Entry.Add('reversed', Item.Reversed);
     end;
   except
     FreeAndNil(Result);
@@ -392,9 +418,7 @@ begin
         Item.Add('point', JSONId(Marking.PointKey))
       else
         Item.Add('edge', JSONId(Marking.EdgeKey));
-      if Marking.Kind = mkHole then
-        AddPart(MarkingDiameterField)
-      else if Marking.Kind = mkStitchHoles then
+      if Marking.Kind = mkStitchHoles then
       begin
         AddPart(MarkingSpacingField);
         AddPart(MarkingSizeField);
@@ -526,7 +550,11 @@ begin
     end
     else if DraftObject is TOffsetEdge then
     begin
-      Result.Add('edge', JSONId(TOffsetEdge(DraftObject).Source));
+      // One edge, followed forwards, is written as before runs
+      if (Length(TOffsetEdge(DraftObject).Run) = 1) and not TOffsetEdge(DraftObject).Run[0].Reversed then
+        Result.Add('edge', JSONId(TOffsetEdge(DraftObject).Source))
+      else
+        Result.Add('edges', SaveRun(TOffsetEdge(DraftObject).Run));
       Result.Add('side', OffsetSideNames[TOffsetEdge(DraftObject).Side]);
     end
     else if DraftObject is TRoundEdge then
@@ -612,6 +640,8 @@ begin
 
     if DraftObject is TEdgeObject then
       Result.Add('role', EdgeRoleNames[TEdgeObject(DraftObject).Role]);
+    if DraftObject.Marker <> pmPlain then
+      Result.Add('marker', PointMarkerNames[DraftObject.Marker]);
   except
     FreeAndNil(Result);
     raise;
@@ -793,6 +823,83 @@ begin
   if WantEdge and not (Node is TEdgeObject) then
     Exit(Problem(Format(rsDraftNotAnEdge, [NodeLabel(Node)])));
   if not WantEdge and not (Node is TPointObject) then
+    Exit(Problem(Format(rsDraftNotAPoint, [NodeLabel(Node)])));
+  Result := True;
+end;
+
+// An offset edge's "edges", each an edge and whether the run follows it
+// backwards; or, as written before runs, one "edge" followed forwards
+function TPatternLoader.ReadRun(Item: TJSONObject; out Run: TRunEdgeArray): boolean;
+var
+  Data: TJSONData;
+  Entry: TJSONObject;
+  Index: integer;
+  Key: string;
+  Reversed: boolean;
+begin
+  Run := nil;
+  Data := Item.Find('edges');
+  if not Assigned(Data) then
+  begin
+    if not ReadInput(Item, 'edge', True, Key) then
+      Exit(False);
+    SetLength(Run, 1);
+    Run[0].EdgeKey := Key;
+    Run[0].Reversed := False;
+    Exit(True);
+  end;
+  if (Data.JSONType <> jtArray) or (Data.Count = 0) then
+    Exit(Missing('edges'));
+  for Index := 0 to Data.Count - 1 do
+  begin
+    if Data.Items[Index].JSONType <> jtObject then
+      Exit(Missing('edges'));
+    Entry := TJSONObject(Data.Items[Index]);
+    if not ReadInput(Entry, 'edge', True, Key) or not ReadBoolean(Entry, 'reversed', Reversed) then
+      Exit(False);
+    SetLength(Run, Length(Run) + 1);
+    Run[High(Run)].EdgeKey := Key;
+    Run[High(Run)].Reversed := Reversed;
+  end;
+  Result := True;
+end;
+
+function TPatternLoader.RunStartKey(const Run: TRunEdgeArray): string;
+var
+  Edge: TEdgeObject;
+begin
+  Edge := TEdgeObject(FPattern.FindNode(Run[0].EdgeKey));
+  if Run[0].Reversed then
+    Result := Edge.EndKey
+  else
+    Result := Edge.StartKey;
+end;
+
+function TPatternLoader.RunEndKey(const Run: TRunEdgeArray): string;
+var
+  Edge: TEdgeObject;
+begin
+  Edge := TEdgeObject(FPattern.FindNode(Run[High(Run)].EdgeKey));
+  if Run[High(Run)].Reversed then
+    Result := Edge.StartKey
+  else
+    Result := Edge.EndKey;
+end;
+
+// A point or repeat ID, which must come earlier in the file
+function TPatternLoader.ReadMarkedPoint(Item: TJSONObject; out Key: string): boolean;
+var
+  Node: TEvalNode;
+  Id: integer;
+begin
+  Key := '';
+  if not GetJSONInteger(Item, 'point', Id) or (Id < 1) then
+    Exit(Missing('point'));
+  Key := IntToStr(Id);
+  Node := FPattern.FindNode(Key);
+  if not Assigned(Node) then
+    Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
+  if not ((Node is TPointObject) or (Node is TRepeatObject)) then
     Exit(Problem(Format(rsDraftNotAPoint, [NodeLabel(Node)])));
   Result := True;
 end;
@@ -987,6 +1094,7 @@ var
   Index, Choice, Added: integer;
   Key: string;
   Kind: TMarkingKind;
+  Target: TEvalNode;
 begin
   Data := Item.Find('markings');
   if not Assigned(Data) then
@@ -1002,17 +1110,27 @@ begin
       Exit(Missing('kind'));
     if not ReadChoice(Marking, 'kind', ReadMarkingKindNames, Choice) then
       Exit(False);
-    if Choice > Ord(High(TMarkingKind)) then
+    if Choice = OldHoleKind then
+      Kind := mkPoint
+    else if Choice > Ord(High(TMarkingKind)) then
       Kind := mkLine
     else
       Kind := TMarkingKind(Choice);
-    if Kind = mkHole then
+    if Kind = mkPoint then
     begin
-      if not ReadInput(Marking, 'point', False, Key) then
+      if not ReadMarkedPoint(Marking, Key) then
         Exit(False);
-      Added := Piece.AddMarking(Kind, Key, '');
-      if not ReadFormula(Marking, MarkingDiameterField, Piece, Piece.MarkingField(Added, MarkingDiameterField)) then
-        Exit(False);
+      Target := FPattern.FindNode(Key);
+      // An older file's hole gives its point the marker, with the first
+      // diameter it finds; the size is a formula of the point now
+      if (Choice = OldHoleKind) and (TDraftObject(Target).Marker = pmPlain) then
+      begin
+        TDraftObject(Target).SetMarker(pmHole);
+        if not ReadFormula(Marking, 'diameter', Target, MarkerSizeField) then
+          Exit(False);
+      end;
+      if Piece.PointMarkingOf(Key) < 0 then
+        Piece.AddMarking(mkPoint, Key, '');
       Continue;
     end;
     if not ReadInput(Marking, 'edge', True, Key) then
@@ -1381,6 +1499,7 @@ var
   First, Second, Third: string;
   Choice, EndChoice, Pick, Part: integer;
   FlagA, FlagB: boolean;
+  Run: TRunEdgeArray;
 begin
   Result := nil;
   if TypeText = TypeFreePoint then
@@ -1446,8 +1565,8 @@ begin
   end
   else if TypeText = TypeOffsetEdge then
   begin
-    if ReadInput(Item, 'edge', True, First) and ReadChoice(Item, 'side', OffsetSideNames, Choice) then
-      Result := TOffsetEdge.Create(FId, First, TEdgeObject(FPattern.FindNode(First)).StartKey, TEdgeObject(FPattern.FindNode(First)).EndKey, TOffsetSide(Choice));
+    if ReadRun(Item, Run) and ReadChoice(Item, 'side', OffsetSideNames, Choice) then
+      Result := TOffsetEdge.Create(FId, Run, RunStartKey(Run), RunEndKey(Run), TOffsetSide(Choice));
   end
   else if TypeText = TypeCornerArc then
   begin
@@ -1633,6 +1752,13 @@ begin
         Exit(Missing('name'));
       if not FPattern.CheckObjectName(ObjectName, nil, Msg) then
         Exit(Problem(Msg));
+    end;
+    // The marker comes first, as it adds the size field read below
+    if ((DraftObject is TPointObject) or (DraftObject is TRepeatObject)) and Assigned(Item.Find('marker')) then
+    begin
+      if not ReadChoice(Item, 'marker', PointMarkerNames, Choice) then
+        Exit(False);
+      DraftObject.SetMarker(TPointMarker(Choice));
     end;
     if not (DraftObject is TCurvePathObject) and not (DraftObject is TPieceObject) then
       for Index := 0 to DraftObject.FieldCount - 1 do

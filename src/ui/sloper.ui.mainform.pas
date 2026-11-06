@@ -25,7 +25,7 @@ unit Sloper.UI.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry,
+  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry, Sloper.Core.Draft,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
@@ -101,6 +101,8 @@ type
     FHorzRuler, FVertRuler: TCanvasRuler;
     FToolActions: array[TCanvasTool] of TAction;
     FLabelActions: array[TLabelMode] of TAction;
+    FRoleActions: array[TEdgeRole] of TAction;
+    FRoleBox: TComboBox;
     FSidePanel: TPageControl;
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
@@ -132,6 +134,10 @@ type
     procedure CreateCommands;
     procedure CreateViewCommands;
     procedure LabelModeClick(Sender: TObject);
+    procedure DrawRoleClick(Sender: TObject);
+    procedure DrawRoleBoxChange(Sender: TObject);
+    procedure SetDrawRole(Role: TEdgeRole);
+    procedure CreateDrawRoleBox;
     procedure PieceFillsClick(Sender: TObject);
     procedure CreateSidePanel;
     procedure SetSideShown(Shown: boolean);
@@ -155,6 +161,7 @@ type
     procedure RoundEdgeClick(Sender: TObject);
     procedure RectangleClick(Sender: TObject);
     procedure OffsetClick(Sender: TObject);
+    procedure OffsetPieceClick(Sender: TObject);
     procedure RoundCornerClick(Sender: TObject);
     procedure ConvertClick(Sender: TObject);
     procedure MarkingClick(Sender: TObject);
@@ -189,7 +196,7 @@ var
 implementation
 
 uses
-  Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.Draft, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
+  Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version,
   Sloper.Core.AppPaths, Sloper.Core.Measurements,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
@@ -262,13 +269,17 @@ resourcestring
   rsMenuToolsRectangle = 'Rec&tangle';
   rsMenuToolsOffsetLeft = 'O&ffset Edge Left';
   rsMenuToolsOffsetRight = 'Offset Edge Ri&ght';
+  rsMenuToolsOffsetInside = 'Offset Inside Piece';
+  rsMenuToolsOffsetOutside = 'Offset Outside Piece';
   rsMenuToolsRoundCorner = 'Ro&und Corner';
   rsMenuToolsToLine = 'Change to Li&ne';
   rsMenuToolsToCurve = 'Change to Curv&e';
   rsMenuToolsMerge = 'Merge &Points';
   rsMenuToolsBreak = '&Break Point';
   rsMenuToolsHole = 'Mark &Hole';
-  rsMenuToolsAttachLine = 'Attach Marking Line to Piece';
+  rsMenuToolsAttachLine = 'Attach Marking to Piece';
+  rsMenuToolsDrawAs = 'Draw &As';
+  rsDrawRoleHint = 'The role of the lines and shapes drawn next';
   rsMenuToolsStitch = 'Mark Stitch Holes';
   rsMenuToolsRemoveMarking = 'Remove Marking';
   rsMenuToolsRotate = '&Rotate Copy...';
@@ -322,6 +333,7 @@ begin
   CreateSidePanel;
   CreateViewCommands;
   CreateToolCommands;
+  CreateDrawRoleBox;
   LoadSettings;
   FCanvasPanel := TPanel.Create(Self);
   FCanvasPanel.Parent := Self;
@@ -347,6 +359,7 @@ begin
   FCanvas.OnToolChange := @CanvasToolChange;
   FCanvas.OnSelectionChange := @CanvasSelectionChange;
   SetLabelMode(FSettings.LabelMode);
+  SetDrawRole(erOutline);
   FPieceFillsAction.Checked := FSettings.ShowPieceFills;
   FCanvas.ShowPieceFills := FSettings.ShowPieceFills;
   SetSideShown(FSettings.ShowSidePanel);
@@ -787,6 +800,43 @@ begin
   SetLabelMode(TLabelMode(TComponent(Sender).Tag));
 end;
 
+// Each role action's Tag is its TEdgeRole
+procedure TMainForm.DrawRoleClick(Sender: TObject);
+begin
+  SetDrawRole(TEdgeRole(TComponent(Sender).Tag));
+end;
+
+procedure TMainForm.DrawRoleBoxChange(Sender: TObject);
+begin
+  if FRoleBox.ItemIndex >= 0 then
+    SetDrawRole(TEdgeRole(FRoleBox.ItemIndex));
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.SetDrawRole(Role: TEdgeRole);
+begin
+  FCanvas.DrawRole := Role;
+  FRoleActions[Role].Checked := True;
+  FRoleBox.ItemIndex := Ord(Role);
+end;
+
+// On the command bar, so the role new lines take is always in sight
+procedure TMainForm.CreateDrawRoleBox;
+var
+  Role: TEdgeRole;
+begin
+  AddDivider(FCommandBar);
+  FRoleBox := TComboBox.Create(Self);
+  FRoleBox.Style := csDropDownList;
+  for Role := Low(TEdgeRole) to High(TEdgeRole) do
+    FRoleBox.Items.Add(StripHotkey(FRoleActions[Role].Caption));
+  FRoleBox.Width := Scale96ToForm(120);
+  FRoleBox.Hint := rsDrawRoleHint;
+  FRoleBox.ShowHint := True;
+  FRoleBox.OnChange := @DrawRoleBoxChange;
+  FRoleBox.Parent := FCommandBar;
+end;
+
 // The Tools menu and the toolbar down the left, in the same order. Each
 // action's Tag is its TCanvasTool, TMarkingKind, TTransformKind or
 // TOffsetSide, or Ord(True) for a whole circle.
@@ -804,6 +854,9 @@ var
   MarkingCaptions: array[TMarkingKind] of string;
   Marking: TMarkingKind;
   Kind: TTransformKind;
+  MenuDrawAs: TMenuItem;
+  Role: TEdgeRole;
+  RoleCaptions: array[TEdgeRole] of string;
 
   procedure AddCommand(AAction: TAction);
   begin
@@ -818,7 +871,13 @@ var
   end;
 
 begin
-  MarkingCaptions[mkHole] := rsMenuToolsHole;
+  RoleCaptions[erConstruction] := rsPropConstruction;
+  RoleCaptions[erOutline] := rsPropOutline;
+  RoleCaptions[erPlacement] := rsPropPlacement;
+  RoleCaptions[erStitch] := rsPropStitch;
+  RoleCaptions[erFold] := rsPropFoldRole;
+  RoleCaptions[erCut] := rsPropCutRole;
+  MarkingCaptions[mkPoint] := rsMenuToolsHole;
   MarkingCaptions[mkLine] := rsMenuToolsAttachLine;
   MarkingCaptions[mkStitchHoles] := rsMenuToolsStitch;
   TransformCaptions[tkRotate] := rsMenuToolsRotate;
@@ -851,6 +910,9 @@ begin
   AddCommand(NewAction(rsMenuToolsRoundCorner, aiRoundCorner, @RoundCornerClick));
   AddCommand(NewAction(rsMenuToolsOffsetLeft, aiOffsetLeft, @OffsetClick, 0, Ord(osLeft)));
   AddCommand(NewAction(rsMenuToolsOffsetRight, aiOffsetRight, @OffsetClick, 0, Ord(osRight)));
+  // Menu only, as their icons would look like the two above
+  AddMenuItem(MenuTools, NewAction(rsMenuToolsOffsetInside, aiOffsetRight, @OffsetPieceClick, 0, Ord(True)));
+  AddMenuItem(MenuTools, NewAction(rsMenuToolsOffsetOutside, aiOffsetLeft, @OffsetPieceClick, 0, Ord(False)));
   // Menu only: on the toolbar they would look like the Line and Curve tools
   MenuTools.Add(NewLine);
   AddMenuItem(MenuTools, NewAction(rsMenuToolsToLine, aiToLine, @ConvertClick, 0, Ord(False)));
@@ -862,6 +924,17 @@ begin
   for Marking := Low(TMarkingKind) to High(TMarkingKind) do
     AddCommand(NewAction(MarkingCaptions[Marking], MarkingIcons[Marking], @MarkingClick, 0, Ord(Marking)));
   AddCommand(NewAction(rsMenuToolsRemoveMarking, aiRemoveMarking, @RemoveMarkingClick));
+  MenuDrawAs := TMenuItem.Create(MainMenu);
+  MenuDrawAs.Caption := rsMenuToolsDrawAs;
+  MenuTools.Add(MenuDrawAs);
+  for Role := Low(TEdgeRole) to High(TEdgeRole) do
+  begin
+    FRoleActions[Role] := NewAction(RoleCaptions[Role], aiLine, @DrawRoleClick, 0, Ord(Role));
+    FRoleActions[Role].ImageIndex := -1;
+    FRoleActions[Role].GroupIndex := 3;
+    Item := AddMenuItem(MenuDrawAs, FRoleActions[Role]);
+    Item.RadioItem := True;
+  end;
   AddBreak;
   for Kind := Low(TTransformKind) to High(TTransformKind) do
     AddCommand(NewAction(TransformCaptions[Kind], TransformIcons[Kind], @TransformClick, 0, Ord(Kind)));
@@ -889,6 +962,12 @@ end;
 procedure TMainForm.OffsetClick(Sender: TObject);
 begin
   FCanvas.OffsetSelection(TOffsetSide(TComponent(Sender).Tag));
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.OffsetPieceClick(Sender: TObject);
+begin
+  FCanvas.OffsetSelectionInPiece(TComponent(Sender).Tag = Ord(True));
   FCanvas.SetFocus;
 end;
 

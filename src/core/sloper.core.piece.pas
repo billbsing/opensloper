@@ -39,11 +39,10 @@ const
   // A point this close (in mm) to a piece's seam line can carry a notch
   NotchPointTolerance = 0.05;
   // The second part of a marking's fields, after "markingN."
-  MarkingDiameterField = 'diameter';
   MarkingSpacingField = 'spacing';
   MarkingSizeField = 'size';
   // As written in pattern files and the Automation API
-  MarkingKindNames: array[0..2] of string = ('hole', 'line', 'stitch');
+  MarkingKindNames: array[0..2] of string = ('point', 'line', 'stitch');
   // Ends of neighbouring edges this close (in mm) count as joined, so formula
   // rounding cannot open a piece
   PieceJoinTolerance = 0.01;
@@ -76,10 +75,10 @@ type
 
   TNotchMarkArray = array of TNotchMark;
 
-  // mkHole is at a point, with a diameter. The others are along an edge:
-  // mkLine is a marking line, drawn in its edge's role, and mkStitchHoles has
-  // a spacing and a hole size.
-  TMarkingKind = (mkHole, mkLine, mkStitchHoles);
+  // mkPoint is a point or repeat with a marker, which has the marker's size.
+  // The others are along an edge: mkLine is a marking line, drawn in its
+  // edge's role, and mkStitchHoles has a spacing and a hole size.
+  TMarkingKind = (mkPoint, mkLine, mkStitchHoles);
 
   TPieceMarking = record
     Kind: TMarkingKind;
@@ -88,13 +87,17 @@ type
 
   TPieceMarkingArray = array of TPieceMarking;
 
-  // A marking worked out: Line for a line, Holes for holes of diameter HoleSize
+  // A marking worked out: Line for a line, Holes for holes of diameter
+  // HoleSize, and Centres for buttons and match dots of that size
   TMarkingMark = record
     Kind: TMarkingKind;
     // How an mkLine is drawn: its edge's marking role
     Role: TEdgeRole;
+    // An mkPoint's marker
+    Marker: TPointMarker;
     Line: TVec2Array;
     Holes: TVec2Array;
+    Centres: TVec2Array;
     HoleSize: double;
   end;
 
@@ -157,11 +160,14 @@ type
     function MarkingField(Index: integer; const Part: string): string;
     // The mkLine marking along this edge, or -1
     function LineMarkingOf(const AEdgeKey: string): integer;
-    // True when the piece reads the edge only as marking lines, so deleting
-    // the edge or changing its role can simply take them off
-    function UsesOnlyAsLine(const AEdgeKey: string): boolean;
-    // Its holes as small circles of short strokes, for drawing; marking lines
-    // are drawn as their edges, in their role's style
+    // The mkPoint marking of this point or repeat, or -1
+    function PointMarkingOf(const AKey: string): integer;
+    // True when the piece reads the object only as marking lines or a
+    // marked point, so deleting it or changing its role or marker can simply
+    // take them off
+    function UsesOnlyAsMarking(const AKey: string): boolean;
+    // Its holes, buttons and match dots as short strokes, for drawing;
+    // marking lines are drawn as their edges, in their role's style
     function MarkingStrokes: TLine2Array;
     function Area: double;
     function Perimeter: double;
@@ -217,7 +223,7 @@ resourcestring
   rsPieceNegativeAllowance = 'A seam allowance cannot be negative';
   rsPieceNoCutLine = 'No cutting line could be worked out';
   rsPieceGrainSamePlace = 'The grainline starts and ends at the same place';
-  rsPieceHoleOutside = 'The hole at %s is outside the piece';
+  rsPieceHoleOutside = 'The marker at %s is outside the piece';
   rsPieceHoleOnFold = 'The hole at %s is on the fold';
   rsPieceHoleSize = 'A hole needs a size above 0';
   rsPieceStitchSpacing = 'Stitch holes need a spacing above 0';
@@ -368,20 +374,31 @@ begin
   Result := -1;
 end;
 
-function TPieceObject.UsesOnlyAsLine(const AEdgeKey: string): boolean;
+function TPieceObject.PointMarkingOf(const AKey: string): integer;
+var
+  Index: integer;
+begin
+  for Index := 0 to High(FMarkings) do
+    if (FMarkings[Index].Kind = mkPoint) and (FMarkings[Index].PointKey = AKey) then
+      Exit(Index);
+  Result := -1;
+end;
+
+function TPieceObject.UsesOnlyAsMarking(const AKey: string): boolean;
 var
   InputKey: string;
-  Reads, AsLine, Index: integer;
+  Reads, AsMarking, Index: integer;
 begin
   Reads := 0;
   for InputKey in InputKeys do
-    if InputKey = AEdgeKey then
+    if InputKey = AKey then
       Inc(Reads);
-  AsLine := 0;
+  AsMarking := 0;
   for Index := 0 to High(FMarkings) do
-    if (FMarkings[Index].Kind = mkLine) and (FMarkings[Index].EdgeKey = AEdgeKey) then
-      Inc(AsLine);
-  Result := (AsLine > 0) and (Reads = AsLine);
+    if ((FMarkings[Index].Kind = mkLine) and (FMarkings[Index].EdgeKey = AKey)) or
+      ((FMarkings[Index].Kind = mkPoint) and (FMarkings[Index].PointKey = AKey)) then
+      Inc(AsMarking);
+  Result := (AsMarking > 0) and (Reads = AsMarking);
 end;
 
 function TPieceObject.AddMarking(AKind: TMarkingKind; const APointKey, AEdgeKey: string): integer;
@@ -391,13 +408,10 @@ begin
   FMarkings[Result].Kind := AKind;
   FMarkings[Result].PointKey := APointKey;
   FMarkings[Result].EdgeKey := AEdgeKey;
-  case AKind of
-    mkHole: AddField(MarkingField(Result, MarkingDiameterField));
-    mkStitchHoles:
-    begin
-      AddField(MarkingField(Result, MarkingSpacingField));
-      AddField(MarkingField(Result, MarkingSizeField));
-    end;
+  if AKind = mkStitchHoles then
+  begin
+    AddField(MarkingField(Result, MarkingSpacingField));
+    AddField(MarkingField(Result, MarkingSizeField));
   end;
 end;
 
@@ -407,24 +421,18 @@ var
 
   procedure MoveDown(At: integer);
   begin
-    case FMarkings[At].Kind of
-      mkHole: RenameField(MarkingField(At, MarkingDiameterField), MarkingField(At - 1, MarkingDiameterField));
-      mkStitchHoles:
-      begin
-        RenameField(MarkingField(At, MarkingSpacingField), MarkingField(At - 1, MarkingSpacingField));
-        RenameField(MarkingField(At, MarkingSizeField), MarkingField(At - 1, MarkingSizeField));
-      end;
+    if FMarkings[At].Kind = mkStitchHoles then
+    begin
+      RenameField(MarkingField(At, MarkingSpacingField), MarkingField(At - 1, MarkingSpacingField));
+      RenameField(MarkingField(At, MarkingSizeField), MarkingField(At - 1, MarkingSizeField));
     end;
   end;
 
 begin
-  case FMarkings[Index].Kind of
-    mkHole: RemoveField(MarkingField(Index, MarkingDiameterField));
-    mkStitchHoles:
-    begin
-      RemoveField(MarkingField(Index, MarkingSpacingField));
-      RemoveField(MarkingField(Index, MarkingSizeField));
-    end;
+  if FMarkings[Index].Kind = mkStitchHoles then
+  begin
+    RemoveField(MarkingField(Index, MarkingSpacingField));
+    RemoveField(MarkingField(Index, MarkingSizeField));
   end;
   for Later := Index + 1 to High(FMarkings) do
     MoveDown(Later);
@@ -438,30 +446,38 @@ var
   Marking: TPieceMarking;
   Node: TEvalNode;
   Edge: TEdgeObject;
-  Diameter, Spacing, Size: double;
+  Spacing, Size: double;
   Count, Hole: integer;
+  Position: TVec2;
+  Positions: TVec2Array;
 begin
   Mark := Default(TMarkingMark);
   Marking := FMarkings[Index];
   Mark.Kind := Marking.Kind;
-  if Marking.Kind = mkHole then
+  if Marking.Kind = mkPoint then
   begin
     Node := Context.FindNode(Marking.PointKey);
-    if not (Node is TPointObject) then
+    if not ((Node is TPointObject) or (Node is TRepeatObject)) then
       Exit(Fail(esError, Format(rsDraftNotAPoint, [Marking.PointKey])));
-    if not EvalField(Context, MarkingField(Index, MarkingDiameterField), Diameter) then
-      Exit(esError);
-    if Diameter <= 0 then
-      Exit(Fail(esInvalid, rsPieceHoleSize));
-    // Checked first: a point on the outline can pass the test below or not,
-    // and a hole here would have no other half when the piece opens out
-    if OnFold and (Distance(TPointObject(Node).Position, MirrorPoint(TPointObject(Node).Position, Fold.P1, Fold.P2)) < DefaultTolerance) then
-      Exit(Fail(esInvalid, Format(rsPieceHoleOnFold, [Node.DisplayName])));
-    if not PointInPolygon(TPointObject(Node).Position, Cut) then
-      Exit(Fail(esInvalid, Format(rsPieceHoleOutside, [Node.DisplayName])));
-    SetLength(Mark.Holes, 1);
-    Mark.Holes[0] := TPointObject(Node).Position;
-    Mark.HoleSize := Diameter;
+    // A point that lost its marker prints nothing until it is taken off
+    Mark.Marker := TDraftObject(Node).Marker;
+    if Mark.Marker = pmPlain then
+      Exit(esValid);
+    Positions := MarkerPositions(TDraftObject(Node));
+    for Position in Positions do
+    begin
+      // Checked first: a point on the outline can pass the test below or not,
+      // and a hole here would have no other half when the piece opens out
+      if (Mark.Marker = pmHole) and OnFold and (Distance(Position, MirrorPoint(Position, Fold.P1, Fold.P2)) < DefaultTolerance) then
+        Exit(Fail(esInvalid, Format(rsPieceHoleOnFold, [Node.DisplayName])));
+      if not PointInPolygon(Position, Cut) then
+        Exit(Fail(esInvalid, Format(rsPieceHoleOutside, [Node.DisplayName])));
+    end;
+    if Mark.Marker = pmHole then
+      Mark.Holes := Positions
+    else
+      Mark.Centres := Positions;
+    Mark.HoleSize := TDraftObject(Node).MarkerSize;
     Exit(esValid);
   end;
   Node := Context.FindNode(Marking.EdgeKey);
@@ -493,26 +509,17 @@ begin
 end;
 
 function TPieceObject.MarkingStrokes: TLine2Array;
-const
-  CircleStrokes = 16;
 var
   Mark: TMarkingMark;
-  Hole: TVec2;
-  Index: integer;
-
-  procedure Add(const From, Target: TVec2);
-  begin
-    SetLength(Result, Length(Result) + 1);
-    Result[High(Result)] := Line2(From, Target);
-  end;
-
+  Centre: TVec2;
 begin
   Result := nil;
   for Mark in FMarkingMarks do
   begin
-    for Hole in Mark.Holes do
-      for Index := 0 to CircleStrokes - 1 do
-        Add(PolarPoint(Hole, Mark.HoleSize / 2, Index * 360 / CircleStrokes), PolarPoint(Hole, Mark.HoleSize / 2, (Index + 1) * 360 / CircleStrokes));
+    for Centre in Mark.Holes do
+      Result := Concat(Result, MarkerStrokes(pmHole, Centre, Mark.HoleSize));
+    for Centre in Mark.Centres do
+      Result := Concat(Result, MarkerStrokes(Mark.Marker, Centre, Mark.HoleSize));
   end;
 end;
 

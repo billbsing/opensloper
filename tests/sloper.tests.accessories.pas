@@ -581,10 +581,10 @@ var
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  AssertTrue(FPattern.LastError, FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
+  AssertTrue(FPattern.LastError, FPattern.SetMarker(Pt('H', 50, 50), pmHole, '4'));
   FPattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
-  AssertEquals(1, Length(Piece.MarkingMarks));
+  AssertEquals('joined the piece it lies in', 1, Length(Piece.MarkingMarks));
   AssertPointsNear('at its point', Vec2(50, 50), Piece.MarkingMarks[0].Holes[0]);
   AssertEquals(4, Piece.MarkingMarks[0].HoleSize, 1e-9);
 end;
@@ -597,7 +597,7 @@ begin
   Rectangle;
   Piece := PieceAt(50, 50);
   Hole := Pt('H', 50, 50);
-  AssertTrue(FPattern.AddHoleMarking(Piece, Hole, '4'));
+  AssertTrue(FPattern.SetMarker(Hole, pmHole, '4'));
   FPattern.Evaluate;
   AssertTrue(FPattern.SetFormula(FPattern.FindNode(Hole), 'x', '120'));
   FPattern.Evaluate;
@@ -607,23 +607,30 @@ end;
 procedure TTestAccessories.TestHoleOutsidePieceIsInvalid;
 var
   Piece: TPieceObject;
+  Hole: string;
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 500, 500), '4'));
+  Hole := Pt('H', 500, 500);
+  AssertTrue(FPattern.SetMarker(Hole, pmHole, '4'));
+  FPattern.Evaluate;
+  AssertEquals('not inside, so not joined', 0, Length(Piece.Markings));
+  AssertTrue('by hand', FPattern.AddPointMarking(Piece, Hole));
   FPattern.Evaluate;
   AssertTrue(Piece.State = esInvalid);
 end;
 
 procedure TTestAccessories.TestHoleDiameterMustBePositive;
 var
-  Piece: TPieceObject;
+  Hole: string;
 begin
   Rectangle;
-  Piece := PieceAt(50, 50);
-  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '0'));
+  PieceAt(50, 50);
+  Hole := Pt('H', 50, 50);
+  AssertTrue(FPattern.SetMarker(Hole, pmHole, '0'));
   FPattern.Evaluate;
-  AssertTrue(Piece.State = esInvalid);
+  AssertTrue(FPattern.FindNode(Hole).State = esInvalid);
+  AssertEquals(rsDraftMarkerSize, FPattern.FindNode(Hole).Message);
 end;
 
 procedure TTestAccessories.TestPlacementLineFollowsEdge;
@@ -723,11 +730,12 @@ begin
   Rectangle;
   Piece := PieceAt(50, 50);
   AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50)).Key, '4', '1'));
-  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 60), '4'));
+  AssertTrue(FPattern.SetMarker(Pt('H', 50, 60), pmHole, '4'));
   FPattern.Evaluate;
   AssertEquals('stitch holes only: thread goes through those', 26, Piece.PropertyValue('holes'), 1e-9);
 end;
 
+// As for a marking line, the piece lets a point it only marks go with it
 procedure TTestAccessories.TestMarkingUsesItsInput;
 var
   Piece: TPieceObject;
@@ -736,8 +744,11 @@ begin
   Rectangle;
   Piece := PieceAt(50, 50);
   Hole := Pt('H', 50, 50);
-  AssertTrue(FPattern.AddHoleMarking(Piece, Hole, '4'));
-  AssertFalse('the point is in use', FPattern.Delete(FPattern.FindNode(Hole)));
+  AssertTrue(FPattern.SetMarker(Hole, pmHole, '4'));
+  FPattern.Evaluate;
+  AssertEquals(1, Length(Piece.Markings));
+  AssertTrue(FPattern.LastError, FPattern.Delete(FPattern.FindNode(Hole)));
+  AssertEquals('taken off', 0, Length(Piece.Markings));
 end;
 
 procedure TTestAccessories.TestRemoveMarkingRenumbers;
@@ -746,14 +757,14 @@ var
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
-  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('J', 60, 50), '7'));
+  AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50)).Key, '4', '1'));
+  AssertTrue(FPattern.AddStitchMarking(Piece, FPattern.AddLine(Pt('R', 20, 60), Pt('S', 120, 60)).Key, '5', '2'));
   AssertTrue(FPattern.RemoveMarking(Piece, 0));
   FPattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
   AssertEquals(1, Length(Piece.Markings));
-  AssertEquals('7', FPattern.FormulaText(Piece, Piece.MarkingField(0, MarkingDiameterField)));
-  AssertEquals(7, Piece.MarkingMarks[0].HoleSize, 1e-9);
+  AssertEquals('5', FPattern.FormulaText(Piece, Piece.MarkingField(0, MarkingSpacingField)));
+  AssertEquals(2, Piece.MarkingMarks[0].HoleSize, 1e-9);
 end;
 
 procedure TTestAccessories.TestRemoveMissingMarkingRefused;
@@ -771,7 +782,7 @@ var
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
+  AssertTrue(FPattern.SetMarker(Pt('H', 50, 50), pmHole, '4'));
   FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50), erPlacement);
   FPattern.AddLine(Pt('R', 20, 60), Pt('S', 120, 60), erFold);
   FPattern.Evaluate;
@@ -793,7 +804,7 @@ begin
   Rectangle;
   Piece := PieceAt(50, 50);
   Before := Length(Piece.MarkingStrokes);
-  AssertTrue(FPattern.AddHoleMarking(Piece, Pt('H', 50, 50), '4'));
+  AssertTrue(FPattern.SetMarker(Pt('H', 50, 50), pmHole, '4'));
   FPattern.Evaluate;
   AssertEquals(0, Before);
   AssertTrue('a circle of strokes', Length(Piece.MarkingStrokes) > 8);
@@ -812,7 +823,7 @@ begin
   AssertEquals('joined', 0, Piece.LineMarkingOf(Stitch.Key));
   AssertTrue(Piece.Message, Piece.State = esValid);
   AssertTrue('drawn as stitching', Piece.MarkingMarks[0].Role = erStitch);
-  AssertEquals('listed', 1, Length(FPattern.PiecesWithLine(Stitch.Key)));
+  AssertEquals('listed', 1, Length(FPattern.PiecesWithMarking(Stitch.Key)));
 end;
 
 procedure TTestAccessories.TestLineInOverlappingPiecesJoinsBoth;
@@ -852,7 +863,7 @@ begin
   Rectangle;
   MarkLine := FPattern.AddLine(Pt('P', 20, 50), Pt('Q', 120, 50), erPlacement);
   FPattern.Evaluate;
-  AssertEquals('no piece yet', 0, Length(FPattern.PiecesWithLine(MarkLine.Key)));
+  AssertEquals('no piece yet', 0, Length(FPattern.PiecesWithMarking(MarkLine.Key)));
   Found := False;
   for Problem in PatternProblems(FPattern, Blocked) do
     Found := Found or (Problem = Format(rsCheckLineLoose, [MarkLine.DisplayName]));

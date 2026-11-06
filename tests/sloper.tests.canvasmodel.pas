@@ -80,6 +80,11 @@ type
     procedure TestContextualToolKeys;
     procedure TestContextualFormulaInput;
     procedure TestLabelsWaitForResults;
+    procedure TestObjectsAtPickOrder;
+    procedure TestNextKeyGoesRound;
+    procedure TestEdgesCoincide;
+    procedure TestCoincidentEdgeSlots;
+    procedure TestSecondLineTakesNextName;
   end;
 
 implementation
@@ -671,6 +676,83 @@ begin
   Build;
   AssertLabels('not computed yet', '', LabelKeys(FPattern, lmAll, nil, '', nil));
 end;
+
+// Two lines A-B and a third over them, inside the piece Front
+procedure TTestCanvasModel.TestObjectsAtPickOrder;
+var
+  Piece: TPieceObject;
+  First, Second: string;
+  Keys: TStringArray;
+begin
+  Piece := BuildPiece;
+  First := FPattern.AddLine(FPattern.AddFreePoint('P', '20', '-50').Key, FPattern.AddFreePoint('Q', '80', '-50').Key, erStitch).Key;
+  Second := FPattern.AddLine(FPattern.FindObject('P').Key, FPattern.FindObject('Q').Key, erFold).Key;
+  FPattern.Evaluate;
+  Keys := ObjectsAt(FPattern, Vec2(50, -50), 2, 2);
+  AssertEquals('the top line, the one under it, then the piece', Second + ',' + First + ',' + Piece.Key, KeysText(Keys));
+  Keys := ObjectsAt(FPattern, Vec2(20.5, -50), 2, 2);
+  AssertEquals('a point first', FPattern.FindObject('P').Key, Keys[0]);
+  AssertEquals('only the edges', Second + ',' + First, KeysText(EdgeKeys(FPattern, Keys)));
+  AssertEquals('outside everything', '', KeysText(ObjectsAt(FPattern, Vec2(500, 500), 2, 2)));
+end;
+
+procedure TTestCanvasModel.TestNextKeyGoesRound;
+begin
+  AssertEquals('2', NextKey(['1', '2', '3'], '1'));
+  AssertEquals('round to the first', '1', NextKey(['1', '2', '3'], '3'));
+  AssertEquals('not there: the first', '1', NextKey(['1', '2', '3'], '9'));
+  AssertEquals('', NextKey([], '1'));
+end;
+
+procedure TTestCanvasModel.TestEdgesCoincide;
+var
+  A, B, C: string;
+  Line, Back, Straight, Other: TEdgeObject;
+begin
+  A := FPattern.AddFreePoint('A', '0', '0').Key;
+  B := FPattern.AddFreePoint('B', '100', '0').Key;
+  C := FPattern.AddFreePoint('C', '100', '-10').Key;
+  Line := FPattern.AddLine(A, B);
+  Back := FPattern.AddLine(B, A);
+  // Handles along the chord, so a straight curve
+  Straight := FPattern.AddCurve(A, B, '0', '30', '180', '30');
+  Other := FPattern.AddLine(A, C);
+  FPattern.Evaluate;
+  AssertTrue('either way round', EdgesCoincide(Line, Back, 0.01));
+  AssertTrue('a straight curve', EdgesCoincide(Line, Straight, 0.01));
+  AssertFalse('another line', EdgesCoincide(Line, Other, 0.01));
+end;
+
+procedure TTestCanvasModel.TestCoincidentEdgeSlots;
+var
+  A, B: string;
+  Slots: TEdgeSlotArray;
+begin
+  A := FPattern.AddFreePoint('A', '0', '0').Key;
+  B := FPattern.AddFreePoint('B', '100', '0').Key;
+  FPattern.AddLine(A, B, erOutline);
+  FPattern.AddLine(A, B, erStitch);
+  FPattern.AddLine(B, A, erFold);
+  FPattern.AddLine(A, FPattern.AddFreePoint('C', '0', '50').Key);
+  FPattern.Evaluate;
+  Slots := CoincidentEdges(FPattern);
+  AssertEquals('three on A-B, and not A-C', 3, Length(Slots));
+  AssertEquals(-1, Slots[0].Slot, 1e-9);
+  AssertEquals(0, Slots[1].Slot, 1e-9);
+  AssertEquals(1, Slots[2].Slot, 1e-9);
+  AssertPointsNear('square to A-B', Vec2(0, 1), Slots[0].Normal);
+end;
+
+procedure TTestCanvasModel.TestSecondLineTakesNextName;
+var
+  A, B: string;
+begin
+  A := FPattern.AddFreePoint('A', '0', '0').Key;
+  B := FPattern.AddFreePoint('B', '100', '0').Key;
+  AssertEquals('Line_A_B', FPattern.AddLine(A, B, erOutline).DisplayName);
+  AssertEquals('Line_A_B2', FPattern.AddLine(A, B, erStitch).DisplayName);
+end;
+
 
 initialization
   RegisterTest(TTestCanvasModel);

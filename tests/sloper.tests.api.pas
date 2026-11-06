@@ -52,6 +52,8 @@ type
     procedure TestRectangleCornerAndOffset;
     procedure TestMarkings;
     procedure TestSetRole;
+    procedure TestSetMarker;
+    procedure TestOffsetRun;
     procedure TestFabricMethods;
     procedure TestFabricRefusals;
     procedure TestPieceFabricAndFill;
@@ -329,6 +331,49 @@ begin
   AssertEquals('stitch', Answer.Get('role', ''));
   Call('get_object', '{"name": "Flap"}');
   AssertEquals('a new stitch line joins too', 1, Answer.Get('markings', 0));
+end;
+
+// Like set_role: a marker puts the point on the piece it lies in
+procedure TTestAPI.TestSetMarker;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Flap"}');
+  Call('add_point', '{"type": "freePoint", "name": "Btn", "x": 50, "y": 50}');
+  Call('set_marker', '{"name": "Btn", "marker": "button", "size": 12}');
+  AssertEquals('button', Answer.Get('marker', ''));
+  AssertEquals('12', FormulaOf(Answer, MarkerSizeField));
+  AssertEquals('on the piece', 'Flap', TJSONArray(Answer.Find('pieces')).Strings[0]);
+  Call('get_object', '{"name": "Flap"}');
+  AssertEquals(1, Answer.Get('markings', 0));
+  Call('undo', '{}');
+  Call('get_object', '{"name": "Btn"}');
+  AssertEquals('undone', '', Answer.Get('marker', ''));
+  Call('set_marker', '{"name": "Btn", "marker": "match"}');
+  AssertEquals('3', FormulaOf(Answer, MarkerSizeField));
+  Call('set_marker', '{"name": "Btn", "marker": "plain"}');
+  AssertEquals('taken off', 0, TJSONArray(Answer.Find('pieces')).Count);
+  Call('set_marker', '{"name": "Btn", "marker": "star"}');
+  AssertEquals('no such marker', RpcInvalidParams, ErrorCode);
+  Call('set_marker', '{"name": "Flap", "marker": "hole"}');
+  AssertEquals('not a point', RpcRefused, ErrorCode);
+end;
+
+// Two sides of the square, stitched 6 mm inside, join the piece as a marking
+procedure TTestAPI.TestOffsetRun;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Flap"}');
+  Call('add_edge', '{"type": "offsetEdge", "edges": ["Line_B_C", "Line_A_B"], "distance": 6, "side": "inside", "piece": "Flap", "role": "stitch", "name": "Topstitch"}');
+  AssertEquals('valid', Answer.Get('state', ''));
+  AssertEquals('94 and 94 mm, trimmed at the corner', 188, Answer.Get('length', 0.0), 1e-6);
+  Call('get_object', '{"name": "Flap"}');
+  AssertEquals('on the piece', 1, Answer.Get('markings', 0));
+  Call('add_edge', '{"type": "offsetEdge", "edges": ["Line_A_B", "Line_B_C"], "distance": 5, "side": "left"}');
+  AssertEquals('outside the corner, mitred', 210, Answer.Get('length', 0.0), 1e-6);
+  Call('add_edge', '{"type": "offsetEdge", "edges": ["Line_A_B", "Line_C_D"], "distance": 5, "side": "left"}');
+  AssertEquals(rsPatternRunNotJoined, ErrorText);
+  Call('add_edge', '{"type": "offsetEdge", "edges": ["Line_A_B"], "distance": 5, "side": "inside"}');
+  AssertEquals('inside needs the piece', RpcInvalidParams, ErrorCode);
 end;
 
 procedure TTestAPI.TestRectangleCornerAndOffset;

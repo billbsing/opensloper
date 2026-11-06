@@ -68,6 +68,7 @@ type
     procedure TestPlacedMarksKeepTheirType;
     procedure TestPlacedHoleIsWhole;
     procedure TestPlacedHoleFollowsFlip;
+    procedure TestPlacedButtonIsAMark;
     procedure TestPaperMarksKeepEverything;
     procedure TestFoldStaysHalfOnPaper;
     procedure TestFoldOpensWithProfile;
@@ -274,7 +275,7 @@ begin
     AssertNotNull(Pattern.LastError, Piece);
     if Fold then
       AssertTrue(Pattern.LastError, Pattern.SetFoldEdge(Piece, Piece.Path[0].EdgeKey));
-    AssertTrue(Pattern.LastError, Pattern.AddHoleMarking(Piece, Pt('30', '-40'), '4'));
+    AssertTrue(Pattern.LastError, Pattern.SetMarker(Pt('30', '-40'), pmHole, '4'));
     Pattern.AddLine(Pt('20', '-60'), Pt('80', '-60'), erPlacement);
     Pattern.AddLine(Pt('50', '0'), Pt('50', '-100'), erFold);
     Pattern.Evaluate;
@@ -548,6 +549,28 @@ begin
   AssertPointsNear('mirrored across the piece', Vec2(80, 70), FLayout.PlacedPieces[0].Holes[0].Centre);
 end;
 
+// Beside the hole at (30, 40), so placed at (80, 70); drawn, never cut
+procedure TTestLayoutExports.TestPlacedButtonIsAMark;
+var
+  Pattern: TPattern;
+  Shape: TPlacedPiece;
+  Stroke: TLine2;
+  Near: integer;
+begin
+  AddMarkedPattern('a.sloper');
+  Pattern := FLayout.Sources[0].Pattern;
+  AssertTrue(Pattern.LastError, Pattern.SetMarker(Pattern.AddFreePoint('', '70', '-40').Key, pmButton, '10'));
+  Pattern.Evaluate;
+  FLayout.PlaceNewPieces;
+  Shape := FLayout.PlacedPieces[0];
+  AssertEquals('still the hole and five stitch holes', 6, Length(Shape.Holes));
+  Near := 0;
+  for Stroke in Shape.MarkLines do
+    if Distance(Stroke.P1, Vec2(80, 70)) < 5.01 then
+      Inc(Near);
+  AssertEquals('a circle and a cross, as marks', 18, Near);
+end;
+
 // Paper keeps drawing every mark, holes as strokes, in one list
 procedure TTestLayoutExports.TestPaperMarksKeepEverything;
 const
@@ -628,6 +651,7 @@ var
   Pattern: TPattern;
   Piece: TPieceObject;
   Index: integer;
+  Hole: string;
 begin
   AddMarkedPattern('a.sloper', True);
   Pattern := FLayout.Sources[0].Pattern;
@@ -635,7 +659,10 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
     if Pattern.Objects[Index] is TPieceObject then
       Piece := TPieceObject(Pattern.Objects[Index]);
-  AssertTrue(Pattern.LastError, Pattern.AddHoleMarking(Piece, Pattern.AddFreePoint('', '0', '-70').Key, '4'));
+  Hole := Pattern.AddFreePoint('', '0', '-70').Key;
+  AssertTrue(Pattern.LastError, Pattern.SetMarker(Hole, pmHole, '4'));
+  if Piece.PointMarkingOf(Hole) < 0 then
+    AssertTrue(Pattern.LastError, Pattern.AddPointMarking(Piece, Hole));
   Pattern.Evaluate;
   AssertTrue('invalid', Piece.State = esInvalid);
   AssertTrue(Piece.Message, Pos('fold', Piece.Message) > 0);

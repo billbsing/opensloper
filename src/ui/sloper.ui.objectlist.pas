@@ -127,7 +127,7 @@ resourcestring
   rsFieldRadiusA = 'Radius from A';
   rsFieldRadiusB = 'Radius from B';
   rsFieldDistance = 'Distance';
-  rsFieldMarkingDiameter = 'Marking %s diameter';
+  rsFieldMarkerSize = 'Marker size';
   rsFieldMarkingSpacing = 'Marking %s spacing';
   rsFieldMarkingSize = 'Marking %s hole size';
   rsFieldAllowance = 'Seam allowance';
@@ -197,8 +197,6 @@ begin
   begin
     NodeNumber := Copy(FieldName, 8, Dot - 8);
     Part := Copy(FieldName, Dot + 1, MaxInt);
-    if Part = MarkingDiameterField then
-      Exit(Format(rsFieldMarkingDiameter, [NodeNumber]));
     if Part = MarkingSpacingField then
       Exit(Format(rsFieldMarkingSpacing, [NodeNumber]));
     Exit(Format(rsFieldMarkingSize, [NodeNumber]));
@@ -236,6 +234,7 @@ begin
     'angle2': Result := rsFieldAngle2;
     'length2': Result := rsFieldLength2;
     'formula': Result := rsFieldFormula;
+    MarkerSizeField: Result := rsFieldMarkerSize;
     else
       Result := FieldName;
   end;

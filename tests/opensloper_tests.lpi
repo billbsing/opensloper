@@ -271,6 +271,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Accessories"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.markers.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Markers"/>
+      </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.offsetrun.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.OffsetRun"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

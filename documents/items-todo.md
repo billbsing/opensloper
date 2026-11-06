@@ -38,10 +38,7 @@ Still to do:
 - An app already open picks up a preference changed in another app only when restarted.
 
 #### Marking line roles
-Done 2026-11-05 (see Markings in the design document): edges can be placement, stitch, fold or cut lines, which join the pieces they lie in and print in their own style. Still to do: point markers (drill hole, button, match dot), choosing a role before drawing, several lines in the same place (picking and the screen offset), and the longer offset edge (runs of edges, inside/outside, mitred corners).
-
-#### Documents
-Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
+Done 2026-11-05 (see Markings in the design document): edges can be placement, stitch, fold or cut lines, which join the pieces they lie in and print in their own style. Finished 2026-11-06: point markers (hole, button, match dot) on points and repeats, Draw As for the role of new lines, several lines in the same place (click again or Alt-click to cycle, right-click list, screen offset), and the offset edge along a run (inside/outside a piece, mitred and trimmed corners, invalid when it collapses). Still to try by hand: Alt-click on a real desktop, as some window managers take it for moving windows.
 
 #### File Format Standards
 For future claude creating new patterns and measurements, do we need to create storage file standards as part of the documents folder.

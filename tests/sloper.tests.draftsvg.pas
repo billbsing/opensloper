@@ -58,6 +58,7 @@ type
     procedure TestPieceIsDrawnUnderItsEdges;
     procedure TestNoFillsLeavesPieceUnfilled;
     procedure TestNoFillsLeavesOutHatching;
+    procedure TestLooseMarkerIsDrawn;
   end;
 
 implementation
@@ -103,6 +104,16 @@ end;
 procedure TTestDraftSVG.AssertLacks(const Msg, Part, Text: string);
 begin
   AssertTrue(Msg + ': did not expect ' + Part, Pos(Part, Text) = 0);
+end;
+
+// No piece yet, as on the canvas
+procedure TTestDraftSVG.TestLooseMarkerIsDrawn;
+begin
+  Build;
+  AssertTrue(FPattern.LastError, FPattern.SetMarker('2', pmButton, '10'));
+  FPattern.Evaluate;
+  AssertHas('a button', 'data-id="2" data-marker="button"', Render);
+  AssertLacks('plain points have none', 'data-id="1" data-marker', Render);
 end;
 
 procedure TTestDraftSVG.TestPointsKeepTheirY;

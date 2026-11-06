@@ -313,7 +313,7 @@ Every point is a `TRepeatPoint` kept by its `TRepeatObject`, not in the pattern'
 | Arc | `centre`, `radius`, `angle1`, `angle2`, `role` | Brims, curved flaps; see Accessories |
 | Curve path | `nodes[]` of `point`, `angle`, `lengthIn`, `lengthOut`; `role` | Armholes, necklines, crotch curves; one shared tangent per node keeps joins smooth. `angle` is the direction of travel at the node; formula fields are named `node2.angle`, `node2.lengthIn` and so on |
 | Split edge | `edge`, `point` (on the edge, typically from Along edge or Intersect edges) | Two parametric edges; needed for dart rotation and slash-and-spread |
-| Offset edge | `edge`, `distance`, `side` (left/right), `role` | Stitch lines, facings, linings, turned edges; see Accessories. Planned: a connected run of edges, inside/outside for a piece's run, mitred corners and failing when the offset collapses (see Markings) |
+| Offset edge | `edges[]` (one edge or a connected run, each with a reversed flag), `distance`, `side` (left/right), `role` | Stitch lines, facings, linings, turned edges; inside or outside a piece, mitred corners, failing when the offset collapses (see Offset edge under Markings) |
 
 Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1 = @neck/6`).
 
@@ -321,7 +321,7 @@ Handle angles and lengths are formulas, so curves stay parametric (e.g. `length1
 
 | Object | Fields |
 | --- | --- |
-| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `markings[]` (hole, marking line, stitch holes; marking lines are assigned automatically and editable, see Markings); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `fabric` (fabric ID); `fill` (optional per-piece override) |
+| Piece | `path[]` of `edge`, `reversed`, `allowance` (override); `allowance` (default); `grainline` (two points or angle); `notches[]` (point, or edge + position); `markings[]` (marked point, marking line, stitch holes; marked points and marking lines are assigned automatically and editable, see Markings); `labels[]`; `cut` (count, mirrored); `foldEdge` (on fold when set); `fabric` (fabric ID); `fill` (optional per-piece override) |
 | Seam | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` (see Seams) |
 
 **Deferred to phase two:** bisector; tangent from a point to a curve. Circles, arcs and circle × circle are brought forward for accessories (see Accessories).
@@ -520,7 +520,7 @@ Handling the edge cases:
 
 ## Markings
 
-Decided 2026-11-05. Edge roles and automatic assignment are built (2026-11-05); point markers, several lines in the same place and the longer offset edge are not yet. Roles replace the Mark Placement Line and Mark Fold Line tools; holes and stitch holes stay piece markings until point markers come (see Markings inside a piece under Accessories).
+Decided 2026-11-05. Edge roles, automatic assignment, point markers, choosing a role before drawing, several lines in the same place and the offset edge along a run are built (2026-11-06); visibility, styles and output profiles are not yet. Roles replace the Mark Placement Line and Mark Fold Line tools, and point markers replace the hole marking that each piece kept with its own diameter. Stitch holes stay a piece marking along an edge (see Markings inside a piece under Accessories).
 
 Internal markings (placement lines, stitching lines, fold lines, drill and stitch holes) are drawn like any other line or point and given a role. The app attaches them to the right piece itself, so there is no "select a piece, then pick an edge" step.
 
@@ -545,20 +545,29 @@ Seamly2D and Valentina use a two-step workflow: draw the line in draft mode, the
 
 ### Point markers
 
-Not built yet.
+| Marker | Use | Drawn as |
+| --- | --- | --- |
+| Plain | Ordinary draft point; not printed | |
+| Hole | Drill holes at dart points and pocket corners; rivets, snaps, eyelets | A circle, cut as a hole |
+| Button | Button and buttonhole positions (works with Repeat) | A circle with a cross, marked |
+| Match dot | Matching points between pieces | A small dot, marked |
 
-| Marker | Use |
-| --- | --- |
-| Plain | Ordinary draft point; not printed |
-| Drill / stitch hole | Dart points, pocket corners, stitch holes |
-| Button position | Button and buttonhole positions (works with Repeat) |
-| Match dot | Matching points between pieces |
+**As built** (decided 2026-11-06). The marker and its size belong to the point, not to the pieces it is on: a point's `marker` and its `markerSize` formula, the size across in mm, starting at 4 for a hole, 15 for a button and 3 for a match dot. Changing to another marker keeps the size; Plain drops it. A size of 0 or less makes the point invalid. A repeat takes a marker the same way and marks every one of its points, so a row of buttons follows the count; its points cannot take one of their own. A transform copy keeps its source's marker and size, as a copied edge keeps its role.
+
+- **On pieces.** A marked point joins the pieces it lies in as `{ "kind": "point", "point": 7 }` in their `markings[]`, by the same rules as a marking line (see Automatic piece assignment): inside the cutting line, queued until evaluated, every piece when they overlap, and taken off them all when the point goes back to Plain or is deleted. A repeat lies inside when more than half its points do. A marker outside a piece it is on makes the piece invalid, and a hole on the fold line does too, as before.
+- **Drawing.** The canvas and draft SVG draw a marker at its point at true size, whether or not it is on a piece yet, so a loose one shows where it is; a piece draws its markers with its other marks. A match dot is three rings, which read as a filled dot, since marks are strokes.
+- **Output.** Holes are cut as true circles, as hole markings were. Buttons and match dots are Marks for machines, drawn on both halves of a piece opened out at its fold, and DXF-AAMA writes them as lines on layer 8 with the marking lines.
+- **Problems.** A marked point or repeat in no piece is reported ("H has a marker but is in no piece, so it does not print").
+- **Older files.** A piece's `hole` marking is read as a Hole marker on its point, with its `diameter` as the size (the first one, if two pieces gave the point different sizes), and the file is written the new way.
+- **Automation API.** `set_marker` takes a point or repeat, `marker` and an optional `size`, and its reply lists the `pieces` it is on, as `set_role` does; every object's reply includes its `marker` when it has one. `add_marking` takes `kind` `point` to attach a marked point by hand, and still takes `hole` with `point` and `diameter`, which sets the marker and attaches it.
 
 ### Drawing and editing
 
 - Draw a line between two points as usual, then set its role in the properties panel; or choose a role before drawing so new lines take it.
 - Set a point's marker the same way.
 - Roles and markers are ordinary undoable property changes.
+
+**As built.** Tools → Draw As, and a drop-down on the command bar that always shows it, choose the role of the lines, curves, circles, arcs and rectangles drawn next; it starts at Outline each session. Offset edges keep their own (see Offset edge). The properties panel shows a point's or repeat's Marker, with its size under it and "Marked on" as for a line. Tools → Mark Hole makes every selected point or repeat a hole, and a repeat's point stands for its repeat.
 
 ### Automatic piece assignment
 
@@ -577,12 +586,11 @@ Markings created before their piece exists are assigned when the piece is create
 **As built.** A piece keeps the lines assigned to it in its `markings[]` as `{ "kind": "line", "edge": 12 }`; the edge's role says how it prints. Where a line lies is only known once it is computed, so `TPattern` queues a line when it is given a marking role (new, copied by a transform, split, or changed with `SetEdgeRole`), and a new piece queues every line that has no piece; `TPattern.Evaluate` then assigns them and evaluates again. Inside means more than half of nine points sampled along the edge lie inside the piece's cutting line (`LiesInside`). An edge in the piece's own path is never assigned to it.
 
 - **Changing the role.** In the properties panel, which also shows "Marked on" with the piece names, or "No piece". Another marking role keeps the assignment; construction or outline takes the line off every piece. Undo restores both.
-- **By hand.** Tools → Attach Marking Line to Piece, with a piece and a marking line selected, attaches it wherever it lies; Tools → Remove Marking takes it off. `add_marking` with `kind` `line` does the same in the Automation API.
+- **By hand.** Tools → Attach Marking to Piece, with a piece and a marking line or marked point selected, attaches it wherever it lies; Tools → Remove Marking takes it off. `add_marking` with `kind` `line` or `point` does the same in the Automation API.
 - **Deleting** a marking line takes it off its pieces in the same step; an edge any piece uses otherwise is still refused.
 - **Problems.** `PatternProblems`, so the status bar, `check` and the Problems filter, reports a marking line in no piece ("does not print") and one outside a piece it is marked on.
 - **Older files.** A `placement` or `fold` marking is read as a line, and a construction line it was on takes that role; the file is written the new way.
 - **Automation API.** `set_role` takes an edge and `role`, and its reply lists the `pieces` the line is now on; `add_edge` and `add_rectangle` take the new roles, and every edge's reply includes its `role`.
-- **Not built yet:** choosing a role before drawing, so the Line tool always draws outlines.
 
 ### Several lines in the same place
 
@@ -591,6 +599,8 @@ Markings created before their piece exists are assigned when the piece is create
 - Picking: a click where lines coincide selects the top one; clicking again at the same spot, or Alt-click, cycles through the others, and a small popup lists everything under the pointer.
 - Display: each role has its own dash pattern and colour, and coincident edges are drawn with a small screen-only offset so it is visible that there is more than one. The offset never affects geometry or printing.
 - The Objects panel lists each edge separately, so any of them can be selected there.
+
+**As built** (`ObjectsAt`, `CoincidentEdges` and `NextKey` in `Sloper.UI.Scene`). Edges coincide when they run along the same path either way round, within 0.01 mm, whatever their type, so a straight curve lies on a line. Each group is drawn 3 px apart, square to its first edge's chord. A click picks points first, then edges nearest first with the one drawn on top (later in the pattern) first among equals, then pieces, smallest first. Clicking again within 3 px with one of the lines there selected picks the next line; Alt-click goes through everything under the pointer, points and pieces too. The status bar says which it is ("Fold1 (2 of 2 here; click again for the next)"). The popup is a right-click in the Select tool: it lists everything under the pointer with its type and ticks what is selected.
 
 **Offset edge (parallel lines).** Topstitching and similar lines usually run a fixed distance from an edge ("stitch 6 mm in from the hem"). Drawing them point to point would need new points at every corner, so an operation creates them directly. Offset edge is built for a single edge, to the left or right (see Accessories); markings extend it:
 
@@ -602,6 +612,13 @@ Markings created before their piece exists are assigned when the piece is create
 - Curves are offset by approximation within a small tolerance (for example 0.01 mm), using the segment geometry every edge already provides.
 - If the offset collapses (a distance larger than a tight curve's radius allows), the edge becomes invalid with a message, like any failed operation.
 - The new edge takes a marking role (usually Stitch) and is assigned to its piece automatically, like any marking.
+
+**As built** (2026-11-06). The run is `edges[]` of `edge` and `reversed`, joined end to end within 0.01 mm, or the edges do not join and the offset is invalid. An outer corner is mitred, and bevelled straight across when the mitre would reach more than four distances from the corner, as seam allowance is; an inner corner is trimmed where the two offsets cross. A closed run, such as a whole outline, joins up at its start too. The offset is invalid ("The offset is more than Arc_O allows") when a curve bends towards its side more tightly than the distance, or when an inner corner would trim away a whole segment.
+
+- **Inside and outside** are worked out when the edge is made and stored as left or right (changed from a stored side, 2026-11-06). The offset reads only its edges, never the piece, since a stitch line inside a piece is one of that piece's markings and reading the piece would make a circular reference. The run follows the piece's path, and the inside is on the right going clockwise as seen on screen. Edges picked from a piece must be one unbroken stretch of its path, which may run round past its first edge.
+- **Order.** Selected edges are put in order along the run, which follows the first selected edge the way it is drawn, so left and right are that edge's sides (`ChainRun`); a branch or a gap is refused. `PieceRun` orders a piece's edges by its path.
+- **From the app.** Tools → Offset Edge Left or Right take one edge or a run of them and make a construction edge, as before. Tools → Offset Inside Piece and Offset Outside Piece take a piece and some of its edges; inside makes a stitch line, which joins the piece, and outside a construction edge. Both start 10 mm away.
+- **File and API.** One edge followed forwards is still written as `edge`, so older files are unchanged; a run is written as `edges`. `add_edge` with `type` `offsetEdge` takes `edge`, or `edges` in any order; `side` is `left`, `right`, `inside` or `outside`, and the last two need the `piece`.
 
 **Fold on the outline.** A fold on the piece's own edge (centre front cut on the fold) is not a second line: it is the piece's existing `foldEdge` property. The edge is drawn as a fold line, and the piece is mirrored there for cutting and layout.
 
@@ -653,9 +670,7 @@ Planned 2026-11-05, not built yet. Marking roles say what a line means, like KiC
 
 - Should buttonhole marks become a marking role, or wait for point markers (button position)? Grainlines and labels stay their own objects, switched by a profile's `pieceMarks`.
 - Should a profile send roles to separate files or passes (one file per laser operation)?
-- What values does each leather marking need (hole spacing and size, skive width and depth)? This joins the question below on where point markers keep theirs.
-
-**To settle when point markers are built:** how holes and stitch holes carry over. A hole has a `diameter`, and stitch holes are holes spaced along an edge (`spacing`, `size`, the piece's `.holes` count), while the Stitch role is a stitching line; markers need somewhere to keep those values, and `add_marking` / `remove_marking` change with them.
+- What values does each leather marking need (hole spacing and size, skive width and depth)? Point markers keep theirs on the point (see Point markers); stitch holes keep `spacing` and `size` on the piece's marking.
 
 ## Seams
 
@@ -872,6 +887,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
 - IDs and references to them (`base`, `edge`, `sources` and so on) are JSON numbers; in formula text a reference is the ID in braces (`{3}`).
 - Each object has `id`, `type` and `name`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
+- A point or repeat with a marker has `marker` (`hole`, `button` or `match`) and its `markerSize` formula; a plain one has neither.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
 - `view` may also hold `pieceOrder`, the piece IDs in drawing order from back to front (only pieces moved from creation order need listing), and `isolate`, the ID of an isolated piece. Both are left out when unused and, like zoom and centre, kept out of undo and the modified flag. Planned, 2026-11-05.
 - Loading checks IDs (positive integers, unique across variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
@@ -889,12 +905,12 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
 | `circle` | `centre`, `radius`, `role` |
 | `arc` | `centre`, `radius`, `angle1`, `angle2`, `role` |
 | `circleCirclePoint` | `centreA`, `centreB`, `pick`, `radiusA`, `radiusB` |
-| `offsetEdge` | `edge`, `side` (`left`/`right`), `distance`, `role` |
+| `offsetEdge` | `edge`, or `edges[]` of `edge` and `reversed` for a run; `side` (`left`/`right`), `distance`, `role` |
 | `cornerArc` | `vertex`, `edgeA`, `edgeB`, `radius`, `role` |
 | `cornerPoint` | `arc`, `end` (1 or 2) |
 | `curvePath` | `nodes[]` of `point`, `angle`, `lengthIn` (not on the first), `lengthOut` (not on the last); `role` |
 | `splitPart` | `edge`, `point`, `part` (1: start to point, 2: point to end), `role` |
-| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `markings[]` (optional: `kind` of `hole`, `line` or `stitch`, then `point` and `diameter`, or `edge`, with `spacing` and `size` for `stitch`; older files' `placement` and `fold` are read as `line`, see Markings); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional); `view` (optional: `none` by default); `fabric` (optional, see below); `fill` (optional: `color`, and `style` of `tint` or `hatch`) |
+| `piece` | `path[]` of `edge`, `reversed`, `allowance` (only for an edge with its own); `allowance`; `grainline` (optional: `angle`, or `start` and `end`); `notches[]` (optional: `point`, or `edge` and `position`); `markings[]` (optional: `kind` of `point`, `line` or `stitch`, then `point` (a point or repeat with a marker), or `edge`, with `spacing` and `size` for `stitch`; older files' `placement` and `fold` are read as `line`, and `hole` with its `diameter` as the point's marker, see Markings); `cut` (optional: `count`, 1 by default, and `mirrored`); `foldEdge` (optional); `view` (optional: `none` by default); `fabric` (optional, see below); `fill` (optional: `color`, and `style` of `tint` or `hatch`) |
 | `seam` | `sideA[]` and `sideB[]` of `piece`, `edge`; `reversed`; `ease`; `tolerance` |
 
 Custom labels join `piece` when they are built.
@@ -1286,7 +1302,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 | Evaluator | Ordering, dirty propagation, cycle rejection, invalid and blocked states |
 | Names and IDs | Name uniqueness, case-insensitivity, reserved words, auto-naming past `Z` (`AA`, `BA`, `AAA`, skipping reserved names), `2` / `3` copy numbering; IDs never reused after delete, undo, save and reload |
 | Operations | Each operation against hand-checked cases, plus failure cases (parallel lines, distance past end); between points, repeat (count changes, removed indices), align and distribute rewrite definitions as expected; offset edge (lines, curves, chains of edges, both sides, invalid when the offset collapses) |
-| Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2; automatic marking assignment (single piece, overlapping pieces, none, moved outside after a measurement change) |
+| Pieces | Face detection on known drawings, clockwise orientation, seam allowance outlines via Clipper2; automatic marking assignment (single piece, overlapping pieces, none, moved outside after a measurement change), for marking lines and for points and repeats with markers; older hole markings read as markers; coincident edges and the order a click picks objects in |
 | Markings | Hidden roles kept out of undo and draft export; output profiles include and leave out roles and marks; machine profile applied after the output profile; `allowance` `none` cuts on the seam line in preview, packing and every export; an unknown profile name blocks export |
 | Transforms | Each transform against hand-checked positions, curves and split parts exact, lengths kept by rotate and move, a failing source blocking only its copy, deleting as a group, files |
 | View and older files | The view (zoom, centre, piece order, isolated piece) is saved and stays out of undo and the modified flag; files with drafts and layers load onto one canvas with their IDs retired |
@@ -1348,6 +1364,8 @@ Pages are written by task ("Add a size", "Rotate a dart"), not by menu. Each app
 - Translation (see Translation) and versioned documentation wait until the community release.
 
 **Folders:** `docs/` is the user documentation (this section); `documents/` stays for internal development notes, including this design document. Developer documentation of the Pascal units (for example with PasDoc) is left until someone else needs to read the code.
+
+as part of the documentation process, Cleanup up the opensloper-design-document.md, after many iterations it is getting too long, summarize and reduce each section.
 
 ## Translation
 
@@ -1465,7 +1483,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_rectangle`, `round_corner`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `add_marking`, `remove_marking`, `set_role`, `set_cut`, `set_fold`, `convert_edge`, `merge_points`, `break_point`, the fabric methods (see Fabrics), `add_transform`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type`, including `circleCirclePoint`, `circle` and `arc`, and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
+**Implemented so far** (`Sloper.API.Server`, `opensloper-cli serve`): `open`, `save`, `get_measurements`, `set_measurement`, `list_objects`, `get_object`, `set_formula`, `rename`, `delete`, `evaluate`, `check`, `undo`, `redo`, `render`, `add_point`, `add_edge`, `split_edge`, `add_rectangle`, `round_corner`, `add_variable`, `create_piece`, `set_edge_allowance`, `set_grainline`, `add_notch`, `remove_notch`, `add_marking`, `remove_marking`, `set_role`, `set_marker`, `set_cut`, `set_fold`, `convert_edge`, `merge_points`, `break_point`, the fabric methods (see Fabrics), `add_transform`, `add_seam`, `flip_seam`, `suggest_seams` and `export`. Objects are named by `id` or `name`, and variables work the same way (`set_formula` with field `formula`). `add_point` and `add_edge` take a `type`, including `circleCirclePoint`, `circle` and `arc`, and fields as in a pattern file, formulas as text or plain numbers and inputs by ID or name, so a whole pattern can be built through the API; `split_edge` and `add_variable` were added to the table's methods because every operation needs a way in. `list_objects` returns variables and objects. `evaluate` recomputes and returns the problems; `check` adds the full report. `render` returns the draft as SVG text in its reply, with optional `labels` and a `region` (`minX`, `minY`, `maxX`, `maxY` in model mm); the SVG is drawn by `Sloper.Output.DraftSVG`, with true Bézier curves and failing objects in the colour of their state. PNG is not available yet, because the CLI has no LCL and so no canvas to draw it with. Batches of requests are not supported. Still to come: the GUI's `--automation` mode. `export` reads the saved layout and pattern files, as the publish app does, so a pattern has to be saved first.
 
 - `opensloper-cli serve` runs the core and document layers with no window, speaking JSON-RPC 2.0 over stdin/stdout, one message per line.
 - The GUI app accepts the same API when started with `--automation`, listening on a local socket, so a test can drive the running app and read its UI state (selection, visible labels, canvas snapshot) instead of using xdotool.
@@ -1489,8 +1507,9 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 | `list_fabrics`, `add_fabric`, `rename_fabric`, `set_fabric`, `delete_fabric` | The fabric list and the cut list; add, rename, recolour, change fill or delete a fabric |
 | `set_piece_fabric`, `set_piece_fill` | Assign a piece's `fabric`, or `none`; set its own `color` and `style` |
 | `add_rectangle`, `round_corner` | Add a rectangle from a `corner`; round the corner between two edges |
-| `add_marking`, `remove_marking` | Add a hole, a marking line or stitch holes to a piece; remove one by number from 1 |
+| `add_marking`, `remove_marking` | Attach a marked point or a marking line to a piece, or add stitch holes; remove one by number from 1 |
 | `set_role` | Change an edge's role; a marking role puts it on the pieces it lies in, listed in the reply |
+| `set_marker` | Give a point or repeat a `marker` and optional `size`; it joins the pieces it lies in, listed in the reply |
 | `add_notch`, `remove_notch` | Add a notch on a `point` or at an `edge` and `position`; remove one by number from 1 |
 | `add_seam`, `flip_seam`, `suggest_seams` | Add a seam from `sideA` and `sideB`, with optional `ease` and `tolerance`; flip its direction; list likely pairs without storing them |
 | `evaluate`, `check` | Recompute; return the problems list (invalid, blocked, gaps, seam mismatches) |
@@ -1552,25 +1571,25 @@ Both are stored as cubic segments like every other edge, at most 45° each, so l
 - An edge that is already part of a piece is refused, as a piece keeps the edges it was made from.
 - To round all the corners of a rectangle, use what is left of each edge for the next corner.
 
-**Offset edge.** A parallel copy of an edge at a formula distance, to the left or right of its direction. Needed for stitch lines, facings, linings, hems, turn-backs and leather edge allowances. Unlike seam allowance, which only applies to a finished piece outline, it is an ordinary parametric edge that other operations can use. Select an edge, then Tools → Offset Edge Left or Right; it starts as construction, 10 mm away. `add_edge` takes `offsetEdge`. A line stays exact, and a curve is followed with eight cubics each, to about a hundredth of a millimetre. Its ends are not points, as for an arc, and an offset tighter than a curve's radius folds over itself, which is not checked.
+**Offset edge.** A parallel copy of an edge, or of a run of edges, at a formula distance, to the left or right of its direction, or inside or outside a piece (see Offset edge under Markings). Needed for stitch lines, facings, linings, hems, turn-backs and leather edge allowances. Unlike seam allowance, which only applies to a finished piece outline, it is an ordinary parametric edge that other operations can use. Select an edge, then Tools → Offset Edge Left or Right; it starts as construction, 10 mm away. `add_edge` takes `offsetEdge`. A line stays exact, and a curve is followed with eight cubics each, to about a hundredth of a millimetre. Its ends are not points, as for an arc, and an offset tighter than a curve's radius is invalid.
 
 | Operation | Fields | Covers |
 | --- | --- | --- |
-| Offset edge | `edge`, `distance`, `side` (left/right), `role` | Stitch lines, facings, linings, turned edges |
+| Offset edge | `edges[]`, `distance`, `side` (left/right), `role` | Stitch lines, facings, linings, turned edges |
 
 **Markings inside a piece.** Notches mark only the edge. A piece also has internal markings, drawn from points and edges of the draft and printed with the piece, so they follow measurement changes:
 
 | Marking | From | Use |
 | --- | --- | --- |
-| Hole | A point, with a diameter | Rivets, snaps, magnetic clasps, eyelets, buttonholes' ends |
+| Hole | A point or repeat with the Hole marker and its size (see Point markers) | Rivets, snaps, magnetic clasps, eyelets, buttonholes' ends |
 | Marking line | An edge with a marking role (placement, stitch, fold, cut), assigned automatically (see Markings) | Pocket, strap, handle and zip positions; quilting and topstitching lines; folds in leather and stiffened pieces; pleat lines; slits |
 | Stitch holes | An edge (usually an Offset edge), with spacing and hole size | Hand-stitching holes for leather, spaced evenly along the edge |
 
 Stitch hole spacing is a formula, and holes are spaced evenly between the ends with the spacing adjusted to fit, so they stay even when the size changes. The piece reports the hole count, which is also useful for working out thread length: `.holes` counts stitch holes only, and `get_object` gives it too.
 
-- **Fields.** Formulas go by place in the list, like notches: `marking1.diameter`, or `marking2.spacing` and `marking2.size`, and removing a marking renumbers the later ones.
+- **Fields.** Stitch holes' formulas go by place in the list, like notches: `marking2.spacing` and `marking2.size`, and removing a marking renumbers the later ones. A hole's size is the point's `markerSize`.
 - **Checks.** A hole must lie inside the piece's cutting line, and sizes and spacing must be above 0, or the piece is invalid. Lines are not checked, since a line may run past the edge on purpose. A marking's point or edge is an input of the piece, so it cannot be deleted while marked.
-- **From the app.** Marking lines come from the edge's role (see Markings). For holes, select a piece and a point or an edge, then Tools → Mark Hole or Mark Stitch Holes; values start at 4 mm across, or 4 mm apart with 1 mm holes, and are typed in the piece's properties. Tools → Remove Marking takes off what is on the selected point or edge. In the API, `add_marking` takes `kind` (`hole`, `line` or `stitch`), `point` or `edge` and the values, and `remove_marking` takes `marking`, numbered from 1.
+- **From the app.** Marking lines come from the edge's role and holes from the point's marker (see Markings): Tools → Mark Hole makes the selected points holes, 4 mm across, and they join the pieces they lie in. For stitch holes, select a piece and an edge, then Tools → Mark Stitch Holes; they start 4 mm apart with 1 mm holes, typed in the piece's properties. Tools → Remove Marking takes off what is on the selected point or edge. In the API, `set_marker` marks a point, `add_marking` takes `kind` (`point`, `line` or `stitch`, and `hole` as before), `point` or `edge` and the values, and `remove_marking` takes `marking`, numbered from 1.
 - **Output.** Markings draw on the canvas, in draft SVG and in the publish app's PDF and SVG with the piece's other marks. DXF-AAMA writes them on layers 8 and 13 (see Other exports and packing), and with a machine profile each takes its line type (see Cutting machines below).
 
 **Material per piece.** A piece's material is its fabric (see Fabrics): leather, foam, stiffener and interfacing go in the fabric list beside main and lining, so there is no separate material on a piece. Leather pieces are often cut with no seam allowance; per-edge allowance already allows `0`, and a fabric can set a default allowance for pieces that use it. A fabric's `allowance` is set on the Fabrics tab or with `set_fabric`. A piece takes it when it goes on that fabric, or when it is made on the first fabric, and it does not follow later changes, so a piece can still be set by hand. The publish app can lay out one fabric at a time (see below).

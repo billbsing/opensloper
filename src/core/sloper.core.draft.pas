@@ -37,6 +37,9 @@ type
   TAlongMode = (amLength, amRatio);
   TProjectDirection = (pdPerpendicular, pdAngle);
   TOffsetSide = (osLeft, osRight);
+  // How a point prints (see Point markers in the design document): pmHole is
+  // cut, pmButton marks a button's size and pmMatch is a dot for matching
+  TPointMarker = (pmPlain, pmHole, pmButton, pmMatch);
 
   TSegmentKind = (skLine, skCurve);
 
@@ -45,6 +48,11 @@ type
 
 const
   MarkingRoles = [erPlacement, erStitch, erFold, erCut];
+  // As written in pattern files and the Automation API
+  PointMarkerNames: array[TPointMarker] of string = ('plain', 'hole', 'button', 'match');
+  // The formula field of a marker's size, across in mm, and what it starts at
+  MarkerSizeField = 'markerSize';
+  DefaultMarkerSizes: array[TPointMarker] of string = ('', '4', '15', '3');
   // As written in pattern files and the Automation API
   EdgeRoleNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut');
   // How marking lines are printed: placement thin and solid, stitch in short
@@ -94,8 +102,15 @@ type
   TDraftObject = class(TEvalNode)
   private
     FName: string;
+    FMarker: TPointMarker;
+    FMarkerSize: double;
   public
     function DisplayName: string; override;
+    // Evaluates the marker's size
+    function ComputeExtras(Context: TEvalContext): TEvalState; override;
+    // Adds or removes the size field; only points and repeats take one (see
+    // TPattern.SetMarker)
+    procedure SetMarker(AMarker: TPointMarker);
     function TypeName: string; virtual; abstract;
     // Readable properties in formulas, such as x or length (lower case)
     function HasProperty(const Prop: string): boolean; virtual; abstract;
@@ -105,6 +120,9 @@ type
     // are merged; formulas are changed separately
     procedure RedirectPoint(const OldKey, NewKey: string); virtual;
     property Name: string read FName write FName;
+    property Marker: TPointMarker read FMarker;
+    // Last good size, across in mm
+    property MarkerSize: double read FMarkerSize;
   end;
 
   TPointObject = class(TDraftObject)
@@ -432,19 +450,35 @@ type
   // line at the angle formula. The nearest result to the point is used.
   // A parallel copy of an edge, to the left or right of its direction. Its ends
   // are not points; put an Along edge point on them, as for an arc.
+  // One edge of a run, which the run follows from end to start when Reversed
+  TRunEdge = record
+    EdgeKey: string;
+    Reversed: boolean;
+  end;
+
+  TRunEdgeArray = array of TRunEdge;
+
+  // A parallel copy of a connected run of edges at the formula distance, to
+  // the left or right of the direction of travel. Corners are mitred, or
+  // bevelled when the mitre would reach more than MitreLimit distances out,
+  // and trimmed on the inner side. Inside and outside of a piece are worked
+  // out when it is made (see TPattern.PieceRun).
   TOffsetEdge = class(TEdgeObject)
   private
-    FSource: string;
+    FRun: TRunEdgeArray;
     FSide: TOffsetSide;
     FStraight: boolean;
+    function GetSource: string;
   public
-    constructor Create(const AKey, ASource, ASourceStart, ASourceEnd: string; ASide: TOffsetSide);
+    constructor Create(const AKey: string; const ARun: TRunEdgeArray; const AStartKey, AEndKey: string; ASide: TOffsetSide);
     function InputKeys: TStringArray; override;
     function TypeName: string; override;
     function NamePrefix: string; override;
     function IsStraight: boolean; override;
     function Compute(Context: TEvalContext): TEvalState; override;
-    property Source: string read FSource;
+    property Run: TRunEdgeArray read FRun;
+    // The first edge of the run
+    property Source: string read GetSource;
     property Side: TOffsetSide read FSide;
   end;
 
@@ -530,7 +564,15 @@ function CrossEdges(EdgeA: TEdgeObject; ExtendA: boolean; EdgeB: TEdgeObject;
 function CrossCircleEdge(const Centre: TVec2; Radius: double; Edge: TEdgeObject;
   Extend: boolean): TEdgeCrossingArray;
 
+// Strokes that draw a marker: a hole as a circle, a button as a circle with
+// a cross, and a match dot as rings that read as a filled dot
+function MarkerStrokes(AMarker: TPointMarker; const Centre: TVec2; Size: double): TLine2Array;
+// Where a point's or repeat's marker goes: the point, or every point of the
+// repeat; empty for anything else
+function MarkerPositions(DraftObject: TDraftObject): TVec2Array;
+
 resourcestring
+  rsDraftMarkerSize = 'A marker needs a size above 0';
   rsDraftNotAPoint = '%s is not a point';
   rsDraftNotAnEdge = '%s is not a line or curve';
   rsDraftSamePlace = 'The start and end are at the same place';
@@ -552,6 +594,8 @@ resourcestring
   rsDraftTypeOffset = 'offset edge';
   rsDraftTypeCorner = 'rounded corner';
   rsDraftNegativeOffset = 'An offset cannot be negative; choose the other side';
+  rsDraftRunGap = '%s and %s do not join, so they cannot be offset as one run';
+  rsDraftOffsetCollapses = 'The offset is more than %s allows; it would fold over itself';
   rsDraftCornerStraight = 'The edges do not make a corner to round';
   rsDraftCornerTooBig = 'This radius is too big for the edges at this corner';
   rsDraftNoFoot = 'No perpendicular from %s meets %s';
@@ -576,8 +620,88 @@ begin
   Result := FName;
 end;
 
+function TDraftObject.ComputeExtras(Context: TEvalContext): TEvalState;
+var
+  Size: double;
+begin
+  if FMarker = pmPlain then
+    Exit(esValid);
+  if not EvalField(Context, MarkerSizeField, Size) then
+    Exit(esError);
+  if Size <= 0 then
+    Exit(Fail(esInvalid, rsDraftMarkerSize));
+  FMarkerSize := Size;
+  Result := esValid;
+end;
+
+procedure TDraftObject.SetMarker(AMarker: TPointMarker);
+begin
+  if (FMarker = pmPlain) and (AMarker <> pmPlain) then
+    AddField(MarkerSizeField)
+  else if (FMarker <> pmPlain) and (AMarker = pmPlain) then
+    RemoveField(MarkerSizeField);
+  FMarker := AMarker;
+end;
+
 procedure TDraftObject.RedirectPoint(const OldKey, NewKey: string);
 begin
+end;
+
+function MarkerPositions(DraftObject: TDraftObject): TVec2Array;
+var
+  Index: integer;
+begin
+  Result := nil;
+  if DraftObject is TPointObject then
+  begin
+    SetLength(Result, 1);
+    Result[0] := TPointObject(DraftObject).Position;
+  end
+  else if DraftObject is TRepeatObject then
+  begin
+    SetLength(Result, TRepeatObject(DraftObject).Count);
+    for Index := 0 to High(Result) do
+      Result[Index] := TRepeatObject(DraftObject).PositionAt(Index + 1);
+  end;
+end;
+
+function MarkerStrokes(AMarker: TPointMarker; const Centre: TVec2; Size: double): TLine2Array;
+const
+  CircleStrokes = 16;
+  Rings = 3;
+var
+  Radius: double;
+  Ring: integer;
+
+  procedure Add(const From, Target: TVec2);
+  begin
+    SetLength(Result, Length(Result) + 1);
+    Result[High(Result)] := Line2(From, Target);
+  end;
+
+  procedure AddCircle(ARadius: double);
+  var
+    Index: integer;
+  begin
+    for Index := 0 to CircleStrokes - 1 do
+      Add(PolarPoint(Centre, ARadius, Index * 360 / CircleStrokes), PolarPoint(Centre, ARadius, (Index + 1) * 360 / CircleStrokes));
+  end;
+
+begin
+  Result := nil;
+  Radius := Size / 2;
+  case AMarker of
+    pmHole: AddCircle(Radius);
+    pmButton:
+    begin
+      AddCircle(Radius);
+      Add(Centre - Vec2(Radius, 0), Centre + Vec2(Radius, 0));
+      Add(Centre - Vec2(0, Radius), Centre + Vec2(0, Radius));
+    end;
+    pmMatch:
+      for Ring := 1 to Rings do
+        AddCircle(Radius * Ring / Rings);
+  end;
 end;
 
 procedure RedirectKey(var Key: string; const OldKey, NewKey: string);
@@ -1664,17 +1788,27 @@ begin
   Result := esValid;
 end;
 
-constructor TOffsetEdge.Create(const AKey, ASource, ASourceStart, ASourceEnd: string; ASide: TOffsetSide);
+constructor TOffsetEdge.Create(const AKey: string; const ARun: TRunEdgeArray; const AStartKey, AEndKey: string; ASide: TOffsetSide);
 begin
-  inherited Create(AKey, ASourceStart, ASourceEnd);
-  FSource := ASource;
+  inherited Create(AKey, AStartKey, AEndKey);
+  FRun := Copy(ARun);
   FSide := ASide;
   AddField('distance');
 end;
 
-function TOffsetEdge.InputKeys: TStringArray;
+function TOffsetEdge.GetSource: string;
 begin
-  Result := [FSource];
+  Result := FRun[0].EdgeKey;
+end;
+
+function TOffsetEdge.InputKeys: TStringArray;
+var
+  Index: integer;
+begin
+  Result := nil;
+  SetLength(Result, System.Length(FRun));
+  for Index := 0 to High(FRun) do
+    Result[Index] := FRun[Index].EdgeKey;
 end;
 
 function TOffsetEdge.TypeName: string;
@@ -1692,39 +1826,135 @@ begin
   Result := FStraight;
 end;
 
+function ReversedSegment(const Segment: TEdgeSegment): TEdgeSegment;
+begin
+  Result := Segment;
+  if Segment.Kind = skLine then
+    Result.Line := Line2(Segment.Line.P2, Segment.Line.P1)
+  else
+    Result.Curve := Segment.Curve.Reversed;
+end;
+
+function SegmentStart(const Segment: TEdgeSegment): TVec2;
+begin
+  if Segment.Kind = skLine then
+    Result := Segment.Line.P1
+  else
+    Result := Segment.Curve.P0;
+end;
+
+function SegmentEnd(const Segment: TEdgeSegment): TVec2;
+begin
+  if Segment.Kind = skLine then
+    Result := Segment.Line.P2
+  else
+    Result := Segment.Curve.P3;
+end;
+
+// Direction of travel at the start or end, of length 1
+function SegmentDirection(const Segment: TEdgeSegment; AtEnd: boolean): TVec2;
+begin
+  if Segment.Kind = skLine then
+    Result := Segment.Line.P2 - Segment.Line.P1
+  else if AtEnd then
+    Result := Segment.Curve.DerivativeAt(1)
+  else
+    Result := Segment.Curve.DerivativeAt(0);
+  if Result.Length > 0 then
+    Result := Result * (1 / Result.Length);
+end;
+
 function TOffsetEdge.Compute(Context: TEvalContext): TEvalState;
 const
   // A cubic per span follows a parallel curve to about a hundredth of a mm
   SpansPerCurve = 8;
+  CurvatureSamples = 16;
   JoinTolerance = 0.001;
+  // Edges of a run whose ends are this close (in mm) are joined
+  RunTolerance = 0.01;
+  // A mitre reaching further out than this many distances is bevelled
+  MitreLimit = 4;
 var
-  SourceEdge: TEdgeObject;
+  Path: TEdgeSegmentArray;
+  Owners: array of TEdgeObject;
+  Parts: array of TEdgeSegmentArray;
+  Joins: array of TEdgeSegmentArray;
   Distance2, Direction: double;
-  Segment: TEdgeSegment;
-  HasEnd: boolean;
-  LastEnd: TVec2;
+  Collapsed: TEdgeObject;
 
   function Across(const Along: TVec2): TVec2;
   begin
     Result := LeftOf(Along) * (Direction * Distance2 / Along.Length);
   end;
 
-  procedure AddJoined(const Start, Finish: TVec2; const Added: TEdgeSegment);
+  // The run's segments in the direction of travel, each with its edge
+  function GatherPath: TEvalState;
+  var
+    Index, Item: integer;
+    Edge, Previous: TEdgeObject;
+    Segments, Oriented: TEdgeSegmentArray;
   begin
-    // A sharp bend in the source leaves a gap on its outer side
-    if HasEnd and not PointsNear(LastEnd, Start, JoinTolerance) then
-      AddSegment(FSegments, LineSegment(Line2(LastEnd, Start)));
-    AddSegment(FSegments, Added);
-    LastEnd := Finish;
-    HasEnd := True;
+    Path := nil;
+    Owners := nil;
+    Previous := nil;
+    FStraight := System.Length(FRun) = 1;
+    for Index := 0 to High(FRun) do
+    begin
+      Edge := InputEdge(Context, FRun[Index].EdgeKey);
+      if not Assigned(Edge) then
+        Exit(Fail(esError, Format(rsDraftNotAnEdge, [FRun[Index].EdgeKey])));
+      FStraight := FStraight and Edge.IsStraight;
+      Segments := Edge.Segments;
+      Oriented := nil;
+      SetLength(Oriented, System.Length(Segments));
+      for Item := 0 to High(Segments) do
+        if FRun[Index].Reversed then
+          Oriented[Item] := ReversedSegment(Segments[High(Segments) - Item])
+        else
+          Oriented[Item] := Segments[Item];
+      if System.Length(Oriented) = 0 then
+        Continue;
+      if (System.Length(Path) > 0) and not PointsNear(SegmentEnd(Path[High(Path)]), SegmentStart(Oriented[0]), RunTolerance) then
+        Exit(Fail(esInvalid, Format(rsDraftRunGap, [Previous.DisplayName, Edge.DisplayName])));
+      for Item := 0 to High(Oriented) do
+      begin
+        System.Insert(Oriented[Item], Path, System.Length(Path));
+        System.Insert(Edge, Owners, System.Length(Owners));
+      end;
+      Previous := Edge;
+    end;
+    Result := esValid;
   end;
 
-  procedure AddCurve(const Curve: TCubicBezier);
+  // A curve bending towards the offset side more tightly than the distance
+  function TooTight(const Curve: TCubicBezier): boolean;
+  var
+    Sample: integer;
+    First, Second: TVec2;
+    Turn, Speed: double;
+  begin
+    for Sample := 0 to CurvatureSamples do
+    begin
+      First := Curve.DerivativeAt(Sample / CurvatureSamples);
+      Second := Curve.SecondDerivativeAt(Sample / CurvatureSamples);
+      Speed := First.Length;
+      if Speed = 0 then
+        Continue;
+      // Positive when the curve turns to the offset side
+      Turn := Direction * Dot(Second, LeftOf(First));
+      if (Turn > 0) and (Speed * Speed * Speed / Turn < Distance2) then
+        Exit(True);
+    end;
+    Result := False;
+  end;
+
+  function OffsetCurve(const Curve: TCubicBezier): TEdgeSegmentArray;
   var
     Span: integer;
     First, Last, Tangent1, Tangent2: TVec2;
     Handle: double;
   begin
+    Result := nil;
     for Span := 0 to SpansPerCurve - 1 do
     begin
       Tangent1 := Curve.DerivativeAt(Span / SpansPerCurve);
@@ -1734,14 +1964,90 @@ var
       First := Curve.PointAt(Span / SpansPerCurve) + Across(Tangent1);
       Last := Curve.PointAt((Span + 1) / SpansPerCurve) + Across(Tangent2);
       Handle := Sloper.Core.Geometry.Distance(First, Last) / 3;
-      AddJoined(First, Last, CurveSegment(CubicBezier(First, First + Tangent1 * (Handle / Tangent1.Length), Last - Tangent2 * (Handle / Tangent2.Length), Last)));
+      AddSegment(Result, CurveSegment(CubicBezier(First, First + Tangent1 * (Handle / Tangent1.Length), Last - Tangent2 * (Handle / Tangent2.Length), Last)));
     end;
   end;
 
+  // Cuts a segment back to At, keeping its start or its end; False when At
+  // is not on it, as when the offset eats the whole segment
+  function Trim(var Segment: TEdgeSegment; const At: TVec2; KeepStart: boolean): boolean;
+  var
+    T, Along: double;
+    First, Second: TCubicBezier;
+    Run: TVec2;
+  begin
+    if Segment.Kind = skLine then
+    begin
+      Run := Segment.Line.P2 - Segment.Line.P1;
+      Along := Dot(At - Segment.Line.P1, Run) / Dot(Run, Run);
+      if (Along < -JoinTolerance) or (Along > 1 + JoinTolerance) then
+        Exit(False);
+      if KeepStart then
+        Segment.Line.P2 := At
+      else
+        Segment.Line.P1 := At;
+      Exit(True);
+    end;
+    T := Segment.Curve.ClosestParam(At);
+    if (KeepStart and (T <= 0)) or (not KeepStart and (T >= 1)) then
+      Exit(False);
+    Segment.Curve.Split(T, First, Second);
+    if KeepStart then
+    begin
+      First.P3 := At;
+      Segment.Curve := First;
+    end
+    else
+    begin
+      Second.P0 := At;
+      Segment.Curve := Second;
+    end;
+    Result := True;
+  end;
+
+  // Joins the end of Parts[Before] to the start of Parts[After] round the
+  // source corner Vertex: a mitre (or bevel) outside, a trim inside
+  function JoinParts(Before, After: integer; const Vertex: TVec2): boolean;
+  var
+    EndPos, StartPos, EndDir, StartDir, Mitre: TVec2;
+    Cross, Out1: double;
+  begin
+    Result := True;
+    EndPos := SegmentEnd(Parts[Before][High(Parts[Before])]);
+    StartPos := SegmentStart(Parts[After][0]);
+    if PointsNear(EndPos, StartPos, JoinTolerance) then
+      Exit;
+    EndDir := SegmentDirection(Parts[Before][High(Parts[Before])], True);
+    StartDir := SegmentDirection(Parts[After][0], False);
+    Cross := EndDir.X * StartDir.Y - EndDir.Y * StartDir.X;
+    if Abs(Cross) < 1e-9 then
+    begin
+      AddSegment(Joins[Before], LineSegment(Line2(EndPos, StartPos)));
+      Exit;
+    end;
+    // EndPos + Out1 * EndDir meets the start line
+    Out1 := ((StartPos.X - EndPos.X) * StartDir.Y - (StartPos.Y - EndPos.Y) * StartDir.X) / Cross;
+    Mitre := EndPos + EndDir * Out1;
+    if Out1 >= 0 then
+    begin
+      if Sloper.Core.Geometry.Distance(Mitre, Vertex) > MitreLimit * Distance2 then
+        AddSegment(Joins[Before], LineSegment(Line2(EndPos, StartPos)))
+      else
+      begin
+        AddSegment(Joins[Before], LineSegment(Line2(EndPos, Mitre)));
+        AddSegment(Joins[Before], LineSegment(Line2(Mitre, StartPos)));
+      end;
+      Exit;
+    end;
+    Result := Trim(Parts[Before][High(Parts[Before])], Mitre, True) and Trim(Parts[After][0], Mitre, False);
+  end;
+
+var
+  Index, Count: integer;
+  Closed: boolean;
+  Part: TEdgeSegmentArray;
+  Segment: TEdgeSegment;
 begin
-  SourceEdge := InputEdge(Context, FSource);
-  if not Assigned(SourceEdge) then
-    Exit(Fail(esError, Format(rsDraftNotAnEdge, [FSource])));
   if not EvalField(Context, 'distance', Distance2) then
     Exit(esError);
   if Distance2 < 0 then
@@ -1749,15 +2055,50 @@ begin
   Direction := 1;
   if FSide = osRight then
     Direction := -1;
-  FStraight := SourceEdge.IsStraight;
-  FSegments := nil;
-  HasEnd := False;
-  for Segment in SourceEdge.Segments do
-    if Segment.Kind = skLine then
-      AddJoined(Segment.Line.P1 + Across(Segment.Line.P2 - Segment.Line.P1), Segment.Line.P2 + Across(Segment.Line.P2 - Segment.Line.P1),
-        LineSegment(Line2(Segment.Line.P1 + Across(Segment.Line.P2 - Segment.Line.P1), Segment.Line.P2 + Across(Segment.Line.P2 - Segment.Line.P1))))
+  Result := GatherPath;
+  if Result <> esValid then
+    Exit;
+  Count := System.Length(Path);
+  Parts := nil;
+  Joins := nil;
+  SetLength(Parts, Count);
+  SetLength(Joins, Count);
+  Collapsed := nil;
+  for Index := 0 to Count - 1 do
+    if Path[Index].Kind = skLine then
+      Parts[Index] := [LineSegment(Line2(Path[Index].Line.P1 + Across(Path[Index].Line.P2 - Path[Index].Line.P1),
+        Path[Index].Line.P2 + Across(Path[Index].Line.P2 - Path[Index].Line.P1)))]
     else
-      AddCurve(Segment.Curve);
+    begin
+      if (Distance2 > 0) and TooTight(Path[Index].Curve) and not Assigned(Collapsed) then
+        Collapsed := Owners[Index];
+      Parts[Index] := OffsetCurve(Path[Index].Curve);
+    end;
+  if Assigned(Collapsed) then
+    Exit(Fail(esInvalid, Format(rsDraftOffsetCollapses, [Collapsed.DisplayName])));
+  // Spans of a curve can all be skipped where it has no direction
+  for Index := 0 to Count - 1 do
+    if System.Length(Parts[Index]) = 0 then
+      Exit(Fail(esInvalid, Format(rsDraftOffsetCollapses, [Owners[Index].DisplayName])));
+  for Index := 1 to Count - 1 do
+    if not JoinParts(Index - 1, Index, SegmentStart(Path[Index])) then
+      Exit(Fail(esInvalid, Format(rsDraftOffsetCollapses, [Owners[Index].DisplayName])));
+  // A closed run, such as a whole outline, joins up at its start too
+  Closed := (Count > 1) and PointsNear(SegmentEnd(Path[Count - 1]), SegmentStart(Path[0]), RunTolerance);
+  if Closed and not JoinParts(Count - 1, 0, SegmentStart(Path[0])) then
+    Exit(Fail(esInvalid, Format(rsDraftOffsetCollapses, [Owners[0].DisplayName])));
+  FSegments := nil;
+  // A closed run's last mitre runs to the first part's start, which is where
+  // the edge then starts and ends
+  for Index := 0 to Count - 1 do
+  begin
+    Part := Parts[Index];
+    for Segment in Part do
+      AddSegment(FSegments, Segment);
+    if (Index < Count - 1) or Closed then
+      for Segment in Joins[Index] do
+        AddSegment(FSegments, Segment);
+  end;
   Result := esValid;
 end;
 

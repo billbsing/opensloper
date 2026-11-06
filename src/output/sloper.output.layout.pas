@@ -1307,6 +1307,11 @@ var
       if Mirroring and not OnTheFold(Hole) then
         AddHole(Mirror(Hole), Marking.HoleSize);
     end;
+    // Buttons and match dots are drawn, not cut; MarkingStrokes has put them
+    // among the marks on paper
+    for Hole in Marking.Centres do
+      for Stroke in MarkerStrokes(Marking.Marker, Hole, Marking.HoleSize) do
+        AddTo(Result.MarkLines, Stroke);
   end;
 
 var

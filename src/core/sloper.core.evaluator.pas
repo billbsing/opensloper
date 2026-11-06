@@ -79,6 +79,9 @@ type
     // failure returns esError or esInvalid with Message set, keeping the last
     // good result.
     function Compute(Context: TEvalContext): TEvalState; virtual; abstract;
+    // Called after Compute succeeds, for what every node of a kind adds to
+    // its result, such as a point's marker size; failing works as in Compute
+    function ComputeExtras(Context: TEvalContext): TEvalState; virtual;
     // For a node outside the graph, which something else computes
     procedure MarkComputed;
     function Field(const AName: string): TFormula;
@@ -264,6 +267,11 @@ begin
   Result := AState;
 end;
 
+function TEvalNode.ComputeExtras(Context: TEvalContext): TEvalState;
+begin
+  Result := esValid;
+end;
+
 function TEvalNode.InputKeys: TStringArray;
 begin
   Result := nil;
@@ -373,6 +381,8 @@ begin
     begin
       Node.FMessage := '';
       Node.FState := Node.Compute(Context);
+      if Node.FState = esValid then
+        Node.FState := Node.ComputeExtras(Context);
       if Node.FState = esValid then
       begin
         Node.FMessage := '';

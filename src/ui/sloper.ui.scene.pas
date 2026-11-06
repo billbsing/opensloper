@@ -43,6 +43,16 @@ type
 
   TPieceChevronArray = array of TPieceChevron;
 
+  // An edge drawn in the same place as others, moved aside on screen only by
+  // Slot gaps along Normal, so it shows that there is more than one
+  TEdgeSlot = record
+    Key: string;
+    Slot: double;
+    Normal: TVec2;
+  end;
+
+  TEdgeSlotArray = array of TEdgeSlot;
+
   // Where a notch would go: on a point, or Position mm along the edge
   TNotchTarget = record
     EdgeKey, PointKey: string;
@@ -66,6 +76,20 @@ function ObjectsInBox(Pattern: TPattern; const Box: TRect2): TStringArray;
 function EdgeAt(Pattern: TPattern; const At: TVec2; Radius: double): TEdgeObject;
 // The smallest piece whose cutting line contains At, or nil
 function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
+// Everything under At, in the order a click picks it: points within
+// PointRadius mm, nearest first; edges within EdgeRadius mm, nearest first and
+// the one drawn on top first among equals; then pieces, smallest first
+function ObjectsAt(Pattern: TPattern; const At: TVec2; PointRadius, EdgeRadius: double): TStringArray;
+// The edges among Keys
+function EdgeKeys(Pattern: TPattern; const Keys: TStringArray): TStringArray;
+// The key after Current in Keys, going round to the first; the first when
+// Current is not there
+function NextKey(const Keys: TStringArray; const Current: string): string;
+// Two edges that run along the same path, either way round, within Tolerance mm
+function EdgesCoincide(EdgeA, EdgeB: TEdgeObject; Tolerance: double): boolean;
+// Every edge that lies on another, with its place in its group; groups come
+// in the order of their first edge, and edges within a group in pattern order
+function CoincidentEdges(Pattern: TPattern): TEdgeSlotArray;
 // Where a piece's name goes: the middle of its extent
 function PieceMiddle(Piece: TPieceObject): TVec2;
 // One chevron at the middle of each edge of the piece, pointing along the path
@@ -285,6 +309,186 @@ begin
         Result := Piece;
       end;
     end;
+end;
+
+function ObjectsAt(Pattern: TPattern; const At: TVec2; PointRadius, EdgeRadius: double): TStringArray;
+type
+  TFound = record
+    Key: string;
+    Rank: double;
+  end;
+var
+  Found: array of TFound;
+
+  procedure Add(const AKey: string; ARank: double);
+  begin
+    SetLength(Found, Length(Found) + 1);
+    Found[High(Found)].Key := AKey;
+    Found[High(Found)].Rank := ARank;
+  end;
+
+  // Stable, so equals keep the order they were added in
+  procedure SortFrom(First: integer);
+  var
+    Item, Place: integer;
+    Swap: TFound;
+  begin
+    for Item := First + 1 to High(Found) do
+    begin
+      Place := Item;
+      while (Place > First) and (Found[Place].Rank < Found[Place - 1].Rank) do
+      begin
+        Swap := Found[Place];
+        Found[Place] := Found[Place - 1];
+        Found[Place - 1] := Swap;
+        Dec(Place);
+      end;
+    end;
+  end;
+
+var
+  Index, First: integer;
+  DraftObject: TDraftObject;
+  Point: TPointObject;
+  Position, Offset: double;
+begin
+  Found := nil;
+  for Point in Pattern.AllPoints do
+    if Point.HasResult and (Distance(Point.Position, At) <= PointRadius) then
+      Add(Point.Key, Distance(Point.Position, At));
+  SortFrom(0);
+  First := Length(Found);
+  // Later objects are drawn on top, so they come first among equals
+  for Index := Pattern.ObjectCount - 1 downto 0 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (Length(TEdgeObject(DraftObject).Segments) = 0) then
+      Continue;
+    TEdgeObject(DraftObject).Locate(At, Position, Offset);
+    if Offset <= EdgeRadius then
+      Add(DraftObject.Key, Offset);
+  end;
+  SortFrom(First);
+  First := Length(Found);
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if (DraftObject is TPieceObject) and DraftObject.HasResult and PointInPolygon(At, TPieceObject(DraftObject).CutLine) then
+      Add(DraftObject.Key, Abs(SignedArea(TPieceObject(DraftObject).CutLine)));
+  end;
+  SortFrom(First);
+  Result := nil;
+  SetLength(Result, Length(Found));
+  for Index := 0 to High(Found) do
+    Result[Index] := Found[Index].Key;
+end;
+
+function EdgeKeys(Pattern: TPattern; const Keys: TStringArray): TStringArray;
+var
+  Key: string;
+begin
+  Result := nil;
+  for Key in Keys do
+    if Pattern.FindNode(Key) is TEdgeObject then
+      Insert(Key, Result, Length(Result));
+end;
+
+function NextKey(const Keys: TStringArray; const Current: string): string;
+var
+  Index: integer;
+begin
+  Result := '';
+  if Length(Keys) = 0 then
+    Exit;
+  Result := Keys[0];
+  for Index := 0 to High(Keys) do
+    if Keys[Index] = Current then
+      Exit(Keys[(Index + 1) mod Length(Keys)]);
+end;
+
+function EdgesCoincide(EdgeA, EdgeB: TEdgeObject; Tolerance: double): boolean;
+const
+  Samples = 8;
+
+// Every sample along From lies on Onto
+  function LiesOn(From, Onto: TEdgeObject): boolean;
+  var
+    Index: integer;
+    Position, Offset: double;
+  begin
+    for Index := 0 to Samples do
+    begin
+      Onto.Locate(From.PointAtLength(From.Length * Index / Samples), Position, Offset);
+      if Offset > Tolerance then
+        Exit(False);
+    end;
+    Result := True;
+  end;
+
+var
+  StartA, EndA, StartB, EndB: TVec2;
+begin
+  if not EdgeA.HasResult or not EdgeB.HasResult or (Length(EdgeA.Segments) = 0) or (Length(EdgeB.Segments) = 0) then
+    Exit(False);
+  if Abs(EdgeA.Length - EdgeB.Length) > Tolerance then
+    Exit(False);
+  StartA := EdgeA.PointAtLength(0);
+  EndA := EdgeA.PointAtLength(EdgeA.Length);
+  StartB := EdgeB.PointAtLength(0);
+  EndB := EdgeB.PointAtLength(EdgeB.Length);
+  if not ((PointsNear(StartA, StartB, Tolerance) and PointsNear(EndA, EndB, Tolerance)) or
+    (PointsNear(StartA, EndB, Tolerance) and PointsNear(EndA, StartB, Tolerance))) then
+    Exit(False);
+  Result := LiesOn(EdgeA, EdgeB) and LiesOn(EdgeB, EdgeA);
+end;
+
+function CoincidentEdges(Pattern: TPattern): TEdgeSlotArray;
+const
+  Tolerance = 0.01;
+var
+  Edges: array of TEdgeObject;
+  Group: array of TEdgeObject;
+  Taken: array of boolean;
+  Index, Other, Member: integer;
+  Chord, Normal: TVec2;
+  Slot: TEdgeSlot;
+begin
+  Result := nil;
+  Edges := nil;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if (Pattern.Objects[Index] is TEdgeObject) and Pattern.Objects[Index].HasResult and
+      (Length(TEdgeObject(Pattern.Objects[Index]).Segments) > 0) then
+      Insert(TEdgeObject(Pattern.Objects[Index]), Edges, Length(Edges));
+  Taken := nil;
+  SetLength(Taken, Length(Edges));
+  for Index := 0 to High(Edges) do
+  begin
+    if Taken[Index] then
+      Continue;
+    Group := [Edges[Index]];
+    for Other := Index + 1 to High(Edges) do
+      if not Taken[Other] and EdgesCoincide(Edges[Index], Edges[Other], Tolerance) then
+      begin
+        Taken[Other] := True;
+        Insert(Edges[Other], Group, Length(Group));
+      end;
+    if Length(Group) < 2 then
+      Continue;
+    // One side of the first edge's chord; a closed edge has none, so it goes
+    // down and to the right
+    Chord := Group[0].PointAtLength(Group[0].Length) - Group[0].PointAtLength(0);
+    if Chord.Length < Tolerance then
+      Normal := Vec2(Sqrt(0.5), Sqrt(0.5))
+    else
+      Normal := Vec2(-Chord.Y / Chord.Length, Chord.X / Chord.Length);
+    for Member := 0 to High(Group) do
+    begin
+      Slot.Key := Group[Member].Key;
+      Slot.Slot := Member - (Length(Group) - 1) / 2;
+      Slot.Normal := Normal;
+      Insert(Slot, Result, Length(Result));
+    end;
+  end;
 end;
 
 function PieceMiddle(Piece: TPieceObject): TVec2;

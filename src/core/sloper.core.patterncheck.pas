@@ -59,6 +59,7 @@ resourcestring
   rsCheckNoFabric = '%s has no fabric';
   rsCheckLineOutside = '%s lies outside %s, which it is marked on';
   rsCheckLineLoose = '%s is a marking line in no piece, so it does not print';
+  rsCheckMarkerLoose = '%s has a marker but is in no piece, so it does not print';
   rsCheckSeam = '%s: side A is %s mm and side B %s mm, %s mm from the expected %s mm';
 
 implementation
@@ -113,27 +114,34 @@ begin
   end;
 end;
 
-// Only for lines and pieces that computed, as failing ones are reported anyway
+// Only for markings and pieces that computed, as failing ones are reported
+// anyway. A marked point outside its piece makes the piece invalid, so only
+// lines are checked for that here.
 procedure AddMarkingLineProblems(Pattern: TPattern; var Problems: TStringArray);
 var
   Index: integer;
-  Edge: TEdgeObject;
+  DraftObject: TDraftObject;
   Piece: TPieceObject;
   Pieces: TPieceObjectArray;
+  IsLine: boolean;
 begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
-    if not (Pattern.Objects[Index] is TEdgeObject) then
+    DraftObject := Pattern.Objects[Index];
+    IsLine := (DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in MarkingRoles);
+    if not IsLine and not (((DraftObject is TPointObject) or (DraftObject is TRepeatObject)) and (DraftObject.Marker <> pmPlain)) then
       Continue;
-    Edge := TEdgeObject(Pattern.Objects[Index]);
-    if not (Edge.Role in MarkingRoles) or (Edge.State <> esValid) then
+    if DraftObject.State <> esValid then
       Continue;
-    Pieces := Pattern.PiecesWithLine(Edge.Key);
-    if Length(Pieces) = 0 then
-      Insert(Format(rsCheckLineLoose, [Edge.DisplayName]), Problems, Length(Problems));
-    for Piece in Pieces do
-      if (Piece.State = esValid) and not Pattern.LiesInside(Edge, Piece) then
-        Insert(Format(rsCheckLineOutside, [Edge.DisplayName, Piece.DisplayName]), Problems, Length(Problems));
+    Pieces := Pattern.PiecesWithMarking(DraftObject.Key);
+    if (Length(Pieces) = 0) and IsLine then
+      Insert(Format(rsCheckLineLoose, [DraftObject.DisplayName]), Problems, Length(Problems))
+    else if Length(Pieces) = 0 then
+      Insert(Format(rsCheckMarkerLoose, [DraftObject.DisplayName]), Problems, Length(Problems));
+    if IsLine then
+      for Piece in Pieces do
+        if (Piece.State = esValid) and not Pattern.LiesInside(DraftObject, Piece) then
+          Insert(Format(rsCheckLineOutside, [DraftObject.DisplayName, Piece.DisplayName]), Problems, Length(Problems));
   end;
 end;
 

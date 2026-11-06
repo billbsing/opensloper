@@ -99,6 +99,7 @@ type
     function DoSetFold(Params: TJSONObject): TJSONData;
     function DoConvertEdge(Params: TJSONObject): TJSONData;
     function DoSetRole(Params: TJSONObject): TJSONData;
+    function DoSetMarker(Params: TJSONObject): TJSONData;
     function DoMergePoints(Params: TJSONObject): TJSONData;
     function DoBreakPoint(Params: TJSONObject): TJSONData;
     function FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
@@ -163,6 +164,7 @@ resourcestring
   rsApiCut = 'Change cut';
   rsApiFold = 'Change fold';
   rsApiRole = 'Change role';
+  rsApiMarker = 'Change marker';
   rsApiAddMarking = 'Add marking';
   rsApiRemoveMarking = 'Remove marking';
   rsApiFabrics = 'Change fabrics';
@@ -334,6 +336,8 @@ begin
       Result.Add('type', PatternObjectTypeName(TDraftObject(Node)));
       if Node is TEdgeObject then
         Result.Add('role', EdgeRoleNames[TEdgeObject(Node).Role]);
+      if TDraftObject(Node).Marker <> pmPlain then
+        Result.Add('marker', PointMarkerNames[TDraftObject(Node).Marker]);
     end;
     Result.Add('state', StateName(Node.State));
     if Node.State <> esValid then
@@ -1019,6 +1023,9 @@ var
   NodeKeys, Angles, LengthsIn, LengthsOut: TStringArray;
   Index: integer;
   Added: TEvalNode;
+  Piece: TPieceObject;
+  Run: TRunEdgeArray;
+  Side: TOffsetSide;
 begin
   Pattern := FDocument.Pattern;
   TypeName := RequireString(Params, 'type');
@@ -1043,13 +1050,36 @@ begin
       FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddCurve(First, Second, Angle1, Length1, Angle2, Length2, Role, EdgeName);
     end;
+    // One edge, or a run of "edges" in any order; inside and outside need
+    // the piece the run is part of
     'offsetEdge':
     begin
-      First := Reference(Params, 'edge');
       Length1 := FormulaParam(Params, 'distance');
-      Index := ChoiceParam(Params, 'side', ['left', 'right']);
+      Index := ChoiceParam(Params, 'side', ['left', 'right', 'inside', 'outside']);
+      if Assigned(Params.Find('edges')) then
+        NodeKeys := ReferenceList(Params, 'edges')
+      else
+        NodeKeys := [Reference(Params, 'edge')];
+      Piece := nil;
+      if Index >= 2 then
+      begin
+        Added := Pattern.FindNode(Reference(Params, 'piece'));
+        if not (Added is TPieceObject) then
+          raise EApiError.Create(RpcRefused, Format(rsApiNotAPiece, [Added.DisplayName]));
+        Piece := TPieceObject(Added);
+      end;
       FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
-      Added := Pattern.AddOffsetEdge(First, Length1, TOffsetSide(Index), Role, EdgeName);
+      Added := nil;
+      Side := TOffsetSide(Index mod 2);
+      if Assigned(Piece) then
+      begin
+        if Pattern.PieceRun(Piece, NodeKeys, Index = 2, Run, Side) then
+          Added := Pattern.AddOffsetRun(Run, Length1, Side, Role, EdgeName);
+      end
+      else if Length(NodeKeys) = 1 then
+        Added := Pattern.AddOffsetEdge(NodeKeys[0], Length1, Side, Role, EdgeName)
+      else if Pattern.ChainRun(NodeKeys, Run) then
+        Added := Pattern.AddOffsetRun(Run, Length1, Side, Role, EdgeName);
     end;
     'circle':
     begin
@@ -1268,14 +1298,26 @@ begin
   Piece := TargetPiece(Params);
   if not Assigned(Params.Find('kind')) then
     raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['kind']));
+  // "hole", as before point markers, gives the point a hole marker and
+  // puts it on the piece
+  if (Params.Find('kind').JSONType = jtString) and (Params.Get('kind', '') = 'hole') then
+  begin
+    Key := Reference(Params, 'point');
+    FirstFormula := FormulaParam(Params, 'diameter');
+    FDocument.BeginChange(rsApiAddMarking);
+    Done := FDocument.Pattern.SetMarker(Key, pmHole, FirstFormula) and
+      ((Piece.PointMarkingOf(Key) >= 0) or FDocument.Pattern.AddPointMarking(Piece, Key));
+    if not Done then
+      RefuseChange;
+    Exit(AddedNode(Piece));
+  end;
   Kind := TMarkingKind(ChoiceParam(Params, 'kind', MarkingKindNames));
   case Kind of
-    mkHole:
+    mkPoint:
     begin
       Key := Reference(Params, 'point');
-      FirstFormula := FormulaParam(Params, MarkingDiameterField);
       FDocument.BeginChange(rsApiAddMarking);
-      Done := FDocument.Pattern.AddHoleMarking(Piece, Key, FirstFormula);
+      Done := FDocument.Pattern.AddPointMarking(Piece, Key);
     end;
     mkStitchHoles:
     begin
@@ -1611,7 +1653,34 @@ begin
   Result := AddedNode(Target);
   Pieces := TJSONArray.Create;
   TJSONObject(Result).Add('pieces', Pieces);
-  for Piece in FDocument.Pattern.PiecesWithLine(Target.Key) do
+  for Piece in FDocument.Pattern.PiecesWithMarking(Target.Key) do
+    Pieces.Add(Piece.DisplayName);
+end;
+
+// Like set_role for a point or repeat: a marker puts it on the pieces it
+// lies in once evaluated, listed in the reply
+function TApiServer.DoSetMarker(Params: TJSONObject): TJSONData;
+var
+  Marker: TPointMarker;
+  Target: TEvalNode;
+  Size: string;
+  Piece: TPieceObject;
+  Pieces: TJSONArray;
+begin
+  Target := FindTarget(Params);
+  if not Assigned(Params.Find('marker')) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['marker']));
+  Marker := TPointMarker(ChoiceParam(Params, 'marker', PointMarkerNames));
+  Size := '';
+  if Assigned(Params.Find('size')) then
+    Size := FormulaParam(Params, 'size');
+  FDocument.BeginChange(rsApiMarker);
+  if not FDocument.Pattern.SetMarker(Target.Key, Marker, Size) then
+    RefuseChange;
+  Result := AddedNode(Target);
+  Pieces := TJSONArray.Create;
+  TJSONObject(Result).Add('pieces', Pieces);
+  for Piece in FDocument.Pattern.PiecesWithMarking(Target.Key) do
     Pieces.Add(Piece.DisplayName);
 end;
 
@@ -1827,6 +1896,7 @@ begin
     'set_fold': Result := DoSetFold(Params);
     'convert_edge': Result := DoConvertEdge(Params);
     'set_role': Result := DoSetRole(Params);
+    'set_marker': Result := DoSetMarker(Params);
     'merge_points': Result := DoMergePoints(Params);
     'break_point': Result := DoBreakPoint(Params);
     'list_fabrics': Result := FabricsToJSON;

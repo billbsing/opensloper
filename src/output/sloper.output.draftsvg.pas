@@ -297,6 +297,25 @@ begin
     Result := Result + LabelElement(Point.Position, Extent, Color, Point.DisplayName);
 end;
 
+// A point's or repeat's marker, whether or not it is on a piece yet
+function MarkerElement(DraftObject: TDraftObject; Extent: double): string;
+var
+  Centre: TVec2;
+  Stroke: TLine2;
+  PathText: string;
+begin
+  PathText := '';
+  if DraftObject.MarkerSize > 0 then
+    for Centre in MarkerPositions(DraftObject) do
+      for Stroke in MarkerStrokes(DraftObject.Marker, Centre, DraftObject.MarkerSize) do
+        PathText := PathText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
+  Result := '';
+  if PathText <> '' then
+    Result := Format('<path data-id="%s" data-marker="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
+      [DraftObject.Key, PointMarkerNames[DraftObject.Marker], Trim(PathText), StateColor(DraftObject.State, InkColor),
+      Num(Extent * LineShare)]) + #10;
+end;
+
 function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
 var
   View: TDraftView;
@@ -345,6 +364,12 @@ begin
       if Labelled(DraftObject) then
         Result := Result + PieceLabelElement(Pattern, TPieceObject(DraftObject), View.Extent);
     end;
+  end;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if (DraftObject.Marker <> pmPlain) and DraftObject.HasResult then
+      Result := Result + MarkerElement(DraftObject, View.Extent);
   end;
   for Point in Pattern.AllPoints do
     if Point.HasResult then

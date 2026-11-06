@@ -63,6 +63,8 @@ uses
   Sloper.Tests.Fabrics,
   Sloper.Tests.Circles,
   Sloper.Tests.Accessories,
+  Sloper.Tests.Markers,
+  Sloper.Tests.OffsetRun,
   Sloper.Tests.Transform,
   Sloper.Tests.Layout,
   Sloper.Tests.LayoutExports,

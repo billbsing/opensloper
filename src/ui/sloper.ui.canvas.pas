@@ -27,9 +27,9 @@ unit Sloper.UI.Canvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
+  Classes, SysUtils, Controls, StdCtrls, Menus, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
-  Sloper.Core.Measurements, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap;
+  Sloper.Core.Measurements, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap, Sloper.UI.Scene;
 
 type
   // cmRefused: a drag was refused; the reason stays up until the button is released
@@ -53,6 +53,13 @@ type
     FMode: TCanvasMode;
     FPressPos, FLastPos: TPoint;
     FPressKey: string;
+    // Where the last plain click selected something, for clicking again to
+    // pick the next of the lines there
+    FLastClickPos: TPoint;
+    FHasLastClick: boolean;
+    // Edges drawn in the same place as others, worked out for each paint
+    FEdgeSlots: TEdgeSlotArray;
+    FPickMenu: TPopupMenu;
     FDragOffset: TVec2;
     // The press landed on a curve's handle, or the handle is being dragged
     FPressHandle, FDraggingHandle: boolean;
@@ -71,6 +78,7 @@ type
     FSeamA, FSeamB: TSeamSide;
     FSeamOnB: boolean;
     FLabelMode: TLabelMode;
+    FDrawRole: TEdgeRole;
     FShowPieceFills: boolean;
     // The grid's spacing, in GridUnit
     FGridStep: double;
@@ -93,6 +101,13 @@ type
     FReportedView: TViewTransform;
     FOnMessage: TCanvasMessageEvent;
     FOnSelectionChange: TNotifyEvent;
+    function MarkerKey(const Key: string): string;
+    procedure MarkHoles;
+    procedure FinishOffset(Added: TOffsetEdge);
+    function EdgeShift(const Key: string): TVec2;
+    function ClickKey(X, Y: integer; Shift: TShiftState): string;
+    procedure ShowPickMenu(X, Y: integer);
+    procedure PickMenuClick(Sender: TObject);
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure ShowMessageText(const AText: string);
@@ -146,6 +161,7 @@ type
     procedure DrawPieceMarks(Piece: TPieceObject);
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
+    procedure DrawMarker(DraftObject: TDraftObject);
     procedure DrawPattern;
     procedure DrawHandles;
     procedure DrawLabels;
@@ -192,8 +208,11 @@ type
     procedure AddRoundEdge(WholeCircle: boolean);
     // A rectangle from the selected point
     procedure AddRectangleHere;
-    // A construction edge parallel to the selected edge
+    // A construction edge parallel to the selected edge, or to the run the
+    // selected edges make
     procedure OffsetSelection(Side: TOffsetSide);
+    // An edge inside or outside the selected piece, along its selected edges
+    procedure OffsetSelectionInPiece(Inside: boolean);
     // Changes the selected edges to lines or curves in place, as one undo step
     procedure ConvertSelection(ToCurve: boolean);
     // Merges the selected points into one, as one undo step, and selects it
@@ -203,7 +222,9 @@ type
     procedure BreakSelection;
     // Rounds the corner between the two selected edges
     procedure RoundSelectedCorner;
-    // Adds a marking to the selected piece from the point or edge selected with it
+    // mkPoint makes the selected points and repeats holes, which join the
+    // pieces they lie in; the others add a marking to the selected piece
+    // from the edge (or, for mkLine, the marked point) selected with it
     procedure MarkSelection(Kind: TMarkingKind);
     // Removes the selected piece's markings on the point or edge selected with it
     procedure UnmarkSelection;
@@ -225,6 +246,8 @@ type
     property Tool: TCanvasTool read FTool write SetTool;
     property OnToolChange: TNotifyEvent read FOnToolChange write FOnToolChange;
     property LabelMode: TLabelMode read FLabelMode write SetLabelMode;
+    // The role of the lines, curves, circles, arcs and rectangles drawn next
+    property DrawRole: TEdgeRole read FDrawRole write FDrawRole;
     property ShowPieceFills: boolean read FShowPieceFills write SetShowPieceFills;
     // The grid's spacing in AUnit, from the preferences
     procedure SetGrid(Step: double; AUnit: TMeasureUnit);
@@ -242,7 +265,8 @@ resourcestring
   rsCanvasAddRound = 'Add circle or arc';
   rsCanvasPickCorner = 'Select the point for its corner first';
   rsCanvasAddRectangle = 'Add rectangle';
-  rsCanvasPickEdgeToOffset = 'Select the edge to offset first';
+  rsCanvasPickEdgeToOffset = 'Select the edges to offset first';
+  rsCanvasPickPieceEdges = 'Select the piece and the edges of it to offset';
   rsCanvasAddOffset = 'Add offset edge';
   rsCanvasPickEdgesToConvert = 'Select the edges to change first';
   rsCanvasConvertToLine = 'Change to line';
@@ -254,9 +278,9 @@ resourcestring
   rsCanvasBroken = 'Broke %s into %d points';
   rsCanvasPickCornerEdges = 'Select the two straight edges that meet at the corner';
   rsCanvasRoundCorner = 'Round corner';
-  rsCanvasPickHole = 'Select the piece and the point for the hole';
+  rsCanvasPickHole = 'Select the points to mark as holes';
   rsCanvasPickMarkingEdge = 'Select the piece and the edge for the marking';
-  rsCanvasPickLine = 'Select the piece and the marking line to attach to it';
+  rsCanvasPickLine = 'Select the piece and the marking line or marked point to attach to it';
   rsCanvasPickMarkingToRemove = 'Select the piece and the point or edge of the marking to remove';
   rsCanvasAddMarking = 'Add marking';
   rsCanvasRemoveMarking = 'Remove marking';
@@ -268,6 +292,8 @@ resourcestring
   rsCanvasNothingSelected = 'Select the points and edges to copy first';
   rsCanvasDelete = 'Delete';
   rsCanvasHover = '%s: %s';
+  rsCanvasCycle = '%s (%d of %d here; click again for the next)';
+  rsCanvasPickItem = '%s (%s)';
   rsCanvasAddPoint = 'Add point';
   rsCanvasAddLine = 'Add line';
   rsCanvasAddCurve = 'Add curve';
@@ -291,8 +317,8 @@ resourcestring
 implementation
 
 uses
-  Math, Forms, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect, Sloper.UI.Scene,
-  Sloper.UI.RulerTicks;
+  Math, Forms, StrUtils, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect,
+  Sloper.UI.RulerTicks, Sloper.UI.ObjectList;
 
 const
   // A new circle or arc, as a starting point for typing the real values
@@ -302,7 +328,6 @@ const
   NewRectangleHeight = '100';
   NewOffsetDistance = '10';
   NewCornerRadius = '10';
-  NewHoleDiameter = '4';
   NewStitchSpacing = '4';
   NewStitchSize = '1';
   // How strongly a fabric's colour shows under the lines
@@ -317,6 +342,8 @@ const
   HandleRadius = 4;
   EdgeHitRadius = 5;
   DragThreshold = 3;
+  // How far apart lines in the same place are drawn, in pixels
+  CoincidentGap = 3;
   FitMargin = 40;
   FlattenPixels = 0.25;
   LabelFontHeight = 13;
@@ -424,6 +451,7 @@ begin
   inherited Create(AOwner);
   FView := DefaultView;
   FShowPieceFills := True;
+  FDrawRole := erOutline;
   FGridUnit := muMillimetre;
   FGridStep := DefaultGridSteps[muMillimetre];
   FBitmap := TBGRABitmap.Create(1, 1);
@@ -856,9 +884,9 @@ begin
   end;
   FDocument.BeginChange(rsCanvasAddRound);
   if WholeCircle then
-    Added := FDocument.Pattern.AddCircle(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, erOutline)
+    Added := FDocument.Pattern.AddCircle(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, FDrawRole)
   else
-    Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, '0', NewArcSweep, erOutline);
+    Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, '0', NewArcSweep, FDrawRole);
   Key := '';
   if Assigned(Added) then
     Key := Added.Key;
@@ -888,7 +916,7 @@ begin
     Exit;
   end;
   FDocument.BeginChange(rsCanvasAddRectangle);
-  Done := FDocument.Pattern.AddRectangle(FDocument.Pattern.UsePoint(Node.Key), NewRectangleWidth, NewRectangleHeight, erOutline, Edges);
+  Done := FDocument.Pattern.AddRectangle(FDocument.Pattern.UsePoint(Node.Key), NewRectangleWidth, NewRectangleHeight, FDrawRole, Edges);
   Key := '';
   if Done then
     Key := Edges[0].EndKey;
@@ -900,24 +928,72 @@ begin
   Invalidate;
 end;
 
+// One edge, or a run of them in any order, which follows the first selected
 procedure TPatternCanvas.OffsetSelection(Side: TOffsetSide);
 var
-  Node: TEvalNode;
+  Edges: TStringArray;
+  Run: TRunEdgeArray;
   Added: TOffsetEdge;
-  Key, Reason: string;
 begin
   if not Assigned(FDocument) then
     Exit;
-  Node := nil;
-  if Length(FSelection) = 1 then
-    Node := FDocument.Pattern.FindNode(FSelection[0]);
-  if not (Node is TEdgeObject) then
+  Edges := EdgeKeys(FDocument.Pattern, FSelection);
+  if (Length(Edges) = 0) or (Length(Edges) <> Length(FSelection)) then
   begin
     ShowMessageText(rsCanvasPickEdgeToOffset);
     Exit;
   end;
   FDocument.BeginChange(rsCanvasAddOffset);
-  Added := FDocument.Pattern.AddOffsetEdge(Node.Key, NewOffsetDistance, Side, erConstruction);
+  Added := nil;
+  if Length(Edges) = 1 then
+    Added := FDocument.Pattern.AddOffsetEdge(Edges[0], NewOffsetDistance, Side, erConstruction)
+  else if FDocument.Pattern.ChainRun(Edges, Run) then
+    Added := FDocument.Pattern.AddOffsetRun(Run, NewOffsetDistance, Side, erConstruction);
+  FinishOffset(Added);
+end;
+
+// Edges of a piece, selected with it, offset inside it (as a stitch line)
+// or outside it (as a construction line)
+procedure TPatternCanvas.OffsetSelectionInPiece(Inside: boolean);
+var
+  Key: string;
+  Node: TEvalNode;
+  Piece: TPieceObject;
+  Edges: TStringArray;
+  Run: TRunEdgeArray;
+  Side: TOffsetSide;
+  Role: TEdgeRole;
+  Added: TOffsetEdge;
+begin
+  if not Assigned(FDocument) then
+    Exit;
+  Piece := nil;
+  for Key in FSelection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if Node is TPieceObject then
+      Piece := TPieceObject(Node);
+  end;
+  Edges := EdgeKeys(FDocument.Pattern, FSelection);
+  if not Assigned(Piece) or (Length(Edges) = 0) or (Length(Edges) + 1 <> Length(FSelection)) then
+  begin
+    ShowMessageText(rsCanvasPickPieceEdges);
+    Exit;
+  end;
+  Role := erConstruction;
+  if Inside then
+    Role := erStitch;
+  FDocument.BeginChange(rsCanvasAddOffset);
+  Added := nil;
+  if FDocument.Pattern.PieceRun(Piece, Edges, Inside, Run, Side) then
+    Added := FDocument.Pattern.AddOffsetRun(Run, NewOffsetDistance, Side, Role);
+  FinishOffset(Added);
+end;
+
+procedure TPatternCanvas.FinishOffset(Added: TOffsetEdge);
+var
+  Key, Reason: string;
+begin
   Key := '';
   if Assigned(Added) then
     Key := Added.Key;
@@ -1062,6 +1138,49 @@ begin
   Invalidate;
 end;
 
+// A repeat's point stands for its repeat, which holds the marker
+function TPatternCanvas.MarkerKey(const Key: string): string;
+var
+  Node: TEvalNode;
+begin
+  Result := Key;
+  Node := FDocument.Pattern.FindNode(Key);
+  if Node is TRepeatPoint then
+    Result := TRepeatPoint(Node).Source.Key;
+end;
+
+// Every selected point or repeat becomes a hole, joining the pieces it lies in
+procedure TPatternCanvas.MarkHoles;
+var
+  Key, Target, Reason: string;
+  Node: TEvalNode;
+  Targets: TStringArray;
+  Done: boolean;
+begin
+  Targets := nil;
+  for Key in FSelection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    Target := MarkerKey(Key);
+    if ((Node is TPointObject) or (Node is TRepeatObject)) and (TDraftObject(FDocument.Pattern.FindNode(Target)).Marker <> pmHole) and
+      (IndexStr(Target, Targets) < 0) then
+      Insert(Target, Targets, Length(Targets));
+  end;
+  if Length(Targets) = 0 then
+  begin
+    ShowMessageText(rsCanvasPickHole);
+    Exit;
+  end;
+  FDocument.BeginChange(rsCanvasAddMarking);
+  Done := True;
+  for Target in Targets do
+    Done := Done and FDocument.Pattern.SetMarker(Target, pmHole);
+  Reason := FDocument.Pattern.LastError;
+  if not FDocument.Commit(Done) then
+    ShowMessageText(Reason);
+  Invalidate;
+end;
+
 procedure TPatternCanvas.MarkSelection(Kind: TMarkingKind);
 var
   Key, Reason, Target: string;
@@ -1071,6 +1190,11 @@ var
 begin
   if not Assigned(FDocument) then
     Exit;
+  if Kind = mkPoint then
+  begin
+    MarkHoles;
+    Exit;
+  end;
   Piece := nil;
   Target := '';
   for Key in FSelection do
@@ -1078,26 +1202,24 @@ begin
     Node := FDocument.Pattern.FindNode(Key);
     if Node is TPieceObject then
       Piece := TPieceObject(Node)
-    else if ((Kind = mkHole) and (Node is TPointObject)) or ((Kind <> mkHole) and (Node is TEdgeObject)) then
-      Target := Key;
+    else if (Node is TEdgeObject) or ((Kind = mkLine) and ((Node is TPointObject) or (Node is TRepeatObject))) then
+      Target := MarkerKey(Key);
   end;
   if not Assigned(Piece) or (Target = '') or (Length(FSelection) <> 2) then
   begin
-    case Kind of
-      mkHole: ShowMessageText(rsCanvasPickHole);
-      mkLine: ShowMessageText(rsCanvasPickLine);
-      else
-        ShowMessageText(rsCanvasPickMarkingEdge);
-    end;
+    if Kind = mkLine then
+      ShowMessageText(rsCanvasPickLine)
+    else
+      ShowMessageText(rsCanvasPickMarkingEdge);
     Exit;
   end;
   FDocument.BeginChange(rsCanvasAddMarking);
-  case Kind of
-    mkHole: Done := FDocument.Pattern.AddHoleMarking(Piece, FDocument.Pattern.UsePoint(Target), NewHoleDiameter);
-    mkStitchHoles: Done := FDocument.Pattern.AddStitchMarking(Piece, Target, NewStitchSpacing, NewStitchSize);
-    else
-      Done := FDocument.Pattern.AddLineMarking(Piece, Target);
-  end;
+  if Kind = mkStitchHoles then
+    Done := FDocument.Pattern.AddStitchMarking(Piece, Target, NewStitchSpacing, NewStitchSize)
+  else if FDocument.Pattern.FindNode(Target) is TEdgeObject then
+    Done := FDocument.Pattern.AddLineMarking(Piece, Target)
+  else
+    Done := FDocument.Pattern.AddPointMarking(Piece, Target);
   Reason := FDocument.Pattern.LastError;
   if not FDocument.Commit(Done) then
     ShowMessageText(Reason);
@@ -1122,7 +1244,7 @@ begin
     if Node is TPieceObject then
       Piece := TPieceObject(Node)
     else
-      Target := Key;
+      Target := MarkerKey(Key);
   end;
   if not Assigned(Piece) or (Target = '') then
   begin
@@ -1390,11 +1512,11 @@ begin
     EndKey := PointFromSnap(FDocument.Pattern, FSnap);
   if (EndKey <> '') and (EndKey <> StartKey) then
     if FTool = ctLine then
-      Edge := FDocument.Pattern.AddLine(StartKey, EndKey, erOutline)
+      Edge := FDocument.Pattern.AddLine(StartKey, EndKey, FDrawRole)
     else
       Edge := FDocument.Pattern.AddCurve(StartKey, EndKey, RoundedText(AngleBetween(StartPos, EndPos), DragAngleDecimals),
         RoundedText(Chord * HandleFraction, DragLengthDecimals), RoundedText(AngleBetween(EndPos, StartPos), DragAngleDecimals),
-        RoundedText(Chord * HandleFraction, DragLengthDecimals), erOutline);
+        RoundedText(Chord * HandleFraction, DragLengthDecimals), FDrawRole);
   Reason := FDocument.Pattern.LastError;
   if not FDocument.Commit(Assigned(Edge)) then
   begin
@@ -1656,6 +1778,11 @@ begin
     end;
     Exit;
   end;
+  if Button = mbRight then
+  begin
+    ShowPickMenu(X, Y);
+    Exit;
+  end;
   if Button <> mbLeft then
     Exit;
   // A handle lies over whatever else is there
@@ -1754,9 +1881,74 @@ begin
         else if ssShift in Shift then
           ToggleSelected(FPressKey)
         else
-          SetSelection([FPressKey]);
+          SetSelection([ClickKey(X, Y, Shift)]);
   end;
   FMode := cmIdle;
+end;
+
+// What a plain click selects. Clicking again where lines lie in the same
+// place picks the next of them, and Alt-click the next of everything there;
+// the status bar says which it is.
+function TPatternCanvas.ClickKey(X, Y: integer; Shift: TShiftState): string;
+var
+  Here, Choices: TStringArray;
+  Again: boolean;
+  Index: integer;
+begin
+  Result := FPressKey;
+  Here := ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius));
+  Again := FHasLastClick and (Max(Abs(X - FLastClickPos.X), Abs(Y - FLastClickPos.Y)) < DragThreshold) and (Length(FSelection) = 1);
+  FLastClickPos := Point(X, Y);
+  FHasLastClick := True;
+  if ssAlt in Shift then
+    Choices := Here
+  else
+    Choices := EdgeKeys(FDocument.Pattern, Here);
+  if Length(Choices) < 2 then
+    Exit;
+  if (ssAlt in Shift) or (Again and (IndexStr(FSelection[0], Choices) >= 0)) then
+    if (Length(FSelection) = 1) and (IndexStr(FSelection[0], Choices) >= 0) then
+      Result := NextKey(Choices, FSelection[0])
+    else
+      Result := Choices[0];
+  Index := IndexStr(Result, Choices);
+  if Index >= 0 then
+    ShowMessageText(Format(rsCanvasCycle, [FDocument.Pattern.FindNode(Result).DisplayName, Index + 1, Length(Choices)]));
+end;
+
+// Everything under the pointer, to pick one where several lie together
+procedure TPatternCanvas.ShowPickMenu(X, Y: integer);
+var
+  Here: TStringArray;
+  Key: string;
+  Item: TMenuItem;
+  Node: TEvalNode;
+  Screen: TPoint;
+begin
+  Here := ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius));
+  if Length(Here) = 0 then
+    Exit;
+  if not Assigned(FPickMenu) then
+    FPickMenu := TPopupMenu.Create(Self);
+  FPickMenu.Items.Clear;
+  for Key in Here do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    Item := TMenuItem.Create(FPickMenu);
+    Item.Caption := Format(rsCanvasPickItem, [Node.DisplayName, TypeCaption(Node)]);
+    Item.Hint := Key;
+    Item.Checked := IsSelected(Key);
+    Item.OnClick := @PickMenuClick;
+    FPickMenu.Items.Add(Item);
+  end;
+  Screen := ClientToScreen(Point(X, Y));
+  FPickMenu.PopUp(Screen.X, Screen.Y);
+end;
+
+procedure TPatternCanvas.PickMenuClick(Sender: TObject);
+begin
+  SetSelection([TMenuItem(Sender).Hint]);
+  Invalidate;
 end;
 
 function TPatternCanvas.DoMouseWheel(Shift: TShiftState; WheelDelta: integer; MousePos: TPoint): boolean;
@@ -2068,8 +2260,21 @@ end;
 
 function ScreenDashes(const Dashes: TDashPattern; LineWidth: single): TBGRAPenStyle; forward;
 
+// Screen pixels to move an edge aside by, so lines in the same place show
+// that there is more than one; geometry and output never move
+function TPatternCanvas.EdgeShift(const Key: string): TVec2;
+var
+  Slot: TEdgeSlot;
+begin
+  Result := Vec2(0, 0);
+  for Slot in FEdgeSlots do
+    if Slot.Key = Key then
+      Exit(Slot.Normal * (Slot.Slot * CoincidentGap));
+end;
+
 procedure TPatternCanvas.DrawEdge(Edge: TEdgeObject);
 var
+  Shift: TVec2;
   Model: TVec2Array;
   Screen: array of TPointF;
   Index: integer;
@@ -2079,10 +2284,11 @@ begin
   Model := EdgePolyline(Edge, FView.PixelsToMM(FlattenPixels));
   if Length(Model) < 2 then
     Exit;
+  Shift := EdgeShift(Edge.Key);
   Screen := nil;
   SetLength(Screen, Length(Model));
   for Index := 0 to High(Model) do
-    Screen[Index] := ScreenPoint(FView.ToScreen(Model[Index]));
+    Screen[Index] := ScreenPoint(FView.ToScreen(Model[Index]) + Shift);
 
   case Edge.Role of
     erOutline:
@@ -2166,6 +2372,7 @@ var
 begin
   // Pieces under edges, edges under points
   Shown := ShownObjects(FDocument.Pattern);
+  FEdgeSlots := CoincidentEdges(FDocument.Pattern);
   for DraftObject in Shown do
     if (DraftObject is TPieceObject) and DraftObject.HasResult then
       DrawPiece(TPieceObject(DraftObject));
@@ -2181,9 +2388,34 @@ begin
       DrawChevrons(TPieceObject(DraftObject));
   end;
   DrawSeams;
+  // A marker shows at its point whether or not it is on a piece yet
+  for DraftObject in Shown do
+    if (DraftObject.Marker <> pmPlain) and DraftObject.HasResult then
+      DrawMarker(DraftObject);
   for Point in ShownPoints(FDocument.Pattern) do
     if Point.HasResult then
       DrawPoint(Point);
+end;
+
+procedure TPatternCanvas.DrawMarker(DraftObject: TDraftObject);
+var
+  Centre: TVec2;
+  Stroke: TLine2;
+  First, Last: TVec2;
+  LineColor: TBGRAPixel;
+begin
+  if DraftObject.MarkerSize <= 0 then
+    Exit;
+  LineColor := Faded(StateInk(DraftObject.State, Ink), DraftObject.State);
+  if IsSelected(DraftObject.Key) then
+    LineColor := SelectedInk;
+  for Centre in MarkerPositions(DraftObject) do
+    for Stroke in MarkerStrokes(DraftObject.Marker, Centre, DraftObject.MarkerSize) do
+    begin
+      First := FView.ToScreen(Stroke.P1);
+      Last := FView.ToScreen(Stroke.P2);
+      FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, LineColor, 1);
+    end;
 end;
 
 // Each selected curve's tangent lines. A handle set by a formula is hollow,
