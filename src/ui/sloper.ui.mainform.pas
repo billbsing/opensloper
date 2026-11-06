@@ -272,7 +272,16 @@ resourcestring
   rsToolCallout = 'Callout';
   rsMenuToolsSplit = 'Sp&lit Edge';
   rsToolCircle = 'Circle';
-  rsMenuToolsArc = '&Arc';
+  rsMenuToolsArc = 'A&rc';
+  rsMenuToolsEdge = '&Edge';
+  rsMenuToolsOffset = 'O&ffset';
+  rsMenuToolsPoints = '&Points';
+  rsMenuToolsMarkings = '&Markings';
+  rsMenuToolsTransform = '&Transform';
+  rsMenuOffsetLeft = 'Edge &Left';
+  rsMenuOffsetRight = 'Edge &Right';
+  rsMenuOffsetInside = '&Inside Piece';
+  rsMenuOffsetOutside = '&Outside Piece';
   rsToolRectangle = 'Rectangle';
   rsMenuToolsOffsetLeft = 'O&ffset Edge Left';
   rsMenuToolsOffsetRight = 'Offset Edge Ri&ght';
@@ -284,15 +293,15 @@ resourcestring
   rsMenuToolsMerge = 'Merge &Points';
   rsMenuToolsBreak = '&Break Point';
   rsMenuToolsHole = 'Mark &Hole';
-  rsMenuToolsAttachLine = 'Attach Marking to Piece';
+  rsMenuToolsAttachLine = 'Attach Marking to &Piece';
   rsMenuToolsDrawAs = 'Draw &As';
   rsDrawRoleHint = 'The role of the lines and shapes drawn next';
-  rsMenuToolsStitch = 'Mark Stitch Holes';
-  rsMenuToolsRemoveMarking = 'Remove Marking';
+  rsMenuToolsStitch = 'Mark &Stitch Holes';
+  rsMenuToolsRemoveMarking = '&Remove Marking';
   rsMenuToolsRotate = '&Rotate Copy...';
   rsMenuToolsMirror = 'M&irror Copy...';
   rsMenuToolsMove = 'Mo&ve Copy...';
-  rsMenuToolsSuggest = 'Suggest Sea&ms...';
+  rsMenuToolsSuggest = 'Suggest &Seams...';
   rsNoSuggestions = 'No more seams to suggest';
   rsAddSuggestedSeams = 'Add seams';
   rsHintKey = '%s (%s)';
@@ -889,12 +898,13 @@ var
   MarkingCaptions: array[TMarkingKind] of string;
   Marking: TMarkingKind;
   Kind: TTransformKind;
-  MenuDrawAs: TMenuItem;
+  SubMenu: TMenuItem;
+  OffsetAction: TAction;
   Role: TEdgeRole;
 
-  procedure AddCommand(AAction: TAction);
+  procedure AddCommand(AParent: TMenuItem; AAction: TAction);
   begin
-    AddMenuItem(MenuTools, AAction);
+    AddMenuItem(AParent, AAction);
     AddButton(FToolBar, AAction);
   end;
 
@@ -902,6 +912,20 @@ var
   begin
     MenuTools.Add(NewLine);
     AddDivider(FToolBar);
+  end;
+
+  function AddSubmenu(const ACaption: string): TMenuItem;
+  begin
+    Result := TMenuItem.Create(MenuTools);
+    Result.Caption := ACaption;
+    MenuTools.Add(Result);
+  end;
+
+  // A shorter caption in its submenu; the action keeps the full one for its
+  // toolbar hint. LCL leaves a caption alone once it differs from the action's.
+  procedure AddShortItem(AParent: TMenuItem; AAction: TAction; const ACaption: string);
+  begin
+    AddMenuItem(AParent, AAction).Caption := ACaption;
   end;
 
 begin
@@ -935,40 +959,48 @@ begin
     AddButton(FToolBar, FToolActions[Tool], True);
   end;
   AddBreak;
-  AddCommand(NewAction(rsMenuToolsSplit, aiSplit, @SplitClick));
-  AddCommand(NewAction(rsMenuToolsArc, aiArc, @ArcClick));
-  AddCommand(NewAction(rsMenuToolsRoundCorner, aiRoundCorner, @RoundCornerClick));
-  AddCommand(NewAction(rsMenuToolsOffsetLeft, aiOffsetLeft, @OffsetClick, 0, Ord(osLeft)));
-  AddCommand(NewAction(rsMenuToolsOffsetRight, aiOffsetRight, @OffsetClick, 0, Ord(osRight)));
-  // Menu only, as their icons would look like the two above
-  AddMenuItem(MenuTools, NewAction(rsMenuToolsOffsetInside, aiOffsetRight, @OffsetPieceClick, 0, Ord(True)));
-  AddMenuItem(MenuTools, NewAction(rsMenuToolsOffsetOutside, aiOffsetLeft, @OffsetPieceClick, 0, Ord(False)));
+  AddCommand(MenuTools, NewAction(rsMenuToolsArc, aiArc, @ArcClick));
+  SubMenu := AddSubmenu(rsMenuToolsEdge);
+  AddCommand(SubMenu, NewAction(rsMenuToolsSplit, aiSplit, @SplitClick));
+  AddCommand(SubMenu, NewAction(rsMenuToolsRoundCorner, aiRoundCorner, @RoundCornerClick));
   // Menu only: on the toolbar they would look like the Line and Curve tools
-  MenuTools.Add(NewLine);
-  AddMenuItem(MenuTools, NewAction(rsMenuToolsToLine, aiToLine, @ConvertClick, 0, Ord(False)));
-  AddMenuItem(MenuTools, NewAction(rsMenuToolsToCurve, aiToCurve, @ConvertClick, 0, Ord(True)));
+  SubMenu.Add(NewLine);
+  AddMenuItem(SubMenu, NewAction(rsMenuToolsToLine, aiToLine, @ConvertClick, 0, Ord(False)));
+  AddMenuItem(SubMenu, NewAction(rsMenuToolsToCurve, aiToCurve, @ConvertClick, 0, Ord(True)));
+  SubMenu := AddSubmenu(rsMenuToolsOffset);
+  OffsetAction := NewAction(rsMenuToolsOffsetLeft, aiOffsetLeft, @OffsetClick, 0, Ord(osLeft));
+  AddShortItem(SubMenu, OffsetAction, rsMenuOffsetLeft);
+  AddButton(FToolBar, OffsetAction);
+  OffsetAction := NewAction(rsMenuToolsOffsetRight, aiOffsetRight, @OffsetClick, 0, Ord(osRight));
+  AddShortItem(SubMenu, OffsetAction, rsMenuOffsetRight);
+  AddButton(FToolBar, OffsetAction);
+  // Menu only, as their icons would look like the two above
+  AddShortItem(SubMenu, NewAction(rsMenuToolsOffsetInside, aiOffsetRight, @OffsetPieceClick, 0, Ord(True)), rsMenuOffsetInside);
+  AddShortItem(SubMenu, NewAction(rsMenuToolsOffsetOutside, aiOffsetLeft, @OffsetPieceClick, 0, Ord(False)), rsMenuOffsetOutside);
+  AddDivider(FToolBar);
+  SubMenu := AddSubmenu(rsMenuToolsPoints);
+  AddCommand(SubMenu, NewAction(rsMenuToolsMerge, aiMergePoints, @MergeClick));
+  AddCommand(SubMenu, NewAction(rsMenuToolsBreak, aiBreakPoint, @BreakClick));
   AddBreak;
-  AddCommand(NewAction(rsMenuToolsMerge, aiMergePoints, @MergeClick));
-  AddCommand(NewAction(rsMenuToolsBreak, aiBreakPoint, @BreakClick));
-  AddBreak;
+  SubMenu := AddSubmenu(rsMenuToolsMarkings);
   for Marking := Low(TMarkingKind) to High(TMarkingKind) do
-    AddCommand(NewAction(MarkingCaptions[Marking], MarkingIcons[Marking], @MarkingClick, 0, Ord(Marking)));
-  AddCommand(NewAction(rsMenuToolsRemoveMarking, aiRemoveMarking, @RemoveMarkingClick));
-  MenuDrawAs := TMenuItem.Create(MainMenu);
-  MenuDrawAs.Caption := rsMenuToolsDrawAs;
-  MenuTools.Add(MenuDrawAs);
+    AddCommand(SubMenu, NewAction(MarkingCaptions[Marking], MarkingIcons[Marking], @MarkingClick, 0, Ord(Marking)));
+  SubMenu.Add(NewLine);
+  AddCommand(SubMenu, NewAction(rsMenuToolsRemoveMarking, aiRemoveMarking, @RemoveMarkingClick));
+  SubMenu := AddSubmenu(rsMenuToolsDrawAs);
   for Role := Low(TEdgeRole) to High(TEdgeRole) do
   begin
     FRoleActions[Role] := NewAction(RoleCaption(Role), aiLine, @DrawRoleClick, 0, Ord(Role));
     FRoleActions[Role].ImageIndex := -1;
     FRoleActions[Role].GroupIndex := 3;
-    Item := AddMenuItem(MenuDrawAs, FRoleActions[Role]);
+    Item := AddMenuItem(SubMenu, FRoleActions[Role]);
     Item.RadioItem := True;
   end;
   AddBreak;
+  SubMenu := AddSubmenu(rsMenuToolsTransform);
   for Kind := Low(TTransformKind) to High(TTransformKind) do
-    AddCommand(NewAction(TransformCaptions[Kind], TransformIcons[Kind], @TransformClick, 0, Ord(Kind)));
-  AddCommand(NewAction(rsMenuToolsSuggest, aiSuggestSeams, @SuggestSeamsClick));
+    AddCommand(SubMenu, NewAction(TransformCaptions[Kind], TransformIcons[Kind], @TransformClick, 0, Ord(Kind)));
+  AddCommand(MenuTools, NewAction(rsMenuToolsSuggest, aiSuggestSeams, @SuggestSeamsClick));
 end;
 
 procedure TMainForm.MarkingClick(Sender: TObject);
