@@ -62,6 +62,7 @@ type
     procedure TestNothingShownBeforeEvaluate;
     procedure TestPointAt;
     procedure TestEdgeAt;
+    procedure TestEdgeAtInsidePieceIsNotThePiece;
     procedure TestPolylines;
     procedure TestPolylineMiddle;
     procedure TestHandleAt;
@@ -227,6 +228,15 @@ begin
   FPattern.Evaluate;
   AssertEquals('the line', 'Line_A_B', EdgeAt(FPattern, Vec2(50, 1), 3).Name);
   AssertNull('nothing near', EdgeAt(FPattern, Vec2(50, 25), 3));
+end;
+
+// Inside a piece but away from its edges there is no edge, though a click
+// there would pick the piece
+procedure TTestCanvasModel.TestEdgeAtInsidePieceIsNotThePiece;
+begin
+  BuildPiece;
+  AssertNull('no edge near', EdgeAt(FPattern, Vec2(50, -50), 3));
+  AssertEquals('an edge of the piece', 'Line_A_B', EdgeAt(FPattern, Vec2(50, -1), 3).Name);
 end;
 
 procedure TTestCanvasModel.TestPolylines;

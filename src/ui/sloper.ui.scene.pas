@@ -230,7 +230,8 @@ var
   Keys: TStringArray;
 begin
   Result := nil;
-  Keys := ObjectsAt(Pattern, At, -1, Radius);
+  // Pieces come after the edges, and are not edges
+  Keys := EdgeKeys(Pattern, ObjectsAt(Pattern, At, -1, Radius));
   if Length(Keys) > 0 then
     Result := TEdgeObject(Pattern.FindNode(Keys[0]));
 end;
