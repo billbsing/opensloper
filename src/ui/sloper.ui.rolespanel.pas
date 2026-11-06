@@ -128,6 +128,7 @@ begin
   FViewGroup.Align := alTop;
   FViewGroup.Caption := rsRoleViewGroup;
   FViewGroup.AutoSize := True;
+  FViewGroup.ChildSizing.TopBottomSpacing := 8;
 
   for Role := High(TEdgeRole) downto Low(TEdgeRole) do
   begin
@@ -177,6 +178,8 @@ begin
   FPresetGroup.BorderSpacing.Top := 8;
   FPresetGroup.Top := 10002;
   FPresetGroup.Caption := rsRolesPresets;
+  FPresetGroup.ChildSizing.TopBottomSpacing := 8;
+
   FPresetBox := TComboBox.Create(Self);
   FPresetBox.Parent := FPresetGroup;
   FPresetBox.Align := alTop;

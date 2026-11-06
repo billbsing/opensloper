@@ -140,6 +140,8 @@ begin
   SetGroup.BorderSpacing.Bottom := 6;
   SetGroup.AutoSize := True;
   SetGroup.Caption := rsMeasurementsSetTitle;
+  SetGroup.ChildSizing.TopBottomSpacing := 8;
+
   FileBar := TPanel.Create(Self);
   FileBar.Parent := SetGroup;
   FileBar.Align := alTop;
@@ -179,6 +181,8 @@ begin
   FEditors.BorderSpacing.Top := 6;
   FEditors.AutoSize := True;
   FEditors.Caption := rsMeasurementsEditorsTitle;
+  FEditors.ChildSizing.TopBottomSpacing := 8;
+
   FKeyEdit := AddEditor(rsMeasurementsKey);
   FValueEdit := AddEditor(rsMeasurementsValue);
   FDescriptionEdit := AddEditor(rsMeasurementsDescription);
@@ -276,6 +280,8 @@ begin
   FTestGroup.AutoSize := True;
   FTestGroup.Hint := rsMeasurementsTestHint;
   FTestGroup.ShowHint := True;
+  FTestGroup.ChildSizing.TopBottomSpacing := 8;
+
   Row := TPanel.Create(Self);
   Row.Parent := FTestGroup;
   Row.Align := alTop;
