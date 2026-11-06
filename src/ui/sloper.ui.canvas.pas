@@ -39,7 +39,7 @@ type
   // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
   // or removes a notch on a piece's seam line; ctSeam picks the edges of the
   // two sides of a seam
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctPiece, ctNotch, ctSeam);
+  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -133,6 +133,7 @@ type
     procedure ClickTool;
     procedure AddPointHere;
     procedure AddEdgeHere;
+    procedure AddShapeHere;
     procedure AddPieceHere(X, Y: integer);
     procedure ToggleNotchHere(X, Y: integer);
     function RemoveNotchesAt(const At: TVec2; Radius: double): boolean;
@@ -205,9 +206,9 @@ type
     // once a pivot or axis has been clicked
     procedure StartTransform(Kind: TTransformKind);
     // A circle or arc around the selected point, ready for its radius to be typed
-    procedure AddRoundEdge(WholeCircle: boolean);
+    // An arc about the selected point
+    procedure AddArcHere;
     // A rectangle from the selected point
-    procedure AddRectangleHere;
     // A construction edge parallel to the selected edge, or to the run the
     // selected edges make
     procedure OffsetSelection(Side: TOffsetSide);
@@ -263,7 +264,6 @@ resourcestring
   rsCanvasTransform = 'Add %s';
   rsCanvasPickCentre = 'Select the point for its centre first';
   rsCanvasAddRound = 'Add circle or arc';
-  rsCanvasPickCorner = 'Select the point for its corner first';
   rsCanvasAddRectangle = 'Add rectangle';
   rsCanvasPickEdgeToOffset = 'Select the edges to offset first';
   rsCanvasPickPieceEdges = 'Select the piece and the edges of it to offset';
@@ -308,6 +308,12 @@ resourcestring
   rsCanvasPieceExists = '%s already covers this region';
   rsCanvasToolNotch = 'Notch: click a piece''s edge to add a notch, or a notch to remove it';
   rsCanvasNoSeam = 'There is no piece''s edge here';
+  rsCanvasToolCircle = 'Circle: click the centre, then a point on the rim; Escape stops';
+  rsCanvasToolRectangle = 'Rectangle: click one corner, then the opposite one; Escape stops';
+  rsCanvasCircleRim = 'Click a point on the rim';
+  rsCanvasRadius = 'Radius %s mm';
+  rsCanvasRectangleSize = '%s by %s mm';
+  rsCanvasRectangleCorner = 'Click the opposite corner';
   rsCanvasToolSeam = 'Seam: click edges for side A, Tab moves to side B, Enter makes the seam';
   rsCanvasSeamProgress = 'Side %s: A %s mm, B %s mm, difference %s mm. Tab changes side, Enter makes the seam';
   rsCanvasSeamSides = 'Pick edges for both sides first';
@@ -324,8 +330,6 @@ const
   // A new circle or arc, as a starting point for typing the real values
   NewRoundRadius = '50';
   NewArcSweep = '90';
-  NewRectangleWidth = '200';
-  NewRectangleHeight = '100';
   NewOffsetDistance = '10';
   NewCornerRadius = '10';
   NewStitchSpacing = '4';
@@ -866,7 +870,8 @@ begin
     Cursor := crDefault;
 end;
 
-procedure TPatternCanvas.AddRoundEdge(WholeCircle: boolean);
+// An arc about the selected point; circles have their own tool
+procedure TPatternCanvas.AddArcHere;
 var
   Node: TEvalNode;
   Added: TEdgeObject;
@@ -883,10 +888,7 @@ begin
     Exit;
   end;
   FDocument.BeginChange(rsCanvasAddRound);
-  if WholeCircle then
-    Added := FDocument.Pattern.AddCircle(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, FDrawRole)
-  else
-    Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, '0', NewArcSweep, FDrawRole);
+  Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, '0', NewArcSweep, FDrawRole);
   Key := '';
   if Assigned(Added) then
     Key := Added.Key;
@@ -898,31 +900,38 @@ begin
   Invalidate;
 end;
 
-procedure TPatternCanvas.AddRectangleHere;
+// The second click of a circle or rectangle: its first point, made if need
+// be, and the shape are one change. The tool stays on for the next.
+procedure TPatternCanvas.AddShapeHere;
 var
-  Node: TEvalNode;
+  Circle: TCircleObject;
   Edges: TRectangleEdges;
   Key, Reason: string;
   Done: boolean;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Node := nil;
-  if Length(FSelection) = 1 then
-    Node := FDocument.Pattern.FindNode(FSelection[0]);
-  if not (Node is TPointObject) then
-  begin
-    ShowMessageText(rsCanvasPickCorner);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddRectangle);
-  Done := FDocument.Pattern.AddRectangle(FDocument.Pattern.UsePoint(Node.Key), NewRectangleWidth, NewRectangleHeight, FDrawRole, Edges);
+  FHasStart := False;
   Key := '';
-  if Done then
-    Key := Edges[0].EndKey;
+  if FTool = ctCircle then
+  begin
+    FDocument.BeginChange(rsCanvasAddRound);
+    Circle := CircleFromSnap(FDocument.Pattern, FStartSnap, FSnap.Position, FDrawRole);
+    Done := Assigned(Circle);
+    if Done then
+      Key := Circle.Key;
+  end
+  else
+  begin
+    FDocument.BeginChange(rsCanvasAddRectangle);
+    Done := RectangleFromSnap(FDocument.Pattern, FStartSnap, FSnap.Position, FDrawRole, Edges);
+  end;
   Reason := FDocument.Pattern.LastError;
   if FDocument.Commit(Done) then
-    SetSelection([Key])
+  begin
+    if Key <> '' then
+      SetSelection([Key])
+    else
+      SetSelection([Edges[0].Key, Edges[1].Key, Edges[2].Key, Edges[3].Key]);
+  end
   else
     ShowMessageText(Reason);
   Invalidate;
@@ -1384,6 +1393,8 @@ begin
     ctPiece: ShowMessageText(rsCanvasToolPiece);
     ctNotch: ShowMessageText(rsCanvasToolNotch);
     ctSeam: ShowMessageText(rsCanvasToolSeam);
+    ctCircle: ShowMessageText(rsCanvasToolCircle);
+    ctRectangle: ShowMessageText(rsCanvasToolRectangle);
   end;
   Invalidate;
   if Assigned(FOnToolChange) then
@@ -1392,7 +1403,7 @@ end;
 
 function TPatternCanvas.UsesSnap: boolean;
 begin
-  Result := FTool in [ctPoint, ctLine, ctCurve];
+  Result := FTool in [ctPoint, ctLine, ctCurve, ctCircle, ctRectangle];
 end;
 
 procedure TPatternCanvas.UpdateSnap(X, Y: integer);
@@ -1405,7 +1416,14 @@ begin
     AnchorKey := FStartSnap.PointKey;
   FSnap := FindSnap(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius), AnchorKey);
   FSnapShown := True;
-  ShowMessageText(SnapDescription(FDocument.Pattern, FSnap));
+  // The second click of a circle or rectangle makes no point, only its size
+  if FHasStart and (FTool = ctCircle) then
+    ShowMessageText(Format(rsCanvasRadius, [RoundedText(Distance(FStartSnap.Position, FSnap.Position), 1)]))
+  else if FHasStart and (FTool = ctRectangle) then
+    ShowMessageText(Format(rsCanvasRectangleSize, [RoundedText(Abs(FSnap.Position.X - FStartSnap.Position.X), 1),
+      RoundedText(Abs(FSnap.Position.Y - FStartSnap.Position.Y), 1)]))
+  else
+    ShowMessageText(SnapDescription(FDocument.Pattern, FSnap));
   Invalidate;
 end;
 
@@ -1723,6 +1741,18 @@ begin
       end
       else
         AddEdgeHere;
+    ctCircle, ctRectangle:
+      if not FHasStart then
+      begin
+        FStartSnap := FSnap;
+        FHasStart := True;
+        if FTool = ctCircle then
+          ShowMessageText(rsCanvasCircleRim)
+        else
+          ShowMessageText(rsCanvasRectangleCorner);
+      end
+      else
+        AddShapeHere;
   end;
   Invalidate;
 end;
@@ -2017,7 +2047,7 @@ begin
         Exit;
       MakeSeam;
     end;
-    VK_S, VK_P, VK_L, VK_C, VK_K, VK_T, VK_E:
+    VK_S, VK_P, VK_L, VK_C, VK_O, VK_R, VK_K, VK_T, VK_E:
     begin
       if Shift <> [] then
         Exit;
@@ -2029,6 +2059,8 @@ begin
         VK_K: SetTool(ctPiece);
         VK_T: SetTool(ctNotch);
         VK_E: SetTool(ctSeam);
+        VK_O: SetTool(ctCircle);
+        VK_R: SetTool(ctRectangle);
       end;
     end;
     VK_N:
@@ -2502,11 +2534,20 @@ begin
     Exit;
   Screen := FView.ToScreen(FSnap.Position);
   Size := SnapMarkerSize;
+  // What the second click would make
   if FHasStart then
   begin
     Start := FView.ToScreen(FStartSnap.Position);
     FBitmap.PenStyle := psDash;
-    FBitmap.DrawLineAntialias(Start.X, Start.Y, Screen.X, Screen.Y, SelectedInk, 1.5);
+    case FTool of
+      ctCircle:
+        FBitmap.EllipseAntialias(Start.X, Start.Y, Distance(Start, Screen), Distance(Start, Screen), SelectedInk, 1.5);
+      ctRectangle:
+        FBitmap.RectangleAntialias(Min(Start.X, Screen.X), Min(Start.Y, Screen.Y), Max(Start.X, Screen.X), Max(Start.Y, Screen.Y),
+          SelectedInk, 1.5);
+      else
+        FBitmap.DrawLineAntialias(Start.X, Start.Y, Screen.X, Screen.Y, SelectedInk, 1.5);
+    end;
     FBitmap.PenStyle := psSolid;
   end;
   if FSnap.Kind in [snHorizontal, snVertical] then

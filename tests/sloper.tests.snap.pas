@@ -49,6 +49,12 @@ type
     procedure TestSplitPartsDoNotCross;
     procedure TestDescriptions;
     procedure TestObjectKeys;
+    procedure TestCircleOnExistingPoint;
+    procedure TestCircleMakesItsCentre;
+    procedure TestCircleTooSmall;
+    procedure TestRectangleFromCorner;
+    procedure TestRectangleEitherWay;
+    procedure TestRectangleTooThin;
   end;
 
 implementation
@@ -222,6 +228,72 @@ begin
   AssertEquals('an edge', '5', string.Join(' ', SnapObjectKeys(Snap(25, 0.5))));
   AssertEquals('lines up with a point', '4', string.Join(' ', SnapObjectKeys(Snap(50, -60))));
   AssertEquals('free', '', string.Join(' ', SnapObjectKeys(Snap(200, 200))));
+end;
+
+procedure TTestSnap.TestCircleOnExistingPoint;
+var
+  Circle: TCircleObject;
+  Count: integer;
+begin
+  Count := FPattern.ObjectCount;
+  Circle := CircleFromSnap(FPattern, Snap(0.5, 0.5), Vec2(30.04, 40), erOutline);
+  AssertNotNull(FPattern.LastError, Circle);
+  AssertEquals('on A', '1', Circle.Centre);
+  AssertEquals('rounded to 0.1 mm', '50', FPattern.FormulaText(Circle, 'radius'));
+  AssertEquals('only the circle', Count + 1, FPattern.ObjectCount);
+end;
+
+procedure TTestSnap.TestCircleMakesItsCentre;
+var
+  Circle: TCircleObject;
+begin
+  Circle := CircleFromSnap(FPattern, Snap(200, 200), Vec2(200, 225), erStitch);
+  AssertNotNull(FPattern.LastError, Circle);
+  FPattern.Evaluate;
+  AssertPointsNear('a new free point', Vec2(200, 200), TPointObject(FPattern.FindNode(Circle.Centre)).Position);
+  AssertEquals(25, Circle.PropertyValue('radius'), 1e-9);
+  AssertTrue(Circle.Role = erStitch);
+end;
+
+procedure TTestSnap.TestCircleTooSmall;
+var
+  Count: integer;
+begin
+  Count := FPattern.ObjectCount;
+  AssertNull(CircleFromSnap(FPattern, Snap(200, 200), Vec2(200.02, 200), erOutline));
+  AssertEquals(rsSnapTooSmall, FPattern.LastError);
+  AssertEquals('no centre left behind', Count, FPattern.ObjectCount);
+end;
+
+procedure TTestSnap.TestRectangleFromCorner;
+var
+  Edges: TRectangleEdges;
+begin
+  AssertTrue(FPattern.LastError, RectangleFromSnap(FPattern, Snap(200, 200), Vec2(320, 260.04), erOutline, Edges));
+  FPattern.Evaluate;
+  AssertPointsNear('across', Vec2(320, 200), Edges[0].PointAtLength(Edges[0].Length));
+  AssertPointsNear('opposite', Vec2(320, 260), Edges[1].PointAtLength(Edges[1].Length));
+end;
+
+// Up and to the left of the corner works too
+procedure TTestSnap.TestRectangleEitherWay;
+var
+  Edges: TRectangleEdges;
+begin
+  AssertTrue(FPattern.LastError, RectangleFromSnap(FPattern, Snap(200, 200), Vec2(150, 170), erOutline, Edges));
+  FPattern.Evaluate;
+  AssertPointsNear('opposite', Vec2(150, 170), Edges[1].PointAtLength(Edges[1].Length));
+end;
+
+procedure TTestSnap.TestRectangleTooThin;
+var
+  Edges: TRectangleEdges;
+  Count: integer;
+begin
+  Count := FPattern.ObjectCount;
+  AssertFalse(RectangleFromSnap(FPattern, Snap(200, 200), Vec2(300, 200.01), erOutline, Edges));
+  AssertEquals(rsSnapTooSmall, FPattern.LastError);
+  AssertEquals(Count, FPattern.ObjectCount);
 end;
 
 initialization

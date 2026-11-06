@@ -159,8 +159,7 @@ type
     procedure MergeClick(Sender: TObject);
     procedure BreakClick(Sender: TObject);
     procedure TransformClick(Sender: TObject);
-    procedure RoundEdgeClick(Sender: TObject);
-    procedure RectangleClick(Sender: TObject);
+    procedure ArcClick(Sender: TObject);
     procedure OffsetClick(Sender: TObject);
     procedure OffsetPieceClick(Sender: TObject);
     procedure RoundCornerClick(Sender: TObject);
@@ -267,9 +266,9 @@ resourcestring
   rsToolNotch = 'Notch';
   rsToolSeam = 'Seam';
   rsMenuToolsSplit = 'Sp&lit Edge';
-  rsMenuToolsCircle = 'C&ircle';
+  rsToolCircle = 'Circle';
   rsMenuToolsArc = '&Arc';
-  rsMenuToolsRectangle = 'Rec&tangle';
+  rsToolRectangle = 'Rectangle';
   rsMenuToolsOffsetLeft = 'O&ffset Edge Left';
   rsMenuToolsOffsetRight = 'Offset Edge Ri&ght';
   rsMenuToolsOffsetInside = 'Offset Inside Piece';
@@ -852,11 +851,11 @@ end;
 
 // The Tools menu and the toolbar down the left, in the same order. Each
 // action's Tag is its TCanvasTool, TMarkingKind, TTransformKind or
-// TOffsetSide, or Ord(True) for a whole circle.
+// TOffsetSide, or Ord(True) for inside a piece.
 procedure TMainForm.CreateToolCommands;
 const
-  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'K', 'T', 'E');
-  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiPiece, aiNotch, aiSeam);
+  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'O', 'R', 'K', 'T', 'E');
+  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiCircle, aiRectangle, aiPiece, aiNotch, aiSeam);
   MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
   TransformIcons: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
 var
@@ -896,6 +895,8 @@ begin
   Captions[ctPiece] := rsToolPiece;
   Captions[ctNotch] := rsToolNotch;
   Captions[ctSeam] := rsToolSeam;
+  Captions[ctCircle] := rsToolCircle;
+  Captions[ctRectangle] := rsToolRectangle;
   MenuTools := TMenuItem.Create(MainMenu);
   MenuTools.Caption := rsMenuTools;
   MainMenu.Items.Insert(MainMenu.Items.IndexOf(MenuHelp), MenuTools);
@@ -910,9 +911,7 @@ begin
   end;
   AddBreak;
   AddCommand(NewAction(rsMenuToolsSplit, aiSplit, @SplitClick));
-  AddCommand(NewAction(rsMenuToolsCircle, aiCircle, @RoundEdgeClick, 0, Ord(True)));
-  AddCommand(NewAction(rsMenuToolsArc, aiArc, @RoundEdgeClick, 0, Ord(False)));
-  AddCommand(NewAction(rsMenuToolsRectangle, aiRectangle, @RectangleClick));
+  AddCommand(NewAction(rsMenuToolsArc, aiArc, @ArcClick));
   AddCommand(NewAction(rsMenuToolsRoundCorner, aiRoundCorner, @RoundCornerClick));
   AddCommand(NewAction(rsMenuToolsOffsetLeft, aiOffsetLeft, @OffsetClick, 0, Ord(osLeft)));
   AddCommand(NewAction(rsMenuToolsOffsetRight, aiOffsetRight, @OffsetClick, 0, Ord(osRight)));
@@ -959,11 +958,6 @@ begin
   FCanvas.SetFocus;
 end;
 
-procedure TMainForm.RectangleClick(Sender: TObject);
-begin
-  FCanvas.AddRectangleHere;
-  FCanvas.SetFocus;
-end;
 
 procedure TMainForm.OffsetClick(Sender: TObject);
 begin
@@ -1001,9 +995,9 @@ begin
   FCanvas.SetFocus;
 end;
 
-procedure TMainForm.RoundEdgeClick(Sender: TObject);
+procedure TMainForm.ArcClick(Sender: TObject);
 begin
-  FCanvas.AddRoundEdge(TComponent(Sender).Tag = Ord(True));
+  FCanvas.AddArcHere;
   FCanvas.SetFocus;
 end;
 

@@ -275,6 +275,9 @@ type
     function IsMarking(DraftObject: TDraftObject): boolean;
     // An edge whose role the view hides
     function IsHidden(DraftObject: TDraftObject): boolean;
+    // Sets LastError, for a caller that refuses before changing anything;
+    // always False
+    function Refuse(const Msg: string): boolean;
     function AddStitchMarking(Piece: TPieceObject; const EdgeId, Spacing, Size: string): boolean;
     function RemoveMarking(Piece: TPieceObject; Index: integer): boolean;
     function SetCut(Piece: TPieceObject; Count: integer; Mirrored: boolean): boolean;
@@ -2356,6 +2359,11 @@ begin
   else if not WasMarking then
     QueueMarking(Edge);
   Result := True;
+end;
+
+function TPattern.Refuse(const Msg: string): boolean;
+begin
+  Result := SetError(Msg);
 end;
 
 function TPattern.IsHidden(DraftObject: TDraftObject): boolean;

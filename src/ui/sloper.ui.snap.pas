@@ -28,7 +28,7 @@ unit Sloper.UI.Snap;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
 
 type
   // snHorizontal and snVertical: level with or square to a point
@@ -63,8 +63,18 @@ function SnapDescription(Pattern: TPattern; const Snap: TSnap): string;
 function PointFromSnap(Pattern: TPattern; const Snap: TSnap): string;
 // The existing objects the snap works from, whose labels help while drawing
 function SnapObjectKeys(const Snap: TSnap): TStringArray;
+// A circle around the snapped centre, through Rim, its radius rounded to
+// 0.1 mm; the centre point is made if needed. nil when refused, with the
+// reason in Pattern.LastError.
+function CircleFromSnap(Pattern: TPattern; const Centre: TSnap; const Rim: TVec2; Role: TEdgeRole): TCircleObject;
+// A rectangle from the snapped corner to Opposite, its width and height
+// rounded to 0.1 mm and either way from the corner; the corner point is made
+// if needed. False when refused, with the reason in Pattern.LastError.
+function RectangleFromSnap(Pattern: TPattern; const Corner: TSnap; const Opposite: TVec2; Role: TEdgeRole;
+  out Edges: TRectangleEdges): boolean;
 
 resourcestring
+  rsSnapTooSmall = 'Too small: move further from the first click';
   rsSnapFree = 'New point at %s, %s';
   rsSnapPoint = 'Point %s';
   rsSnapCrossing = 'New point where %s crosses %s';
@@ -77,7 +87,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.UI.Scene;
+  Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Drag, Sloper.UI.Scene;
 
 const
   LengthDecimals = 1;
@@ -348,6 +358,40 @@ begin
   for Key in [Snap.PointKey, Snap.EdgeKey, Snap.OtherEdgeKey] do
     if Key <> '' then
       Insert(Key, Result, Length(Result));
+end;
+
+// Rounded as RoundedText rounds, so the check matches the formula written
+function Rounds(Value: double): double;
+begin
+  Result := Round(Value * 10) / 10;
+end;
+
+function CircleFromSnap(Pattern: TPattern; const Centre: TSnap; const Rim: TVec2; Role: TEdgeRole): TCircleObject;
+var
+  CentreKey: string;
+begin
+  Result := nil;
+  if Rounds(Distance(Centre.Position, Rim)) <= 0 then
+  begin
+    Pattern.Refuse(rsSnapTooSmall);
+    Exit;
+  end;
+  CentreKey := PointFromSnap(Pattern, Centre);
+  if CentreKey <> '' then
+    Result := Pattern.AddCircle(CentreKey, RoundedText(Distance(Centre.Position, Rim), LengthDecimals), Role);
+end;
+
+function RectangleFromSnap(Pattern: TPattern; const Corner: TSnap; const Opposite: TVec2; Role: TEdgeRole;
+  out Edges: TRectangleEdges): boolean;
+var
+  CornerKey: string;
+begin
+  Edges := Default(TRectangleEdges);
+  if (Rounds(Opposite.X - Corner.Position.X) = 0) or (Rounds(Opposite.Y - Corner.Position.Y) = 0) then
+    Exit(Pattern.Refuse(rsSnapTooSmall));
+  CornerKey := PointFromSnap(Pattern, Corner);
+  Result := (CornerKey <> '') and Pattern.AddRectangle(CornerKey, RoundedText(Opposite.X - Corner.Position.X, LengthDecimals),
+    RoundedText(Opposite.Y - Corner.Position.Y, LengthDecimals), Role, Edges);
 end;
 
 end.
