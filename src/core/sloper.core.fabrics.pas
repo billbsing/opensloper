@@ -47,7 +47,7 @@ type
   TPieceFillStyle = (pfFabric, pfTint, pfHatch);
 
   TFabricColor = record
-    R, G, B: byte;
+    Red, Green, Blue: byte;
   end;
 
   TPatternFabric = class
@@ -107,14 +107,14 @@ begin
   Result := Default(TFabricColor);
   if not IsFabricColor(Text) then
     Exit;
-  Result.R := StrToInt('$' + Copy(Text, 2, 2));
-  Result.G := StrToInt('$' + Copy(Text, 4, 2));
-  Result.B := StrToInt('$' + Copy(Text, 6, 2));
+  Result.Red := StrToInt('$' + Copy(Text, 2, 2));
+  Result.Green := StrToInt('$' + Copy(Text, 4, 2));
+  Result.Blue := StrToInt('$' + Copy(Text, 6, 2));
 end;
 
 function FabricColorText(const Color: TFabricColor): string;
 begin
-  Result := '#' + IntToHex(Color.R, 2) + IntToHex(Color.G, 2) + IntToHex(Color.B, 2);
+  Result := '#' + IntToHex(Color.Red, 2) + IntToHex(Color.Green, 2) + IntToHex(Color.Blue, 2);
 end;
 
 function FabricTint(const Color: TFabricColor): TFabricColor;
@@ -125,9 +125,9 @@ function FabricTint(const Color: TFabricColor): TFabricColor;
   end;
 
 begin
-  Result.R := Mixed(Color.R);
-  Result.G := Mixed(Color.G);
-  Result.B := Mixed(Color.B);
+  Result.Red := Mixed(Color.Red);
+  Result.Green := Mixed(Color.Green);
+  Result.Blue := Mixed(Color.Blue);
 end;
 
 function FabricHatchAngle(Index: integer): double;
@@ -177,7 +177,7 @@ var
   end;
 
 var
-  P: TVec2;
+  Point: TVec2;
   Row, Lowest, Highest: double;
   Number, Pair: integer;
 begin
@@ -188,10 +188,10 @@ begin
   Across := LeftOf(Along);
   Lowest := Infinity;
   Highest := -Infinity;
-  for P in Polygon do
+  for Point in Polygon do
   begin
-    Lowest := Min(Lowest, Dot(P, Across));
-    Highest := Max(Highest, Dot(P, Across));
+    Lowest := Min(Lowest, Dot(Point, Across));
+    Highest := Max(Highest, Dot(Point, Across));
   end;
   for Number := Ceil(Lowest / Spacing) to Floor(Highest / Spacing) do
   begin

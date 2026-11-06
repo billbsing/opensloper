@@ -40,8 +40,8 @@ type
     Scale: double;
     // Screen position of the layout's top left
     OriginX, OriginY: double;
-    function ToScreen(const P: TVec2): TVec2;
-    function ToLayout(const S: TVec2): TVec2;
+    function ToScreen(const LayoutPoint: TVec2): TVec2;
+    function ToLayout(const ScreenPoint: TVec2): TVec2;
     // Zooms by Factor keeping the layout point under Anchor (screen) still
     procedure ZoomAt(Factor: double; const Anchor: TVec2);
     procedure Pan(DX, DY: double);
@@ -75,14 +75,14 @@ begin
   Result.OriginY := 0;
 end;
 
-function TPreviewView.ToScreen(const P: TVec2): TVec2;
+function TPreviewView.ToScreen(const LayoutPoint: TVec2): TVec2;
 begin
-  Result := Vec2(P.X * Scale + OriginX, P.Y * Scale + OriginY);
+  Result := Vec2(LayoutPoint.X * Scale + OriginX, LayoutPoint.Y * Scale + OriginY);
 end;
 
-function TPreviewView.ToLayout(const S: TVec2): TVec2;
+function TPreviewView.ToLayout(const ScreenPoint: TVec2): TVec2;
 begin
-  Result := Vec2((S.X - OriginX) / Scale, (S.Y - OriginY) / Scale);
+  Result := Vec2((ScreenPoint.X - OriginX) / Scale, (ScreenPoint.Y - OriginY) / Scale);
 end;
 
 procedure TPreviewView.ZoomAt(Factor: double; const Anchor: TVec2);

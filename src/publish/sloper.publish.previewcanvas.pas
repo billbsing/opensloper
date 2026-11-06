@@ -141,7 +141,7 @@ end;
 
 function PieceTint(const Look: TPieceLook): TBGRAPixel;
 begin
-  Result := BGRA(Look.Color.R, Look.Color.G, Look.Color.B, 50);
+  Result := BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, 50);
 end;
 
 constructor TPreviewCanvas.Create(AOwner: TComponent);

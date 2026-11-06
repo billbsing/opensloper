@@ -112,9 +112,9 @@ begin
   Result := Result + IntToStr(Column + 1);
 end;
 
-function PointInRect(const P: TVec2; const Area: TRect2): boolean;
+function PointInRect(const Point: TVec2; const Area: TRect2): boolean;
 begin
-  Result := (P.X >= Area.MinX) and (P.X <= Area.MaxX) and (P.Y >= Area.MinY) and (P.Y <= Area.MaxY);
+  Result := (Point.X >= Area.MinX) and (Point.X <= Area.MaxX) and (Point.Y >= Area.MinY) and (Point.Y <= Area.MaxY);
 end;
 
 function PolygonTouches(const Points: TVec2Array; const Area: TRect2): boolean;

@@ -153,10 +153,14 @@ for my $file (@ARGV) {
 
   # Descriptive names: single-letter variables, fields and parameters
   next if $math{$file};
-  while ($code =~ /(?:^[ \t]*|[(;][ \t]*(?:const |var |out )?)((?:[A-Za-z][ \t]*,[ \t]*)*[A-Za-z])[ \t]*:(?!=)/mg) {
+  # The whole name list is matched, so a short name after a long one
+  # (Centre, Direction, P: TVec2) is found too
+  while ($code =~ /(?:^[ \t]*|[(;][ \t]*(?:const |var |out )?)((?:[A-Za-z_]\w*[ \t]*,[ \t]*)*[A-Za-z_]\w*)[ \t]*:(?!=)/mg) {
     my ($names, $pos) = ($1, $-[1]);
-    next if $names =~ /^[XYZ](?:\s*,\s*[XYZ])*$/i;    # coordinate pairs read well as X, Y
-    report('warning', $file, line_of($code, $pos), "single-letter name ($names); use a descriptive name");
+    # Coordinates read well as X, Y, Z
+    my @short = grep { /^[A-Za-z]$/ && !/^[XYZ]$/i } split /[ \t]*,[ \t]*/, $names;
+    next unless @short;
+    report('warning', $file, line_of($code, $pos), 'single-letter name (' . join(', ', @short) . '); use a descriptive name');
   }
 }
 

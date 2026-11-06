@@ -101,9 +101,9 @@ begin
 end;
 
 // Model and SVG both have y down
-function Coord(const P: TVec2): string;
+function Coord(const Point: TVec2): string;
 begin
-  Result := Num(P.X) + ' ' + Num(P.Y);
+  Result := Num(Point.X) + ' ' + Num(Point.Y);
 end;
 
 function EscapeXML(const Text: string): string;

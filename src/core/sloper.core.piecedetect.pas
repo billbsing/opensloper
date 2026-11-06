@@ -78,7 +78,7 @@ type
     FArcs: TArcArray;
     FNodes: TVec2Array;
     FOutgoing: array of TIntegerArray;
-    function NodeAt(const P: TVec2): integer;
+    function NodeAt(const Point: TVec2): integer;
     procedure AddStretch(Edge: TEdgeObject; FromPos, ToPos: double);
     procedure RemoveDangling;
     procedure SortOutgoing;
@@ -160,14 +160,14 @@ begin
       end;
 end;
 
-function TFaceFinder.NodeAt(const P: TVec2): integer;
+function TFaceFinder.NodeAt(const Point: TVec2): integer;
 begin
   for Result := 0 to High(FNodes) do
-    if PointsNear(FNodes[Result], P, PieceJoinTolerance) then
+    if PointsNear(FNodes[Result], Point, PieceJoinTolerance) then
       Exit;
   SetLength(FNodes, Length(FNodes) + 1);
   Result := High(FNodes);
-  FNodes[Result] := P;
+  FNodes[Result] := Point;
 end;
 
 procedure TFaceFinder.AddStretch(Edge: TEdgeObject; FromPos, ToPos: double);

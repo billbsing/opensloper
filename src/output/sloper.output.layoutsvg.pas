@@ -46,9 +46,9 @@ const
   SeamDash = 2;
   InkColor = '#000000';
 
-function PointText(const P: TVec2): string;
+function PointText(const Point: TVec2): string;
 begin
-  Result := SVGNumber(P.X) + ' ' + SVGNumber(P.Y);
+  Result := SVGNumber(Point.X) + ' ' + SVGNumber(Point.Y);
 end;
 
 function ClosedPath(const Points: TVec2Array): string;

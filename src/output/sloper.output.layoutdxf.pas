@@ -86,7 +86,7 @@ type
     FLines: TStringList;
     procedure Pair(Code: integer; const Value: string);
     procedure Number(Code: integer; Value: double);
-    procedure Place(const P: TVec2; Z: double = 0);
+    procedure Place(const Point: TVec2; Z: double = 0);
     procedure Tables(const Layers: TDXFLayerArray);
   public
     constructor Create;
@@ -131,10 +131,10 @@ begin
   Pair(Code, RoundedText(Value, NumberDecimals));
 end;
 
-procedure TDXFWriter.Place(const P: TVec2; Z: double);
+procedure TDXFWriter.Place(const Point: TVec2; Z: double);
 begin
-  Number(10, P.X);
-  Number(20, P.Y);
+  Number(10, Point.X);
+  Number(20, Point.Y);
   Number(30, Z);
 end;
 
@@ -231,18 +231,18 @@ end;
 
 procedure TDXFWriter.ClosedPath(const Layer: string; const Points: TVec2Array);
 var
-  P: TVec2;
+  Point: TVec2;
 begin
   Pair(0, 'POLYLINE');
   Pair(8, Layer);
   Pair(66, '1');
   Place(Vec2(0, 0));
   Pair(70, ClosedPolyline);
-  for P in Points do
+  for Point in Points do
   begin
     Pair(0, 'VERTEX');
     Pair(8, Layer);
-    Place(P);
+    Place(Point);
   end;
   Pair(0, 'SEQEND');
   Pair(8, Layer);
@@ -360,9 +360,9 @@ var
   end;
 
   // The model is y down and DXF y up
-  function Up(const P: TVec2): TVec2;
+  function Up(const Point: TVec2): TVec2;
   begin
-    Result := Vec2(P.X, -P.Y);
+    Result := Vec2(Point.X, -Point.Y);
   end;
 
   function UpAll(const Points: TVec2Array): TVec2Array;
@@ -551,9 +551,9 @@ end;
 
 procedure WriteMachinePiece(Writer: TDXFWriter; const Shape: TPlacedPiece; const Profile: TMachineProfile; Top: double);
 
-  function Up(const P: TVec2): TVec2;
+  function Up(const Point: TVec2): TVec2;
   begin
-    Result := Vec2(P.X, Top - P.Y);
+    Result := Vec2(Point.X, Top - Point.Y);
   end;
 
   function UpAll(const Points: TVec2Array): TVec2Array;

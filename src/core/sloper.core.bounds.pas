@@ -39,21 +39,21 @@ implementation
 uses
   Math, Sloper.Core.Bezier, Sloper.Core.Piece, Sloper.Core.Note, Sloper.Core.TextFields;
 
-procedure Include(var Bounds: TRect2; var Empty: boolean; const P: TVec2);
+procedure Include(var Bounds: TRect2; var Empty: boolean; const Point: TVec2);
 begin
   if Empty then
   begin
-    Bounds.MinX := P.X;
-    Bounds.MaxX := P.X;
-    Bounds.MinY := P.Y;
-    Bounds.MaxY := P.Y;
+    Bounds.MinX := Point.X;
+    Bounds.MaxX := Point.X;
+    Bounds.MinY := Point.Y;
+    Bounds.MaxY := Point.Y;
     Empty := False;
     Exit;
   end;
-  Bounds.MinX := Min(Bounds.MinX, P.X);
-  Bounds.MaxX := Max(Bounds.MaxX, P.X);
-  Bounds.MinY := Min(Bounds.MinY, P.Y);
-  Bounds.MaxY := Max(Bounds.MaxY, P.Y);
+  Bounds.MinX := Min(Bounds.MinX, Point.X);
+  Bounds.MaxX := Max(Bounds.MaxX, Point.X);
+  Bounds.MinY := Min(Bounds.MinY, Point.Y);
+  Bounds.MaxY := Max(Bounds.MaxY, Point.Y);
 end;
 
 procedure IncludeObject(var Bounds: TRect2; var Empty: boolean; DraftObject: TDraftObject);

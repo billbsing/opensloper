@@ -71,10 +71,10 @@ var
   Turn: double;
   Count: integer;
 
-  procedure Add(const P: TVec2);
+  procedure Add(const Point: TVec2);
   begin
-    Raw[Count].X := P.X;
-    Raw[Count].Y := P.Y;
+    Raw[Count].X := Point.X;
+    Raw[Count].Y := Point.Y;
     Inc(Count);
   end;
 

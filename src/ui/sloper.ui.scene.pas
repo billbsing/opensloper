@@ -175,11 +175,11 @@ var
   Samples: TCurveSampleArray;
   Index, Count: integer;
 
-  procedure Add(const P: TVec2);
+  procedure Add(const Point: TVec2);
   begin
     if Count = Length(Result) then
       SetLength(Result, Max(16, Count * 2));
-    Result[Count] := P;
+    Result[Count] := Point;
     Inc(Count);
   end;
 

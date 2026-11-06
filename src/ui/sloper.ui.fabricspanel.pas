@@ -117,13 +117,13 @@ begin
   Dialog := TColorDialog.Create(Owner);
   try
     Chosen := ParseFabricColor(Text);
-    Dialog.Color := RGBToColor(Chosen.R, Chosen.G, Chosen.B);
+    Dialog.Color := RGBToColor(Chosen.Red, Chosen.Green, Chosen.Blue);
     Result := Dialog.Execute;
     if not Result then
       Exit;
-    Chosen.R := Red(ColorToRGB(Dialog.Color));
-    Chosen.G := Green(ColorToRGB(Dialog.Color));
-    Chosen.B := Blue(ColorToRGB(Dialog.Color));
+    Chosen.Red := Red(ColorToRGB(Dialog.Color));
+    Chosen.Green := Green(ColorToRGB(Dialog.Color));
+    Chosen.Blue := Blue(ColorToRGB(Dialog.Color));
     Text := FabricColorText(Chosen);
   finally
     FreeAndNil(Dialog);
@@ -271,7 +271,7 @@ begin
   if (ACol <> ColumnColour) or (ARow < 1) or not Assigned(FDocument) or (ARow > FDocument.Pattern.FabricCount) then
     Exit;
   Fabric := ParseFabricColor(FDocument.Pattern.Fabrics[ARow - 1].Color);
-  FGrid.Canvas.Brush.Color := RGBToColor(Fabric.R, Fabric.G, Fabric.B);
+  FGrid.Canvas.Brush.Color := RGBToColor(Fabric.Red, Fabric.Green, Fabric.Blue);
   FGrid.Canvas.Font.Color := FGrid.Canvas.Brush.Color;
 end;
 

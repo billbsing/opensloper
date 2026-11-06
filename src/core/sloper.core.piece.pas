@@ -614,19 +614,19 @@ end;
 
 function ExtentMiddle(const Points: TVec2Array): TVec2;
 var
-  P: TVec2;
+  Point: TVec2;
   MinX, MinY, MaxX, MaxY: double;
 begin
   MinX := Infinity;
   MinY := Infinity;
   MaxX := -Infinity;
   MaxY := -Infinity;
-  for P in Points do
+  for Point in Points do
   begin
-    MinX := Min(MinX, P.X);
-    MinY := Min(MinY, P.Y);
-    MaxX := Max(MaxX, P.X);
-    MaxY := Max(MaxY, P.Y);
+    MinX := Min(MinX, Point.X);
+    MinY := Min(MinY, Point.Y);
+    MaxX := Max(MaxX, Point.X);
+    MaxY := Max(MaxY, Point.Y);
   end;
   Result := Vec2((MinX + MaxX) / 2, (MinY + MaxY) / 2);
 end;
@@ -634,7 +634,7 @@ end;
 function TPieceObject.ComputeGrainline(Context: TEvalContext; const Points: TVec2Array; out Line: TLine2): TEvalState;
 var
   Angle, Along, Lowest, Highest: double;
-  Centre, Direction, P: TVec2;
+  Centre, Direction, Point: TVec2;
   StartNode, EndNode: TEvalNode;
 begin
   Line := FGrainline;
@@ -647,9 +647,9 @@ begin
       Direction := PolarPoint(Vec2(0, 0), 1, Angle);
       Lowest := Infinity;
       Highest := -Infinity;
-      for P in Points do
+      for Point in Points do
       begin
-        Along := Dot(P - Centre, Direction);
+        Along := Dot(Point - Centre, Direction);
         Lowest := Min(Lowest, Along);
         Highest := Max(Highest, Along);
       end;

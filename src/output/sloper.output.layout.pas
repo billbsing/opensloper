@@ -1193,17 +1193,17 @@ var
 // Model space to layout space, both y down, with the top left of the
 // cutting line at (X, Y). A flip mirrors left to right before the rotation,
 // which turns anticlockwise as seen on the page.
-  function Turned(const P: TVec2): TVec2;
+  function Turned(const Point: TVec2): TVec2;
   begin
-    Result := P;
+    Result := Point;
     if Placement.Flipped then
       Result.X := -Result.X;
     Result := RotatePoint(Result, Vec2(0, 0), Placement.Rotation);
   end;
 
-  function Moved(const P: TVec2): TVec2;
+  function Moved(const Point: TVec2): TVec2;
   begin
-    Result := Turned(P) + Offset;
+    Result := Turned(Point) + Offset;
   end;
 
   function MovedAll(const Points: TVec2Array): TVec2Array;
@@ -1216,14 +1216,14 @@ var
       Result[Index] := Moved(Points[Index]);
   end;
 
-  function Mirror(const P: TVec2): TVec2;
+  function Mirror(const Point: TVec2): TVec2;
   begin
-    Result := MirrorPoint(P, Piece.FoldLine.P1, Piece.FoldLine.P2);
+    Result := MirrorPoint(Point, Piece.FoldLine.P1, Piece.FoldLine.P2);
   end;
 
-  function OnTheFold(const P: TVec2): boolean;
+  function OnTheFold(const Point: TVec2): boolean;
   begin
-    Result := Distance(P, Mirror(P)) < DefaultTolerance;
+    Result := Distance(Point, Mirror(Point)) < DefaultTolerance;
   end;
 
   // An opened piece has each mark on both halves, unless it lies on the fold
@@ -1331,7 +1331,7 @@ var
   end;
 
 var
-  P: TVec2;
+  Point: TVec2;
   Stroke: TLine2;
   Mark: TNotchMark;
   Marking: TMarkingMark;
@@ -1354,10 +1354,10 @@ begin
   end;
   Result.Bounds.MinX := Infinity;
   Result.Bounds.MinY := Infinity;
-  for P in Cut do
+  for Point in Cut do
   begin
-    Result.Bounds.MinX := Min(Result.Bounds.MinX, Turned(P).X);
-    Result.Bounds.MinY := Min(Result.Bounds.MinY, Turned(P).Y);
+    Result.Bounds.MinX := Min(Result.Bounds.MinX, Turned(Point).X);
+    Result.Bounds.MinY := Min(Result.Bounds.MinY, Turned(Point).Y);
   end;
   Offset := Vec2(Placement.X - Result.Bounds.MinX, Placement.Y - Result.Bounds.MinY);
   Result.Bounds := Default(TRect2);
@@ -1369,12 +1369,12 @@ begin
   // Cut on the seam line, it is not drawn again
   if (pkSeamLine in Profile.PieceMarks) and (Profile.Allowance = apKeep) then
     Result.SeamLine := MovedAll(Seam);
-  for P in Result.CutLine do
+  for Point in Result.CutLine do
   begin
-    Result.Bounds.MinX := Min(Result.Bounds.MinX, P.X);
-    Result.Bounds.MinY := Min(Result.Bounds.MinY, P.Y);
-    Result.Bounds.MaxX := Max(Result.Bounds.MaxX, P.X);
-    Result.Bounds.MaxY := Max(Result.Bounds.MaxY, P.Y);
+    Result.Bounds.MinX := Min(Result.Bounds.MinX, Point.X);
+    Result.Bounds.MinY := Min(Result.Bounds.MinY, Point.Y);
+    Result.Bounds.MaxX := Max(Result.Bounds.MaxX, Point.X);
+    Result.Bounds.MaxY := Max(Result.Bounds.MaxY, Point.Y);
   end;
   // One piece has one grainline, even opened out
   if pkGrainline in Profile.PieceMarks then
@@ -1404,12 +1404,12 @@ begin
     if Note.HasResult then
     begin
       Box := NoteBox(Note, Default(TFieldValues));
-      P := Moved(Vec2((Box.MinX + Box.MaxX) / 2, (Box.MinY + Box.MaxY) / 2));
+      Point := Moved(Vec2((Box.MinX + Box.MaxX) / 2, (Box.MinY + Box.MaxY) / 2));
       Placed := Default(TSheetNote);
       Placed.Text := Note.ShownText;
       Placed.Size := Note.Size;
-      Placed.X := P.X - (Box.MaxX - Box.MinX) / 2;
-      Placed.Y := P.Y - (Box.MaxY - Box.MinY) / 2;
+      Placed.X := Point.X - (Box.MaxX - Box.MinX) / 2;
+      Placed.Y := Point.Y - (Box.MaxY - Box.MinY) / 2;
       Placed.Align := Note.Align;
       Placed.Boxed := Note.Boxed;
       Placed.Leader := Note.Leader;

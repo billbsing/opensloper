@@ -88,11 +88,11 @@ type
   TDoubleArray = array of double;
 
 // Longest side first, then file order, so ties always fall the same way
-function ComesFirst(const A, B: TPackItem): boolean;
+function ComesFirst(const First, Second: TPackItem): boolean;
 begin
-  if Max(A.Width, A.Height) <> Max(B.Width, B.Height) then
-    Exit(Max(A.Width, A.Height) > Max(B.Width, B.Height));
-  Result := A.Placement < B.Placement;
+  if Max(First.Width, First.Height) <> Max(Second.Width, Second.Height) then
+    Exit(Max(First.Width, First.Height) > Max(Second.Width, Second.Height));
+  Result := First.Placement < Second.Placement;
 end;
 
 function ItemsFrom(Layout: TLayout): TPackItemArray;

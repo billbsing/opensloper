@@ -39,8 +39,8 @@ type
     Scale: double;
     // Screen position of the model origin
     OriginX, OriginY: double;
-    function ToScreen(const P: TVec2): TVec2;
-    function ToModel(const S: TVec2): TVec2;
+    function ToScreen(const ModelPoint: TVec2): TVec2;
+    function ToModel(const ScreenPoint: TVec2): TVec2;
     // Screen pixels as millimetres at this zoom
     function PixelsToMM(Pixels: double): double;
     // Zooms by Factor keeping the model point under Anchor (screen) still
@@ -99,16 +99,16 @@ begin
   Result := PixelsPerInch / 25.4;
 end;
 
-function TViewTransform.ToScreen(const P: TVec2): TVec2;
+function TViewTransform.ToScreen(const ModelPoint: TVec2): TVec2;
 begin
-  Result.X := OriginX + P.X * Scale;
-  Result.Y := OriginY + P.Y * Scale;
+  Result.X := OriginX + ModelPoint.X * Scale;
+  Result.Y := OriginY + ModelPoint.Y * Scale;
 end;
 
-function TViewTransform.ToModel(const S: TVec2): TVec2;
+function TViewTransform.ToModel(const ScreenPoint: TVec2): TVec2;
 begin
-  Result.X := (S.X - OriginX) / Scale;
-  Result.Y := (S.Y - OriginY) / Scale;
+  Result.X := (ScreenPoint.X - OriginX) / Scale;
+  Result.Y := (ScreenPoint.Y - OriginY) / Scale;
 end;
 
 function TViewTransform.PixelsToMM(Pixels: double): double;

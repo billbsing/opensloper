@@ -405,9 +405,9 @@ var
   Tint: TFabricColor;
 begin
   Tint := FabricTint(ParseFabricColor('#000000'));
-  AssertEquals(178, Tint.R);
+  AssertEquals(178, Tint.Red);
   Tint := FabricTint(ParseFabricColor('#FFFFFF'));
-  AssertEquals(255, Tint.B);
+  AssertEquals(255, Tint.Blue);
 end;
 
 procedure TTestFabrics.TestHatchLinesStayInsideSquare;

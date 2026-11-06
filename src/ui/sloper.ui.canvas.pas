@@ -474,9 +474,9 @@ begin
     Result.alpha := 150;
 end;
 
-function ScreenPoint(const P: TVec2): TPointF;
+function ScreenPoint(const Point: TVec2): TPointF;
 begin
-  Result := PointF(P.X, P.Y);
+  Result := PointF(Point.X, Point.Y);
 end;
 
 { TPatternCanvas }
@@ -2365,10 +2365,10 @@ begin
   if not FShowPieceFills or not Look.Filled then
     Exit;
   if Look.Fill = ffTint then
-    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.R, Look.Color.G, Look.Color.B, FabricTintAlpha))
+    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, FabricTintAlpha))
   else
     for Stroke in HatchLines(Points, FabricHatchPixels, Look.HatchAngle) do
-      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.R, Look.Color.G, Look.Color.B, FabricHatchAlpha), 1);
+      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, FabricHatchAlpha), 1);
 end;
 
 // The cutting line, filled with its fabric; the seam line is the edges drawn over it

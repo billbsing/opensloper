@@ -92,11 +92,11 @@ begin
   end;
 end;
 
-function ComesBefore(const A, B: TSeamSuggestion): boolean;
+function ComesBefore(const First, Second: TSeamSuggestion): boolean;
 begin
-  if A.Shared <> B.Shared then
-    Exit(A.Shared);
-  Result := A.Difference < B.Difference;
+  if First.Shared <> Second.Shared then
+    Exit(First.Shared);
+  Result := First.Difference < Second.Difference;
 end;
 
 // Keeps equal suggestions in the order they were found, so the list is stable

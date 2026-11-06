@@ -96,7 +96,7 @@ type
     FCutWidth, FSeamWidth, FMarkWidth, FLabelSize: double;
     // Pages in the file, and the page being drawn, for {page} and {pages}
     FPageCount, FPageNumber: integer;
-    function PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
+    function PagePoint(const Page: TTilePage; const Point: TVec2): TVec2;
     function PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
     procedure DrawCover;
     procedure DrawMap(Top: double);
@@ -127,10 +127,10 @@ end;
 
 // Layout space to the page. Calibration corrects a printer that is
 // consistently a little off, so it scales everything drawn at true size.
-function TLayoutPrinter.PagePoint(const Page: TTilePage; const P: TVec2): TVec2;
+function TLayoutPrinter.PagePoint(const Page: TTilePage; const Point: TVec2): TVec2;
 begin
-  Result.X := FOrigin.X + (P.X - Page.Area.MinX) * FLayout.Calibration.X;
-  Result.Y := FOrigin.Y + (P.Y - Page.Area.MinY) * FLayout.Calibration.Y;
+  Result.X := FOrigin.X + (Point.X - Page.Area.MinX) * FLayout.Calibration.X;
+  Result.Y := FOrigin.Y + (Point.Y - Page.Area.MinY) * FLayout.Calibration.Y;
 end;
 
 function TLayoutPrinter.PagePoints(const Page: TTilePage; const Points: TVec2Array): TVec2Array;
@@ -413,7 +413,7 @@ begin
     lfTint:
     begin
       Tint := FabricTint(Shape.Look.Color);
-      FWriter.SetColor(Tint.R / 255, Tint.G / 255, Tint.B / 255);
+      FWriter.SetColor(Tint.Red / 255, Tint.Green / 255, Tint.Blue / 255);
       FWriter.FillPolygon(PagePoints(Page, Shape.CutLine));
       FWriter.SetGray(0);
     end;

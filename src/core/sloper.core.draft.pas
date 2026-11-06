@@ -1372,13 +1372,13 @@ var
   Segment: TEdgeSegment;
   Sample: TCurveSample;
 
-  procedure Add(const P: TVec2);
+  procedure Add(const Point: TVec2);
   begin
-    if (Count > 0) and PointsNear(Result[Count - 1], P) then
+    if (Count > 0) and PointsNear(Result[Count - 1], Point) then
       Exit;
     if Count = System.Length(Result) then
       SetLength(Result, Count * 2 + 8);
-    Result[Count] := P;
+    Result[Count] := Point;
     Inc(Count);
   end;
 
@@ -1495,7 +1495,7 @@ end;
 function TEdgeObject.Locate(const APoint: TVec2; out Position, Offset: double): TVec2;
 var
   Index: integer;
-  Before, T, SegOffset, SegPosition: double;
+  Before, Param, SegOffset, SegPosition: double;
   Nearest: TVec2;
   Segment: TEdgeSegment;
 begin
@@ -1508,15 +1508,15 @@ begin
     Segment := FSegments[Index];
     if Segment.Kind = skLine then
     begin
-      T := EnsureRange(Segment.Line.ParamOf(APoint), 0, 1);
-      Nearest := Segment.Line.PointAt(T);
-      SegPosition := T * Segment.Line.Length;
+      Param := EnsureRange(Segment.Line.ParamOf(APoint), 0, 1);
+      Nearest := Segment.Line.PointAt(Param);
+      SegPosition := Param * Segment.Line.Length;
     end
     else
     begin
-      T := Segment.Curve.ClosestParam(APoint);
-      Nearest := Segment.Curve.PointAt(T);
-      SegPosition := Segment.Curve.LengthBetween(0, T);
+      Param := Segment.Curve.ClosestParam(APoint);
+      Nearest := Segment.Curve.PointAt(Param);
+      SegPosition := Segment.Curve.LengthBetween(0, Param);
     end;
     SegOffset := Distance(APoint, Nearest);
     if SegOffset < Offset then
@@ -1532,7 +1532,7 @@ end;
 procedure TEdgeObject.SplitAt(Position: double; out First, Second: TEdgeSegmentArray);
 var
   Index: integer;
-  Before, SegLength, Local, T: double;
+  Before, SegLength, Local, Param: double;
   Segment: TEdgeSegment;
   SplitPos: TVec2;
   CurveA, CurveB: TCubicBezier;
@@ -1564,8 +1564,8 @@ begin
       end
       else
       begin
-        T := Segment.Curve.ParamAtLength(Local);
-        Segment.Curve.Split(T, CurveA, CurveB);
+        Param := Segment.Curve.ParamAtLength(Local);
+        Segment.Curve.Split(Param, CurveA, CurveB);
         if Local > DefaultTolerance then
           AddSegment(First, CurveSegment(CurveA));
         if SegLength - Local > DefaultTolerance then
@@ -2036,7 +2036,7 @@ var
   // is not on it, as when the offset eats the whole segment
   function Trim(var Segment: TEdgeSegment; const At: TVec2; KeepStart: boolean): boolean;
   var
-    T, Along: double;
+    Param, Along: double;
     First, Second: TCubicBezier;
     Run: TVec2;
   begin
@@ -2052,10 +2052,10 @@ var
         Segment.Line.P1 := At;
       Exit(True);
     end;
-    T := Segment.Curve.ClosestParam(At);
-    if (KeepStart and (T <= 0)) or (not KeepStart and (T >= 1)) then
+    Param := Segment.Curve.ClosestParam(At);
+    if (KeepStart and (Param <= 0)) or (not KeepStart and (Param >= 1)) then
       Exit(False);
-    Segment.Curve.Split(T, First, Second);
+    Segment.Curve.Split(Param, First, Second);
     if KeepStart then
     begin
       First.P3 := At;
@@ -2458,13 +2458,13 @@ begin
   Result := esValid;
 end;
 
-// True when T is within a line piece, allowing DefaultTolerance in mm
-function InPiece(const Piece: TEdgePiece; T: double): boolean;
+// True when Param is within a line piece, allowing DefaultTolerance in mm
+function InPiece(const Piece: TEdgePiece; Param: double): boolean;
 var
   Tolerance: double;
 begin
   Tolerance := DefaultTolerance / Max(Piece.Line.Length, Epsilon);
-  Result := (T >= Piece.TMin - Tolerance) and (T <= Piece.TMax + Tolerance);
+  Result := (Param >= Piece.TMin - Tolerance) and (Param <= Piece.TMax + Tolerance);
 end;
 
 procedure AddCrossing(var Crossings: TEdgeCrossingArray; const APoint: TVec2; APosition: double);
@@ -2690,7 +2690,7 @@ end;
 function PerpendicularFeet(const SourcePos: TVec2; const Pieces: TEdgePieceArray): TVec2Array;
 var
   Piece: TEdgePiece;
-  T: double;
+  Param: double;
   Foot, Tangent: TVec2;
 
   procedure AddFoot(const APoint: TVec2);
@@ -2704,17 +2704,17 @@ begin
   for Piece in Pieces do
     if Piece.Kind = epLine then
     begin
-      T := Piece.Line.ParamOf(SourcePos);
-      if InPiece(Piece, T) then
-        AddFoot(Piece.Line.PointAt(T));
+      Param := Piece.Line.ParamOf(SourcePos);
+      if InPiece(Piece, Param) then
+        AddFoot(Piece.Line.PointAt(Param));
     end
     else
     begin
       // The nearest point counts only where the line to it is square to
       // the curve, not where the curve simply ends
-      T := Piece.Curve.ClosestParam(SourcePos);
-      Foot := Piece.Curve.PointAt(T);
-      Tangent := Piece.Curve.DerivativeAt(T);
+      Param := Piece.Curve.ClosestParam(SourcePos);
+      Foot := Piece.Curve.PointAt(Param);
+      Tangent := Piece.Curve.DerivativeAt(Param);
       if (Tangent.Length > Epsilon) and
         (Abs(Dot(SourcePos - Foot, Tangent * (1 / Tangent.Length))) <= DefaultTolerance) then
         AddFoot(Foot);
