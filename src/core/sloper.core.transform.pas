@@ -280,13 +280,13 @@ var
 begin
   if FPolar then
   begin
-    if not EvalField(Context, FieldLength, First) or not EvalField(Context, FieldAngle, Second) then
+    if not EvalLength(Context, FieldLength, First) or not EvalField(Context, FieldAngle, Second) then
       Exit(esError);
     Offset := PolarPoint(Vec2(0, 0), First, Second);
   end
   else
   begin
-    if not EvalField(Context, FieldDX, First) or not EvalField(Context, FieldDY, Second) then
+    if not EvalLength(Context, FieldDX, First) or not EvalLength(Context, FieldDY, Second) then
       Exit(esError);
     Offset := Vec2(First, Second);
   end;

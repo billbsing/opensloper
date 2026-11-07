@@ -23,7 +23,7 @@ unit Sloper.Tests.Measurements;
 interface
 
 uses
-  fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Measurements;
+  fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Measurements, Sloper.Core.Units;
 
 type
   TTestMeasurements = class(TOSTestCase)

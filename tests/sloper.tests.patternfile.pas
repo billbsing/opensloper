@@ -366,7 +366,7 @@ begin
   CheckText('{"format": "measurements", "version": 1}', rsPatternFileWrongFormat);
   CheckText('{"format": "pattern"}', rsPatternFileWrongFormat);
   CheckText('{"format": "pattern", "version": 2}', Format(rsPatternFileNewerVersion, [2]));
-  CheckText('{"format": "pattern", "version": 1, "units": "cm"}', Format(rsPatternFileUnits, ['cm']));
+  CheckText('{"format": "pattern", "version": 1, "units": "ft"}', Format(rsPatternFileUnits, ['ft']));
   CheckText('{"format": "pattern", "version": 1, "objects": {}}', Format(rsPatternFileList, ['objects']));
   CheckText('{"format": "pattern", "version": 1, "objects": [1]}', Format(rsPatternFileList, ['objects']));
   CheckText('{"format": "pattern", "version": 1, "variables": [{"id": 1, "name": "a", "formula": "1"}],' +

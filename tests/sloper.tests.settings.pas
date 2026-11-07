@@ -65,7 +65,7 @@ type
 implementation
 
 uses
-  SysUtils, Sloper.Core.Measurements, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.OutputProfiles;
+  SysUtils, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.OutputProfiles;
 
 procedure TTestSettings.SetUp;
 begin

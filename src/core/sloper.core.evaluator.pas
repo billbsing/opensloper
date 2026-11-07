@@ -65,6 +65,8 @@ type
     procedure RenameField(const AName, NewName: string);
     // Evaluates a field; on failure sets Message and returns False
     function EvalField(Context: TEvalContext; const AName: string; out Value: double): boolean;
+    // Evaluates a length field: the formula gives the pattern unit, Value is mm
+    function EvalLength(Context: TEvalContext; const AName: string; out Value: double): boolean;
     // Sets Message and returns AState, for use as "Exit(Fail(esInvalid, ...))"
     function Fail(AState: TEvalState; const Msg: string): TEvalState;
   public
@@ -259,6 +261,13 @@ begin
       FMessage := AName + ': ' + FieldFormula.ErrorMessage
     else
       FMessage := FieldFormula.ErrorMessage;
+end;
+
+function TEvalNode.EvalLength(Context: TEvalContext; const AName: string; out Value: double): boolean;
+begin
+  Result := EvalField(Context, AName, Value);
+  if Result then
+    Value := Value * Context.LengthScale;
 end;
 
 function TEvalNode.Fail(AState: TEvalState; const Msg: string): TEvalState;

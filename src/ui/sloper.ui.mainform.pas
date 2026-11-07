@@ -200,7 +200,7 @@ implementation
 uses
   Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
-  Sloper.Core.AppPaths, Sloper.Core.Measurements,
+  Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
 
   {$R *.lfm}

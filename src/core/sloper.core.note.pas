@@ -429,7 +429,7 @@ begin
       Exit(esError);
   if FAnchor = naFree then
   begin
-    if not EvalField(Context, NoteXField, First) or not EvalField(Context, NoteYField, Second) then
+    if not EvalLength(Context, NoteXField, First) or not EvalLength(Context, NoteYField, Second) then
       Exit(esError);
     Base := Vec2(First, Second);
     Offset := Vec2(0, 0);
@@ -439,7 +439,7 @@ begin
     Result := AnchorAt(Context, Base);
     if Result <> esValid then
       Exit;
-    if not EvalField(Context, NoteDxField, First) or not EvalField(Context, NoteDyField, Second) then
+    if not EvalLength(Context, NoteDxField, First) or not EvalLength(Context, NoteDyField, Second) then
       Exit(esError);
     Offset := Vec2(First, Second);
   end;

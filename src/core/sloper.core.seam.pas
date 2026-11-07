@@ -171,7 +171,7 @@ begin
   Result := SideLength(Context, FSideB, SecondLength);
   if Result <> esValid then
     Exit;
-  if not EvalField(Context, SeamEaseField, EaseValue) or not EvalField(Context, SeamToleranceField, ToleranceValue) then
+  if not EvalLength(Context, SeamEaseField, EaseValue) or not EvalLength(Context, SeamToleranceField, ToleranceValue) then
     Exit(esError);
   if ToleranceValue < 0 then
     Exit(Fail(esInvalid, rsSeamNegativeTolerance));

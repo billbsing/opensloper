@@ -493,7 +493,7 @@ begin
       Mark.Role := Edge.Role;
     Exit(esValid);
   end;
-  if not EvalField(Context, MarkingField(Index, MarkingSpacingField), Spacing) or not EvalField(Context, MarkingField(Index, MarkingSizeField), Size) then
+  if not EvalLength(Context, MarkingField(Index, MarkingSpacingField), Spacing) or not EvalLength(Context, MarkingField(Index, MarkingSizeField), Size) then
     Exit(esError);
   if Spacing <= 0 then
     Exit(Fail(esInvalid, rsPieceStitchSpacing));
@@ -581,7 +581,7 @@ begin
     if not (Node is TEdgeObject) then
       Exit(Fail(esError, Format(rsDraftNotAnEdge, [FPath[Index].EdgeKey])));
     Width := DefaultWidth;
-    if HasOverride(Index) and not EvalField(Context, OverrideField(Index), Width) then
+    if HasOverride(Index) and not EvalLength(Context, OverrideField(Index), Width) then
       Exit(esError);
     if Width < 0 then
       Exit(Fail(esInvalid, rsPieceNegativeAllowance));
@@ -692,7 +692,7 @@ begin
     if PathIndex < 0 then
       Exit(Fail(esError, Format(rsDraftNotAnEdge, [Notch.EdgeKey])));
     Edge := TEdgeObject(Context.FindNode(Notch.EdgeKey));
-    if not EvalField(Context, NotchField(Index), Position) then
+    if not EvalLength(Context, NotchField(Index), Position) then
       Exit(esError);
     if (Position < -DefaultTolerance) or (Position > Edge.Length + DefaultTolerance) then
       Exit(Fail(esInvalid, Format(rsPieceNotchPastEnd, [FormatFloat('0.#', Position), Edge.DisplayName, FormatFloat('0.#', Edge.Length)])));
@@ -773,7 +773,7 @@ var
   NewFold: TLine2;
   FoldInwards: double;
 begin
-  if not EvalField(Context, PieceAllowanceField, Width) then
+  if not EvalLength(Context, PieceAllowanceField, Width) then
     Exit(esError);
   if Width < 0 then
     Exit(Fail(esInvalid, rsPieceNegativeAllowance));

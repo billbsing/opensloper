@@ -69,6 +69,9 @@ type
     function MeasurementProblem(const Key: string): string; virtual;
     function VariableValue(const Id: string; out Value: double): boolean; virtual; abstract;
     function PropertyValue(const ObjectId, Prop: string; out Value: double): boolean; virtual; abstract;
+    // Millimetres in one unit of the pattern: formulas are worked out in the
+    // pattern's unit, so a number written with a unit is divided by this
+    function LengthScale: double; virtual;
   end;
 
   TFormulaNode = class;
@@ -166,7 +169,9 @@ type
 
   TNumberNode = class(TFormulaNode)
   public
+    // As written; a suffix converts it to the pattern unit when evaluated
     Value: double;
+    Suffix: TNumberSuffix;
     function Eval(Formula: TFormula; Context: TFormulaContext): double; override;
   end;
 
@@ -257,6 +262,11 @@ begin
   Result := '';
 end;
 
+function TFormulaContext.LengthScale: double;
+begin
+  Result := 1;
+end;
+
 constructor EFormulaError.Create(const Msg: string; AToken: integer);
 begin
   inherited Create(Msg);
@@ -268,6 +278,11 @@ end;
 function TNumberNode.Eval(Formula: TFormula; Context: TFormulaContext): double;
 begin
   Result := Value;
+  if Suffix = nsNone then
+    Exit;
+  Result := Value * NumberSuffixMillimetres[Suffix];
+  if Assigned(Context) then
+    Result := Result / Context.LengthScale;
 end;
 
 function TReferenceNode.Eval(Formula: TFormula; Context: TFormulaContext): double;
@@ -517,9 +532,8 @@ begin
     begin
       Result := TNumberNode.Create;
       Result.Token := FPos;
-      // Patterns are in mm until they have units of their own, so a
-      // suffixed number becomes mm and a plain one is already in it
-      TNumberNode(Result).Value := Tok.Value * NumberSuffixMillimetres[Tok.Suffix];
+      TNumberNode(Result).Value := Tok.Value;
+      TNumberNode(Result).Suffix := Tok.Suffix;
       Inc(FPos);
     end;
     ftMeasurement, ftVariable, ftObjectRef, ftIdRef:

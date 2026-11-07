@@ -29,7 +29,7 @@ interface
 uses
   Classes, SysUtils, Controls, StdCtrls, Menus, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
-  Sloper.Core.Measurements, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
+  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
   Sloper.UI.Scene;
 
 type

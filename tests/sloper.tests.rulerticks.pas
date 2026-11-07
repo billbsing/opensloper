@@ -23,7 +23,7 @@ unit Sloper.Tests.RulerTicks;
 interface
 
 uses
-  fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Measurements, Sloper.UI.View, Sloper.UI.RulerTicks;
+  fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.UI.View, Sloper.UI.RulerTicks;
 
 type
   TTestRulerTicks = class(TOSTestCase)

@@ -27,7 +27,7 @@ unit Sloper.Core.Measurements;
 interface
 
 uses
-  SysUtils, Generics.Collections, fpjson;
+  SysUtils, Generics.Collections, fpjson, Sloper.Core.Units;
 
 const
   MeasurementFormat = 'measurements';
@@ -126,9 +126,6 @@ type
     property SizeName: string read GetSizeName;
   end;
 
-  // How values are shown and typed; files always store mm
-  TMeasureUnit = (muMillimetre, muCentimetre, muInch);
-
   // A key a pattern uses that a set cannot give it
   TMissingMeasurement = record
     Key: string;
@@ -171,10 +168,6 @@ procedure MergeMeasurementSets(Base, Mine, Theirs: TMeasurementSet; const TakeTh
   out Conflicts: TStringArray);
 // A new, empty measurement file
 function CreateMeasurementFile(const FileName: string; out ErrorMessage: string): boolean;
-
-const
-  MeasureUnitNames: array[TMeasureUnit] of string = ('mm', 'cm', 'in');
-  MillimetresPerUnit: array[TMeasureUnit] of double = (1, 10, 25.4);
 
 resourcestring
   rsMeasurementWrongFormat = 'This is not a measurements file';

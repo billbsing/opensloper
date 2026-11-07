@@ -28,7 +28,7 @@ unit Sloper.UI.RulerTicks;
 interface
 
 uses
-  Sloper.Core.Measurements, Sloper.UI.View;
+  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.UI.View;
 
 const
   // Closest ticks and numbers may come, in pixels

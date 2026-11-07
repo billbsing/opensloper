@@ -26,7 +26,8 @@ unit Sloper.Measurements.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, ActnList, Sloper.Core.Catalogue, Sloper.Core.Measurements,
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, ActnList, Sloper.Core.Catalogue,
+  Sloper.Core.Measurements, Sloper.Core.Units,
   Sloper.Document.MeasurementDocument, Sloper.Measurements.BodyFigure, Sloper.UI.Commands, Sloper.UI.RecentMenu;
 
 type

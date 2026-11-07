@@ -560,6 +560,9 @@ type
 
 // True for a line, or a part of one: straight, with the angle property
 function IsStraightEdge(Edge: TEdgeObject): boolean;
+// True for a property that is a length (.x, .y, .length, .radius), which a
+// formula reads in the pattern's unit; angles and counts are not converted
+function IsLengthProperty(const Prop: string): boolean;
 // Sets Key to NewKey when it is OldKey
 procedure RedirectKey(var Key: string; const OldKey, NewKey: string);
 // Part 1 or 2 of Source split at the point with key APoint
@@ -642,7 +645,7 @@ var
 begin
   if FMarker = pmPlain then
     Exit(esValid);
-  if not EvalField(Context, MarkerSizeField, Size) then
+  if not EvalLength(Context, MarkerSizeField, Size) then
     Exit(esError);
   if Size <= 0 then
     Exit(Fail(esInvalid, rsDraftMarkerSize));
@@ -661,6 +664,11 @@ end;
 
 procedure TDraftObject.RedirectPoint(const OldKey, NewKey: string);
 begin
+end;
+
+function IsLengthProperty(const Prop: string): boolean;
+begin
+  Result := (Prop = 'x') or (Prop = 'y') or (Prop = 'length') or (Prop = 'radius');
 end;
 
 function RolesToNames(Roles: TEdgeRoles): TStringArray;
@@ -823,7 +831,7 @@ function TFreePoint.Compute(Context: TEvalContext): TEvalState;
 var
   XValue, YValue: double;
 begin
-  if not EvalField(Context, 'x', XValue) or not EvalField(Context, 'y', YValue) then
+  if not EvalLength(Context, 'x', XValue) or not EvalLength(Context, 'y', YValue) then
     Exit(esError);
   FPosition := Vec2(XValue, YValue);
   Result := esValid;
@@ -869,13 +877,13 @@ begin
     Exit(esError);
   if FMode = omPolar then
   begin
-    if not EvalField(Context, 'length', LengthOrDx) or not EvalField(Context, 'angle', AngleOrDy) then
+    if not EvalLength(Context, 'length', LengthOrDx) or not EvalField(Context, 'angle', AngleOrDy) then
       Exit(esError);
     FPosition := PolarPoint(BasePos, LengthOrDx, AngleOrDy);
   end
   else
   begin
-    if not EvalField(Context, 'dx', LengthOrDx) or not EvalField(Context, 'dy', AngleOrDy) then
+    if not EvalLength(Context, 'dx', LengthOrDx) or not EvalLength(Context, 'dy', AngleOrDy) then
       Exit(esError);
     FPosition := BasePos + Vec2(LengthOrDx, AngleOrDy);
   end;
@@ -917,6 +925,8 @@ begin
   if not EvalField(Context, 'value', Amount) then
     Exit(esError);
   Gap := Distance(First, Last);
+  if FMode <> amRatio then
+    Amount := Amount * Context.LengthScale;
   if FMode = amRatio then
   begin
     if (Amount < 0) or (Amount > 1) then
@@ -1226,6 +1236,8 @@ begin
   EdgeObject := TEdgeObject(Node);
   if not EvalField(Context, 'value', Amount) then
     Exit(esError);
+  if FMode <> amRatio then
+    Amount := Amount * Context.LengthScale;
   Len := EdgeObject.Length;
   if FMode = amRatio then
   begin
@@ -1763,7 +1775,7 @@ var
 begin
   if not PointPosition(Context, StartKey, CentrePos) then
     Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey])));
-  if not EvalField(Context, 'radius', Radius) then
+  if not EvalLength(Context, 'radius', Radius) then
     Exit(esError);
   if Radius <= 0 then
     Exit(Fail(esInvalid, rsDraftRadiusNotPositive));
@@ -1797,7 +1809,7 @@ var
 begin
   if not PointPosition(Context, StartKey, CentrePos) then
     Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey])));
-  if not EvalField(Context, 'radius', Radius) or not EvalField(Context, 'angle1', FirstAngle) or not EvalField(Context, 'angle2', LastAngle) then
+  if not EvalLength(Context, 'radius', Radius) or not EvalField(Context, 'angle1', FirstAngle) or not EvalField(Context, 'angle2', LastAngle) then
     Exit(esError);
   if Radius <= 0 then
     Exit(Fail(esInvalid, rsDraftRadiusNotPositive));
@@ -1836,7 +1848,7 @@ var
 begin
   if not InputPoint(Context, FCentreA, PosA) or not InputPoint(Context, FCentreB, PosB) then
     Exit(esError);
-  if not EvalField(Context, 'radiusA', RadiusA) or not EvalField(Context, 'radiusB', RadiusB) then
+  if not EvalLength(Context, 'radiusA', RadiusA) or not EvalLength(Context, 'radiusB', RadiusB) then
     Exit(esError);
   if (RadiusA < 0) or (RadiusB < 0) then
     Exit(Fail(esInvalid, rsDraftNegativeRadius));
@@ -2112,7 +2124,7 @@ var
   Part: TEdgeSegmentArray;
   Segment: TEdgeSegment;
 begin
-  if not EvalField(Context, 'distance', Distance2) then
+  if not EvalLength(Context, 'distance', Distance2) then
     Exit(esError);
   if Distance2 < 0 then
     Exit(Fail(esInvalid, rsDraftNegativeOffset));
@@ -2214,7 +2226,7 @@ begin
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeA])));
   if not Assigned(Second) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdgeB])));
-  if not EvalField(Context, 'radius', Radius) then
+  if not EvalLength(Context, 'radius', Radius) then
     Exit(esError);
   if Radius <= 0 then
     Exit(Fail(esInvalid, rsDraftRadiusNotPositive));
@@ -2273,8 +2285,8 @@ begin
     esError: Exit(Fail(esError, Format(rsDraftNotAPoint, [StartKey + '/' + EndKey])));
     esInvalid: Exit(Fail(esInvalid, rsDraftSamePlace));
   end;
-  if not EvalField(Context, 'angle1', A1) or not EvalField(Context, 'length1', L1) or not EvalField(Context, 'angle2', A2) or
-    not EvalField(Context, 'length2', L2) then
+  if not EvalField(Context, 'angle1', A1) or not EvalLength(Context, 'length1', L1) or not EvalField(Context, 'angle2', A2) or
+    not EvalLength(Context, 'length2', L2) then
     Exit(esError);
   if (L1 < 0) or (L2 < 0) then
     Exit(Fail(esInvalid, rsDraftNegativeHandle));
@@ -2352,9 +2364,9 @@ begin
     NodeName := 'node' + IntToStr(Index + 1);
     if not EvalField(Context, NodeName + '.angle', Angles[Index]) then
       Exit(esError);
-    if (Index > 0) and not EvalField(Context, NodeName + '.lengthIn', LengthsIn[Index]) then
+    if (Index > 0) and not EvalLength(Context, NodeName + '.lengthIn', LengthsIn[Index]) then
       Exit(esError);
-    if (Index < High(FNodeKeys)) and not EvalField(Context, NodeName + '.lengthOut', LengthsOut[Index]) then
+    if (Index < High(FNodeKeys)) and not EvalLength(Context, NodeName + '.lengthOut', LengthsOut[Index]) then
       Exit(esError);
     if (LengthsIn[Index] < 0) or (LengthsOut[Index] < 0) then
       Exit(Fail(esInvalid, rsDraftNegativeHandle));
@@ -2646,7 +2658,7 @@ begin
   EdgeObject := InputEdge(Context, FEdge);
   if not Assigned(EdgeObject) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FEdge])));
-  if not EvalField(Context, 'radius', Radius) then
+  if not EvalLength(Context, 'radius', Radius) then
     Exit(esError);
   if Radius < 0 then
     Exit(Fail(esInvalid, rsDraftNegativeRadius));

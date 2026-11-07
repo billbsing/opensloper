@@ -33,6 +33,7 @@ uses
   Sloper.Core.Version,
   Sloper.Core.JSON,
   Sloper.Core.Measurements,
+  Sloper.Core.Units,
   Sloper.Core.Pattern,
   Sloper.Core.PatternFile,
   Sloper.Core.PatternCheck,

@@ -27,7 +27,7 @@ unit Sloper.UI.Ruler;
 interface
 
 uses
-  Classes, Controls, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry, Sloper.Core.Measurements, Sloper.UI.View;
+  Classes, Controls, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.UI.View;
 
 type
   TCanvasRuler = class(TCustomControl)

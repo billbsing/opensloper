@@ -67,7 +67,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, Spin, ButtonPanel, Dialogs, Sloper.Core.Measurements;
+  SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, Spin, ButtonPanel, Dialogs, Sloper.Core.Measurements, Sloper.Core.Units;
 
 const
   DialogWidth = 560;

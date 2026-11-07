@@ -27,13 +27,13 @@ unit Sloper.Core.Drag;
 interface
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.FormulaLexer, Sloper.Core.Draft, Sloper.Core.Note, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.FormulaLexer, Sloper.Core.Draft, Sloper.Core.Note, Sloper.Core.Pattern,
+  Sloper.Core.Units;
 
 const
-  // Dragged values are rounded to these decimals: mm, degrees, ratio
+  // Dragged values are rounded to these decimals: mm, degrees, ratio. A
+  // length is rounded in its unit instead (DragUnitDecimals).
   DragLengthDecimals = 1;
-  // A length written with a unit is rounded in that unit: 0.1 mm, 0.1 cm, 0.01 in
-  DragSuffixDecimals: array[TNumberSuffix] of integer = (DragLengthDecimals, 1, 1, 2);
   DragAngleDecimals = 1;
   DragRatioDecimals = 4;
 
@@ -53,9 +53,13 @@ type
 
 // Value rounded to Decimals as formula text, without "-0"
 function RoundedText(Value: double; Decimals: integer): string;
+// Millimetres as formula text in the pattern unit, rounded to 0.1 mm, 0.1 cm
+// or 0.01 in
+function UnitLengthText(Millimetres: double; Units: TMeasureUnit): string;
 // Millimetres as text for a length field being dragged: in the unit the field
-// is written in, with its suffix (2in stays in inches), or plain mm
-function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double): string;
+// is written in, with its suffix (2in stays in inches), or as a plain number
+// in the pattern unit
+function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double; Units: TMeasureUnit): string;
 // True when Point can be dragged: its type moves freely, and every field the
 // drag would change is a plain number. Otherwise ErrorMessage says why.
 function CanDrag(Point: TPointObject; out ErrorMessage: string): boolean;
@@ -102,12 +106,20 @@ begin
   Result := FormatJSONFloat(Rounded);
 end;
 
-function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double): string;
+function UnitLengthText(Millimetres: double; Units: TMeasureUnit): string;
+begin
+  Result := RoundedText(Millimetres / MillimetresPerUnit[Units], DragUnitDecimals[Units]);
+end;
+
+function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double; Units: TMeasureUnit): string;
 var
   Suffix: TNumberSuffix;
 begin
   Suffix := Target.Field(FieldName).LiteralSuffix;
-  Result := RoundedText(Millimetres / NumberSuffixMillimetres[Suffix], DragSuffixDecimals[Suffix]) + NumberSuffixNames[Suffix];
+  // TNumberSuffix follows TMeasureUnit after nsNone
+  if Suffix <> nsNone then
+    Units := TMeasureUnit(Ord(Suffix) - 1);
+  Result := UnitLengthText(Millimetres, Units) + NumberSuffixNames[Suffix];
 end;
 
 // The fields a drag of Point writes; empty when its type cannot be dragged
@@ -186,7 +198,8 @@ begin
   Offset := Target - Note.AnchorPosition;
   if Note.Anchor = naFree then
     Offset := Target;
-  Result := SetFields(Pattern, Note, Fields, [DraggedLength(Note, Fields[0], Offset.X), DraggedLength(Note, Fields[1], Offset.Y)], ErrorMessage);
+  Result := SetFields(Pattern, Note, Fields, [DraggedLength(Note, Fields[0], Offset.X, Pattern.Units), DraggedLength(Note, Fields[1], Offset.Y, Pattern.Units)],
+    ErrorMessage);
 end;
 
 function DragPoint(Pattern: TPattern; Point: TPointObject; const Target: TVec2; out ErrorMessage: string): boolean;
@@ -201,7 +214,7 @@ begin
     Exit(False);
   if Point is TFreePoint then
     Exit(SetFields(Pattern, Point, ['x', 'y'],
-      [DraggedLength(Point, 'x', Target.X), DraggedLength(Point, 'y', Target.Y)], ErrorMessage));
+      [DraggedLength(Point, 'x', Target.X, Pattern.Units), DraggedLength(Point, 'y', Target.Y, Pattern.Units)], ErrorMessage));
 
   if Point is TOffsetPoint then
   begin
@@ -209,10 +222,10 @@ begin
     Base := TPointObject(BaseNode).Position;
     if TOffsetPoint(Point).Mode = omPolar then
       Exit(SetFields(Pattern, Point, ['length', 'angle'],
-        [DraggedLength(Point, 'length', Sloper.Core.Geometry.Distance(Base, Target)),
+        [DraggedLength(Point, 'length', Sloper.Core.Geometry.Distance(Base, Target), Pattern.Units),
         RoundedText(AngleBetween(Base, Target), DragAngleDecimals)], ErrorMessage));
     Exit(SetFields(Pattern, Point, ['dx', 'dy'],
-      [DraggedLength(Point, 'dx', Target.X - Base.X), DraggedLength(Point, 'dy', Target.Y - Base.Y)],
+      [DraggedLength(Point, 'dx', Target.X - Base.X, Pattern.Units), DraggedLength(Point, 'dy', Target.Y - Base.Y, Pattern.Units)],
       ErrorMessage));
   end;
 
@@ -226,7 +239,7 @@ begin
   else
     Distance := Position;
   if Along.Mode = amLength then
-    Result := SetFields(Pattern, Point, ['value'], [DraggedLength(Point, 'value', Distance)], ErrorMessage)
+    Result := SetFields(Pattern, Point, ['value'], [DraggedLength(Point, 'value', Distance, Pattern.Units)], ErrorMessage)
   else if EdgeLength > 0 then
     Result := SetFields(Pattern, Point, ['value'], [RoundedText(Distance / EdgeLength, DragRatioDecimals)], ErrorMessage)
   else
@@ -287,7 +300,7 @@ var
 begin
   if not CanDragHandle(Edge, Handle, ErrorMessage) then
     Exit(False);
-  LengthText := DraggedLength(Edge, Handle.LengthField, Sloper.Core.Geometry.Distance(Handle.Anchor, Target));
+  LengthText := DraggedLength(Edge, Handle.LengthField, Sloper.Core.Geometry.Distance(Handle.Anchor, Target), Pattern.Units);
   // At the anchor, whatever unit the length is written in
   if LengthText = '0' + NumberSuffixNames[Edge.Field(Handle.LengthField).LiteralSuffix] then
     Exit(SetFields(Pattern, Edge, [Handle.LengthField], [LengthText], ErrorMessage));

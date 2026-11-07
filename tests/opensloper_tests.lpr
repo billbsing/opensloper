@@ -73,7 +73,8 @@ uses
   Sloper.Tests.Catalogue,
   Sloper.Tests.SeamlyFormat,
   Sloper.Tests.Arrange,
-  Sloper.Tests.RepeatPoints;
+  Sloper.Tests.RepeatPoints,
+  Sloper.Tests.PatternUnits;
 
 var
   App: TTestRunner;

@@ -27,7 +27,7 @@ unit Sloper.Core.Settings;
 interface
 
 uses
-  Sloper.Core.Measurements, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.Draft;
+  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.Draft;
 
 type
   // Which labels the canvas shows: those that help the current step, all, or none

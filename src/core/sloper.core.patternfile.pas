@@ -55,7 +55,7 @@ function MeasurementFilePath(Pattern: TPattern; const PatternFileName: string): 
 resourcestring
   rsPatternFileWrongFormat = 'This is not a pattern file';
   rsPatternFileNewerVersion = 'This file was made by a newer version of OpenSloper (file version %d)';
-  rsPatternFileUnits = 'Units "%s" are not supported; use mm';
+  rsPatternFileUnits = 'Units "%s" are not supported; use mm, cm or in';
   rsPatternFileList = 'The file has no valid "%s" list';
   rsPatternFileBadId = 'Item %d of "%s" has a missing, invalid or repeated ID';
   rsPatternFileBadRepeatPoint = 'Repeat %s has a point that is not valid';
@@ -72,7 +72,7 @@ implementation
 
 uses
   Math, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Names, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
-  Sloper.Core.Note;
+  Sloper.Core.Note, Sloper.Core.Units;
 
 const
   TypeFreePoint = 'freePoint';
@@ -810,7 +810,7 @@ begin
   try
     Root.Add('format', PatternFormat);
     Root.Add('version', PatternVersion);
-    Root.Add('units', 'mm');
+    Root.Add('units', MeasureUnitNames[Pattern.Units]);
     Root.Add('notes', Pattern.Notes);
     Root.Add('measurementFile', Pattern.MeasurementFile);
     if WithNextId then
@@ -1976,6 +1976,7 @@ var
   Root: TJSONObject;
   TextValue: string;
   Version, NextId: integer;
+  Units: TMeasureUnit;
 begin
   FPattern.Clear;
   if not ParseJSONObject(Text, Root, FError) then
@@ -1985,8 +1986,12 @@ begin
       Exit(Fail(rsPatternFileWrongFormat));
     if Version > PatternVersion then
       Exit(Fail(Format(rsPatternFileNewerVersion, [Version])));
-    if GetJSONString(Root, 'units', TextValue) and (TextValue <> 'mm') then
-      Exit(Fail(Format(rsPatternFileUnits, [TextValue])));
+    if GetJSONString(Root, 'units', TextValue) then
+    begin
+      if not MeasureUnitFromName(TextValue, Units) then
+        Exit(Fail(Format(rsPatternFileUnits, [TextValue])));
+      FPattern.Units := Units;
+    end;
     RetireDraftIds(Root.Find('drafts'));
     if not LoadFabrics(Root.Find('fabrics')) or not LoadVariables(Root.Find('variables')) or not LoadObjects(Root.Find('objects')) then
       Exit(False);

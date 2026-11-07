@@ -30,7 +30,7 @@ interface
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
   Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Transform, Sloper.Core.Note, Sloper.Core.Geometry;
+  Sloper.Core.Transform, Sloper.Core.Note, Sloper.Core.Geometry, Sloper.Core.Units;
 
 type
   // What AddTransform needs. Sources are expanded: an edge brings its ends.
@@ -71,6 +71,7 @@ type
   private
     FMeasurements: TMeasurementSet;
     FMeasurementScale: double;
+    FUnits: TMeasureUnit;
     FMeasurementNodes: TMeasurementNodeList;
     FVariables: TVariableList;
     FObjects: TDraftObjectList;
@@ -422,6 +423,9 @@ type
     // to try the pattern a size up or down. 1 by default; like Measurements,
     // not part of the pattern, so it is never saved and Clear keeps it.
     property MeasurementScale: double read FMeasurementScale write FMeasurementScale;
+    // The unit formulas are worked out in; geometry stays in mm. Saved with
+    // the pattern; Clear sets mm. Evaluate again after changing it.
+    property Units: TMeasureUnit read FUnits write FUnits;
     property Resolver: TNameResolver read FResolver;
     property Evaluator: TEvaluator read FEvaluator;
     property VariableCount: integer read GetVariableCount;
@@ -550,6 +554,7 @@ type
     function MeasurementProblem(const Key: string): string; override;
     function VariableValue(const Id: string; out Value: double): boolean; override;
     function PropertyValue(const ObjectId, Prop: string; out Value: double): boolean; override;
+    function LengthScale: double; override;
   end;
 
   { TPatternResolver }
@@ -649,8 +654,9 @@ function TPatternContext.MeasurementValue(const Key: string; out Value: double):
 begin
   Value := 0;
   Result := Assigned(FPattern.Measurements) and FPattern.Measurements.TryGetValue(Key, Value);
+  // Files keep mm; formulas read the pattern unit
   if Result then
-    Value := Value * FPattern.MeasurementScale;
+    Value := Value * FPattern.MeasurementScale / LengthScale;
 end;
 
 function TPatternContext.MeasurementProblem(const Key: string): string;
@@ -681,6 +687,13 @@ begin
   Result := (Node is TDraftObject) and (Node.State = esValid) and TDraftObject(Node).HasProperty(Prop);
   if Result then
     Value := TDraftObject(Node).PropertyValue(Prop);
+  if Result and IsLengthProperty(Prop) then
+    Value := Value / LengthScale;
+end;
+
+function TPatternContext.LengthScale: double;
+begin
+  Result := MillimetresPerUnit[FPattern.Units];
 end;
 
 { TPattern }
@@ -724,6 +737,7 @@ begin
   FVariables.Clear;
   FObjects.Clear;
   FNextId := 1;
+  FUnits := muMillimetre;
   FPendingMarkings := nil;
   FAssignLoose := False;
   Notes := '';
