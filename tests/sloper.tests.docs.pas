@@ -129,18 +129,18 @@ var
   Search: TSearchRec;
 begin
   if FindFirst(ConcatPaths([Folder, AllFilesMask]), faAnyFile, Search) = 0 then
-    try
-      repeat
-        if (Search.Name = '.') or (Search.Name = '..') then
-          Continue;
-        if (Search.Attr and faDirectory) <> 0 then
-          FindFiles(ConcatPaths([Folder, Search.Name]), Extension, Found)
-        else if SameText(ExtractFileExt(Search.Name), Extension) then
-          Found.Add(ConcatPaths([Folder, Search.Name]));
-      until FindNext(Search) <> 0;
-    finally
-      FindClose(Search);
-    end;
+  try
+    repeat
+      if (Search.Name = '.') or (Search.Name = '..') then
+        Continue;
+      if (Search.Attr and faDirectory) <> 0 then
+        FindFiles(ConcatPaths([Folder, Search.Name]), Extension, Found)
+      else if SameText(ExtractFileExt(Search.Name), Extension) then
+        Found.Add(ConcatPaths([Folder, Search.Name]));
+    until FindNext(Search) <> 0;
+  finally
+    FindClose(Search);
+  end;
 end;
 
 // Every tutorial pattern opens with its measurements and works out cleanly

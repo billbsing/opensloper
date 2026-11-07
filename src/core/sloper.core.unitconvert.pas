@@ -35,7 +35,7 @@ unit Sloper.Core.UnitConvert;
 interface
 
 uses
-  SysUtils, Sloper.Core.Units, Sloper.Core.Pattern;
+  SysUtils, Generics.Collections, Sloper.Core.Units, Sloper.Core.Pattern;
 
 type
   // A plain number in a formula, and its role
@@ -67,6 +67,11 @@ type
     Skipped: TStringArray;
   end;
 
+  TMember = specialize TList<integer>;
+  TMembers = specialize TObjectDictionary<integer, TMember>;
+
+  TPowersDict = specialize TDictionary<string, double>;
+
 // Every plain number in the pattern's formulas, with its role where the
 // formulas or Marks settle it
 function AnalyseUnits(Pattern: TPattern; const Marks: TUnitMarkArray): TUnitAnalysis;
@@ -89,7 +94,7 @@ resourcestring
 implementation
 
 uses
-  Math, Generics.Collections, Sloper.Core.Evaluator, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Draft,
+  Math, Sloper.Core.Evaluator, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Draft,
   Sloper.Core.Fabrics, Sloper.Core.Variables;
 
 const
@@ -185,8 +190,8 @@ end;
 function Solve(const Constraints: TAffineArray; UnknownCount: integer): TSolution;
 var
   Parents, Column, Columns, PivotRow: array of integer;
-  Groups, Members: specialize TObjectDictionary<integer, specialize TList<integer>>;
-  Group, Member: specialize TList<integer>;
+  Groups, Members: TMembers;
+  Group, Member: TMember;
   Matrix: array of array of double;
   Index, Term, Root, Row, Col, Rank, Best, Other, Width: integer;
   Pivot, Factor, Swap: double;
@@ -203,15 +208,15 @@ begin
   for Index := 0 to High(Constraints) do
     for Term := 1 to High(Constraints[Index].Terms) do
       Parents[FindRoot(Parents, Constraints[Index].Terms[Term].Unknown)] := FindRoot(Parents, Constraints[Index].Terms[0].Unknown);
-  Groups := specialize TObjectDictionary<integer, specialize TList<integer>>.Create([doOwnsValues]);
-  Members := specialize TObjectDictionary<integer, specialize TList<integer>>.Create([doOwnsValues]);
+  Groups := TMembers.Create([doOwnsValues]);
+  Members := TMembers.Create([doOwnsValues]);
   try
     for Index := 0 to UnknownCount - 1 do
     begin
       Root := FindRoot(Parents, Index);
       if not Members.TryGetValue(Root, Member) then
       begin
-        Member := specialize TList<integer>.Create;
+        Member := TMember.Create;
         Members.Add(Root, Member);
       end;
       Member.Add(Index);
@@ -223,7 +228,7 @@ begin
         Root := FindRoot(Parents, Constraints[Index].Terms[0].Unknown);
         if not Groups.TryGetValue(Root, Group) then
         begin
-          Group := specialize TList<integer>.Create;
+          Group := TMember.Create;
           Groups.Add(Root, Group);
         end;
         Group.Add(Index);
@@ -539,7 +544,7 @@ end;
 
 function TBuilder.Analyse(const Marks: TUnitMarkArray): TUnitNumberArray;
 var
-  MarkPowers: specialize TDictionary<string, double>;
+  MarkPowers: TPowersDict;
   Constraints: TAffineArray;
   Solution: TSolution;
   Unknown_, Index, Factor: integer;
@@ -577,7 +582,7 @@ var
 
 begin
   Result := Copy(Numbers);
-  MarkPowers := specialize TDictionary<string, double>.Create;
+  MarkPowers := TPowersDict.Create;
   try
     for Index := 0 to High(Marks) do
       MarkPowers.AddOrSetValue(NumberKey(Marks[Index].NodeKey, Marks[Index].FieldName, Marks[Index].Token),
