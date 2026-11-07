@@ -39,3 +39,9 @@ for Name in ['x', 'position', 'dx'] do   // gives 'x', 'p', 'd'
 There is no warning. Single-letter names work by chance, which hides it. `TNoteObject.RemovePlaceFields` removed `x` and `y` but never `dx` or `dy`, so re-anchoring a note left its old offset fields behind. A list built from variables, as in `SnapObjectKeys`, is a real string array and works.
 
 **Fix.** Loop over a typed constant array instead (`const Names: array[0..2] of string = (...)`). `TestSetNoteAnchorKeepsText` in `tests/sloper.tests.notes.pas` covers the case.
+
+## Qt: shortcuts do nothing after a menu is closed with Escape
+
+Found 2026-11-07. On Linux (Qt5 widgetset), a menu opened with the mouse and closed with Escape leaves Qt's menu bar in keyboard navigation mode, with nothing highlighted: Down opens the menu again. While it is in that mode every key goes to the menu bar, so no shortcut (Ctrl+Q, Ctrl+Z) or tool key reaches the app. A second Escape, or a click on the canvas, ends it. The same happens in builds from before copy and paste, so it is Qt and LCL behaviour, not ours.
+
+**Partly fixed.** Clicking the canvas did not help either, because `TCustomForm.SetActiveControl` returns early when the canvas is already the active control (`customform.inc` in the LCL), so its `SetFocus` never reached Qt. The drafting canvas (`TPatternCanvas.TakeFocus`) and the publish preview canvas now ask the widgetset for the focus directly when they do not really have it. Escape followed straight away by a shortcut, with no click, still does nothing: fixing that would need a change in the LCL's Qt widgetset, which would have to pass keys the menu bar ignores on to the form.

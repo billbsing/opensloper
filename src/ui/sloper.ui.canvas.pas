@@ -113,6 +113,7 @@ type
     FOnNoteAdded: TNotifyEvent;
     function ObjectNames(const Keys: TStringArray): string;
     function DeleteSelected(const Description: string): boolean;
+    procedure TakeFocus;
     function NoteValues: TFieldValues;
     function NotesHere(X, Y: integer): TStringArray;
     procedure AddNoteHere;
@@ -372,7 +373,7 @@ resourcestring
 implementation
 
 uses
-  Math, Forms, StrUtils, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect,
+  Math, Forms, StrUtils, LCLIntf, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect,
   Sloper.UI.RulerTicks, Sloper.UI.ObjectList;
 
 const
@@ -2061,10 +2062,21 @@ end;
 
 { Mouse and keys }
 
+// SetFocus does nothing while the canvas is already the form's active
+// control, even when the keyboard has gone elsewhere: on Qt a menu closed with
+// Escape leaves the menu bar holding it, and no shortcut then works. So ask
+// the widgetset directly when the canvas does not really have it.
+procedure TPatternCanvas.TakeFocus;
+begin
+  SetFocus;
+  if HandleAllocated and not Focused then
+    LCLIntf.SetFocus(Handle);
+end;
+
 procedure TPatternCanvas.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
 begin
   inherited MouseDown(Button, Shift, X, Y);
-  SetFocus;
+  TakeFocus;
   FPressPos := Point(X, Y);
   FLastPos := FPressPos;
   if (Button = mbMiddle) or ((Button = mbLeft) and FSpaceDown) then
@@ -3028,7 +3040,7 @@ begin
   FThumbHeld := ScrollCode = scTrack;
   TScrollBar(Sender).Position := ScrollPos;
   if ScrollCode = scEndScroll then
-    SetFocus;
+    TakeFocus;
   Invalidate;
 end;
 

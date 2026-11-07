@@ -95,7 +95,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Draft;
+  Math, LCLIntf, Sloper.Core.Draft;
 
 const
   FitMargin = 24;
@@ -269,6 +269,11 @@ var
 begin
   inherited MouseDown(Button, Shift, X, Y);
   SetFocus;
+  // SetFocus does nothing while this is already the active control, even
+  // when a menu closed with Escape has left Qt's menu bar holding the
+  // keyboard (see TPatternCanvas.TakeFocus)
+  if HandleAllocated and not Focused then
+    LCLIntf.SetFocus(Handle);
   FPressPos := Point(X, Y);
   FLastPos := FPressPos;
   if (Button = mbMiddle) or ((Button = mbLeft) and FSpaceDown) then
