@@ -27,11 +27,15 @@ unit Sloper.Core.PatternFile;
 interface
 
 uses
-  SysUtils, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Pattern;
+  SysUtils, Generics.Collections, fpjson, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Pattern, Sloper.Core.Variables;
 
 const
   PatternFormat = 'pattern';
   PatternVersion = 1;
+
+type
+  // IDs as the model keeps them, as text: the ID in a file to the ID it takes
+  TPatternIdMap = specialize TDictionary<string, string>;
 
 // WithNextId False leaves out the ID counter and the view state, for undo
 // snapshots, which restore definitions but neither of those
@@ -47,6 +51,18 @@ procedure RestorePatternView(Pattern: TPattern; const Text: string);
 // The object's "type" in a pattern file, such as offsetPoint
 function PatternObjectTypeName(DraftObject: TDraftObject): string;
 function LoadPatternFromFile(Pattern: TPattern; const FileName: string; out ErrorMessage: string): boolean;
+// A variable or object as a pattern file writes it
+function PatternVariableToJSON(Variable: TVariable): TJSONObject;
+function PatternObjectToJSON(DraftObject: TDraftObject): TJSONObject;
+// Adds variables and objects, as a pattern file lists them, to what Pattern
+// already holds. Every ID they hold, their own or one they refer to, in an
+// input or a formula, is read through IdMap, so they can take new IDs and
+// refer to objects already in the pattern; an ID not in the map is read as it
+// is. Names must be free. On failure the pattern may hold some of them and
+// ErrorMessage says why. Call Evaluate afterwards.
+function AddPatternItems(Pattern: TPattern; Variables, Objects: TJSONArray; IdMap: TPatternIdMap; out ErrorMessage: string): boolean;
+// Formula text in stored form with every {id} read through IdMap
+function MapStoredFormula(const Text: string; IdMap: TPatternIdMap): string;
 // The pattern's measurement file as a path: relative to the folder of
 // PatternFileName unless absolute. Stored with "/" on every platform. Empty
 // when the pattern names none.
@@ -71,7 +87,7 @@ resourcestring
 implementation
 
 uses
-  Math, fpjson, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Names, Sloper.Core.Variables, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
+  Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Names, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
   Sloper.Core.Note, Sloper.Core.Units;
 
 const
@@ -121,6 +137,10 @@ type
     FPattern: TPattern;
     FError: string;
     FId: string;  // the object being loaded, for messages
+    FIdMap: TPatternIdMap;  // nil when IDs are read as they are
+    function MapKey(Id: integer): string;
+    function MapFormula(const Text: string): string;
+    function ReadFreeId(Item: TJSONObject; out Id: string): boolean;
     function Fail(const Msg: string): boolean;
     function Missing(const AName: string): boolean;
     function Problem(const Msg: string): boolean;
@@ -159,8 +179,9 @@ type
     procedure RetireDraftIds(Data: TJSONData);
     function LoadObject(Item: TJSONObject): boolean;
   public
-    constructor Create(APattern: TPattern);
+    constructor Create(APattern: TPattern; AIdMap: TPatternIdMap = nil);
     function Load(const Text: string): boolean;
+    function AddItems(Variables, Objects: TJSONArray): boolean;
     property Error: string read FError;
   end;
 
@@ -813,6 +834,8 @@ begin
     Root.Add('units', MeasureUnitNames[Pattern.Units]);
     Root.Add('notes', Pattern.Notes);
     Root.Add('measurementFile', Pattern.MeasurementFile);
+    if Pattern.Identity <> '' then
+      Root.Add('identity', Pattern.Identity);
     if WithNextId then
       Root.Add('nextId', Pattern.NextId);
     List := TJSONArray.Create;
@@ -836,9 +859,52 @@ end;
 
 { Loading }
 
-constructor TPatternLoader.Create(APattern: TPattern);
+constructor TPatternLoader.Create(APattern: TPattern; AIdMap: TPatternIdMap);
 begin
   FPattern := APattern;
+  FIdMap := AIdMap;
+end;
+
+function TPatternLoader.MapKey(Id: integer): string;
+begin
+  Result := IntToStr(Id);
+  if Assigned(FIdMap) and FIdMap.ContainsKey(Result) then
+    Result := FIdMap[Result];
+end;
+
+function TPatternLoader.MapFormula(const Text: string): string;
+begin
+  if Assigned(FIdMap) then
+    Result := MapStoredFormula(Text, FIdMap)
+  else
+    Result := Text;
+end;
+
+// Stored form writes an object or variable only as {id}, so braces mark every ID
+function MapStoredFormula(const Text: string; IdMap: TPatternIdMap): string;
+var
+  Position, Close: integer;
+  Id: string;
+begin
+  Result := '';
+  Position := 1;
+  while Position <= Length(Text) do
+  begin
+    Close := Pos('}', Text, Position);
+    if (Text[Position] = '{') and (Close > Position + 1) then
+    begin
+      Id := Copy(Text, Position + 1, Close - Position - 1);
+      if IdMap.ContainsKey(Id) then
+        Id := IdMap[Id];
+      Result := Result + '{' + Id + '}';
+      Position := Close + 1;
+    end
+    else
+    begin
+      Result := Result + Text[Position];
+      Inc(Position);
+    end;
+  end;
 end;
 
 function TPatternLoader.Fail(const Msg: string): boolean;
@@ -876,7 +942,7 @@ begin
   Key := '';
   if not GetJSONInteger(Item, AName, Id) or (Id < 1) then
     Exit(Missing(AName));
-  Key := IntToStr(Id);
+  Key := MapKey(Id);
   Node := FPattern.FindNode(Key);
   if not Assigned(Node) then
     Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
@@ -955,7 +1021,7 @@ begin
   Key := '';
   if not GetJSONInteger(Item, 'point', Id) or (Id < 1) then
     Exit(Missing('point'));
-  Key := IntToStr(Id);
+  Key := MapKey(Id);
   Node := FPattern.FindNode(Key);
   if not Assigned(Node) then
     Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
@@ -1016,20 +1082,20 @@ var
 begin
   if not GetJSONString(Item, AName, Text) then
     Exit(Missing(AName));
-  Node.Field(AField).ParseStored(Text);
+  Node.Field(AField).ParseStored(MapFormula(Text));
   Result := True;
 end;
 
 // A positive integer not used by anything loaded so far
-function IdIsFree(Pattern: TPattern; Item: TJSONObject; out Id: string): boolean;
+function TPatternLoader.ReadFreeId(Item: TJSONObject; out Id: string): boolean;
 var
   Value: integer;
 begin
   Id := '';
   if not GetJSONInteger(Item, 'id', Value) or (Value < 1) then
     Exit(False);
-  Id := IntToStr(Value);
-  Result := not Assigned(Pattern.FindNode(Id)) and not Assigned(Pattern.FindFabric(Id));
+  Id := MapKey(Value);
+  Result := not Assigned(FPattern.FindNode(Id)) and not Assigned(FPattern.FindFabric(Id));
 end;
 
 function TPatternLoader.LoadVariables(Data: TJSONData): boolean;
@@ -1048,7 +1114,7 @@ begin
     if Data.Items[Index].JSONType <> jtObject then
       Exit(Fail(Format(rsPatternFileList, ['variables'])));
     Item := TJSONObject(Data.Items[Index]);
-    if not IdIsFree(FPattern, Item, Id) then
+    if not ReadFreeId(Item, Id) then
       Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'variables'])));
     if not GetJSONString(Item, 'name', VariableName) then
       Exit(Fail(Format(rsPatternVariableMissing, [Id, 'name'])));
@@ -1060,7 +1126,7 @@ begin
     Variable := TVariable.Create(Id);
     Variable.Name := VariableName;
     Variable.Description := Description;
-    Variable.Formula.ParseStored(Text);
+    Variable.Formula.ParseStored(MapFormula(Text));
     FPattern.InsertVariable(Variable);
   end;
   Result := True;
@@ -1406,8 +1472,8 @@ begin
     Entry := TJSONObject(Entries.Items[Index]);
     if not GetJSONInteger(Entry, 'piece', PieceId) or not GetJSONInteger(Entry, 'edge', EdgeId) then
       Exit(Missing(AName));
-    Side[Index].PieceKey := IntToStr(PieceId);
-    Side[Index].EdgeKey := IntToStr(EdgeId);
+    Side[Index].PieceKey := MapKey(PieceId);
+    Side[Index].EdgeKey := MapKey(EdgeId);
   end;
   if not FPattern.CheckSeamSide(Side) then
     Exit(Problem(FPattern.LastError));
@@ -1463,7 +1529,7 @@ begin
       Missing('anchor');
       Exit;
     end;
-    Key := IntToStr(Id);
+    Key := MapKey(Id);
     Node := FPattern.FindNode(Key);
     if not Assigned(Node) then
     begin
@@ -1541,7 +1607,7 @@ begin
   begin
     if List.Items[Index].JSONType <> jtNumber then
       Exit(Missing('sources'));
-    Key := IntToStr(List.Items[Index].AsInteger);
+    Key := MapKey(List.Items[Index].AsInteger);
     Node := FPattern.FindNode(Key);
     if not Assigned(Node) then
       Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
@@ -1559,7 +1625,7 @@ begin
   Key := '';
   if not GetJSONInteger(Item, 'transform', Id) then
     Exit(Missing('transform'));
-  Key := IntToStr(Id);
+  Key := MapKey(Id);
   if not (FPattern.FindNode(Key) is TTransformObject) then
     Exit(Fail(Format(rsPatternObjectNotBefore, [FId, Key])));
   Result := True;
@@ -1809,7 +1875,7 @@ begin
     Entry := TJSONObject(List.Items[Index]);
     if not GetJSONInteger(Entry, 'index', PointIndex) or (PointIndex < 1) or ARepeat.HasUsedIndex(PointIndex) then
       Exit(Fail(Format(rsPatternFileBadRepeatPoint, [FId])));
-    if not IdIsFree(FPattern, Entry, Id) then
+    if not ReadFreeId(Entry, Id) then
       Exit(Fail(Format(rsPatternFileBadRepeatPoint, [FId])));
     FPattern.InsertRepeatPoint(ARepeat, PointIndex, Id);
   end;
@@ -1833,7 +1899,7 @@ begin
     if Data.Items[Index].JSONType <> jtObject then
       Exit(Fail(Format(rsPatternFileList, ['fabrics'])));
     Item := TJSONObject(Data.Items[Index]);
-    if not IdIsFree(FPattern, Item, Id) or not GetJSONString(Item, 'name', AName) then
+    if not ReadFreeId(Item, Id) or not GetJSONString(Item, 'name', AName) then
       Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'fabrics'])));
     if not CheckName(AName, Reason) then
       Exit(Fail(Format(rsPatternFabricProblem, [Id, Reason])));
@@ -1963,7 +2029,7 @@ begin
     if Data.Items[Index].JSONType <> jtObject then
       Exit(Fail(Format(rsPatternFileList, ['objects'])));
     Item := TJSONObject(Data.Items[Index]);
-    if not IdIsFree(FPattern, Item, FId) then
+    if not ReadFreeId(Item, FId) then
       Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'objects'])));
     if not LoadObject(Item) then
       Exit(False);
@@ -2005,11 +2071,41 @@ begin
     end;
     GetJSONString(Root, 'notes', FPattern.Notes);
     GetJSONString(Root, 'measurementFile', FPattern.MeasurementFile);
+    GetJSONString(Root, 'identity', FPattern.Identity);
     FPattern.UpdateDerivedNames;
     ReadPatternViewData(FPattern, Root.Find('view'));
     Result := True;
   finally
     FreeAndNil(Root);
+  end;
+end;
+
+function TPatternLoader.AddItems(Variables, Objects: TJSONArray): boolean;
+begin
+  Result := LoadVariables(Variables) and LoadObjects(Objects);
+  FPattern.UpdateDerivedNames;
+end;
+
+function PatternVariableToJSON(Variable: TVariable): TJSONObject;
+begin
+  Result := SaveVariable(Variable);
+end;
+
+function PatternObjectToJSON(DraftObject: TDraftObject): TJSONObject;
+begin
+  Result := SaveObject(DraftObject);
+end;
+
+function AddPatternItems(Pattern: TPattern; Variables, Objects: TJSONArray; IdMap: TPatternIdMap; out ErrorMessage: string): boolean;
+var
+  Loader: TPatternLoader;
+begin
+  Loader := TPatternLoader.Create(Pattern, IdMap);
+  try
+    Result := Loader.AddItems(Variables, Objects);
+    ErrorMessage := Loader.Error;
+  finally
+    FreeAndNil(Loader);
   end;
 end;
 

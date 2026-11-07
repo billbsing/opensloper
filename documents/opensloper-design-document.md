@@ -523,6 +523,30 @@ Handling the edge cases:
 - `TPieceObject` is an evaluator node whose inputs are its edges, so edges cannot be deleted while a piece uses them. A gap of more than 0.01 mm between neighbouring edges makes it invalid, and it keeps its last good outline. Seams will be the first objects to depend on a piece (see Seams).
 - **Seam allowance.** The field `allowance` is the piece's width; `SetEdgeAllowance` gives one edge its own, in a field such as `edge2.allowance` that exists only while it does. In the properties, Own allowance lists the edges without one; picking an edge gives it the piece's allowance, with its row (named after the edge) ready to type in, and emptying that row goes back to the piece's (2026-11-07). Zero suits an edge on a fold; a negative width is invalid. Clipper2's offset takes one width per path, so `OffsetOutline` builds the raw offset itself, the way Clipper2 does (mitres on convex corners, through the vertex on concave ones), with a width per segment, and Clipper2's union with a positive fill removes the loops. Corners with a mitre over four times the allowance are bevelled. A dart's allowance follows the dart as drawn; shaping it for a closed dart comes with notches.
 
+### Copy and paste
+
+Decided and built 2026-11-07. Edit → Copy (Ctrl/Cmd+C) and Edit → Paste (Ctrl/Cmd+V) copy the selected objects' definitions, not their positions, so a pasted object stays parametric. Seamly2D has no copy and paste of objects (its Copy menu on a tool only puts a variable name such as `Line_A_B` on the clipboard for formulas), so this follows our own rules.
+
+**The main use is a second line on the same points.** Copy an outline edge, paste it, and the new edge joins the same two points; it is selected, so its role can be set to Stitch, Fold or any other (see Several lines in the same place). A curve keeps its handle definitions, so it lies on the original. The copy is then independent: dragging the original's handles later does not move it. A line that must stay on its source whatever is done to it is an offset edge instead.
+
+**What is pasted:**
+
+- **In the same pattern**, only the selected objects are added. References to anything outside the selection stay on the originals, so a pasted edge joins the original points and a pasted point is placed from the original points, on top of its source. Objects inside the selection refer to each other's copies.
+- **In another pattern**, everything the copy holds is added: the selection and the whole chain it depends on, back to its base points, so the fragment stands on its own. This is how a collar or pocket is taken from one pattern into another.
+- The fragment says which pattern it came from by the pattern's `identity`, a random value made when the pattern is created (or first opened, for older files), saved in the file and kept by Save As; it is used for nothing else and objects are never referred to by it. IDs are never reused, so an outside reference whose ID still exists in a pattern with the same identity is the same object; one deleted since is added from the chain, as for another pattern. A pattern with no identity, as made outside the document, matches none.
+- Variables a pasted formula uses come with it. In another pattern a variable with the same name and the same formula as the user reads it is used instead of a copy; one with a different formula is kept apart as a copy (`ease2`). Measurements are matched by key, so a missing one shows as an error, as for any formula.
+- Pasted objects take fresh IDs and free names by the clash rules (`A` → `A2`), and the status bar lists the names that changed (see Names and IDs). An edge named after its ends is named again where it lands (`Line_A_B2`). The paste is one undo step, the copies of the selected objects are selected, and a pasted marking inside a piece joins it, as a new one would.
+- Only points, repeats and edges are copied. A selection with pieces, seams, notes, transforms or a repeat's own points copies the rest, and the status bar says what was left out. A transform copy is copied as the plain object it gives, where it was: a point as a free point, a straight edge as a line and a single curve as a curve with its handles as numbers; a copied curve path cannot be copied. When the chain needs something that cannot be copied, such as a transform's property in a formula, the fragment lists it under `needs`, and pasting into another pattern is refused, naming it.
+- The pattern's unit must be the fragment's, since formulas are written in it; pasting between a pattern in mm and one in cm is refused, saying to convert one first.
+
+**Fragment** (`opensloperFragment`, version 1): `identity`, `units`, `selection` (the copied objects' IDs), `variables` (as in a pattern file, each with `display`, its formula with names, for matching), `objects` (as in a pattern file, in the pattern's order) and `needs`. The loader reads every ID in it through a map (`AddPatternItems` in `Sloper.Core.PatternFile`), so the same code that reads a pattern file adds the pasted objects with their new IDs, and stored formulas are mapped by their `{id}`s.
+
+**Clipboard.** Copy puts two formats on the clipboard: the fragment (`application/x-opensloper-fragment`) and the copied objects' names as plain text, so a copied name can be pasted into a formula field or another app. Paste reads the fragment, or plain text that is one (as `copy_objects` gives), and says so when there is none. When a text field (a formula, a name) has focus, Copy and Paste act on its text, not the canvas.
+
+**Cut** is not offered yet; it would be Copy then Delete, refused as Delete is.
+
+**Code.** `CopyFragment` and `PasteFragment` in `Sloper.Core.Fragment` build and paste the fragment without the LCL; the canvas makes the paste a document change (`CopySelection`, `PasteFragmentText`) and the main form reads and writes the clipboard. `copy_objects` in the Automation API takes `objects` and returns `fragment`, `names` and `leftOut`; `paste_objects` takes that `fragment` and returns `objects`, the copies of the copied objects, and `renamed`.
+
 ## Markings
 
 Decided 2026-11-05. Edge roles, automatic assignment, point markers, choosing a role before drawing, several lines in the same place the offset edge along a run, the two leather roles, role visibility and output profiles are built (2026-11-06); overriding role styles in Preferences is not yet. Roles replace the Mark Placement Line and Mark Fold Line tools, and point markers replace the hole marking that each piece kept with its own diameter. Stitch holes stay a piece marking along an edge (see Markings inside a piece under Accessories).
@@ -877,6 +901,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
   "notes": "",
   "measurementFile": "bill.slm",
   "size": "",
+  "identity": "3021d120-7482-45c9-8c9a-1b9c1b60be87",
   "nextId": 9,
   "variables": [
     { "id": 3, "name": "ease_waist", "formula": "20", "description": "" }
@@ -903,6 +928,7 @@ Pattern file (`.sloper`, written by `Sloper.Core.PatternFile`). The example show
 - Each object has `id`, `type` and `name`, then its inputs and options, then its formulas under their field names, then `role` for edges. An edge whose name is derived from its ends (`Line_A_B`) has no `name`; the name is worked out again after loading, so it can never be stale.
 - Members written with their defaults can be left out of hand-written files: `mode` (`polar`, `length`), `from` (`start`), `direction` (`perpendicular`), `extend`, `extendA`, `extendB` (`false`), `pick` (`1`), `role` (`construction`). The writer always writes them.
 - A point or repeat with a marker has `marker` (`hole`, `button` or `match`) and its `markerSize` formula; a plain one has neither.
+- `identity` tells the pattern from others when objects are pasted (see Copy and paste). It is made when the pattern is created, or first opened if the file has none, and kept by Save As and undo. It is left out when empty.
 - `nextId` is the next ID to hand out and is always above every ID in the file. A hand-written file may leave it out; it is then taken as one above the highest ID. Saving writes the counter as it stands, never recomputed from the objects, so deleted IDs stay retired.
 - `view` may also hold `pieceOrder`, the piece IDs in drawing order from back to front (only pieces moved from creation order need listing), and `isolate`, the ID of an isolated piece. Both are left out when unused and, like zoom and centre, kept out of undo and the modified flag. Planned, 2026-11-05.
 - Loading checks IDs (positive integers, unique across variables, fabrics and objects, and below `nextId`), names, types, inputs and options, and fails with a message naming the object by ID, since edge names are only derived once everything is loaded (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.

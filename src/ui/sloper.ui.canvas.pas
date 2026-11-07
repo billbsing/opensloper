@@ -29,7 +29,8 @@ interface
 uses
   Classes, SysUtils, Controls, StdCtrls, Menus, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
-  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
+  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Core.Fragment,
+  Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
   Sloper.UI.Scene;
 
 type
@@ -110,6 +111,7 @@ type
     FOnMessage: TCanvasMessageEvent;
     FOnSelectionChange: TNotifyEvent;
     FOnNoteAdded: TNotifyEvent;
+    function ObjectNames(const Keys: TStringArray): string;
     function NoteValues: TFieldValues;
     function NotesHere(X, Y: integer): TStringArray;
     procedure AddNoteHere;
@@ -247,6 +249,11 @@ type
     procedure UnmarkSelection;
     // Deletes the selected objects, the dependents first; nothing when any is in use
     procedure DeleteSelection;
+    // The selected objects as a fragment for the clipboard; empty, with the
+    // reason shown, when none can be copied
+    function CopySelection: TFragmentCopy;
+    // Adds copied objects as one undo step and selects them; says why not otherwise
+    procedure PasteFragmentText(const FragmentText: string);
     // Splits the selected edge at the selected point; says why not otherwise
     procedure SplitSelection;
     property Document: TPatternDocument read FDocument write SetDocument;
@@ -302,6 +309,13 @@ resourcestring
   rsCanvasMerged = 'Merged %d points into %s';
   rsCanvasPickPointToBreak = 'Select the point to break first';
   rsCanvasBreakPoint = 'Break point';
+  rsCanvasPickToCopy = 'Select the points and edges to copy first';
+  rsCanvasCannotCopy = '%s cannot be copied; only points and edges can';
+  rsCanvasCopied = 'Copied %s';
+  rsCanvasCopiedLeftOut = 'Copied %s; left out %s, which cannot be copied';
+  rsCanvasPaste = 'Paste';
+  rsCanvasPasted = 'Pasted %s';
+  rsCanvasPastedRenamed = 'Pasted %s; renamed %s';
   rsCanvasBroken = 'Broke %s into %d points';
   rsCanvasPickCornerEdges = 'Select the two straight edges that meet at the corner';
   rsCanvasRoundCorner = 'Round corner';
@@ -909,6 +923,69 @@ begin
   end;
   FDocument.EndChange;
   SetSelection(nil);
+end;
+
+// For the status bar: "A, B, Line_A_B"
+function TPatternCanvas.ObjectNames(const Keys: TStringArray): string;
+var
+  Key: string;
+  Node: TEvalNode;
+begin
+  Result := '';
+  for Key in Keys do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if not Assigned(Node) then
+      Continue;
+    if Result <> '' then
+      Result := Result + ', ';
+    Result := Result + Node.DisplayName;
+  end;
+end;
+
+function TPatternCanvas.CopySelection: TFragmentCopy;
+var
+  LeftOut: string;
+begin
+  Result := Default(TFragmentCopy);
+  if not Assigned(FDocument) then
+    Exit;
+  if Length(FSelection) = 0 then
+  begin
+    ShowMessageText(rsCanvasPickToCopy);
+    Exit;
+  end;
+  Result := CopyFragment(FDocument.Pattern, FSelection);
+  LeftOut := string.Join(', ', Result.LeftOut);
+  if Result.Text = '' then
+    ShowMessageText(Format(rsCanvasCannotCopy, [LeftOut]))
+  else if LeftOut <> '' then
+    ShowMessageText(Format(rsCanvasCopiedLeftOut, [ObjectNames(Result.Keys), LeftOut]))
+  else
+    ShowMessageText(Format(rsCanvasCopied, [ObjectNames(Result.Keys)]));
+end;
+
+procedure TPatternCanvas.PasteFragmentText(const FragmentText: string);
+var
+  Pasted: TFragmentPaste;
+  Reason: string;
+  Done: boolean;
+begin
+  if not Assigned(FDocument) then
+    Exit;
+  FDocument.BeginChange(rsCanvasPaste);
+  Done := PasteFragment(FDocument.Pattern, FragmentText, Pasted, Reason);
+  if not FDocument.Commit(Done) then
+  begin
+    ShowMessageText(Reason);
+    Exit;
+  end;
+  SetSelection(Pasted.Keys);
+  if Length(Pasted.Renamed) > 0 then
+    ShowMessageText(Format(rsCanvasPastedRenamed, [ObjectNames(Pasted.Keys), string.Join(', ', Pasted.Renamed)]))
+  else
+    ShowMessageText(Format(rsCanvasPasted, [ObjectNames(Pasted.Keys)]));
+  Invalidate;
 end;
 
 procedure TPatternCanvas.SplitSelection;

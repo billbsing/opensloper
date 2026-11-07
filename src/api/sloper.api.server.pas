@@ -102,6 +102,8 @@ type
     function DoSetMarker(Params: TJSONObject): TJSONData;
     function DoMergePoints(Params: TJSONObject): TJSONData;
     function DoBreakPoint(Params: TJSONObject): TJSONData;
+    function DoCopyObjects(Params: TJSONObject): TJSONData;
+    function DoPasteObjects(Params: TJSONObject): TJSONData;
     function FindFabricParam(Params: TJSONObject; const AName: string): TPatternFabric;
     function FabricsToJSON: TJSONData;
     function DoAddFabric(Params: TJSONObject): TJSONData;
@@ -153,6 +155,8 @@ resourcestring
   rsApiConvertEdge = 'Change edge type';
   rsApiMergePoints = 'Merge points';
   rsApiBreakPoint = 'Break point';
+  rsApiPaste = 'Paste';
+  rsApiCannotCopy = 'Nothing to copy: %s cannot be copied; only points and edges can';
   rsApiNotAPoint = '%s is not a point';
   rsApiNotInPiece = '%s is not part of %s';
   rsApiNotASeam = '%s is not a seam';
@@ -192,7 +196,7 @@ implementation
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
-  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Output.DraftSVG, Sloper.Output.Layout,
+  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Core.Fragment, Sloper.Output.DraftSVG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport;
 
 const
@@ -1871,6 +1875,62 @@ begin
   end;
 end;
 
+function TApiServer.DoCopyObjects(Params: TJSONObject): TJSONData;
+var
+  Copied: TFragmentCopy;
+  List: TJSONArray;
+  AName: string;
+begin
+  if not Assigned(Params) or not Assigned(Params.Find('objects')) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['objects']));
+  Copied := CopyFragment(FDocument.Pattern, ReferenceList(Params, 'objects'));
+  if Copied.Text = '' then
+    raise EApiError.Create(RpcRefused, Format(rsApiCannotCopy, [string.Join(', ', Copied.LeftOut)]));
+  Result := TJSONObject.Create;
+  try
+    TJSONObject(Result).Add('fragment', Copied.Text);
+    TJSONObject(Result).Add('names', Copied.Names);
+    List := TJSONArray.Create;
+    TJSONObject(Result).Add('leftOut', List);
+    for AName in Copied.LeftOut do
+      List.Add(AName);
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
+function TApiServer.DoPasteObjects(Params: TJSONObject): TJSONData;
+var
+  Text, Reason, Key, Renamed: string;
+  Pasted: TFragmentPaste;
+  List: TJSONArray;
+begin
+  if not Assigned(Params) or not GetJSONString(Params, 'fragment', Text) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['fragment']));
+  FDocument.BeginChange(rsApiPaste);
+  if not PasteFragment(FDocument.Pattern, Text, Pasted, Reason) then
+  begin
+    FDocument.CancelChange;
+    raise EApiError.Create(RpcRefused, Reason);
+  end;
+  FDocument.EndChange;
+  Result := TJSONObject.Create;
+  try
+    List := TJSONArray.Create;
+    TJSONObject(Result).Add('objects', List);
+    for Key in Pasted.Keys do
+      List.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(Key)));
+    List := TJSONArray.Create;
+    TJSONObject(Result).Add('renamed', List);
+    for Renamed in Pasted.Renamed do
+      List.Add(Renamed);
+  except
+    FreeAndNil(Result);
+    raise;
+  end;
+end;
+
 function TApiServer.SeamSideParam(Params: TJSONObject; const AName: string): TSeamSide;
 var
   List: TJSONData;
@@ -2159,6 +2219,8 @@ begin
     'set_marker': Result := DoSetMarker(Params);
     'merge_points': Result := DoMergePoints(Params);
     'break_point': Result := DoBreakPoint(Params);
+    'copy_objects': Result := DoCopyObjects(Params);
+    'paste_objects': Result := DoPasteObjects(Params);
     'list_fabrics': Result := FabricsToJSON;
     'add_fabric': Result := DoAddFabric(Params);
     'rename_fabric': Result := DoRenameFabric(Params);

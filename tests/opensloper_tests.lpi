@@ -87,6 +87,11 @@
         <UnitName Value="Sloper.Tests.MergePoints"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.fragment.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Fragment"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.seam.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Seam"/>

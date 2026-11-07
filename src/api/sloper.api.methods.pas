@@ -155,6 +155,14 @@ resourcestring
   rsApiMergeReturns = 'The point kept';
   rsApiBreakPoint = 'Breaks a point into one for each edge that meets there.';
   rsApiBreakReturns = '`points`, the points it became';
+  rsApiCopyObjects = 'Copies points and edges, with what they depend on, as Edit → Copy does.';
+  rsApiCopyReturns = '`fragment`, the copy as text for `paste_objects`; `names`, the copied objects'' names; ' +
+    '`leftOut`, the names of those that cannot be copied';
+  rsApiCopyObjectsList = 'The points and edges to copy';
+  rsApiPasteObjects = 'Pastes a copy as Edit → Paste does: into the pattern it came from, the objects join what they ' +
+    'used there; into another, what they depend on comes too. They take new IDs, and a name already taken the next number.';
+  rsApiPasteReturns = '`objects`, the pasted copies of the copied objects; `renamed`, names that changed, as "A → A2"';
+  rsApiPasteFragment = 'The `fragment` that `copy_objects` gave';
   rsApiArrange = 'Aligns or distributes points. Points a formula places are left as they are and listed, unless named ' +
     'in replace.';
   rsApiArrangeAction = 'What to do';
@@ -432,6 +440,10 @@ begin
   P('points', apReferences, True, rsApiArrangePoints);
   Method('break_point', agDrafting, rsApiBreakPoint, rsApiBreakReturns);
   Target;
+  Method('copy_objects', agDrafting, rsApiCopyObjects, rsApiCopyReturns);
+  P('objects', apReferences, True, rsApiCopyObjectsList);
+  Method('paste_objects', agDrafting, rsApiPasteObjects, rsApiPasteReturns);
+  P('fragment', apText, True, rsApiPasteFragment);
   Method('arrange', agDrafting, rsApiArrange, rsApiArrangeReturns);
   P('action', apChoice, True, rsApiArrangeAction, 'alignVertical, alignHorizontal, distribute, distributeHorizontal, ' +
     'distributeVertical, distributeAlongEdge');

@@ -124,6 +124,7 @@ type
     procedure TestConvertEdge;
     procedure TestMergePoints;
     procedure TestBreakPoint;
+    procedure TestCopyAndPaste;
     procedure TestAddVariable;
     procedure TestAddIsOneUndoStep;
     procedure TestAddRefusals;
@@ -1204,6 +1205,32 @@ begin
   Call('undo');
   Call('get_object', '{"name": "A"}');
   AssertEquals('undone', 'freePoint', Answer.Get('type', ''));
+end;
+
+procedure TTestAPI.TestCopyAndPaste;
+var
+  Params: TJSONObject;
+  Objects: TJSONArray;
+begin
+  AddSquare;
+  Call('copy_objects', '{"objects": ["Line_A_B"]}');
+  AssertEquals('Line_A_B', Answer.Get('names', ''));
+  Params := TJSONObject.Create(['fragment', Answer.Get('fragment', '')]);
+  try
+    Call('paste_objects', Params.AsJSON);
+  finally
+    FreeAndNil(Params);
+  end;
+  Objects := Answer.Arrays['objects'];
+  AssertEquals(1, Objects.Count);
+  AssertEquals('a second line on the same points', 'Line_A_B2', TJSONObject(Objects[0]).Get('name', ''));
+  Call('copy_objects', '{"objects": []}');
+  AssertEquals('nothing to copy', RpcRefused, ErrorCode);
+  Call('paste_objects', '{"fragment": "Line_A_B"}');
+  AssertEquals('not a copy', RpcRefused, ErrorCode);
+  Call('undo');
+  Call('get_object', '{"name": "Line_A_B2"}');
+  AssertEquals('undone', RpcRefused, ErrorCode);
 end;
 
 procedure TTestAPI.TestCutAndFold;

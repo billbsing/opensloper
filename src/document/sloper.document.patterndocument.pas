@@ -246,6 +246,7 @@ end;
 constructor TPatternDocument.Create;
 begin
   FPattern := TPattern.Create;
+  FPattern.Identity := NewPatternIdentity;
   FUndo := TCommandList.Create;
   FRedo := TCommandList.Create;
   FUndoLimit := DefaultUndoLimit;
@@ -417,6 +418,7 @@ procedure TPatternDocument.NewPattern(AUnits: TMeasureUnit);
 begin
   RequireNoChange;
   FPattern.Clear;
+  FPattern.Identity := NewPatternIdentity;
   FPattern.Units := AUnits;
   FPattern.MeasurementScale := 1;
   ClearHistory;
@@ -439,6 +441,9 @@ begin
   try
     if not LoadPatternFromFile(Loaded, FileName, ErrorMessage) then
       Exit(False);
+    // Files from before identities get one, saved with the next save
+    if Loaded.Identity = '' then
+      Loaded.Identity := NewPatternIdentity;
     FullName := ExpandFileName(FileName);
     SetPath := MeasurementFilePath(Loaded, FullName);
     SetError := '';

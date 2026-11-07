@@ -87,6 +87,8 @@ type
   private
     FDocument: TPatternDocument;
     FSettings: TAppSettings;
+    // The clipboard format of copied objects, registered on first use
+    FFragmentFormat: TClipboardFormat;
     // Shared with the other apps, and changed through Edit → Preferences
     FPreferences: TPreferences;
     FRecent: TRecentMenu;
@@ -123,6 +125,10 @@ type
     procedure SaveSettings;
     procedure ApplyPreferences;
     procedure PreferencesClick(Sender: TObject);
+    procedure EditCopyClick(Sender: TObject);
+    procedure EditPasteClick(Sender: TObject);
+    function FragmentFormat: TClipboardFormat;
+    function AddEditItem(AAction: TAction): TMenuItem;
     procedure SetLabelMode(Mode: TLabelMode);
     function NewAction(const ACaption: string; AIcon: TAppIcon; AHandler: TNotifyEvent; AShortCut: TShortCut = 0;
       ATag: PtrInt = 0): TAction;
@@ -199,7 +205,7 @@ var
 implementation
 
 uses
-  Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
+  Math, process, Graphics, Clipbrd, Sloper.Core.Fragment, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
   Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.UnitConvert,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
@@ -239,6 +245,8 @@ resourcestring
   rsMenuEditUndoWhat = '&Undo %s';
   rsMenuEditRedo = '&Redo';
   rsMenuEditRedoWhat = '&Redo %s';
+  rsMenuEditCopy = '&Copy';
+  rsMenuEditPaste = '&Paste';
   rsMenuEditDelete = '&Delete';
   rsMenuEditPreferences = 'Pre&ferences...';
   rsMenuView = '&View';
@@ -757,6 +765,9 @@ begin
   MenuEditUndo.Action := FUndoAction;
   FRedoAction := NewAction(rsMenuEditRedo, aiRedo, @MenuEditRedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
   MenuEditRedo.Action := FRedoAction;
+  // In a text field Copy and Paste work on its text
+  AddEditItem(NewAction(rsMenuEditCopy, aiCopy, @EditCopyClick, ShortCut(VK_C, [ssModifier])));
+  AddEditItem(NewAction(rsMenuEditPaste, aiPaste, @EditPasteClick, ShortCut(VK_V, [ssModifier])));
   // The canvas handles the Delete key, so typing in a field can still delete text
   MenuEditDelete.Action := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
   MenuEdit.AddSeparator;
@@ -1532,6 +1543,77 @@ end;
 procedure TMainForm.MenuEditDeleteClick(Sender: TObject);
 begin
   FCanvas.DeleteSelection;
+end;
+
+// Before Delete
+function TMainForm.AddEditItem(AAction: TAction): TMenuItem;
+begin
+  Result := TMenuItem.Create(MenuEdit);
+  Result.Action := AAction;
+  MenuEdit.Insert(MenuEditDelete.MenuIndex, Result);
+end;
+
+function TMainForm.FragmentFormat: TClipboardFormat;
+begin
+  if FFragmentFormat = 0 then
+    FFragmentFormat := RegisterClipboardFormat(FragmentMimeType);
+  Result := FFragmentFormat;
+end;
+
+// The objects go on the clipboard twice: as a fragment, and as their names
+// for a formula field or another app
+procedure TMainForm.EditCopyClick(Sender: TObject);
+var
+  Copied: TFragmentCopy;
+  Stream: TStringStream;
+begin
+  if ActiveControl is TCustomEdit then
+  begin
+    TCustomEdit(ActiveControl).CopyToClipboard;
+    Exit;
+  end;
+  Copied := FCanvas.CopySelection;
+  if Copied.Text = '' then
+    Exit;
+  Stream := TStringStream.Create(Copied.Text);
+  try
+    Clipboard.Open;
+    try
+      Clipboard.AsText := Copied.Names;
+      Clipboard.AddFormat(FragmentFormat, Stream);
+    finally
+      Clipboard.Close;
+    end;
+  finally
+    FreeAndNil(Stream);
+  end;
+end;
+
+procedure TMainForm.EditPasteClick(Sender: TObject);
+var
+  Stream: TStringStream;
+  Pasted: string;
+begin
+  if ActiveControl is TCustomEdit then
+  begin
+    TCustomEdit(ActiveControl).PasteFromClipboard;
+    Exit;
+  end;
+  Pasted := '';
+  if Clipboard.HasFormat(FragmentFormat) then
+  begin
+    Stream := TStringStream.Create('');
+    try
+      if Clipboard.GetFormat(FragmentFormat, Stream) then
+        Pasted := TrimRight(Stream.DataString);
+    finally
+      FreeAndNil(Stream);
+    end;
+  end;
+  // A fragment copied as plain text, such as one from the Automation API
+  if Pasted = '' then
+    Pasted := Clipboard.AsText;
+  FCanvas.PasteFragmentText(Pasted);
 end;
 
 procedure TMainForm.MenuViewZoomInClick(Sender: TObject);

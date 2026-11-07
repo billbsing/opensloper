@@ -286,6 +286,26 @@ Breaks a point into one for each edge that meets there.
 
 Returns: `points`, the points it became.
 
+### `copy_objects`
+
+Copies points and edges, with what they depend on, as Edit → Copy does.
+
+| Parameter | Value | Required | Description |
+| --- | --- | --- | --- |
+| `objects` | list of IDs or names | yes | The points and edges to copy |
+
+Returns: `fragment`, the copy as text for `paste_objects`; `names`, the copied objects' names; `leftOut`, the names of those that cannot be copied.
+
+### `paste_objects`
+
+Pastes a copy as Edit → Paste does: into the pattern it came from, the objects join what they used there; into another, what they depend on comes too. They take new IDs, and a name already taken the next number.
+
+| Parameter | Value | Required | Description |
+| --- | --- | --- | --- |
+| `fragment` | text | yes | The `fragment` that `copy_objects` gave |
+
+Returns: `objects`, the pasted copies of the copied objects; `renamed`, names that changed, as "A → A2".
+
 ### `arrange`
 
 Aligns or distributes points. Points a formula places are left as they are and listed, unless named in replace.

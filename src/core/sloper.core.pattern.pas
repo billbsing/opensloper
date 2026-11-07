@@ -163,6 +163,10 @@ type
     // The measurement file last used with the pattern, as the user chose it;
     // the document resolves it. Not loaded here.
     MeasurementFile: string;
+    // Tells this pattern from others when objects are pasted (see
+    // Sloper.Core.Fragment); made by NewPatternIdentity and kept by Save As.
+    // Empty, as after Clear, matches no pattern.
+    Identity: string;
     View: TPatternView;
     constructor Create;
     destructor Destroy; override;
@@ -418,6 +422,10 @@ type
     // Recomputes the names of edges named after their ends; called after
     // loading, since a loaded edge's ends come first
     procedure UpdateDerivedNames;
+    // The objects with these keys join the pieces they lie in at the next
+    // evaluation, as new markings do; for objects added by a loader, such as
+    // pasted ones
+    procedure QueueMarkings(const Keys: array of string);
 
     // Not owned. Can be nil or swapped for another person's set.
     property Measurements: TMeasurementSet read FMeasurements write FMeasurements;
@@ -442,6 +450,9 @@ type
     property LastErrorField: string read FLastErrorField;
     property LastErrorPos: integer read FLastErrorPos;
   end;
+
+// A new random identity for a pattern
+function NewPatternIdentity: string;
 
 resourcestring
   rsPatternUnknownObject = 'There is no object %s';
@@ -518,6 +529,14 @@ implementation
 
 uses
   Math, Sloper.Core.Names, Sloper.Core.JSON;
+
+function NewPatternIdentity: string;
+var
+  Guid: TGUID;
+begin
+  CreateGUID(Guid);
+  Result := LowerCase(Copy(GUIDToString(Guid), 2, 36));
+end;
 
 const
   // pmPlain has no size; the entry is never used
@@ -744,6 +763,7 @@ begin
   FAssignLoose := False;
   Notes := '';
   MeasurementFile := '';
+  Identity := '';
   View := Default(TPatternView);
   ResetFabrics;
 end;
@@ -3604,6 +3624,15 @@ begin
   FEvaluator.Rebuild(nil, FContext);
   UpdateDerivedNames;
   OrderObjectsByInputs;
+end;
+
+procedure TPattern.QueueMarkings(const Keys: array of string);
+var
+  Key: string;
+begin
+  for Key in Keys do
+    if FindNode(Key) is TDraftObject then
+      QueueMarking(TDraftObject(FindNode(Key)));
 end;
 
 procedure TPattern.UpdateDerivedNames;
