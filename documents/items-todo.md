@@ -35,7 +35,7 @@ Rescoped 2026-11-06 into four stages (see Stages under Annotations in the design
 Done 2026-11-05 (see Preferences in the design document): one dialog in all three apps, Edit → Preferences…, with General (unit), Design (grid spacing per unit) and Publish (printer calibration, worked out from a measured test square). Calibration moved out of layout files; older layouts' values are ignored.
 
 Still to do:
-- New patterns take the preferred unit, once Pattern units is built (decided 2026-11-04, not started): each pattern has one unit, the preference sets it for new patterns and never changes an existing one, Tools → Convert Pattern Units… rewrites only lengths, and numbers may carry a suffix (`400mm`, `2in`; the suffix is built, converting to mm for now). Split 2026-11-06 into two stages (see Stages under Pattern units in the design document): stage 1, the pattern's unit; stage 2, converting a pattern.
+- New patterns take the preferred unit, once Pattern units is built (decided 2026-11-04, not started): each pattern has one unit, the preference sets it for new patterns and never changes an existing one, Tools → Convert Pattern Units… rewrites only lengths, and numbers may carry a suffix (`400mm`, `2in`; the suffix is built, converting to mm for now). Split 2026-11-06 into two stages (see Stages under Pattern units in the design document): stage 1, the pattern's unit (built 2026-11-07); stage 2, converting a pattern (not started).
 - An app already open picks up a preference changed in another app only when restarted.
 
 #### Marking line roles

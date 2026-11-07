@@ -189,7 +189,7 @@ implementation
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
-  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Output.DraftSVG, Sloper.Output.Layout,
+  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Output.DraftSVG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport;
 
 const
@@ -521,6 +521,8 @@ begin
   try
     Result.Add('path', FDocument.FileName);
     Result.Add('measurements', FDocument.MeasurementPath);
+    // Formulas and variable values are in this unit; reported positions and lengths are mm
+    Result.Add('units', MeasureUnitNames[FDocument.Pattern.Units]);
     Result.Add('objects', FDocument.Pattern.ObjectCount);
     Result.Add('variables', FDocument.Pattern.VariableCount);
     Result.Add('modified', FDocument.Modified);

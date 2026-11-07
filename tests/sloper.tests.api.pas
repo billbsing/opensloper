@@ -59,6 +59,7 @@ type
     procedure TestFabricRefusals;
     procedure TestPieceFabricAndFill;
     procedure TestOpen;
+    procedure TestInchPattern;
     procedure TestOpenMissingFile;
     procedure TestListObjects;
     procedure TestGetObject;
@@ -135,7 +136,7 @@ implementation
 uses
   Sloper.Output.Layout,
   Sloper.Core.Arrange, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables,
-  Sloper.Core.Draft, Sloper.Core.PieceDetect;
+  Sloper.Core.Draft, Sloper.Core.PieceDetect, Sloper.Core.Units;
 
 function PathParams(const Path: string): string;
 var
@@ -290,6 +291,43 @@ begin
   AssertEquals('variables', 1, Answer.Get('variables', 0));
   AssertEquals('measurements found beside it', FSetPath, Answer.Get('measurements', ''));
   AssertFalse('not modified', Answer.Get('modified', True));
+  AssertEquals('units', 'mm', Answer.Get('units', ''));
+end;
+
+// Formulas and variable values in inches; reported positions stay mm
+procedure TTestAPI.TestInchPattern;
+var
+  Pattern: TPattern;
+  MeasurementSet: TMeasurementSet;
+  Err: string;
+begin
+  MeasurementSet := TMeasurementSet.Create;
+  Pattern := TPattern.Create;
+  try
+    MeasurementSet.Add('waist', 800);
+    Pattern.Measurements := MeasurementSet;
+    Pattern.Units := muInch;
+    Pattern.MeasurementFile := ExtractFileName(FSetPath);
+    Pattern.AddVariable('ease', '1');
+    Pattern.AddFreePoint('A', '0', '0');
+    if not Assigned(Pattern.AddOffsetPoint('B', Pattern.FindObject('A').Key, omPolar, '@waist / 4 + #ease', '0')) then
+      Fail(Pattern.LastError);
+    if not SavePatternToFile(Pattern, FPatternPath + '2', Err) then
+      Fail(Err);
+  finally
+    FreeAndNil(Pattern);
+    FreeAndNil(MeasurementSet);
+  end;
+  Call('open', PathParams(FPatternPath + '2'));
+  AssertEquals('units', 'in', Answer.Get('units', ''));
+  AssertNear('a quarter of the waist plus an inch, in mm', 200 + 25.4, ObjectNamed('B').Get('x', 0.0));
+  Call('get_object', '{"name": "ease"}');
+  AssertNear('variable in inches', 1, Answer.Get('value', 0.0));
+  Call('set_formula', '{"name": "B", "field": "length", "formula": "2"}');
+  AssertNear('two inches', 50.8, Answer.Get('x', 0.0));
+  Call('add_point', '{"type": "freePoint", "name": "C", "x": 1, "y": "2.54cm"}');
+  AssertNear('x in inches', 25.4, ObjectNamed('C').Get('x', 0.0));
+  AssertNear('suffix kept', 25.4, ObjectNamed('C').Get('y', 0.0));
 end;
 
 procedure TTestAPI.TestMarkings;
