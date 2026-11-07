@@ -60,6 +60,8 @@ type
     procedure TestPieceFabricAndFill;
     procedure TestOpen;
     procedure TestInchPattern;
+    procedure TestConvertUnits;
+    procedure TestConvertUnitsAsksForMarks;
     procedure TestOpenMissingFile;
     procedure TestListObjects;
     procedure TestGetObject;
@@ -292,6 +294,50 @@ begin
   AssertEquals('measurements found beside it', FSetPath, Answer.Get('measurements', ''));
   AssertFalse('not modified', Answer.Get('modified', True));
   AssertEquals('units', 'mm', Answer.Get('units', ''));
+end;
+
+procedure TTestAPI.TestConvertUnits;
+begin
+  OpenTestPattern;
+  Call('convert_units', '{"units": "cm"}');
+  AssertTrue('converted', Answer.Get('converted', False));
+  AssertEquals('cm', Answer.Get('units', ''));
+  Call('get_object', '{"name": "ease"}');
+  AssertEquals('ease in cm', '1', FormulaOf(Answer, 'formula'));
+  AssertNear('B stays put', 210, ObjectNamed('B').Get('x', 0.0));
+  Call('undo');
+  Call('get_object', '{"name": "ease"}');
+  AssertEquals('one undo step', '10', FormulaOf(Answer, 'formula'));
+  Call('convert_units', '{"units": "ft"}');
+  AssertEquals(RpcInvalidParams, ErrorCode);
+  Call('convert_units', '{"units": "mm"}');
+  AssertEquals('already mm', RpcRefused, ErrorCode);
+end;
+
+// An open number is listed, nothing changes, and a mark settles it
+procedure TTestAPI.TestConvertUnitsAsksForMarks;
+var
+  Item: TJSONObject;
+  Token: integer;
+begin
+  OpenTestPattern;
+  Call('add_point', '{"type": "freePoint", "name": "C", "x": "400 * 2", "y": 0}');
+  Call('convert_units', '{"units": "cm"}');
+  AssertFalse('not converted', Answer.Get('converted', True));
+  AssertEquals('400 and 2', 2, TJSONArray(Answer.Find('undecided')).Count);
+  Item := TJSONObject(TJSONArray(Answer.Find('undecided'))[1]);
+  AssertEquals('C', Item.Get('name', ''));
+  AssertEquals('x', Item.Get('field', ''));
+  AssertNear('the 2', 2, Item.Get('number', 0.0));
+  AssertEquals('where it is', 7, Item.Get('position', 0));
+  Token := Item.Get('token', -1);
+  AssertFalse('nothing changed', FServer.Document.Pattern.Units = muCentimetre);
+  Call('convert_units', Format('{"units": "cm", "marks": [{"name": "C", "field": "x", "token": %d, "role": "number"}]}', [Token]));
+  AssertTrue('converted', Answer.Get('converted', False));
+  AssertEquals('400 became 40', '40 * 2', FormulaOf(ObjectNamed('C'), 'x'));
+  AssertNear('C stays put', 800, ObjectNamed('C').Get('x', 0.0));
+  Call('convert_units', '{"units": "in", "marks": [{"name": "C"}]}');
+  AssertEquals('a mark needs all its members', RpcInvalidParams, ErrorCode);
 end;
 
 // Formulas and variable values in inches; reported positions stay mm

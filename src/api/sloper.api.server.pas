@@ -118,6 +118,7 @@ type
     function DoAddNote(Params: TJSONObject): TJSONData;
     function DoSetText(Params: TJSONObject): TJSONData;
     function DoExport(Params: TJSONObject): TJSONData;
+    function DoConvertUnits(Params: TJSONObject): TJSONData;
   public
     constructor Create;
     destructor Destroy; override;
@@ -183,13 +184,15 @@ resourcestring
   rsApiBadAnchor = 'An "anchor" needs one of "point", "edge" (with a "position") or "piece"';
   rsApiNotANote = '%s is not a note';
   rsApiChangeNote = 'Change note';
+  rsApiConvertUnits = 'Convert pattern units';
+  rsApiBadMarks = 'Parameter "marks" must be a list of objects with an "id" or "name", a "field", a "token" and a "role"';
 
 implementation
 
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
-  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Output.DraftSVG, Sloper.Output.Layout,
+  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Output.DraftSVG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport;
 
 const
@@ -833,6 +836,92 @@ begin
     RefuseChange;
   FDocument.EndChange;
   Result := NodeToJSON(FDocument, FindTarget(Params));
+end;
+
+// Converts the pattern to another unit, rewriting only lengths. Numbers whose
+// role the formulas leave open are marked in "marks"; while any is still open
+// nothing changes, and the reply lists them so the caller can mark them and
+// call again. Their "token" is what a mark names; "position" is where the
+// number starts in "formula", as shown.
+function TApiServer.DoConvertUnits(Params: TJSONObject): TJSONData;
+var
+  ToUnits: TMeasureUnit;
+  Marks: TUnitMarkArray;
+  Mark: TUnitMark;
+  MarkList, Undecided: TJSONArray;
+  MarkItem, Item: TJSONObject;
+  Analysis: TUnitAnalysis;
+  Number: TUnitNumber;
+  Node: TEvalNode;
+  Index, At, Len: integer;
+  Err: string;
+  Reply: TJSONObject;
+begin
+  if not Assigned(Params.Find('units')) then
+    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['units']));
+  ToUnits := TMeasureUnit(ChoiceParam(Params, 'units', MeasureUnitNames));
+  if ToUnits = FDocument.Pattern.Units then
+    raise EApiError.Create(RpcRefused, Format(rsConvertSameUnit, [MeasureUnitNames[ToUnits]]));
+  Marks := nil;
+  if Assigned(Params.Find('marks')) then
+  begin
+    if Params.Find('marks').JSONType <> jtArray then
+      raise EApiError.Create(RpcInvalidParams, rsApiBadMarks);
+    MarkList := TJSONArray(Params.Find('marks'));
+    for Index := 0 to MarkList.Count - 1 do
+    begin
+      if MarkList[Index].JSONType <> jtObject then
+        raise EApiError.Create(RpcInvalidParams, rsApiBadMarks);
+      MarkItem := TJSONObject(MarkList[Index]);
+      Mark := Default(TUnitMark);
+      Mark.NodeKey := FindTarget(MarkItem).Key;
+      if not GetJSONString(MarkItem, 'field', Mark.FieldName) or not GetJSONInteger(MarkItem, 'token', Mark.Token) or not
+        Assigned(MarkItem.Find('role')) then
+        raise EApiError.Create(RpcInvalidParams, rsApiBadMarks);
+      Mark.IsLength := ChoiceParam(MarkItem, 'role', ['length', 'number']) = 0;
+      Insert(Mark, Marks, Length(Marks));
+    end;
+  end;
+  Analysis := AnalyseUnits(FDocument.Pattern, Marks);
+  Reply := TJSONObject.Create;
+  try
+    if UndecidedCount(Analysis.Numbers) > 0 then
+    begin
+      Reply.Add('converted', False);
+      Undecided := TJSONArray.Create;
+      Reply.Add('undecided', Undecided);
+      for Number in Analysis.Numbers do
+        if not Number.Decided then
+        begin
+          Node := FDocument.Pattern.FindNode(Number.NodeKey);
+          Item := TJSONObject.Create;
+          Undecided.Add(Item);
+          Item.Add('id', StrToInt(Node.Key));
+          Item.Add('name', Node.DisplayName);
+          Item.Add('field', Number.FieldName);
+          Item.Add('token', Number.Token);
+          Item.Add('number', ReportFloat(Number.Value));
+          Item.Add('formula', Node.Field(Number.FieldName).DisplayText(FDocument.Pattern.Resolver));
+          if Node.Field(Number.FieldName).DisplayTokenSpan(FDocument.Pattern.Resolver, Number.Token, At, Len) then
+            Item.Add('position', At);
+        end;
+      Exit(Reply);
+    end;
+    FDocument.BeginChange(rsApiConvertUnits);
+    if not ConvertPatternUnits(FDocument.Pattern, ToUnits, Analysis.Numbers, Err) then
+    begin
+      FDocument.CancelChange;
+      raise EApiError.Create(RpcRefused, Err);
+    end;
+    FDocument.EndChange;
+    Reply.Add('converted', True);
+    Reply.Add('units', MeasureUnitNames[ToUnits]);
+    Reply.Add('skipped', Length(Analysis.Skipped));
+    Result := Reply;
+  except
+    FreeAndNil(Reply);
+    raise;
+  end;
 end;
 
 function TApiServer.DoRename(Params: TJSONObject): TJSONData;
@@ -2084,6 +2173,7 @@ begin
     'add_note': Result := DoAddNote(Params);
     'set_text': Result := DoSetText(Params);
     'export': Result := DoExport(Params);
+    'convert_units': Result := DoConvertUnits(Params);
     else
       raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
   end;
