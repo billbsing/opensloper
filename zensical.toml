@@ -1,10 +1,10 @@
 [project]
-site_url = "https://www.example.com/"
-site_name = "OpenSloper Documentation"
-# site_description = "Your project description"
-# site_author = "Your name"
+site_url = "https://billbsing.github.io/opensloper/"
+site_name = "OpenSloper"
+site_description = "Parametric sewing pattern drafting"
+site_author = "The OpenSloper authors"
 
-# copyright = "Copyright &copy; 2026 Your name"
+copyright = "Copyright &copy; 2026 The OpenSloper authors. Documentation licensed under CC BY-SA 4.0."
 
 repo_url = "https://github.com/billbsing/opensloper.git"
 site_dir = "release/site_docs"
@@ -12,8 +12,16 @@ site_dir = "release/site_docs"
 # edit_uri = "edit/main/docs/"
 
 nav = [
-  { "Get started" = "index.md" },
-  { "Markdown in 5min" = "markdown.md" },
+  { "Home" = "index.md" },
+  { "Getting started" = [
+    "getting-started/index.md",
+    "getting-started/files.md",
+  ] },
+  { "Reference" = [
+    "reference/index.md",
+    "reference/functions.md",
+    "reference/cli.md",
+  ] },
 ]
 
 # extra_css = ["stylesheets/extra.css"]

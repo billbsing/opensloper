@@ -227,6 +227,11 @@
         <UnitName Value="Sloper.Tests.SplitPieces"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.docs.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Docs"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.canvasmodel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>
@@ -310,7 +315,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../src/ui"/>
+      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../src/ui;../src/cli;../src/docs;../src/packages/console-tools"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <CodeGeneration>

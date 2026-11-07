@@ -30,6 +30,8 @@ uses
   SysUtils,
   fpjson,
   ConsoleTools,
+  Sloper.CLI.Arguments,
+  Sloper.Docs.Reference,
   Sloper.Core.Version,
   Sloper.Core.JSON,
   Sloper.Core.Measurements,
@@ -44,35 +46,11 @@ uses
   Sloper.Output.Packing,
   Sloper.API.Server;
 
-const
-  ExitProblems = 1;
-  ExitFailure = 2;
-
 resourcestring
-  rsDescription = 'Export and check OpenSloper patterns.';
-  rsOptHelp = 'Show this help';
-  rsOptVersion = 'Show the version';
-  rsOptMeasurements = 'Measurement file (.slm); default: the one the pattern names';
-  rsOptSize = 'check, layout: the size to use from a size table, default the first; measurements: the size to list or set';
-  rsOptDescription = 'measurements set: the description; default: keep the one it has';
-  rsOptJSON = 'check: print every computed value as JSON; measurements list: print the file';
-  rsOptOutput = 'layout, export, export-draft: the file to write';
-  rsOptLabels = 'export-draft: name the points and pieces';
-  rsOptFormat = 'export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf';
-  rsOptProfile = 'export: a machine profile from the settings, in place of the layout''s';
-  rsArgCommand = 'Command to run';
-  rsArgPattern = 'Pattern file (.sloper), layout file (.slayout) to export, or for measurements: list, set or missing';
-  rsArgFile = 'measurements: the measurement file (.slm)';
-  rsArgKey = 'measurements set: the key; measurements missing: the pattern file';
-  rsArgValue = 'measurements set: the value in mm';
-  rsCmdCheck = 'Evaluate a pattern and report problems';
-  rsCmdExport = 'Export a layout file as PDF, SVG or DXF';
-  rsCmdExportDraft = 'Export a pattern''s draft as SVG, as the drafting window shows it';
-  rsCmdPack = 'Pack a layout''s pieces and rewrite the layout file';
+  rsUnknownTopic = 'There is no documentation topic "%s"; use one of: %s';
   rsPacked = 'Packed %d copies in %s';
   rsPackedPages = 'Packed %d copies on %d pages in %s';
   rsPackLeftOut = 'Warning: %d pieces are too wide for the roll, so they stayed where they were';
-  rsCmdMeasurements = 'List a measurement file, set a value, or see what a pattern needs that it lacks';
   rsMeasurementsUsage = 'Use: measurements list FILE, measurements set FILE KEY VALUE or measurements missing FILE PATTERN';
   rsMeasurementBadNumber = 'The value must be a number of millimetres, such as 820 or 41.5';
   rsMeasurementAdded = '@%s added at %s mm in %s';
@@ -82,8 +60,6 @@ resourcestring
   rsMissingCount = '%s lacks %d of what %s needs:';
   rsMissingKey = '  @%s is not in the file';
   rsMissingSizes = '  @%s has no value for size %s';
-  rsCmdLayout = 'Start a layout file for a pattern, with every piece placed';
-  rsCmdServe = 'Answer JSON-RPC 2.0 on stdin and stdout, one message per line';
   rsNeedPattern = 'The %s command needs a pattern file.';
   rsLoadFailed = '%s: %s';
   rsFileNotFound = 'File not found: %s';
@@ -491,37 +467,42 @@ resourcestring
     end;
   end;
 
+  // A reference page, to the file given or to standard output
+  // With no topic, lists the topics, one a line, for build-docs.sh
+  function RunDoc(const Topic, OutputFile: string): integer;
+  var
+    Markdown, Err, Name: string;
+  begin
+    if Topic = '' then
+    begin
+      for Name in DocTopics do
+        WriteLn(Output, Name);
+      Exit(ExitSuccess);
+    end;
+    if not ReferencePage(Topic, Markdown) then
+    begin
+      WriteLn(StdErr, Format(rsUnknownTopic, [Topic, string.Join(', ', DocTopics)]));
+      Exit(ExitFailure);
+    end;
+    if OutputFile = '' then
+    begin
+      Write(Output, Markdown);
+      Exit(ExitSuccess);
+    end;
+    if not WriteTextFile(OutputFile, Markdown, Err) then
+    begin
+      WriteLn(StdErr, Err);
+      Exit(ExitFailure);
+    end;
+    Result := ExitSuccess;
+  end;
+
 var
   Parser: TArgumentParser;
-  Command: TArgument;
   CommandName, PatternFile, FileArgument, KeyArgument, ValueArgument: string;
 begin
-  Parser := TArgumentParser.Create;
+  Parser := BuildCliParser;
   try
-    Parser.Title := 'opensloper-cli';
-    Parser.Description := rsDescription;
-    Parser.AddOption('help', '-h', '--help', rsOptHelp, '', avSwitch);
-    Parser.AddOption('version', '-V', '--version', rsOptVersion, '', avSwitch);
-    Parser.AddOption('measurements', '-m', '--measurements', rsOptMeasurements, 'file');
-    Parser.AddOption('size', '-s', '--size', rsOptSize, 'size');
-    Parser.AddOption('description', '-d', '--description', rsOptDescription, 'text');
-    Parser.AddOption('json', '', '--json', rsOptJSON, '', avSwitch);
-    Parser.AddOption('output', '-o', '--output', rsOptOutput, 'file');
-    Parser.AddOption('format', '', '--format', rsOptFormat, 'format');
-    Parser.AddOption('profile', '', '--profile', rsOptProfile, 'name');
-    Parser.AddOption('labels', '', '--labels', rsOptLabels, '', avSwitch);
-    Command := Parser.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
-    Command.AddChoice('check', rsCmdCheck);
-    Command.AddChoice('export', rsCmdExport);
-    Command.AddChoice('export-draft', rsCmdExportDraft);
-    Command.AddChoice('layout', rsCmdLayout);
-    Command.AddChoice('measurements', rsCmdMeasurements);
-    Command.AddChoice('pack', rsCmdPack);
-    Command.AddChoice('serve', rsCmdServe);
-    Parser.AddArgument('pattern', rsArgPattern, 'pattern', asOptional);
-    Parser.AddArgument('file', rsArgFile, 'file', asOptional);
-    Parser.AddArgument('key', rsArgKey, 'key', asOptional);
-    Parser.AddArgument('value', rsArgValue, 'value', asOptional);
 
     try
       Parser.Parse;
@@ -570,6 +551,11 @@ begin
         WriteLn(StdErr, rsMeasurementsUsage);
         ExitCode := ExitFailure;
       end;
+      Exit;
+    end;
+    if CommandName = 'doc' then
+    begin
+      ExitCode := RunDoc(PatternFile, Parser.GetOptionValueAsString('output'));
       Exit;
     end;
     if PatternFile = '' then

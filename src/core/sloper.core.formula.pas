@@ -69,6 +69,22 @@ type
 
   TFormulaShape = array of TFormulaShapeNode;
 
+  // A function formulas can call, for the reference documentation
+  TFormulaFunctionInfo = record
+    Name: string;
+    // MaxArgs is -1 when there is no limit
+    MinArgs, MaxArgs: integer;
+    // As written in a call, such as "dy, dx"; "..." when there may be more
+    Arguments: string;
+    Description: string;
+  end;
+  TFormulaFunctionInfoArray = array of TFormulaFunctionInfo;
+
+// Every function, in the order they are listed
+function FormulaFunctions: TFormulaFunctionInfoArray;
+
+type
+
   // Maps names to IDs and back, for the pattern being edited
   TNameResolver = class
   public
@@ -167,6 +183,17 @@ resourcestring
   rsFormulaSqrtNegative = 'Square root of a negative number';
   rsFormulaOutOfDomain = '%s() needs a value from -1 to 1';
   rsFormulaNotANumber = 'The result is not a valid number';
+  rsFunctionSin = 'Sine of an angle in degrees';
+  rsFunctionCos = 'Cosine of an angle in degrees';
+  rsFunctionTan = 'Tangent of an angle in degrees';
+  rsFunctionAsin = 'The angle, in degrees, whose sine is the value (-1 to 1)';
+  rsFunctionAcos = 'The angle, in degrees, whose cosine is the value (-1 to 1)';
+  rsFunctionAtan2 = 'The angle, in degrees, of the direction given by dy and dx';
+  rsFunctionSqrt = 'Square root; the value cannot be negative';
+  rsFunctionAbs = 'The value without its sign';
+  rsFunctionMin = 'The smallest of two or more values';
+  rsFunctionMax = 'The largest of two or more values';
+  rsFunctionRound = 'Rounded to the nearest whole number';
 
 implementation
 
@@ -940,6 +967,28 @@ begin
   if Node is TNegateNode then
     Node := TNegateNode(Node).Operand;
   Result := FTokens[Node.Token].Suffix;
+end;
+
+function FormulaFunctions: TFormulaFunctionInfoArray;
+const
+  Descriptions: array[TFormulaFunction] of string = (rsFunctionSin, rsFunctionCos, rsFunctionTan, rsFunctionAsin,
+    rsFunctionAcos, rsFunctionAtan2, rsFunctionSqrt, rsFunctionAbs, rsFunctionMin, rsFunctionMax, rsFunctionRound);
+  // Not translated: they read as part of a formula
+  ArgumentNames: array[TFormulaFunction] of string = ('angle', 'angle', 'angle', 'value', 'value', 'dy, dx', 'value',
+    'value', 'a, b, ...', 'a, b, ...', 'value');
+var
+  Func: TFormulaFunction;
+begin
+  Result := nil;
+  SetLength(Result, Ord(High(TFormulaFunction)) + 1);
+  for Func := Low(TFormulaFunction) to High(TFormulaFunction) do
+  begin
+    Result[Ord(Func)].Name := FunctionNames[Func];
+    Result[Ord(Func)].MinArgs := FunctionMinArgs[Func];
+    Result[Ord(Func)].MaxArgs := FunctionMaxArgs[Func];
+    Result[Ord(Func)].Arguments := ArgumentNames[Func];
+    Result[Ord(Func)].Description := Descriptions[Func];
+  end;
 end;
 
 function TFormula.Shape: TFormulaShape;

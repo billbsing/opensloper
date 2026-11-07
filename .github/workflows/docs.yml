@@ -1,13 +1,24 @@
+# Builds the user documentation with Zensical and publishes it to GitHub
+# Pages. The reference pages in docs/reference/ are generated from the
+# program and committed (see build-docs.sh), so no Pascal build is needed here.
 name: Documentation
 on:
   push:
     branches:
-      - master
-      - main
+      - development
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'requirements.txt'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
 jobs:
   deploy:
     environment:
@@ -20,10 +31,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
-      - run: pip install zensical
-      - run: zensical build --clean
+      - run: pip install -r requirements.txt
+      - run: zensical build --clean --strict
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: site
+          path: release/site_docs
       - uses: actions/deploy-pages@v5
         id: deployment

@@ -76,7 +76,8 @@ uses
   Sloper.Tests.RepeatPoints,
   Sloper.Tests.PatternUnits,
   Sloper.Tests.UnitConvert,
-  Sloper.Tests.SplitPieces;
+  Sloper.Tests.SplitPieces,
+  Sloper.Tests.Docs;
 
 var
   App: TTestRunner;

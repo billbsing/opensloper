@@ -1372,7 +1372,7 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 
 User documentation is written in Markdown in `docs/` and built into a static site with Zensical, published with GitHub Pages and shipped offline with the apps.
 
-**Tool.** Zensical, the successor to Material for MkDocs from the same team, MIT licensed. It reads `mkdocs.yml`, so the site is configured in one `docs/mkdocs.yml`. Pages stay plain Markdown with only common extensions (admonitions, tables, code blocks), so moving to another generator (MkDocs, mdBook) later means rewriting the navigation, not the pages. Zensical runs at build time only; it is not linked into or shipped with the apps, so its licence places no conditions on OpenSloper.
+**Tool.** Zensical, the successor to Material for MkDocs from the same team, MIT licensed. The site is configured in `zensical.toml` at the repository root and built into `release/site_docs` by `build-docs.sh`, in strict mode, so broken links and missing pages fail the build; Zensical is installed in a local `venv` from `requirements.txt`. Pages stay plain Markdown with only common extensions (admonitions, tables, code blocks), so moving to another generator (MkDocs, mdBook) later means rewriting the navigation, not the pages. Zensical runs at build time only; it is not linked into or shipped with the apps, so its licence places no conditions on OpenSloper.
 
 **Licence.** The manuals are licensed CC BY-SA 4.0, stated in `docs/LICENSE`; code remains GPLv3 or later. The theme's CSS and JavaScript in the built site keep their MIT notice.
 
@@ -1393,8 +1393,9 @@ Pages are written by task ("Add a size", "Rotate a dart"), not by menu. Each app
 **Kept accurate by generating what can be generated:**
 
 - Tutorial patterns live in `docs/examples/` and their illustrations are drawn with `opensloper-cli render`, so pictures follow the app. A script (`docs/build-images.sh`) rebuilds them; the same patterns also serve as regression patterns.
-- Reference pages that come from code (operations and their fields, formula functions, CLI help) are written by the CLI, for example `opensloper-cli doc operations`, so the code is the single source of truth. Generated pages are marked as such and never edited by hand.
-- `run-tests.sh` builds the docs in strict mode, so broken links and missing pages fail the build.
+- Reference pages that come from code are written by the CLI, `opensloper-cli doc TOPIC`, from the tables the code itself uses, so the code is the single source of truth (`Sloper.Docs.Reference` in `src/docs/`). Built 2026-11-07: `functions` (formula functions with their argument names, operators and unit suffixes, from `FormulaFunctions` and `TNumberSuffix`) and `cli` (commands, options, arguments and exit codes, from the tables in `Sloper.CLI.Arguments`, which also build the parser, since ConsoleTools cannot list what it was given). Still to come: `operations` (each operation and its fields) and `api` (the Automation API methods), which need tables of their own, kept honest by tests against the code. `opensloper-cli doc` with no topic lists the topics. Generated pages carry a note saying so and are never edited by hand.
+- Generated pages are committed in `docs/reference/`, so the site builds without a Pascal toolchain. `build-docs.sh` writes them again when the CLI is built, and a test (`Sloper.Tests.Docs`) fails while a committed page differs from what the program writes.
+- The site is published to GitHub Pages by `.github/workflows/docs.yml` on pushes to `development` that touch the docs.
 
 **In the apps:**
 
