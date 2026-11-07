@@ -1,0 +1,8 @@
+# Pictures for the tutorials, drawn by build-docs.sh with opensloper-cli
+# export-draft into docs/tutorials/images/: the image, the pattern (from
+# docs/), and the object to draw up to, or "-" for the whole pattern. Each is
+# drawn with labels.
+skirt-1-frame.svg examples/skirt-block/skirt-block.sloper Hem
+skirt-2-side.svg examples/skirt-block/skirt-block.sloper Side_seam
+skirt-3-darts.svg examples/skirt-block/skirt-block.sloper Front_waist_centre
+skirt-4-pieces.svg examples/skirt-block/skirt-block.sloper -

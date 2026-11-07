@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540mm" height="660mm" viewBox="-30 -30 540 660">
+<rect x="-30" y="-30" width="540" height="660" fill="#ffffff"/>
+<path data-id="14" data-name="Waist_line" d="M 0 0 L 480 0" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="242.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">Waist_line</text>
+<path data-id="16" data-name="Hip_line" d="M 0 200 L 480 200" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="242.7" y="197.3" font-family="sans-serif" font-size="8.4" fill="#202020">Hip_line</text>
+<path data-id="18" data-name="Centre_back" d="M 0 0 L 0 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="2.7" y="297.3" font-family="sans-serif" font-size="8.4" fill="#202020">Centre_back</text>
+<path data-id="19" data-name="Centre_front" d="M 480 0 L 480 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="482.7" y="297.3" font-family="sans-serif" font-size="8.4" fill="#202020">Centre_front</text>
+<path data-id="20" data-name="Hem" d="M 0 600 L 480 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="242.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">Hem</text>
+<circle data-id="10" data-name="A" cx="0" cy="0" r="1.8" fill="#202020"/>
+<text x="2.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">A</text>
+<circle data-id="11" data-name="B" cx="0" cy="200" r="1.8" fill="#202020"/>
+<text x="2.7" y="197.3" font-family="sans-serif" font-size="8.4" fill="#202020">B</text>
+<circle data-id="12" data-name="C" cx="0" cy="600" r="1.8" fill="#202020"/>
+<text x="2.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">C</text>
+<circle data-id="13" data-name="D" cx="480" cy="0" r="1.8" fill="#202020"/>
+<text x="482.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">D</text>
+<circle data-id="15" data-name="E" cx="480" cy="200" r="1.8" fill="#202020"/>
+<text x="482.7" y="197.3" font-family="sans-serif" font-size="8.4" fill="#202020">E</text>
+<circle data-id="17" data-name="F" cx="480" cy="600" r="1.8" fill="#202020"/>
+<text x="482.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">F</text>
+</svg>

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540mm" height="660mm" viewBox="-30 -30 540 660">
+<rect x="-30" y="-30" width="540" height="660" fill="#ffffff"/>
+<path data-id="14" data-name="Waist_line" d="M 0 0 L 480 0" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="242.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">Waist_line</text>
+<path data-id="16" data-name="Hip_line" d="M 0 200 L 480 200" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="242.7" y="197.3" font-family="sans-serif" font-size="8.4" fill="#202020">Hip_line</text>
+<path data-id="18" data-name="Centre_back" d="M 0 0 L 0 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="2.7" y="297.3" font-family="sans-serif" font-size="8.4" fill="#202020">Centre_back</text>
+<path data-id="19" data-name="Centre_front" d="M 480 0 L 480 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="482.7" y="297.3" font-family="sans-serif" font-size="8.4" fill="#202020">Centre_front</text>
+<path data-id="20" data-name="Hem" d="M 0 600 L 480 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="242.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">Hem</text>
+<path data-id="25" data-name="Back_hip" d="M 193.75 0 C 199.56 66.413 230 133.333 230 200" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="216.7" y="96.991" font-family="sans-serif" font-size="8.4" fill="#202020">Back_hip</text>
+<path data-id="26" data-name="Front_hip" d="M 266.25 0 C 260.44 66.413 230 133.333 230 200" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="248.7" y="96.991" font-family="sans-serif" font-size="8.4" fill="#202020">Front_hip</text>
+<path data-id="27" data-name="Side_seam" d="M 230 200 L 230 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="232.7" y="397.3" font-family="sans-serif" font-size="8.4" fill="#202020">Side_seam</text>
+<path data-id="28" data-name="Line_C_J" d="M 0 600 L 230 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="117.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">Line_C_J</text>
+<path data-id="29" data-name="Line_J_F" d="M 230 600 L 480 600" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="357.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">Line_J_F</text>
+<path data-id="34" data-name="Line_P_O" d="M 75.125 0 L 96.875 140" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="88.7" y="67.3" font-family="sans-serif" font-size="8.4" fill="#202020">Line_P_O</text>
+<path data-id="35" data-name="Line_O_Q" d="M 96.875 140 L 118.625 0" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="110.45" y="67.3" font-family="sans-serif" font-size="8.4" fill="#202020">Line_O_Q</text>
+<path data-id="40" data-name="Line_V_R" d="M 387.625 0 L 373.125 90" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="383.075" y="42.3" font-family="sans-serif" font-size="8.4" fill="#202020">Line_V_R</text>
+<path data-id="41" data-name="Line_R_W" d="M 373.125 90 L 358.625 0" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="368.575" y="42.3" font-family="sans-serif" font-size="8.4" fill="#202020">Line_R_W</text>
+<path data-id="42" data-name="Back_waist_centre" d="M 0 0 L 75.125 0" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="40.262" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">Back_waist_centre</text>
+<path data-id="43" data-name="Back_waist_side" d="M 118.625 0 L 193.75 0" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="158.888" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">Back_waist_side</text>
+<path data-id="44" data-name="Front_waist_side" d="M 266.25 0 L 358.625 0" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="315.138" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">Front_waist_side</text>
+<path data-id="45" data-name="Front_waist_centre" d="M 387.625 0 L 480 0" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="436.512" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">Front_waist_centre</text>
+<circle data-id="10" data-name="A" cx="0" cy="0" r="1.8" fill="#202020"/>
+<text x="2.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">A</text>
+<circle data-id="11" data-name="B" cx="0" cy="200" r="1.8" fill="#202020"/>
+<text x="2.7" y="197.3" font-family="sans-serif" font-size="8.4" fill="#202020">B</text>
+<circle data-id="12" data-name="C" cx="0" cy="600" r="1.8" fill="#202020"/>
+<text x="2.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">C</text>
+<circle data-id="13" data-name="D" cx="480" cy="0" r="1.8" fill="#202020"/>
+<text x="482.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">D</text>
+<circle data-id="15" data-name="E" cx="480" cy="200" r="1.8" fill="#202020"/>
+<text x="482.7" y="197.3" font-family="sans-serif" font-size="8.4" fill="#202020">E</text>
+<circle data-id="17" data-name="F" cx="480" cy="600" r="1.8" fill="#202020"/>
+<text x="482.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">F</text>
+<circle data-id="21" data-name="G" cx="230" cy="200" r="1.8" fill="#202020"/>
+<text x="232.7" y="197.3" font-family="sans-serif" font-size="8.4" fill="#202020">G</text>
+<circle data-id="22" data-name="J" cx="230" cy="600" r="1.8" fill="#202020"/>
+<text x="232.7" y="597.3" font-family="sans-serif" font-size="8.4" fill="#202020">J</text>
+<circle data-id="23" data-name="L" cx="193.75" cy="0" r="1.8" fill="#202020"/>
+<text x="196.45" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">L</text>
+<circle data-id="24" data-name="M" cx="266.25" cy="0" r="1.8" fill="#202020"/>
+<text x="268.95" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">M</text>
+<circle data-id="30" data-name="N" cx="96.875" cy="0" r="1.8" fill="#202020"/>
+<text x="99.575" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">N</text>
+<circle data-id="31" data-name="P" cx="75.125" cy="0" r="1.8" fill="#202020"/>
+<text x="77.825" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">P</text>
+<circle data-id="32" data-name="Q" cx="118.625" cy="0" r="1.8" fill="#202020"/>
+<text x="121.325" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">Q</text>
+<circle data-id="33" data-name="O" cx="96.875" cy="140" r="1.8" fill="#202020"/>
+<text x="99.575" y="137.3" font-family="sans-serif" font-size="8.4" fill="#202020">O</text>
+<circle data-id="36" data-name="S" cx="373.125" cy="0" r="1.8" fill="#202020"/>
+<text x="375.825" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">S</text>
+<circle data-id="37" data-name="V" cx="387.625" cy="0" r="1.8" fill="#202020"/>
+<text x="390.325" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">V</text>
+<circle data-id="38" data-name="W" cx="358.625" cy="0" r="1.8" fill="#202020"/>
+<text x="361.325" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">W</text>
+<circle data-id="39" data-name="R" cx="373.125" cy="90" r="1.8" fill="#202020"/>
+<text x="375.825" y="87.3" font-family="sans-serif" font-size="8.4" fill="#202020">R</text>
+</svg>

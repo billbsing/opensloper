@@ -25,7 +25,7 @@ opensloper-cli check PATTERN [-m FILE] [-s SIZE] [--json]
 Export a layout file as PDF, SVG or DXF
 
 ```
-opensloper-cli export LAYOUT [-o FILE] [--format FORMAT] [--profile NAME]
+opensloper-cli export LAYOUT [-o FILE] [--format=FORMAT] [--profile=NAME]
 ```
 
 ### export-draft
@@ -33,7 +33,7 @@ opensloper-cli export LAYOUT [-o FILE] [--format FORMAT] [--profile NAME]
 Export a pattern's draft as SVG, as the drafting window shows it
 
 ```
-opensloper-cli export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--labels]
+opensloper-cli export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--labels] [--upto=NAME]
 ```
 
 ### layout
@@ -93,6 +93,7 @@ opensloper-cli doc
 | `--format` | format | export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf |
 | `--profile` | name | export: a machine profile from the settings, in place of the layout's |
 | `--labels` |  | export-draft: name the points and pieces |
+| `--upto` | name | export-draft: draw only this object and those before it, as the pattern was when it was added |
 
 ## Arguments
 

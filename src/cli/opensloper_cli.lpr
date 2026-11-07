@@ -36,6 +36,7 @@ uses
   Sloper.Core.JSON,
   Sloper.Core.Measurements,
   Sloper.Core.Units,
+  Sloper.Core.Evaluator,
   Sloper.Core.Pattern,
   Sloper.Core.PatternFile,
   Sloper.Core.PatternCheck,
@@ -48,6 +49,8 @@ uses
 
 resourcestring
   rsUnknownTopic = 'There is no documentation topic "%s"; use one of: %s';
+  rsUpToUnknown = 'There is no object named "%s" in the pattern';
+  rsUpToRefused = 'Could not leave out %s: %s';
   rsPacked = 'Packed %d copies in %s';
   rsPackedPages = 'Packed %d copies on %d pages in %s';
   rsPackLeftOut = 'Warning: %d pieces are too wide for the roll, so they stayed where they were';
@@ -176,7 +179,32 @@ resourcestring
 
   // Starts a layout beside the pattern, with every piece placed in rows
   // The drafting canvas as SVG
-  function RunExportDraft(const PatternFile, MeasurementOption, SizeOption, OutputOption: string; WithLabels: boolean): integer;
+  // Deletes every object after the one named, newest first, so the pattern is
+  // as it was when that object was added: a file lists objects after what they use
+  function KeepUpTo(Pattern: TPattern; const ObjectName: string): boolean;
+  var
+    Target: TEvalNode;
+    Last: TEvalNode;
+  begin
+    Target := Pattern.FindObject(ObjectName);
+    if not Assigned(Target) then
+    begin
+      WriteLn(StdErr, Format(rsUpToUnknown, [ObjectName]));
+      Exit(False);
+    end;
+    while Pattern.Objects[Pattern.ObjectCount - 1] <> Target do
+    begin
+      Last := Pattern.Objects[Pattern.ObjectCount - 1];
+      if not Pattern.Delete(Last) then
+      begin
+        WriteLn(StdErr, Format(rsUpToRefused, [Last.DisplayName, Pattern.LastError]));
+        Exit(False);
+      end;
+    end;
+    Result := True;
+  end;
+
+  function RunExportDraft(const PatternFile, MeasurementOption, SizeOption, OutputOption, UpTo: string; WithLabels: boolean): integer;
   var
     Pattern: TPattern;
     Measurements: TMeasurementSet;
@@ -197,6 +225,8 @@ resourcestring
         Exit(ExitFailure);
       end;
       if not UseMeasurements(Pattern, Measurements, PatternFile, MeasurementOption, SizeOption, MeasurementPath) then
+        Exit(ExitFailure);
+      if (UpTo <> '') and not KeepUpTo(Pattern, UpTo) then
         Exit(ExitFailure);
       Pattern.Evaluate;
       Options := DefaultDraftSVGOptions;
@@ -574,7 +604,7 @@ begin
       ExitCode := RunPack(PatternFile)
     else if CommandName = 'export-draft' then
       ExitCode := RunExportDraft(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
-        Parser.GetOptionValueAsString('output'), Parser.IsOption('labels'))
+        Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('upto'), Parser.IsOption('labels'))
     else
       ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('format'),
         Parser.GetOptionValueAsString('profile'));

@@ -35,16 +35,37 @@ type
     procedure TestEveryFunctionListed;
     procedure TestParserHasEveryOption;
     procedure TestEveryCommandListed;
+    procedure TestExamplePatternsHaveNoProblems;
+    procedure TestTutorialImagesDrawWhatExists;
   end;
 
 implementation
 
 uses
-  SysUtils, ConsoleTools, Sloper.Core.JSON, Sloper.Core.Formula, Sloper.CLI.Arguments, Sloper.Docs.Reference;
+  SysUtils, Classes, ConsoleTools, Sloper.Core.JSON, Sloper.Core.Formula, Sloper.Core.Measurements, Sloper.Core.Pattern,
+  Sloper.Core.PatternFile, Sloper.Core.PatternCheck, Sloper.CLI.Arguments, Sloper.Docs.Reference;
+
+function DocsFolder: string;
+begin
+  Result := ConcatPaths([ExtractFileDir(ExtractFileDir(ExpandFileName(ParamStr(0)))), 'docs']);
+end;
 
 function ReferenceFolder: string;
 begin
-  Result := ConcatPaths([ExtractFileDir(ExtractFileDir(ExpandFileName(ParamStr(0)))), 'docs', 'reference']);
+  Result := ConcatPaths([DocsFolder, 'reference']);
+end;
+
+// Loads a pattern from docs/ with the measurement file it names, and evaluates it
+procedure LoadExample(const FileName: string; Pattern: TPattern; Measurements: TMeasurementSet);
+var
+  Err: string;
+begin
+  if not LoadPatternFromFile(Pattern, FileName, Err) then
+    raise EAssertionFailedError.Create(FileName + ': ' + Err);
+  if not Measurements.LoadFromFile(MeasurementFilePath(Pattern, FileName), Err) then
+    raise EAssertionFailedError.Create(FileName + ': ' + Err);
+  Pattern.Measurements := Measurements;
+  Pattern.Evaluate;
 end;
 
 // Run ./build-docs.sh after ./build.sh to write them again
@@ -100,6 +121,94 @@ begin
   AssertTrue(ReferencePage('cli', Markdown));
   for Command in CliCommands do
     AssertTrue(Command.Name, Pos('### ' + Command.Name + #10, Markdown) > 0);
+end;
+
+// Every file under Folder, in its subfolders too, with this extension
+procedure FindFiles(const Folder, Extension: string; Found: TStrings);
+var
+  Search: TSearchRec;
+begin
+  if FindFirst(ConcatPaths([Folder, AllFilesMask]), faAnyFile, Search) = 0 then
+    try
+      repeat
+        if (Search.Name = '.') or (Search.Name = '..') then
+          Continue;
+        if (Search.Attr and faDirectory) <> 0 then
+          FindFiles(ConcatPaths([Folder, Search.Name]), Extension, Found)
+        else if SameText(ExtractFileExt(Search.Name), Extension) then
+          Found.Add(ConcatPaths([Folder, Search.Name]));
+      until FindNext(Search) <> 0;
+    finally
+      FindClose(Search);
+    end;
+end;
+
+// Every tutorial pattern opens with its measurements and works out cleanly
+procedure TTestDocs.TestExamplePatternsHaveNoProblems;
+var
+  Files: TStringList;
+  FileName, Problem: string;
+  Pattern: TPattern;
+  Measurements: TMeasurementSet;
+  Blocked: integer;
+begin
+  Files := TStringList.Create;
+  try
+    FindFiles(ConcatPaths([DocsFolder, 'examples']), '.sloper', Files);
+    AssertTrue('there are examples', Files.Count > 0);
+    for FileName in Files do
+    begin
+      Measurements := TMeasurementSet.Create;
+      Pattern := TPattern.Create;
+      try
+        LoadExample(FileName, Pattern, Measurements);
+        for Problem in PatternProblems(Pattern, Blocked) do
+          Fail(ExtractFileName(FileName) + ': ' + Problem);
+      finally
+        FreeAndNil(Pattern);
+        FreeAndNil(Measurements);
+      end;
+    end;
+  finally
+    FreeAndNil(Files);
+  end;
+end;
+
+// docs/tutorials/images.list names objects to draw up to; each must still exist
+procedure TTestDocs.TestTutorialImagesDrawWhatExists;
+var
+  Lines: TStringList;
+  Line, Err, Text: string;
+  Parts: TStringArray;
+  Pattern: TPattern;
+  Measurements: TMeasurementSet;
+begin
+  AssertTrue(Err, ReadTextFile(ConcatPaths([DocsFolder, 'tutorials', 'images.list']), Text, Err));
+  Lines := TStringList.Create;
+  try
+    Lines.Text := Text;
+    for Line in Lines do
+    begin
+      if (Trim(Line) = '') or Line.StartsWith('#') then
+        Continue;
+      Parts := Line.Split([' '], TStringSplitOptions.ExcludeEmpty);
+      AssertEquals(Line, 3, Length(Parts));
+      AssertTrue(Parts[0] + ' is drawn', FileExists(ConcatPaths([DocsFolder, 'tutorials', 'images', Parts[0]])));
+      if Parts[2] = '-' then
+        Continue;
+      Measurements := TMeasurementSet.Create;
+      Pattern := TPattern.Create;
+      try
+        LoadExample(ConcatPaths([DocsFolder, Parts[1]]), Pattern, Measurements);
+        AssertNotNull(Parts[0] + ': ' + Parts[2] + ' is not in ' + Parts[1], Pattern.FindObject(Parts[2]));
+      finally
+        FreeAndNil(Pattern);
+        FreeAndNil(Measurements);
+      end;
+    end;
+  finally
+    FreeAndNil(Lines);
+  end;
 end;
 
 initialization

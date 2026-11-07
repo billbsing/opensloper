@@ -17,6 +17,16 @@ nav = [
     "getting-started/index.md",
     "getting-started/files.md",
   ] },
+  { "Tutorials" = [
+    "tutorials/index.md",
+    "tutorials/skirt-block.md",
+  ] },
+  { "Design" = [
+    "design/index.md",
+    "design/drawing.md",
+    "design/formulas.md",
+    "design/pieces.md",
+  ] },
   { "Reference" = [
     "reference/index.md",
     "reference/functions.md",

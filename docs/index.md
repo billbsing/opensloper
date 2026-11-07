@@ -27,6 +27,10 @@ direct way of drawing.
 
 - [Getting started](getting-started/index.md): build OpenSloper and open the apps.
 - [The apps and their files](getting-started/files.md): how measurements, patterns and layouts fit together.
+- [A straight skirt block](tutorials/skirt-block.md): a first pattern, from
+  measurements to pieces.
+- [The design window](design/index.md): drafting points, lines, formulas and
+  pieces.
 - [Reference](reference/index.md): formula functions and the command line.
 
 !!! warning "Early development"

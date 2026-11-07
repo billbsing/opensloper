@@ -1,0 +1,29 @@
+{
+  "format": "measurements",
+  "version": 1,
+  "units": "mm",
+  "name": "Tutorial",
+  "notes": "Measurements for the straight skirt tutorial",
+  "measurements": [
+    {
+      "key": "waist",
+      "value": 660,
+      "description": "Waist circumference"
+    },
+    {
+      "key": "hip",
+      "value": 920,
+      "description": "Hip circumference at the fullest part"
+    },
+    {
+      "key": "waist_to_hip",
+      "value": 200,
+      "description": "Waist to hip line, at the side"
+    },
+    {
+      "key": "skirt_length",
+      "value": 600,
+      "description": "Waist to hem, at the side"
+    }
+  ]
+}

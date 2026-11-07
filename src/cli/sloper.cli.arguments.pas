@@ -63,6 +63,7 @@ resourcestring
   rsOptJSON = 'check: print every computed value as JSON; measurements list: print the file';
   rsOptOutput = 'layout, export, export-draft, doc: the file to write';
   rsOptLabels = 'export-draft: name the points and pieces';
+  rsOptUpTo = 'export-draft: draw only this object and those before it, as the pattern was when it was added';
   rsOptFormat = 'export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf';
   rsOptProfile = 'export: a machine profile from the settings, in place of the layout''s';
   rsArgCommand = 'Command to run';
@@ -87,15 +88,16 @@ const
   CliTitle = 'opensloper-cli';
   CliCommands: array[0..7] of TCliCommand = (
     (Name: 'check'; Usage: 'check PATTERN [-m FILE] [-s SIZE] [--json]'; Description: rsCmdCheck),
-    (Name: 'export'; Usage: 'export LAYOUT [-o FILE] [--format FORMAT] [--profile NAME]'; Description: rsCmdExport),
-    (Name: 'export-draft'; Usage: 'export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--labels]'; Description: rsCmdExportDraft),
+    (Name: 'export'; Usage: 'export LAYOUT [-o FILE] [--format=FORMAT] [--profile=NAME]'; Description: rsCmdExport),
+    (Name: 'export-draft'; Usage: 'export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--labels] [--upto=NAME]';
+    Description: rsCmdExportDraft),
     (Name: 'layout'; Usage: 'layout PATTERN [-o FILE] [-m FILE] [-s SIZE]'; Description: rsCmdLayout),
     (Name: 'measurements'; Usage: 'measurements list FILE [-s SIZE] [--json]' + LineEnding +
     'measurements set FILE KEY VALUE [-s SIZE] [-d TEXT]' + LineEnding + 'measurements missing FILE PATTERN'; Description: rsCmdMeasurements),
     (Name: 'pack'; Usage: 'pack LAYOUT'; Description: rsCmdPack),
     (Name: 'serve'; Usage: 'serve'; Description: rsCmdServe),
     (Name: 'doc'; Usage: 'doc TOPIC [-o FILE]' + LineEnding + 'doc'; Description: rsCmdDoc));
-  CliOptions: array[0..9] of TCliOption = (
+  CliOptions: array[0..10] of TCliOption = (
     (Name: 'help'; Short: '-h'; Long: '--help'; Parameter: ''; Description: rsOptHelp),
     (Name: 'version'; Short: '-V'; Long: '--version'; Parameter: ''; Description: rsOptVersion),
     (Name: 'measurements'; Short: '-m'; Long: '--measurements'; Parameter: 'file'; Description: rsOptMeasurements),
@@ -105,7 +107,8 @@ const
     (Name: 'output'; Short: '-o'; Long: '--output'; Parameter: 'file'; Description: rsOptOutput),
     (Name: 'format'; Short: ''; Long: '--format'; Parameter: 'format'; Description: rsOptFormat),
     (Name: 'profile'; Short: ''; Long: '--profile'; Parameter: 'name'; Description: rsOptProfile),
-    (Name: 'labels'; Short: ''; Long: '--labels'; Parameter: ''; Description: rsOptLabels));
+    (Name: 'labels'; Short: ''; Long: '--labels'; Parameter: ''; Description: rsOptLabels),
+    (Name: 'upto'; Short: ''; Long: '--upto'; Parameter: 'name'; Description: rsOptUpTo));
   // After the command, in order; all optional, as each command takes its own
   CliArguments: array[0..3] of TCliArgument = (
     (Name: 'pattern'; Description: rsArgPattern),
