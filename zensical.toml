@@ -20,6 +20,7 @@ nav = [
   { "Reference" = [
     "reference/index.md",
     "reference/functions.md",
+    "reference/operations.md",
     "reference/cli.md",
   ] },
 ]

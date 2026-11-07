@@ -18,7 +18,8 @@
 
 // Reference pages of the user documentation, written as Markdown from the
 // tables the code itself uses, so they cannot drift from it: the formula
-// functions and units, and the command line. opensloper-cli doc TOPIC writes
+// functions and units, every kind of object and its members, and the command
+// line. opensloper-cli doc TOPIC writes
 // one; build-docs.sh writes them all into docs/reference/. No LCL dependency.
 unit Sloper.Docs.Reference;
 
@@ -28,7 +29,7 @@ interface
 
 const
   // Each is written to docs/reference/TOPIC.md
-  DocTopics: array[0..1] of string = ('functions', 'cli');
+  DocTopics: array[0..2] of string = ('functions', 'operations', 'cli');
 
 // The page for Topic; False when there is no such topic
 function ReferencePage(const Topic: string; out Markdown: string): boolean;
@@ -70,11 +71,41 @@ resourcestring
   rsDocArgument = 'Argument';
   rsDocExitCodes = 'Exit codes';
   rsDocCode = 'Code';
+  rsDocOperationsTitle = 'Operations and objects';
+  rsDocOperationsIntro = 'Every kind of object a pattern holds, with its members as they are written in a pattern file ' +
+    'and given to the Automation API (`add_point`, `add_edge` and the other methods take the same names). Formulas are ' +
+    'text, in the pattern''s unit; a plain number may be given in their place. Objects refer to one another by ID.';
+  rsDocCommonTitle = 'Members every object has';
+  rsDocCommonEdges = 'Edges also have:';
+  rsDocCommonPoints = 'Points and repeats also have:';
+  rsDocGroupPoints = 'Points';
+  rsDocGroupEdges = 'Edges';
+  rsDocGroupTransforms = 'Transforms';
+  rsDocGroupPieces = 'Pieces and seams';
+  rsDocGroupAnnotations = 'Notes';
+  rsDocMember = 'Member';
+  rsDocReads = 'Formulas can read: %s.';
+  rsDocKindLength = 'length formula';
+  rsDocKindAngle = 'angle formula';
+  rsDocKindNumber = 'number formula';
+  rsDocKindLengthOrRatio = 'length or ratio formula';
+  rsDocKindPoint = 'point ID';
+  rsDocKindEdge = 'edge ID';
+  rsDocKindPiece = 'piece ID';
+  rsDocKindObject = 'object ID';
+  rsDocKindFabric = 'fabric ID';
+  rsDocKindChoice = 'one of: %s';
+  rsDocKindFlag = 'true or false';
+  rsDocKindWhole = 'whole number';
+  rsDocKindText = 'text';
+  rsDocKindSize = 'number';
+  rsDocKindList = 'list';
+  rsDocKindGroup = 'group';
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Units, Sloper.CLI.Arguments;
+  SysUtils, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Units, Sloper.Core.OperationInfo, Sloper.CLI.Arguments;
 
 // Characters that would end a table cell or start markup
 function Cell(const Text: string): string;
@@ -149,6 +180,73 @@ begin
     Result := Result + Row([Code(NumberSuffixNames[Suffix]), FormatFloat('0.##', NumberSuffixMillimetres[Suffix])]);
 end;
 
+function KindText(const Member: TOperationMember): string;
+const
+  Kinds: array[TMemberKind] of string = (rsDocKindLength, rsDocKindAngle, rsDocKindNumber, rsDocKindLengthOrRatio,
+    rsDocKindPoint, rsDocKindEdge, rsDocKindPiece, rsDocKindObject, rsDocKindFabric, rsDocKindChoice, rsDocKindFlag,
+    rsDocKindWhole, rsDocKindText, rsDocKindSize, rsDocKindList, rsDocKindGroup);
+var
+  Words: TStringArray;
+  Index: integer;
+begin
+  if Member.Kind <> mkChoice then
+    Exit(Kinds[Member.Kind]);
+  Words := Member.Choices.Split([', ']);
+  for Index := 0 to High(Words) do
+    Words[Index] := Code(Words[Index]);
+  Result := Format(rsDocKindChoice, [string.Join(', ', Words)]);
+end;
+
+function MemberTable(const Members: TOperationMemberArray): string;
+var
+  Member: TOperationMember;
+begin
+  Result := HeaderRow([rsDocMember, rsDocValue, rsDocDescription]);
+  for Member in Members do
+    Result := Result + Row([Code(Member.Name), KindText(Member), Cell(Member.Description)]);
+  Result := Result + LineEnding;
+end;
+
+function OperationsPage: string;
+const
+  GroupTitles: array[TOperationGroup] of string = (rsDocGroupPoints, rsDocGroupEdges, rsDocGroupTransforms, rsDocGroupPieces,
+    rsDocGroupAnnotations);
+var
+  Group: TOperationGroup;
+  Info: TOperationInfo;
+  Common: TOperationMemberArray;
+  Names: TStringArray;
+  Index: integer;
+begin
+  Result := Heading(1, rsDocOperationsTitle) + Generated('operations') + Paragraph(rsDocOperationsIntro);
+  Common := CommonMembers(ogTransform);
+  Result := Result + Heading(2, rsDocCommonTitle) + MemberTable(Common);
+  Result := Result + Paragraph(rsDocCommonEdges) + MemberTable(Copy(CommonMembers(ogEdge), Length(Common), MaxInt));
+  Result := Result + Paragraph(rsDocCommonPoints) + MemberTable(Copy(CommonMembers(ogPoint), Length(Common), MaxInt));
+  for Group := Low(TOperationGroup) to High(TOperationGroup) do
+  begin
+    Result := Result + Heading(2, GroupTitles[Group]);
+    for Info in OperationInfos do
+      if Info.Group = Group then
+      begin
+        Result := Result + Heading(3, Info.Title + ' (' + Code(Info.TypeName) + ')') + Paragraph(Info.Summary);
+        if Info.Properties <> '' then
+        begin
+          // A condition in brackets stays outside the code: .angle (when straight)
+          Names := Info.Properties.Split([', ']);
+          for Index := 0 to High(Names) do
+            if Pos(' (', Names[Index]) > 0 then
+              Names[Index] := Code('.' + Copy(Names[Index], 1, Pos(' (', Names[Index]) - 1)) +
+                Copy(Names[Index], Pos(' (', Names[Index]), MaxInt)
+            else
+              Names[Index] := Code('.' + Names[Index]);
+          Result := Result + Paragraph(Format(rsDocReads, [string.Join(', ', Names)]));
+        end;
+        Result := Result + MemberTable(Info.Members);
+      end;
+  end;
+end;
+
 function CliPage: string;
 var
   Command: TCliCommand;
@@ -189,6 +287,8 @@ begin
   Result := True;
   if Topic = 'functions' then
     Markdown := FunctionsPage
+  else if Topic = 'operations' then
+    Markdown := OperationsPage
   else if Topic = 'cli' then
     Markdown := CliPage
   else

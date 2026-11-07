@@ -232,6 +232,11 @@
         <UnitName Value="Sloper.Tests.Docs"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.operationinfo.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.OperationInfo"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.canvasmodel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>
