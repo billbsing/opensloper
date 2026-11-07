@@ -58,6 +58,7 @@ type
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
     function Compute(Context: TEvalContext): TEvalState; override;
+    function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     function UsesPiece(const PieceKey: string): boolean;
     function UsesEdge(const PieceKey, EdgeKey: string): boolean;
     // Length of side B over side A, from the last good evaluation
@@ -232,6 +233,14 @@ begin
     Result := not AlongPath
   else
     Result := AlongPath;
+end;
+
+function TSeamObject.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  if (AName = SeamEaseField) or (AName = SeamToleranceField) then
+    Result := fkLength
+  else
+    Result := inherited FieldUnitKind(AName);
 end;
 
 end.

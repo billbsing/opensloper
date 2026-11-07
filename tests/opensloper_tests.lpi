@@ -217,6 +217,11 @@
         <UnitName Value="Sloper.Tests.PatternUnits"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.unitconvert.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.UnitConvert"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.canvasmodel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>

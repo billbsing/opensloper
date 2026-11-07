@@ -104,6 +104,7 @@ type
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
     function Compute(Context: TEvalContext): TEvalState; override;
+    function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     // Turns an anchored note free, taking fields x and y in place of its
     // offset, and drops its leader; the caller sets their formulas
     procedure MakeFree;
@@ -588,6 +589,18 @@ begin
   Stop := Pos(#10, Result);
   if Stop > 0 then
     Result := Copy(Result, 1, Stop - 1);
+end;
+
+// The place is in lengths, the position along an edge a ratio, and a draft
+// value is whatever its formula makes it
+function TNoteObject.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  if AName = NotePositionField then
+    Result := fkNumber
+  else if AName.StartsWith(NoteValueField) then
+    Result := fkFree
+  else
+    Result := inherited FieldUnitKind(AName);
 end;
 
 end.

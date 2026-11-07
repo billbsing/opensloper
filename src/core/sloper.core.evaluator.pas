@@ -41,6 +41,11 @@ type
     function FindNode(const Key: string): TEvalNode; virtual; abstract;
   end;
 
+  // What a formula field's result is, for converting a pattern's unit: a
+  // length, an angle, a plain number (a count or ratio), or free, when only
+  // its uses say (a variable) or nothing does (a note's draft value)
+  TFieldUnitKind = (fkLength, fkAngle, fkNumber, fkFree);
+
   TFormulaField = record
     Name: string;
     Formula: TFormula;
@@ -77,6 +82,8 @@ type
     // Inputs plus every node the formulas reference, without repeats
     function DependencyKeys: TStringArray;
     function DisplayName: string; virtual; abstract;
+    // What the field holds; a plain number unless a node says otherwise
+    function FieldUnitKind(const AName: string): TFieldUnitKind; virtual;
     // Computes the result. Called only when every dependency is valid. On
     // failure returns esError or esInvalid with Message set, keeping the last
     // good result.
@@ -274,6 +281,11 @@ function TEvalNode.Fail(AState: TEvalState; const Msg: string): TEvalState;
 begin
   FMessage := Msg;
   Result := AState;
+end;
+
+function TEvalNode.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  Result := fkNumber;
 end;
 
 function TEvalNode.ComputeExtras(Context: TEvalContext): TEvalState;

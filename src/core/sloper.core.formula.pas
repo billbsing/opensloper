@@ -49,6 +49,26 @@ type
 
   TFormulaReferenceArray = array of TFormulaReference;
 
+  // A parsed formula's tree, flattened for analysis outside this unit (the
+  // roles of numbers when a pattern changes unit). Node 0 is the root.
+  TFormulaShapeKind = (fsNumber, fsReference, fsNegate, fsAdd, fsSubtract, fsMultiply, fsDivide, fsPower, fsFunction);
+
+  TFormulaShapeNode = record
+    Kind: TFormulaShapeKind;
+    // fsNumber: the value as written, its suffix and its token
+    Value: double;
+    Suffix: TNumberSuffix;
+    Token: integer;
+    // fsReference: index into References
+    Reference: integer;
+    // fsFunction: its name, in lower case
+    FunctionName: string;
+    // Operands or arguments, as indexes into the shape
+    Children: array of integer;
+  end;
+
+  TFormulaShape = array of TFormulaShapeNode;
+
   // Maps names to IDs and back, for the pattern being edited
   TNameResolver = class
   public
@@ -107,6 +127,11 @@ type
     // The unit a literal's number is written in; nsNone for a plain number
     // or anything that is not a literal
     function LiteralSuffix: TNumberSuffix;
+    // The parsed tree; empty when the formula is not valid
+    function Shape: TFormulaShape;
+    // A token's place in StoredText, and in DisplayText
+    function StoredTokenSpan(Token: integer; out Pos, Len: integer): boolean;
+    function DisplayTokenSpan(Resolver: TNameResolver; Token: integer; out Pos, Len: integer): boolean;
     property StoredText: string read FStoredText;
     property References: TFormulaReferenceArray read FReferences;
     property Valid: boolean read FValid;
@@ -915,6 +940,102 @@ begin
   if Node is TNegateNode then
     Node := TNegateNode(Node).Operand;
   Result := FTokens[Node.Token].Suffix;
+end;
+
+function TFormula.Shape: TFormulaShape;
+var
+  Nodes: TFormulaShape;
+  Count: integer;
+
+  function Add(Node: TFormulaNode): integer;
+  var
+    Index, Child: integer;
+  begin
+    Result := Count;
+    Inc(Count);
+    if Count > Length(Nodes) then
+      SetLength(Nodes, Count * 2);
+    Nodes[Result] := Default(TFormulaShapeNode);
+    Nodes[Result].Token := Node.Token;
+    Nodes[Result].Reference := -1;
+    if Node is TNumberNode then
+    begin
+      Nodes[Result].Kind := fsNumber;
+      Nodes[Result].Value := TNumberNode(Node).Value;
+      Nodes[Result].Suffix := TNumberNode(Node).Suffix;
+    end
+    else if Node is TReferenceNode then
+    begin
+      Nodes[Result].Kind := fsReference;
+      Nodes[Result].Reference := TReferenceNode(Node).Index;
+    end
+    else if Node is TNegateNode then
+    begin
+      Nodes[Result].Kind := fsNegate;
+      Child := Add(TNegateNode(Node).Operand);
+      Nodes[Result].Children := [Child];
+    end
+    else if Node is TBinaryNode then
+    begin
+      case TBinaryNode(Node).Op of
+        '+': Nodes[Result].Kind := fsAdd;
+        '-': Nodes[Result].Kind := fsSubtract;
+        '*': Nodes[Result].Kind := fsMultiply;
+        '/': Nodes[Result].Kind := fsDivide;
+        else
+          Nodes[Result].Kind := fsPower;
+      end;
+      Child := Add(TBinaryNode(Node).Left);
+      Nodes[Result].Children := [Child];
+      Child := Add(TBinaryNode(Node).Right);
+      Insert(Child, Nodes[Result].Children, 1);
+    end
+    else if Node is TFunctionNode then
+    begin
+      Nodes[Result].Kind := fsFunction;
+      Nodes[Result].FunctionName := FunctionNames[TFunctionNode(Node).Func];
+      for Index := 0 to High(TFunctionNode(Node).Args) do
+      begin
+        Child := Add(TFunctionNode(Node).Args[Index]);
+        Insert(Child, Nodes[Result].Children, Length(Nodes[Result].Children));
+      end;
+    end;
+  end;
+
+begin
+  Result := nil;
+  if not FValid or not Assigned(FRoot) then
+    Exit;
+  Nodes := nil;
+  Count := 0;
+  Add(FRoot);
+  SetLength(Nodes, Count);
+  Result := Nodes;
+end;
+
+function TFormula.StoredTokenSpan(Token: integer; out Pos, Len: integer): boolean;
+begin
+  Pos := 0;
+  Len := 0;
+  Result := FValid and (Token >= 0) and (Token <= High(FTokens));
+  if not Result then
+    Exit;
+  Pos := FTokens[Token].Pos;
+  Len := FTokens[Token].Len;
+end;
+
+function TFormula.DisplayTokenSpan(Resolver: TNameResolver; Token: integer; out Pos, Len: integer): boolean;
+var
+  TokenPos: TFormulaTokenArray;
+begin
+  Pos := 0;
+  Len := 0;
+  Result := FValid and (Token >= 0) and (Token <= High(FTokens));
+  if not Result then
+    Exit;
+  BuildDisplay(Resolver, TokenPos);
+  Pos := TokenPos[Token].Pos;
+  Len := TokenPos[Token].Len;
 end;
 
 end.

@@ -28,7 +28,7 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry, Sloper.Core.Draft,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
   Sloper.UI.FabricsPanel, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform;
 
 type
@@ -169,6 +169,7 @@ type
     procedure MarkingClick(Sender: TObject);
     procedure RemoveMarkingClick(Sender: TObject);
     procedure SuggestSeamsClick(Sender: TObject);
+    procedure ConvertUnitsClick(Sender: TObject);
     procedure CanvasToolChange(Sender: TObject);
     procedure CanvasSelectionChange(Sender: TObject);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
@@ -200,7 +201,7 @@ implementation
 uses
   Math, process, Graphics, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
-  Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units,
+  Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.UnitConvert,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
 
   {$R *.lfm}
@@ -302,6 +303,8 @@ resourcestring
   rsMenuToolsMirror = 'M&irror Copy...';
   rsMenuToolsMove = 'Mo&ve Copy...';
   rsMenuToolsSuggest = 'Suggest &Seams...';
+  rsMenuToolsConvertUnits = 'Convert Pattern &Units...';
+  rsConvertUnitsChange = 'Convert pattern units';
   rsNoSuggestions = 'No more seams to suggest';
   rsAddSuggestedSeams = 'Add seams';
   rsHintKey = '%s (%s)';
@@ -900,7 +903,7 @@ var
   Marking: TMarkingKind;
   Kind: TTransformKind;
   SubMenu: TMenuItem;
-  OffsetAction: TAction;
+  OffsetAction, ConvertAction: TAction;
   Role: TEdgeRole;
 
   procedure AddCommand(AParent: TMenuItem; AAction: TAction);
@@ -1002,6 +1005,11 @@ begin
   for Kind := Low(TTransformKind) to High(TTransformKind) do
     AddCommand(SubMenu, NewAction(TransformCaptions[Kind], TransformIcons[Kind], @TransformClick, 0, Ord(Kind)));
   AddCommand(MenuTools, NewAction(rsMenuToolsSuggest, aiSuggestSeams, @SuggestSeamsClick));
+  // Menu only: a rare command, with no icon of its own
+  MenuTools.Add(NewLine);
+  ConvertAction := NewAction(rsMenuToolsConvertUnits, aiSuggestSeams, @ConvertUnitsClick);
+  ConvertAction.ImageIndex := -1;
+  AddMenuItem(MenuTools, ConvertAction);
 end;
 
 procedure TMainForm.MarkingClick(Sender: TObject);
@@ -1098,6 +1106,24 @@ begin
   FDocument.Commit(Done);
 end;
 
+procedure TMainForm.ConvertUnitsClick(Sender: TObject);
+var
+  ToUnits: TMeasureUnit;
+  Numbers: TUnitNumberArray;
+  Err: string;
+begin
+  if not ChooseUnitConversion(Self, FDocument.Pattern, ToUnits, Numbers) then
+    Exit;
+  FDocument.BeginChange(rsConvertUnitsChange);
+  if not ConvertPatternUnits(FDocument.Pattern, ToUnits, Numbers, Err) then
+  begin
+    FDocument.CancelChange;
+    MessageDlg(Err, mtError, [mbOK], 0);
+    Exit;
+  end;
+  FDocument.EndChange;
+end;
+
 procedure TMainForm.ToolClick(Sender: TObject);
 begin
   FCanvas.Tool := TCanvasTool(TComponent(Sender).Tag);
@@ -1155,8 +1181,8 @@ end;
 
 procedure TMainForm.DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
 begin
-  // A new or opened pattern may be in another unit
-  if dcObjectsReplaced in Changes then
+  // A new or opened pattern, a conversion, or undoing one, may change the unit
+  if FDocument.Pattern.Units <> FHorzRuler.MeasureUnit then
     ApplyPreferences;
   if dcFile in Changes then
     UpdateTitle;

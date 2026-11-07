@@ -38,6 +38,8 @@ type
     Description: string;
     constructor Create(const AKey: string);
     function DisplayName: string; override;
+    // Free: a variable is whatever its uses make it
+    function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     function Compute(Context: TEvalContext): TEvalState; override;
     function Formula: TFormula;
     property Name: string read FName write FName;
@@ -111,6 +113,11 @@ begin
   end;
   FValue := NewValue;
   Result := esValid;
+end;
+
+function TVariable.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  Result := fkFree;
 end;
 
 end.

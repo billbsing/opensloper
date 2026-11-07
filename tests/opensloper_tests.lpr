@@ -74,7 +74,8 @@ uses
   Sloper.Tests.SeamlyFormat,
   Sloper.Tests.Arrange,
   Sloper.Tests.RepeatPoints,
-  Sloper.Tests.PatternUnits;
+  Sloper.Tests.PatternUnits,
+  Sloper.Tests.UnitConvert;
 
 var
   App: TTestRunner;

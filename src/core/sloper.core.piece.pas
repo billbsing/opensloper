@@ -143,6 +143,7 @@ type
     function HasProperty(const Prop: string): boolean; override;
     function PropertyValue(const Prop: string): double; override;
     function Compute(Context: TEvalContext): TEvalState; override;
+    function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     // Index in the path of the edge with this key, or -1
     function PathIndexOf(const EdgeKey: string): integer;
     function OverrideField(PathIndex: integer): string;
@@ -898,6 +899,19 @@ begin
   AddStroke(FGrainline.P2, PolarPoint(FGrainline.P2, GrainHeadLength, Angle - GrainHeadSpread));
   AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GrainHeadLength, Angle + GrainHeadSpread + 180));
   AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GrainHeadLength, Angle - GrainHeadSpread + 180));
+end;
+
+// The allowance and its overrides (edge1.allowance), marking spacings and
+// sizes, and notch positions along an edge are lengths; the grainline's is an angle
+function TPieceObject.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  if AName = GrainAngleField then
+    Result := fkAngle
+  else if (AName = PieceAllowanceField) or AName.EndsWith('.' + PieceAllowanceField) or AName.EndsWith('.' + MarkingSpacingField) or
+    AName.EndsWith('.' + MarkingSizeField) or AName.EndsWith('.position') then
+    Result := fkLength
+  else
+    Result := inherited FieldUnitKind(AName);
 end;
 
 end.

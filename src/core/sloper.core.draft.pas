@@ -115,6 +115,8 @@ type
     FMarkerSize: double;
   public
     function DisplayName: string; override;
+    // By the field's name, as points, edges and transforms use them
+    function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     // Evaluates the marker's size
     function ComputeExtras(Context: TEvalContext): TEvalState; override;
     // Adds or removes the size field; only points and repeats take one (see
@@ -182,6 +184,7 @@ type
     constructor Create(const AKey, AEdge: string; AFromEnd: boolean; AMode: TAlongMode);
     function InputKeys: TStringArray; override;
     function Compute(Context: TEvalContext): TEvalState; override;
+    function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     property Edge: string read FEdge;
     property FromEnd: boolean read FFromEnd;
     property Mode: TAlongMode read FMode;
@@ -198,6 +201,7 @@ type
     function InputKeys: TStringArray; override;
     procedure RedirectPoint(const OldKey, NewKey: string); override;
     function Compute(Context: TEvalContext): TEvalState; override;
+    function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     property PointA: string read FA;
     property PointB: string read FB;
     property Mode: TAlongMode read FMode;
@@ -636,6 +640,44 @@ end;
 function TDraftObject.DisplayName: string;
 begin
   Result := FName;
+end;
+
+function TDraftObject.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  case AName of
+    'x', 'y', 'length', 'dx', 'dy', 'length1', 'length2', 'radius', 'radiusA', 'radiusB', 'distance', MarkerSizeField:
+      Result := fkLength;
+    'angle', 'angle1', 'angle2', 'rotate':
+      Result := fkAngle;
+    else
+      // A curve path's node fields: node1.angle, node1.lengthIn, node1.lengthOut
+      if AName.EndsWith('.angle') then
+        Result := fkAngle
+      else if AName.EndsWith('.lengthIn') or AName.EndsWith('.lengthOut') then
+        Result := fkLength
+      else
+        Result := fkNumber;
+  end;
+end;
+
+function TAlongEdgePoint.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  if (AName = 'value') and (FMode = amRatio) then
+    Result := fkNumber
+  else if AName = 'value' then
+    Result := fkLength
+  else
+    Result := inherited FieldUnitKind(AName);
+end;
+
+function TBetweenPoint.FieldUnitKind(const AName: string): TFieldUnitKind;
+begin
+  if (AName = 'value') and (FMode = amRatio) then
+    Result := fkNumber
+  else if AName = 'value' then
+    Result := fkLength
+  else
+    Result := inherited FieldUnitKind(AName);
 end;
 
 function TDraftObject.ComputeExtras(Context: TEvalContext): TEvalState;
