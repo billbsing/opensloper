@@ -192,6 +192,7 @@ begin
   Buttons.Top := 10000;
   Buttons.BevelOuter := bvNone;
   Buttons.AutoSize := True;
+  Buttons.BorderSpacing.Top:= 8;
   AddButton(Buttons, rsMeasurementsAdd, @AddClick);
   FSaveButton := AddButton(Buttons, rsMeasurementsSave, @SaveClick);
   // After the editors, which it disables while testing
@@ -209,6 +210,7 @@ begin
   Result.Align := alLeft;
   Result.Left := Host.ControlCount * 100;
   Result.OnClick := OnPress;
+  Result.BorderSpacing.Right := 8;
 end;
 
 // A caption above a field, one under another
