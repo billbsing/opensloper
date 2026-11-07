@@ -26,7 +26,7 @@ interface
 
 type
   TAppIcon = (aiNew, aiOpen, aiSave, aiSaveAs, aiMeasurements, aiPublish, aiExportDraft, aiQuit,
-    aiUndo, aiRedo, aiCopy, aiPaste, aiDelete,
+    aiUndo, aiRedo, aiCut, aiCopy, aiPaste, aiDelete,
     aiZoomIn, aiZoomOut, aiFit, aiTrueSize, aiSidePanel, aiLabels, aiPieceFills, aiAbout,
     aiSelect, aiPoint, aiLine, aiCurve, aiPiece, aiNotch, aiSeam,
     aiSplit, aiCircle, aiArc, aiRectangle, aiRoundCorner, aiOffsetLeft, aiOffsetRight, aiToLine, aiToCurve,
@@ -43,7 +43,7 @@ type
 const
   AppIconNames: array[TAppIcon] of string = ('file-plus', 'folder-open', 'device-floppy', 'file-pencil',
     'ruler-measure', 'printer', 'file-type-svg', 'logout',
-    'arrow-back-up', 'arrow-forward-up', 'copy', 'clipboard', 'trash',
+    'arrow-back-up', 'arrow-forward-up', 'cut', 'copy', 'clipboard', 'trash',
     'zoom-in', 'zoom-out', 'zoom-scan', 'zoom-reset', 'layout-sidebar-right', 'tag', 'bucket', 'info-circle',
     'pointer', 'point', 'line', 'vector-bezier', 'polygon', 'triangle-inverted', 'needle-thread',
     'scissors', 'circle', 'rainbow', 'rectangle', 'border-corner-rounded', 'arrow-bar-left', 'arrow-bar-right', 'line', 'vector-bezier',

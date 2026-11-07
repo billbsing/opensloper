@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
-  Sloper.UI.FabricsPanel, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform;
+  Sloper.UI.FabricsPanel, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform, Sloper.Core.Fragment;
 
 type
 
@@ -125,7 +125,9 @@ type
     procedure SaveSettings;
     procedure ApplyPreferences;
     procedure PreferencesClick(Sender: TObject);
+    procedure EditCutClick(Sender: TObject);
     procedure EditCopyClick(Sender: TObject);
+    procedure PutOnClipboard(const Copied: TFragmentCopy);
     procedure EditPasteClick(Sender: TObject);
     function FragmentFormat: TClipboardFormat;
     function AddEditItem(AAction: TAction): TMenuItem;
@@ -205,7 +207,7 @@ var
 implementation
 
 uses
-  Math, process, Graphics, Clipbrd, Sloper.Core.Fragment, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
+  Math, process, Graphics, Clipbrd, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
   Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.UnitConvert,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
@@ -245,6 +247,7 @@ resourcestring
   rsMenuEditUndoWhat = '&Undo %s';
   rsMenuEditRedo = '&Redo';
   rsMenuEditRedoWhat = '&Redo %s';
+  rsMenuEditCut = 'Cu&t';
   rsMenuEditCopy = '&Copy';
   rsMenuEditPaste = '&Paste';
   rsMenuEditDelete = '&Delete';
@@ -765,7 +768,8 @@ begin
   MenuEditUndo.Action := FUndoAction;
   FRedoAction := NewAction(rsMenuEditRedo, aiRedo, @MenuEditRedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
   MenuEditRedo.Action := FRedoAction;
-  // In a text field Copy and Paste work on its text
+  // In a text field Cut, Copy and Paste work on its text
+  AddEditItem(NewAction(rsMenuEditCut, aiCut, @EditCutClick, ShortCut(VK_X, [ssModifier])));
   AddEditItem(NewAction(rsMenuEditCopy, aiCopy, @EditCopyClick, ShortCut(VK_C, [ssModifier])));
   AddEditItem(NewAction(rsMenuEditPaste, aiPaste, @EditPasteClick, ShortCut(VK_V, [ssModifier])));
   // The canvas handles the Delete key, so typing in a field can still delete text
@@ -1563,16 +1567,25 @@ end;
 // The objects go on the clipboard twice: as a fragment, and as their names
 // for a formula field or another app
 procedure TMainForm.EditCopyClick(Sender: TObject);
-var
-  Copied: TFragmentCopy;
-  Stream: TStringStream;
 begin
   if ActiveControl is TCustomEdit then
-  begin
-    TCustomEdit(ActiveControl).CopyToClipboard;
-    Exit;
-  end;
-  Copied := FCanvas.CopySelection;
+    TCustomEdit(ActiveControl).CopyToClipboard
+  else
+    PutOnClipboard(FCanvas.CopySelection);
+end;
+
+procedure TMainForm.EditCutClick(Sender: TObject);
+begin
+  if ActiveControl is TCustomEdit then
+    TCustomEdit(ActiveControl).CutToClipboard
+  else
+    PutOnClipboard(FCanvas.CutSelection);
+end;
+
+procedure TMainForm.PutOnClipboard(const Copied: TFragmentCopy);
+var
+  Stream: TStringStream;
+begin
   if Copied.Text = '' then
     Exit;
   Stream := TStringStream.Create(Copied.Text);

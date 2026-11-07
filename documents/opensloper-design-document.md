@@ -525,7 +525,7 @@ Handling the edge cases:
 
 ### Copy and paste
 
-Decided and built 2026-11-07. Edit → Copy (Ctrl/Cmd+C) and Edit → Paste (Ctrl/Cmd+V) copy the selected objects' definitions, not their positions, so a pasted object stays parametric. Seamly2D has no copy and paste of objects (its Copy menu on a tool only puts a variable name such as `Line_A_B` on the clipboard for formulas), so this follows our own rules.
+Decided and built 2026-11-07. Edit → Copy (Ctrl/Cmd+C) and Edit → Paste (Ctrl/Cmd+V), with Cut beside them, copy the selected objects' definitions, not their positions, so a pasted object stays parametric. Seamly2D has no copy and paste of objects (its Copy menu on a tool only puts a variable name such as `Line_A_B` on the clipboard for formulas), so this follows our own rules.
 
 **The main use is a second line on the same points.** Copy an outline edge, paste it, and the new edge joins the same two points; it is selected, so its role can be set to Stitch, Fold or any other (see Several lines in the same place). A curve keeps its handle definitions, so it lies on the original. The copy is then independent: dragging the original's handles later does not move it. A line that must stay on its source whatever is done to it is an offset edge instead.
 
@@ -541,11 +541,11 @@ Decided and built 2026-11-07. Edit → Copy (Ctrl/Cmd+C) and Edit → Paste (Ctr
 
 **Fragment** (`opensloperFragment`, version 1): `identity`, `units`, `selection` (the copied objects' IDs), `variables` (as in a pattern file, each with `display`, its formula with names, for matching), `objects` (as in a pattern file, in the pattern's order) and `needs`. The loader reads every ID in it through a map (`AddPatternItems` in `Sloper.Core.PatternFile`), so the same code that reads a pattern file adds the pasted objects with their new IDs, and stored formulas are mapped by their `{id}`s.
 
-**Clipboard.** Copy puts two formats on the clipboard: the fragment (`application/x-opensloper-fragment`) and the copied objects' names as plain text, so a copied name can be pasted into a formula field or another app. Paste reads the fragment, or plain text that is one (as `copy_objects` gives), and says so when there is none. When a text field (a formula, a name) has focus, Copy and Paste act on its text, not the canvas.
+**Clipboard.** Copy puts two formats on the clipboard: the fragment (`application/x-opensloper-fragment`) and the copied objects' names as plain text, so a copied name can be pasted into a formula field or another app. Paste reads the fragment, or plain text that is one (as `copy_objects` gives), and says so when there is none. When a text field (a formula, a name) has focus, Cut, Copy and Paste act on its text, not the canvas.
 
-**Cut** is not offered yet; it would be Copy then Delete, refused as Delete is.
+**Cut** (Edit → Cut, Ctrl/Cmd+X, added 2026-11-07) is Copy then Delete, as one undo step named Cut. It is refused when anything selected cannot be copied, since Delete would lose it, and as Delete is refused when something else uses an object (`A is used by Line_A_B`); the clipboard is then left as it was. Pasting a cut line back into the same pattern gives it its old name, which is free again.
 
-**Code.** `CopyFragment` and `PasteFragment` in `Sloper.Core.Fragment` build and paste the fragment without the LCL; the canvas makes the paste a document change (`CopySelection`, `PasteFragmentText`) and the main form reads and writes the clipboard. `copy_objects` in the Automation API takes `objects` and returns `fragment`, `names` and `leftOut`; `paste_objects` takes that `fragment` and returns `objects`, the copies of the copied objects, and `renamed`.
+**Code.** `CopyFragment` and `PasteFragment` in `Sloper.Core.Fragment` build and paste the fragment without the LCL; the canvas makes the cut and the paste document changes (`CopySelection`, `CutSelection`, `PasteFragmentText`) and the main form reads and writes the clipboard. `copy_objects` in the Automation API takes `objects` and returns `fragment`, `names` and `leftOut`; `paste_objects` takes that `fragment` and returns `objects`, the copies of the copied objects, and `renamed`.
 
 ## Markings
 

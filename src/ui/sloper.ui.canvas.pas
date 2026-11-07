@@ -112,6 +112,7 @@ type
     FOnSelectionChange: TNotifyEvent;
     FOnNoteAdded: TNotifyEvent;
     function ObjectNames(const Keys: TStringArray): string;
+    function DeleteSelected(const Description: string): boolean;
     function NoteValues: TFieldValues;
     function NotesHere(X, Y: integer): TStringArray;
     procedure AddNoteHere;
@@ -252,6 +253,10 @@ type
     // The selected objects as a fragment for the clipboard; empty, with the
     // reason shown, when none can be copied
     function CopySelection: TFragmentCopy;
+    // Copies the selected objects and deletes them, as one undo step. Empty,
+    // with the reason shown, when any cannot be copied or deleted, and then
+    // nothing is deleted.
+    function CutSelection: TFragmentCopy;
     // Adds copied objects as one undo step and selects them; says why not otherwise
     procedure PasteFragmentText(const FragmentText: string);
     // Splits the selected edge at the selected point; says why not otherwise
@@ -312,6 +317,9 @@ resourcestring
   rsCanvasPickToCopy = 'Select the points and edges to copy first';
   rsCanvasCannotCopy = '%s cannot be copied; only points and edges can';
   rsCanvasCopied = 'Copied %s';
+  rsCanvasCut = 'Cut';
+  rsCanvasCutDone = 'Cut %s';
+  rsCanvasCannotCut = 'Nothing was cut: %s cannot be copied; only points and edges can';
   rsCanvasCopiedLeftOut = 'Copied %s; left out %s, which cannot be copied';
   rsCanvasPaste = 'Paste';
   rsCanvasPasted = 'Pasted %s';
@@ -903,13 +911,19 @@ begin
 end;
 
 procedure TPatternCanvas.DeleteSelection;
+begin
+  DeleteSelected(rsCanvasDelete);
+end;
+
+function TPatternCanvas.DeleteSelected(const Description: string): boolean;
 var
   Index: integer;
   Node: TEvalNode;
 begin
+  Result := False;
   if not Assigned(FDocument) or (Length(FSelection) = 0) then
     Exit;
-  FDocument.BeginChange(rsCanvasDelete);
+  FDocument.BeginChange(Description);
   // Later objects can use earlier ones, so delete from the end of the pattern
   for Index := FDocument.Pattern.ObjectCount - 1 downto 0 do
   begin
@@ -923,6 +937,7 @@ begin
   end;
   FDocument.EndChange;
   SetSelection(nil);
+  Result := True;
 end;
 
 // For the status bar: "A, B, Line_A_B"
@@ -963,6 +978,31 @@ begin
     ShowMessageText(Format(rsCanvasCopiedLeftOut, [ObjectNames(Result.Keys), LeftOut]))
   else
     ShowMessageText(Format(rsCanvasCopied, [ObjectNames(Result.Keys)]));
+end;
+
+// Everything selected must be copied, or Delete would lose what is left out
+function TPatternCanvas.CutSelection: TFragmentCopy;
+var
+  Names: string;
+begin
+  Result := Default(TFragmentCopy);
+  if not Assigned(FDocument) then
+    Exit;
+  if Length(FSelection) = 0 then
+  begin
+    ShowMessageText(rsCanvasPickToCopy);
+    Exit;
+  end;
+  Result := CopyFragment(FDocument.Pattern, FSelection);
+  if Length(Result.LeftOut) > 0 then
+  begin
+    ShowMessageText(Format(rsCanvasCannotCut, [string.Join(', ', Result.LeftOut)]));
+    Exit(Default(TFragmentCopy));
+  end;
+  Names := ObjectNames(Result.Keys);
+  if not DeleteSelected(rsCanvasCut) then
+    Exit(Default(TFragmentCopy));
+  ShowMessageText(Format(rsCanvasCutDone, [Names]));
 end;
 
 procedure TPatternCanvas.PasteFragmentText(const FragmentText: string);
