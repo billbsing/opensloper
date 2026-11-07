@@ -28,7 +28,7 @@ interface
 
 uses
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.Variables, Sloper.Core.Draft,
-  Sloper.Core.Pattern, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Note;
+  Sloper.Core.Pattern, Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.Geometry;
 
 type
   // ofPieces: pieces and seams; ofNotes: notes; ofProblems: anything not
@@ -73,12 +73,15 @@ function FieldCaption(const FieldName: string): string;
 // What kind of object this is, such as "Offset point"
 function TypeCaption(Node: TEvalNode): string;
 function StateCaption(State: TEvalState): string;
-// What the object computes to: a position or a length. Empty before it is computed.
-function ResultText(DraftObject: TDraftObject): string;
+// What the object computes to: a position or a length, in AUnit. Empty before
+// it is computed.
+function ResultText(DraftObject: TDraftObject; AUnit: TMeasureUnit): string;
+// A position as "12.5, 30 cm"
+function PositionText(const Position: TVec2; AUnit: TMeasureUnit): string;
 // Each entry of a seam's side, as "Front: Line_A_B"
 function SeamSideText(Pattern: TPattern; const Side: TSeamSide): string;
 // The difference between a seam's sides, with what is expected
-function SeamDifferenceText(Seam: TSeamObject): string;
+function SeamDifferenceText(Seam: TSeamObject; AUnit: TMeasureUnit): string;
 // One row of the Suggest Seams list
 function SuggestionCaption(Pattern: TPattern; const Item: TSeamSuggestion): string;
 function ObjectRow(Pattern: TPattern; DraftObject: TDraftObject): TObjectRow;
@@ -100,15 +103,13 @@ function SelectionAfterClick(const Visible, Selected: TStringArray; const Anchor
   Toggle, Extend: boolean): TStringArray;
 
 resourcestring
-  rsObjectPosition = '%s, %s mm';
-  rsObjectLength = '%s mm';
-  rsObjectPerimeter = '%s mm';
-  rsObjectSeamLengths = 'A %s mm, B %s mm';
-  rsObjectSeamDifference = '%s mm, expected %s mm';
+  rsObjectPosition = '%s, %s %s';
+  rsObjectSeamLengths = 'A %s, B %s';
+  rsObjectSeamDifference = '%s, expected %s';
   rsObjectSeamEntry = '%s: %s';
   rsObjectSeamEntryGap = ', ';
   rsSuggestShared = '%s and %s, shared edge';
-  rsSuggestLengths = '%s and %s, %s mm apart';
+  rsSuggestLengths = '%s and %s, %s apart';
   rsObjectFormula = '%s = %s';
   rsObjectFormulaGap = '; ';
   rsMeasurementChanged = '@%s %s → %s mm saved to %s';
@@ -336,20 +337,25 @@ begin
   end;
 end;
 
-function ResultText(DraftObject: TDraftObject): string;
+function PositionText(const Position: TVec2; AUnit: TMeasureUnit): string;
+begin
+  Result := Format(rsObjectPosition, [FormatLength(Position.X, AUnit), FormatLength(Position.Y, AUnit), MeasureUnitNames[AUnit]]);
+end;
+
+function ResultText(DraftObject: TDraftObject; AUnit: TMeasureUnit): string;
 begin
   Result := '';
   if not DraftObject.HasResult then
     Exit;
   if DraftObject is TPointObject then
-    Result := Format(rsObjectPosition, [RoundedText(TPointObject(DraftObject).Position.X, 1),
-      RoundedText(TPointObject(DraftObject).Position.Y, 1)])
+    Result := PositionText(TPointObject(DraftObject).Position, AUnit)
   else if DraftObject is TEdgeObject then
-    Result := Format(rsObjectLength, [RoundedText(TEdgeObject(DraftObject).Length, 1)])
+    Result := LengthWithUnit(TEdgeObject(DraftObject).Length, AUnit)
   else if DraftObject is TPieceObject then
-    Result := Format(rsObjectPerimeter, [RoundedText(TPieceObject(DraftObject).Perimeter, 1)])
+    Result := LengthWithUnit(TPieceObject(DraftObject).Perimeter, AUnit)
   else if DraftObject is TSeamObject then
-    Result := Format(rsObjectSeamLengths, [RoundedText(TSeamObject(DraftObject).LengthA, 1), RoundedText(TSeamObject(DraftObject).LengthB, 1)])
+    Result := Format(rsObjectSeamLengths, [LengthWithUnit(TSeamObject(DraftObject).LengthA, AUnit),
+      LengthWithUnit(TSeamObject(DraftObject).LengthB, AUnit)])
   else if DraftObject is TNoteObject then
     Result := TNoteObject(DraftObject).FirstLine;
 end;
@@ -372,9 +378,9 @@ begin
   end;
 end;
 
-function SeamDifferenceText(Seam: TSeamObject): string;
+function SeamDifferenceText(Seam: TSeamObject; AUnit: TMeasureUnit): string;
 begin
-  Result := Format(rsObjectSeamDifference, [RoundedText(Seam.Difference, 1), RoundedText(Seam.Ease, 1)]);
+  Result := Format(rsObjectSeamDifference, [LengthWithUnit(Seam.Difference, AUnit), LengthWithUnit(Seam.Ease, AUnit)]);
 end;
 
 function SuggestionCaption(Pattern: TPattern; const Item: TSeamSuggestion): string;
@@ -382,7 +388,7 @@ begin
   if Item.Shared then
     Result := Format(rsSuggestShared, [SeamEntryText(Pattern, Item.First), SeamEntryText(Pattern, Item.Second)])
   else
-    Result := Format(rsSuggestLengths, [SeamEntryText(Pattern, Item.First), SeamEntryText(Pattern, Item.Second), RoundedText(Item.Difference, 1)]);
+    Result := Format(rsSuggestLengths, [SeamEntryText(Pattern, Item.First), SeamEntryText(Pattern, Item.Second), LengthWithUnit(Item.Difference, Pattern.Units)]);
 end;
 
 function FormulasText(Pattern: TPattern; DraftObject: TDraftObject): string;
@@ -407,7 +413,7 @@ begin
   Result.Key := DraftObject.Key;
   Result.Name := DraftObject.DisplayName;
   Result.Operation := TypeCaption(DraftObject);
-  Result.Value := ResultText(DraftObject);
+  Result.Value := ResultText(DraftObject, Pattern.Units);
   Result.Formulas := FormulasText(Pattern, DraftObject);
   Result.State := DraftObject.State;
   Result.StateText := StateCaption(DraftObject.State);

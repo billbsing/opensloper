@@ -78,7 +78,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Draft, Sloper.Core.Evaluator, Sloper.Core.Formula, Sloper.Core.Geometry, Sloper.Core.JSON;
+  Math, Sloper.Core.Draft, Sloper.Core.Evaluator, Sloper.Core.Formula, Sloper.Core.Geometry, Sloper.Core.JSON, Sloper.Core.Units;
 
 type
   TArrangeAxis = (axX, axY);
@@ -99,6 +99,8 @@ type
 const
   AxisFields: array[TArrangeAxis] of string = ('x', 'y');
   OffsetFields: array[TArrangeAxis] of string = ('dx', 'dy');
+  // The coordinate an arrange keeps, in the pattern unit, so it does not move
+  ExactDecimals = 9;
 
 function PointNamed(Pattern: TPattern; const Key: string): TPointObject;
 var
@@ -470,12 +472,12 @@ begin
   // The other coordinate stays where it is, as a number
   if Axis = axX then
   begin
-    Other := FormatJSONFloat(Target.Point.Position.Y);
+    Other := LengthFormulaText(Target.Point.Position.Y, Pattern.Units, ExactDecimals);
     Result := Assigned(Pattern.ConvertToFree(Target.Point, Target.Formula, Other));
   end
   else
   begin
-    Other := FormatJSONFloat(Target.Point.Position.X);
+    Other := LengthFormulaText(Target.Point.Position.X, Pattern.Units, ExactDecimals);
     Result := Assigned(Pattern.ConvertToFree(Target.Point, Other, Target.Formula));
   end;
 end;

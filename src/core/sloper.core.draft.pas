@@ -56,7 +56,6 @@ const
   PointMarkerNames: array[TPointMarker] of string = ('plain', 'hole', 'button', 'match');
   // The formula field of a marker's size, across in mm, and what it starts at
   MarkerSizeField = 'markerSize';
-  DefaultMarkerSizes: array[TPointMarker] of string = ('', '4', '15', '3');
   // As written in pattern files and the Automation API
   EdgeRoleNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut', 'skive', 'edgeFinish');
   // The class of each role's group in the publish app's SVG

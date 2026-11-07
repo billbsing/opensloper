@@ -54,13 +54,14 @@ function ApplyCompletion(const Text: string; const Completion: TCompletion; Inde
 
 resourcestring
   rsCompletionFunction = 'Function';
-  rsCompletionMeasurement = '%s mm';
+  // A measurement's value and the pattern's unit
+  rsCompletionMeasurement = '%s %s';
 
 implementation
 
 uses
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Measurements, Sloper.Core.Names, Sloper.Core.Variables, Sloper.Core.Draft,
-  Sloper.Core.Drag, Sloper.UI.ObjectList;
+  Sloper.Core.Drag, Sloper.Core.Units, Sloper.UI.ObjectList;
 
 const
   PropertyNames: array[0..5] of string = ('x', 'y', 'length', 'angle', 'angle1', 'angle2');
@@ -130,7 +131,8 @@ begin
   for Index := 0 to Pattern.Measurements.Count - 1 do
   begin
     Measurement := Pattern.Measurements[Index];
-    AddItem(Found, Measurement.Key, Prefix + Measurement.Key, Format(rsCompletionMeasurement, [RoundedText(Measurement.Value, ValueDecimals)]));
+    AddItem(Found, Measurement.Key, Prefix + Measurement.Key, Format(rsCompletionMeasurement,
+      [RoundedText(Measurement.Value / MillimetresPerUnit[Pattern.Units], ValueDecimals), MeasureUnitNames[Pattern.Units]]));
   end;
 end;
 
@@ -153,16 +155,23 @@ begin
   end;
 end;
 
-procedure AddProperties(var Found: TFoundItems; Owner: TDraftObject);
+// As a formula reads them: lengths in the pattern unit
+procedure AddProperties(var Found: TFoundItems; Owner: TDraftObject; AUnit: TMeasureUnit);
 var
   PropertyName, Detail: string;
+  Value: double;
 begin
   for PropertyName in PropertyNames do
     if Owner.HasProperty(PropertyName) then
     begin
       Detail := '';
       if Owner.HasResult and (Owner.State = esValid) then
-        Detail := RoundedText(Owner.PropertyValue(PropertyName), ValueDecimals);
+      begin
+        Value := Owner.PropertyValue(PropertyName);
+        if IsLengthProperty(PropertyName) then
+          Value := Value / MillimetresPerUnit[AUnit];
+        Detail := RoundedText(Value, ValueDecimals);
+      end;
       AddItem(Found, PropertyName, PropertyName, Detail);
     end;
 end;
@@ -246,7 +255,7 @@ begin
     begin
       Owner := ObjectBeforeDot(Pattern, Node, Text, WordStart - 1);
       if Assigned(Owner) then
-        AddProperties(Found, Owner);
+        AddProperties(Found, Owner, Pattern.Units);
     end;
     else
       if (CaretWord <> '') or Explicit then

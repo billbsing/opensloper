@@ -72,7 +72,8 @@ resourcestring
   rsFabricAllowanceButton = 'Allowance...';
   rsFabricAllowanceHint = 'Set the seam allowance pieces take on this fabric';
   rsFabricAllowanceTitle = 'Seam allowance';
-  rsFabricAllowancePrompt = 'Millimetres, or empty for none';
+  // The pattern's unit, such as cm
+  rsFabricAllowancePrompt = 'In %s, or empty for none';
   rsFabricAllowanceChange = 'Change fabric allowance';
   rsFabricAllowanceBad = 'The allowance must be a number, such as 10 or 3.5';
   rsFabricNew = 'New';
@@ -93,6 +94,9 @@ resourcestring
   rsFabricCutList = 'Cut List';
 
 implementation
+
+uses
+  Sloper.Core.Units;
 
 const
   ColumnColour = 0;
@@ -375,7 +379,7 @@ begin
   Entry := '';
   if Fabric.HasAllowance then
     Entry := FloatToStr(Fabric.Allowance);
-  if not InputQuery(rsFabricAllowanceTitle, rsFabricAllowancePrompt, Entry) then
+  if not InputQuery(rsFabricAllowanceTitle, Format(rsFabricAllowancePrompt, [MeasureUnitNames[FDocument.Pattern.Units]]), Entry) then
     Exit;
   Entry := Trim(Entry);
   Value := 0;

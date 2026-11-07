@@ -31,9 +31,8 @@ uses
   Sloper.Core.Units;
 
 const
-  // Dragged values are rounded to these decimals: mm, degrees, ratio. A
-  // length is rounded in its unit instead (DragUnitDecimals).
-  DragLengthDecimals = 1;
+  // Dragged angles and ratios are rounded to these decimals; a length is
+  // rounded in its unit (DragUnitDecimals)
   DragAngleDecimals = 1;
   DragRatioDecimals = 4;
 
@@ -53,9 +52,6 @@ type
 
 // Value rounded to Decimals as formula text, without "-0"
 function RoundedText(Value: double; Decimals: integer): string;
-// Millimetres as formula text in the pattern unit, rounded to 0.1 mm, 0.1 cm
-// or 0.01 in
-function UnitLengthText(Millimetres: double; Units: TMeasureUnit): string;
 // Millimetres as text for a length field being dragged: in the unit the field
 // is written in, with its suffix (2in stays in inches), or as a plain number
 // in the pattern unit
@@ -106,11 +102,6 @@ begin
   Result := FormatJSONFloat(Rounded);
 end;
 
-function UnitLengthText(Millimetres: double; Units: TMeasureUnit): string;
-begin
-  Result := RoundedText(Millimetres / MillimetresPerUnit[Units], DragUnitDecimals[Units]);
-end;
-
 function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double; Units: TMeasureUnit): string;
 var
   Suffix: TNumberSuffix;
@@ -119,7 +110,7 @@ begin
   // TNumberSuffix follows TMeasureUnit after nsNone
   if Suffix <> nsNone then
     Units := TMeasureUnit(Ord(Suffix) - 1);
-  Result := UnitLengthText(Millimetres, Units) + NumberSuffixNames[Suffix];
+  Result := RoundLengthFormulaText(Millimetres, Units) + NumberSuffixNames[Suffix];
 end;
 
 // The fields a drag of Point writes; empty when its type cannot be dragged

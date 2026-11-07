@@ -107,19 +107,28 @@ resourcestring
   rsSnapFree = 'New point at %s, %s';
   rsSnapPoint = 'Point %s';
   rsSnapCrossing = 'New point where %s crosses %s';
-  rsSnapEdge = 'New point on %s, %s mm from %s';
-  rsSnapRight = 'New point %s mm right of %s';
-  rsSnapLeft = 'New point %s mm left of %s';
-  rsSnapUp = 'New point %s mm above %s';
-  rsSnapDown = 'New point %s mm below %s';
+  rsSnapEdge = 'New point on %s, %s from %s';
+  rsSnapRight = 'New point %s right of %s';
+  rsSnapLeft = 'New point %s left of %s';
+  rsSnapUp = 'New point %s above %s';
+  rsSnapDown = 'New point %s below %s';
 
 implementation
 
 uses
-  Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.UI.Scene;
+  Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Units, Sloper.UI.Scene;
 
-const
-  LengthDecimals = 1;
+// A length as the formula will have it, in the pattern unit
+function LengthText(Pattern: TPattern; Millimetres: double): string;
+begin
+  Result := RoundLengthFormulaText(Millimetres, Pattern.Units);
+end;
+
+// The same, with the unit's name, for the status bar
+function ShownLength(Pattern: TPattern; Millimetres: double): string;
+begin
+  Result := LengthText(Pattern, Millimetres) + ' ' + MeasureUnitNames[Pattern.Units];
+end;
 
 type
   TEdgeObjectArray = array of TEdgeObject;
@@ -339,20 +348,20 @@ begin
         EndName := NameOf(Pattern, Edge.EndKey)
       else
         EndName := NameOf(Pattern, Edge.StartKey);
-      Result := Format(rsSnapEdge, [Edge.DisplayName, RoundedText(Snap.Distance, LengthDecimals), EndName]);
+      Result := Format(rsSnapEdge, [Edge.DisplayName, ShownLength(Pattern, Snap.Distance), EndName]);
     end;
     snHorizontal:
       if Snap.Angle = 0 then
-        Result := Format(rsSnapRight, [RoundedText(Snap.Distance, LengthDecimals), NameOf(Pattern, Snap.PointKey)])
+        Result := Format(rsSnapRight, [ShownLength(Pattern, Snap.Distance), NameOf(Pattern, Snap.PointKey)])
       else
-        Result := Format(rsSnapLeft, [RoundedText(Snap.Distance, LengthDecimals), NameOf(Pattern, Snap.PointKey)]);
+        Result := Format(rsSnapLeft, [ShownLength(Pattern, Snap.Distance), NameOf(Pattern, Snap.PointKey)]);
     snVertical:
       if Snap.Angle = 90 then
-        Result := Format(rsSnapUp, [RoundedText(Snap.Distance, LengthDecimals), NameOf(Pattern, Snap.PointKey)])
+        Result := Format(rsSnapUp, [ShownLength(Pattern, Snap.Distance), NameOf(Pattern, Snap.PointKey)])
       else
-        Result := Format(rsSnapDown, [RoundedText(Snap.Distance, LengthDecimals), NameOf(Pattern, Snap.PointKey)]);
+        Result := Format(rsSnapDown, [ShownLength(Pattern, Snap.Distance), NameOf(Pattern, Snap.PointKey)]);
     else
-      Result := Format(rsSnapFree, [RoundedText(Snap.Position.X, LengthDecimals), RoundedText(Snap.Position.Y, LengthDecimals)]);
+      Result := Format(rsSnapFree, [LengthText(Pattern, Snap.Position.X), LengthText(Pattern, Snap.Position.Y)]);
   end;
 end;
 
@@ -366,12 +375,12 @@ begin
     snCrossing:
       Added := Pattern.AddIntersectPoint('', Snap.EdgeKey, Snap.OtherEdgeKey, False, False, Snap.Pick);
     snEdge:
-      Added := Pattern.AddAlongEdgePoint('', Snap.EdgeKey, Snap.FromEnd, amLength, RoundedText(Snap.Distance, LengthDecimals));
+      Added := Pattern.AddAlongEdgePoint('', Snap.EdgeKey, Snap.FromEnd, amLength, LengthText(Pattern, Snap.Distance));
     snHorizontal, snVertical:
-      Added := Pattern.AddOffsetPoint('', Pattern.UsePoint(Snap.PointKey), omPolar, RoundedText(Snap.Distance, LengthDecimals),
+      Added := Pattern.AddOffsetPoint('', Pattern.UsePoint(Snap.PointKey), omPolar, LengthText(Pattern, Snap.Distance),
         RoundedText(Snap.Angle, 0));
     else
-      Added := Pattern.AddFreePoint('', RoundedText(Snap.Position.X, LengthDecimals), RoundedText(Snap.Position.Y, LengthDecimals));
+      Added := Pattern.AddFreePoint('', LengthText(Pattern, Snap.Position.X), LengthText(Pattern, Snap.Position.Y));
   end;
   if not Assigned(Added) then
     Result := ''
@@ -429,7 +438,7 @@ begin
   NoteAnchorFromSnap(Pattern, Snap, Click, Anchor, AnchorKey, Ratio);
   RatioText := RoundedText(Ratio, DragRatioDecimals);
   if Anchor = naFree then
-    Exit(Pattern.AddNote('', AText, naFree, '', '', RoundedText(BoxAt.X, LengthDecimals), RoundedText(BoxAt.Y, LengthDecimals), DefaultNoteSize,
+    Exit(Pattern.AddNote('', AText, naFree, '', '', LengthText(Pattern, BoxAt.X), LengthText(Pattern, BoxAt.Y), DefaultNoteSize,
       True, Leader));
   Node := Pattern.FindNode(AnchorKey);
   case Anchor of
@@ -438,8 +447,8 @@ begin
     else
       Base := TPieceObject(Node).Middle;
   end;
-  Result := Pattern.AddNote('', AText, Anchor, AnchorKey, RatioText, RoundedText(BoxAt.X - Base.X, LengthDecimals),
-    RoundedText(BoxAt.Y - Base.Y, LengthDecimals), DefaultNoteSize, True, Leader);
+  Result := Pattern.AddNote('', AText, Anchor, AnchorKey, RatioText, LengthText(Pattern, BoxAt.X - Base.X),
+    LengthText(Pattern, BoxAt.Y - Base.Y), DefaultNoteSize, True, Leader);
 end;
 
 function NoteFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; const AText: string): TNoteObject;
@@ -492,7 +501,7 @@ begin
     naEdge: Result := Format(rsSnapNoteEdge, [Pattern.FindNode(AnchorKey).DisplayName]);
     naPiece: Result := Format(rsSnapNotePiece, [Pattern.FindNode(AnchorKey).DisplayName]);
     else
-      Result := Format(rsSnapNoteFree, [RoundedText(Click.X, LengthDecimals), RoundedText(Click.Y, LengthDecimals)]);
+      Result := Format(rsSnapNoteFree, [LengthText(Pattern, Click.X), LengthText(Pattern, Click.Y)]);
   end;
 end;
 
@@ -506,10 +515,10 @@ begin
       Insert(Key, Result, Length(Result));
 end;
 
-// Rounded as RoundedText rounds, so the check matches the formula written
-function Rounds(Value: double): double;
+// True when the length would be written as 0
+function RoundsToNothing(Pattern: TPattern; Millimetres: double): boolean;
 begin
-  Result := Round(Value * 10) / 10;
+  Result := LengthText(Pattern, Millimetres) = '0';
 end;
 
 function CircleFromSnap(Pattern: TPattern; const Centre: TSnap; const Rim: TVec2; Role: TEdgeRole): TCircleObject;
@@ -517,14 +526,14 @@ var
   CentreKey: string;
 begin
   Result := nil;
-  if Rounds(Distance(Centre.Position, Rim)) <= 0 then
+  if RoundsToNothing(Pattern, Distance(Centre.Position, Rim)) then
   begin
     Pattern.Refuse(rsSnapTooSmall);
     Exit;
   end;
   CentreKey := PointFromSnap(Pattern, Centre);
   if CentreKey <> '' then
-    Result := Pattern.AddCircle(CentreKey, RoundedText(Distance(Centre.Position, Rim), LengthDecimals), Role);
+    Result := Pattern.AddCircle(CentreKey, LengthText(Pattern, Distance(Centre.Position, Rim)), Role);
 end;
 
 function RectangleFromSnap(Pattern: TPattern; const Corner: TSnap; const Opposite: TVec2; Role: TEdgeRole;
@@ -533,11 +542,11 @@ var
   CornerKey: string;
 begin
   Edges := Default(TRectangleEdges);
-  if (Rounds(Opposite.X - Corner.Position.X) = 0) or (Rounds(Opposite.Y - Corner.Position.Y) = 0) then
+  if RoundsToNothing(Pattern, Opposite.X - Corner.Position.X) or RoundsToNothing(Pattern, Opposite.Y - Corner.Position.Y) then
     Exit(Pattern.Refuse(rsSnapTooSmall));
   CornerKey := PointFromSnap(Pattern, Corner);
-  Result := (CornerKey <> '') and Pattern.AddRectangle(CornerKey, RoundedText(Opposite.X - Corner.Position.X, LengthDecimals),
-    RoundedText(Opposite.Y - Corner.Position.Y, LengthDecimals), Role, Edges);
+  Result := (CornerKey <> '') and Pattern.AddRectangle(CornerKey, LengthText(Pattern, Opposite.X - Corner.Position.X),
+    LengthText(Pattern, Opposite.Y - Corner.Position.Y), Role, Edges);
 end;
 
 end.

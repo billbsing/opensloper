@@ -60,7 +60,7 @@ type
 implementation
 
 uses
-  Sloper.Core.Draft;
+  Sloper.Core.Draft, Sloper.Core.Units;
 
 procedure TTestCompletion.SetUp;
 begin
@@ -227,6 +227,12 @@ begin
   AssertEquals('variable', '10', Offered('#waist').Items[0].Detail);
   AssertEquals('property', '100', Offered('Hem.le').Items[0].Detail);
   AssertEquals('function', rsCompletionFunction, Offered('sq').Items[0].Detail);
+  // As a formula would read them: lengths in the pattern unit, angles as they are
+  FPattern.Units := muCentimetre;
+  FPattern.Evaluate;
+  AssertEquals('measurement in cm', '72 cm', Offered('@wa').Items[0].Detail);
+  AssertEquals('length in cm', '100', Offered('Hem.le').Items[0].Detail);
+  AssertEquals('angle unchanged', '0', Offered('Hem.angle').Items[0].Detail);
 end;
 
 procedure TTestCompletion.TestCaretOutOfRange;

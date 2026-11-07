@@ -31,7 +31,8 @@ const
   SeamEaseField = 'ease';
   SeamToleranceField = 'tolerance';
   DefaultSeamEase = '0';
-  DefaultSeamTolerance = '1';
+  // Asks AddSeam for the pattern unit's starting tolerance (StartingLengths)
+  DefaultSeamTolerance = '';
 
 type
   TSeamEntry = record

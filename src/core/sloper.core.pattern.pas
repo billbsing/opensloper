@@ -518,13 +518,13 @@ uses
   Math, Sloper.Core.Names, Sloper.Core.JSON;
 
 const
+  // pmPlain has no size; the entry is never used
+  MarkerStartingLengths: array[TPointMarker] of TStartingLength = (slHoleSize, slHoleSize, slButtonSize, slMatchSize);
   // Not translated: a name has to keep to the name rules
   NewVariableBaseName = 'variable';
   NewPieceBaseName = 'Piece';
   NewSeamBaseName = 'Seam';
   NewNoteBaseName = 'Note';
-  // A free note keeps its place to a tenth of a mm
-  NoteFreeDecimals = 1;
   NoteRatioDecimals = 4;
   TransformBaseNames: array[TTransformKind] of string = ('Rotate', 'Mirror', 'Move');
   TransformSuffixLetters: array[TTransformKind] of string = ('_r', '_m', '_t');
@@ -2196,7 +2196,9 @@ begin
   // The first fabric's allowance stands in for the general default
   PieceAllowance := Allowance;
   if (Allowance = DefaultPieceAllowance) and FFabrics[0].HasAllowance then
-    PieceAllowance := AllowanceText(FFabrics[0]);
+    PieceAllowance := AllowanceText(FFabrics[0])
+  else if Allowance = DefaultPieceAllowance then
+    PieceAllowance := StartingLengths[slPieceAllowance, FUnits];
   if not ParseFields(Result, [PieceAllowanceField], [PieceAllowance]) then
   begin
     FreeAndNil(Result);
@@ -2367,7 +2369,7 @@ begin
   if Size <> '' then
     Result := SetFormula(Target, MarkerSizeField, Size)
   else if OldMarker = pmPlain then
-    Result := SetFormula(Target, MarkerSizeField, DefaultMarkerSizes[AMarker])
+    Result := SetFormula(Target, MarkerSizeField, StartingLengths[MarkerStartingLengths[AMarker], FUnits])
   else
     Result := True;
   if not Result then
@@ -2667,7 +2669,7 @@ end;
 
 function TPattern.AddSeam(const AName: string; const SideA, SideB: TSeamSide; const Ease, Tolerance: string): TSeamObject;
 var
-  Msg, SeamName: string;
+  Msg, SeamName, SeamTolerance: string;
   Entry: TSeamEntry;
   Piece: TPieceObject;
 begin
@@ -2695,7 +2697,10 @@ begin
     Exit;
   end;
   Result := TSeamObject.Create(IntToStr(FNextId), SideA, SideB);
-  if not ParseFields(Result, [SeamEaseField, SeamToleranceField], [Ease, Tolerance]) then
+  SeamTolerance := Tolerance;
+  if SeamTolerance = DefaultSeamTolerance then
+    SeamTolerance := StartingLengths[slSeamTolerance, FUnits];
+  if not ParseFields(Result, [SeamEaseField, SeamToleranceField], [Ease, SeamTolerance]) then
   begin
     FreeAndNil(Result);
     Exit;
@@ -2887,8 +2892,8 @@ begin
   Note.Reanchor(Anchor, Key);
   if (Anchor = naEdge) and not ParseFields(Note, [NotePositionField], [RatioText]) then
     Exit(False);
-  Result := ParseFields(Note, Note.PlaceFields, [RoundedNumberText(Box.X - Base.X, NoteFreeDecimals),
-    RoundedNumberText(Box.Y - Base.Y, NoteFreeDecimals)]);
+  Result := ParseFields(Note, Note.PlaceFields, [RoundLengthFormulaText(Box.X - Base.X, FUnits),
+    RoundLengthFormulaText(Box.Y - Base.Y, FUnits)]);
 end;
 
 function TPattern.MakeNoteFree(Note: TNoteObject): boolean;
@@ -2899,8 +2904,8 @@ begin
     Exit(SetError(Format(rsPatternNoteIsFree, [Note.DisplayName])));
   At := Note.Position;
   Note.MakeFree;
-  Result := ParseFields(Note, [NoteXField, NoteYField], [RoundedNumberText(At.X, NoteFreeDecimals),
-    RoundedNumberText(At.Y, NoteFreeDecimals)]);
+  Result := ParseFields(Note, [NoteXField, NoteYField], [RoundLengthFormulaText(At.X, FUnits),
+    RoundLengthFormulaText(At.Y, FUnits)]);
 end;
 
 function TPattern.NotePieces(Note: TNoteObject): TPieceObjectArray;
@@ -3215,7 +3220,7 @@ begin
   BackAngle := FMod(Direction + 180, 360);
   Result := TCurveObject.Create(Edge.Key, Edge.StartKey, Edge.EndKey);
   if not ReplaceEdge(Edge, Result, ['angle1', 'length1', 'angle2', 'length2'],
-    [Text(Direction), Text(Handle), Text(BackAngle), Text(Handle)]) then
+    [Text(Direction), RoundLengthFormulaText(Handle, FUnits), Text(BackAngle), RoundLengthFormulaText(Handle, FUnits)]) then
     Result := nil;
 end;
 

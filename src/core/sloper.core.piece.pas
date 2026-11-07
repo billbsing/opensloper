@@ -32,7 +32,9 @@ uses
 const
   // The formula field of the seam allowance, and its member in pattern files
   PieceAllowanceField = 'allowance';
-  DefaultPieceAllowance = '10';
+  // Asks AddPiece for the starting allowance: the first fabric's, or the
+  // pattern unit's (StartingLengths)
+  DefaultPieceAllowance = '';
   GrainAngleField = 'grainline.angle';
   // As written in pattern files and the Automation API
   DefaultGrainAngle = '90';

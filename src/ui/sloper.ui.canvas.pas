@@ -338,11 +338,11 @@ resourcestring
   rsCanvasToolCircle = 'Circle: click the centre, then a point on the rim; Escape stops';
   rsCanvasToolRectangle = 'Rectangle: click one corner, then the opposite one; Escape stops';
   rsCanvasCircleRim = 'Click a point on the rim';
-  rsCanvasRadius = 'Radius %s mm';
-  rsCanvasRectangleSize = '%s by %s mm';
+  rsCanvasRadius = 'Radius %s';
+  rsCanvasRectangleSize = '%s by %s';
   rsCanvasRectangleCorner = 'Click the opposite corner';
   rsCanvasToolSeam = 'Seam: click edges for side A, Tab moves to side B, Enter makes the seam';
-  rsCanvasSeamProgress = 'Side %s: A %s mm, B %s mm, difference %s mm. Tab changes side, Enter makes the seam';
+  rsCanvasSeamProgress = 'Side %s: A %s, B %s, difference %s. Tab changes side, Enter makes the seam';
   rsCanvasSeamSides = 'Pick edges for both sides first';
   rsCanvasAddSeam = 'Add seam';
   rsCanvasSplit = 'Split edge';
@@ -354,13 +354,9 @@ uses
   Sloper.UI.RulerTicks, Sloper.UI.ObjectList;
 
 const
-  // A new circle or arc, as a starting point for typing the real values
-  NewRoundRadius = '50';
+  // A new arc's sweep, as a starting point for typing the real values; its
+  // radius and other starting lengths are per unit (StartingLengths)
   NewArcSweep = '90';
-  NewOffsetDistance = '10';
-  NewCornerRadius = '10';
-  NewStitchSpacing = '4';
-  NewStitchSize = '1';
   // How strongly a fabric's colour shows under the lines
   FabricTintAlpha = 60;
   FabricHatchAlpha = 130;
@@ -971,7 +967,7 @@ begin
     Exit;
   end;
   FDocument.BeginChange(rsCanvasAddRound);
-  Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), NewRoundRadius, '0', NewArcSweep, FDrawRole);
+  Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), StartingLengths[slArcRadius, FDocument.Pattern.Units], '0', NewArcSweep, FDrawRole);
   Key := '';
   if Assigned(Added) then
     Key := Added.Key;
@@ -1038,9 +1034,9 @@ begin
   FDocument.BeginChange(rsCanvasAddOffset);
   Added := nil;
   if Length(Edges) = 1 then
-    Added := FDocument.Pattern.AddOffsetEdge(Edges[0], NewOffsetDistance, Side, erConstruction)
+    Added := FDocument.Pattern.AddOffsetEdge(Edges[0], StartingLengths[slOffsetDistance, FDocument.Pattern.Units], Side, erConstruction)
   else if FDocument.Pattern.ChainRun(Edges, Run) then
-    Added := FDocument.Pattern.AddOffsetRun(Run, NewOffsetDistance, Side, erConstruction);
+    Added := FDocument.Pattern.AddOffsetRun(Run, StartingLengths[slOffsetDistance, FDocument.Pattern.Units], Side, erConstruction);
   FinishOffset(Added);
 end;
 
@@ -1078,7 +1074,7 @@ begin
   FDocument.BeginChange(rsCanvasAddOffset);
   Added := nil;
   if FDocument.Pattern.PieceRun(Piece, Edges, Inside, Run, Side) then
-    Added := FDocument.Pattern.AddOffsetRun(Run, NewOffsetDistance, Side, Role);
+    Added := FDocument.Pattern.AddOffsetRun(Run, StartingLengths[slOffsetDistance, FDocument.Pattern.Units], Side, Role);
   FinishOffset(Added);
 end;
 
@@ -1218,7 +1214,7 @@ begin
     Exit;
   end;
   FDocument.BeginChange(rsCanvasRoundCorner);
-  Added := FDocument.Pattern.AddRoundCorner(FSelection[0], FSelection[1], NewCornerRadius);
+  Added := FDocument.Pattern.AddRoundCorner(FSelection[0], FSelection[1], StartingLengths[slCornerRadius, FDocument.Pattern.Units]);
   Key := '';
   if Assigned(Added) then
     Key := Added.Key;
@@ -1307,7 +1303,8 @@ begin
   end;
   FDocument.BeginChange(rsCanvasAddMarking);
   if Kind = mkStitchHoles then
-    Done := FDocument.Pattern.AddStitchMarking(Piece, Target, NewStitchSpacing, NewStitchSize)
+    Done := FDocument.Pattern.AddStitchMarking(Piece, Target, StartingLengths[slStitchSpacing, FDocument.Pattern.Units],
+      StartingLengths[slStitchSize, FDocument.Pattern.Units])
   else if FDocument.Pattern.FindNode(Target) is TEdgeObject then
     Done := FDocument.Pattern.AddLineMarking(Piece, Target)
   else
@@ -1504,10 +1501,10 @@ begin
   FSnapShown := True;
   // The second click of a circle or rectangle makes no point, only its size
   if FHasStart and (FTool = ctCircle) then
-    ShowMessageText(Format(rsCanvasRadius, [RoundedText(Distance(FStartSnap.Position, FSnap.Position), 1)]))
+    ShowMessageText(Format(rsCanvasRadius, [LengthWithUnit(Distance(FStartSnap.Position, FSnap.Position), FDocument.Pattern.Units)]))
   else if FHasStart and (FTool = ctRectangle) then
-    ShowMessageText(Format(rsCanvasRectangleSize, [RoundedText(Abs(FSnap.Position.X - FStartSnap.Position.X), 1),
-      RoundedText(Abs(FSnap.Position.Y - FStartSnap.Position.Y), 1)]))
+    ShowMessageText(Format(rsCanvasRectangleSize, [LengthWithUnit(Abs(FSnap.Position.X - FStartSnap.Position.X), FDocument.Pattern.Units),
+      LengthWithUnit(Abs(FSnap.Position.Y - FStartSnap.Position.Y), FDocument.Pattern.Units)]))
   else if FTool = ctText then
     ShowMessageText(NoteSnapDescription(FDocument.Pattern, FSnap, FSnapClick))
   else if (FTool = ctCallout) and FHasStart then
@@ -1711,8 +1708,8 @@ begin
       Edge := FDocument.Pattern.AddLine(StartKey, EndKey, FDrawRole)
     else
       Edge := FDocument.Pattern.AddCurve(StartKey, EndKey, RoundedText(AngleBetween(StartPos, EndPos), DragAngleDecimals),
-        RoundedText(Chord * HandleFraction, DragLengthDecimals), RoundedText(AngleBetween(EndPos, StartPos), DragAngleDecimals),
-        RoundedText(Chord * HandleFraction, DragLengthDecimals), FDrawRole);
+        RoundLengthFormulaText(Chord * HandleFraction, FDocument.Pattern.Units), RoundedText(AngleBetween(EndPos, StartPos), DragAngleDecimals),
+        RoundLengthFormulaText(Chord * HandleFraction, FDocument.Pattern.Units), FDrawRole);
   Reason := FDocument.Pattern.LastError;
   if not FDocument.Commit(Assigned(Edge)) then
   begin
@@ -1797,7 +1794,7 @@ begin
       if Target.PointKey <> '' then
         Result := FDocument.Pattern.AddPointNotch(Piece, FDocument.Pattern.UsePoint(Target.PointKey)) or Result
       else
-        Result := FDocument.Pattern.AddEdgeNotch(Piece, Target.EdgeKey, RoundedText(Target.Position, DragLengthDecimals)) or Result;
+        Result := FDocument.Pattern.AddEdgeNotch(Piece, Target.EdgeKey, RoundLengthFormulaText(Target.Position, FDocument.Pattern.Units)) or Result;
     end;
 end;
 
@@ -1834,10 +1831,13 @@ const
   SideNames: array[boolean] of string = ('A', 'B');
 var
   LengthA, LengthB: double;
+  AUnit: TMeasureUnit;
 begin
   LengthA := SeamSideLength(FDocument.Pattern, FSeamA);
   LengthB := SeamSideLength(FDocument.Pattern, FSeamB);
-  ShowMessageText(Format(rsCanvasSeamProgress, [SideNames[FSeamOnB], RoundedText(LengthA, 1), RoundedText(LengthB, 1), RoundedText(LengthB - LengthA, 1)]));
+  AUnit := FDocument.Pattern.Units;
+  ShowMessageText(Format(rsCanvasSeamProgress, [SideNames[FSeamOnB], LengthWithUnit(LengthA, AUnit), LengthWithUnit(LengthB, AUnit),
+    LengthWithUnit(LengthB - LengthA, AUnit)]));
 end;
 
 procedure TPatternCanvas.ToggleSeamEdgeHere(X, Y: integer);

@@ -34,7 +34,7 @@ unit Sloper.Document.PatternDocument;
 interface
 
 uses
-  SysUtils, Generics.Collections, Sloper.Core.Measurements, Sloper.Core.Pattern;
+  SysUtils, Generics.Collections, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.Units;
 
 const
   DefaultUndoLimit = 500;
@@ -122,9 +122,9 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    // An empty pattern with no history and no file name. The measurement
-    // set is kept.
-    procedure NewPattern;
+    // An empty pattern in AUnits, with no history and no file name. The
+    // measurement set is kept.
+    procedure NewPattern(AUnits: TMeasureUnit = muMillimetre);
     // On failure the open pattern is unchanged. The pattern's measurement
     // file is loaded too; if that fails the pattern still opens, without a
     // measurement set, and MeasurementError says why.
@@ -413,10 +413,11 @@ begin
     FMeasurementText := '';
 end;
 
-procedure TPatternDocument.NewPattern;
+procedure TPatternDocument.NewPattern(AUnits: TMeasureUnit);
 begin
   RequireNoChange;
   FPattern.Clear;
+  FPattern.Units := AUnits;
   FPattern.MeasurementScale := 1;
   ClearHistory;
   FFileName := '';

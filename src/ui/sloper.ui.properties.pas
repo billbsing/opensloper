@@ -907,9 +907,9 @@ begin
   RefreshTransformRows(Node);
   if Assigned(FResult) then
     if (Node is TNoteObject) and Node.HasResult then
-      FResult.Caption := Format(rsObjectPosition, [RoundedText(TNoteObject(Node).Position.X, 1), RoundedText(TNoteObject(Node).Position.Y, 1)])
+      FResult.Caption := PositionText(TNoteObject(Node).Position, FDocument.Pattern.Units)
     else if Node is TDraftObject then
-      FResult.Caption := ResultText(TDraftObject(Node))
+      FResult.Caption := ResultText(TDraftObject(Node), FDocument.Pattern.Units)
     else
       FResult.Caption := '';
   if Assigned(FResult) and (Node is TVariable) and (Node.State = esValid) then
@@ -1363,7 +1363,7 @@ begin
   FSideAText.Caption := SeamSideText(FDocument.Pattern, Seam.SideA);
   FSideBText.Caption := SeamSideText(FDocument.Pattern, Seam.SideB);
   if Seam.HasResult then
-    FDifferenceText.Caption := SeamDifferenceText(Seam)
+    FDifferenceText.Caption := SeamDifferenceText(Seam, FDocument.Pattern.Units)
   else
     FDifferenceText.Caption := '';
 end;

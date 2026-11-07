@@ -51,12 +51,18 @@ type
     procedure TestUnknownUnitRefused;
     procedure TestDragInPatternUnit;
     procedure TestDragKeepsSuffixInOtherUnit;
+    procedure TestStartingValuesPerUnit;
+    procedure TestFabricAllowanceStandsIn;
+    procedure TestNotesPlacedInPatternUnit;
+    procedure TestConvertToCurveHandlesInPatternUnit;
+    procedure TestLengthText;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.Units, Sloper.Core.Geometry, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.PatternFile;
+  SysUtils, Sloper.Core.Units, Sloper.Core.Geometry, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.PatternFile,
+  Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.EvalTypes;
 
 procedure TTestPatternUnits.SetUp;
 begin
@@ -275,6 +281,99 @@ begin
   FPattern.Evaluate;
   AssertTrue(Err, DragPoint(FPattern, A, Vec2(12.34, 0), Err));
   AssertEquals('stays in mm', '12.3mm', FPattern.FormulaText(A, 'x'));
+end;
+
+// A closed rectangle of outline edges, in the pattern unit, as a piece
+function SquarePiece(Pattern: TPattern; const Size: string): TPieceObject;
+var
+  A, B, C, D, Reason: string;
+  Path: TPiecePath;
+begin
+  A := Pattern.AddFreePoint('', '0', '0').Key;
+  B := Pattern.AddFreePoint('', Size, '0').Key;
+  C := Pattern.AddFreePoint('', Size, Size).Key;
+  D := Pattern.AddFreePoint('', '0', Size).Key;
+  Pattern.AddLine(A, B, erOutline);
+  Pattern.AddLine(B, C, erOutline);
+  Pattern.AddLine(C, D, erOutline);
+  Pattern.AddLine(D, A, erOutline);
+  Pattern.Evaluate;
+  Result := nil;
+  if DetectPiecePath(Pattern, Vec2(1, 1), Path, Reason) then
+    Result := Pattern.AddPiece('', Path, DefaultPieceAllowance);
+end;
+
+procedure TTestPatternUnits.TestStartingValuesPerUnit;
+var
+  Piece: TPieceObject;
+  Seam: TSeamObject;
+  Side: TSeamSide;
+  A: TPointObject;
+begin
+  FPattern.Units := muInch;
+  Piece := TPieceObject(Check(SquarePiece(FPattern, '4')));
+  AssertEquals('allowance', '0.375', FPattern.FormulaText(Piece, PieceAllowanceField));
+  Side := nil;
+  SetLength(Side, 1);
+  Side[0].PieceKey := Piece.Key;
+  Side[0].EdgeKey := Piece.Path[0].EdgeKey;
+  Seam := TSeamObject(Check(FPattern.AddSeam('', Side, Side)));
+  AssertEquals('tolerance', '0.04', FPattern.FormulaText(Seam, SeamToleranceField));
+  A := Pt('M', '1', '1');
+  AssertTrue(FPattern.LastError, FPattern.SetMarker(A.Key, pmButton));
+  AssertEquals('button', '0.625', FPattern.FormulaText(A, MarkerSizeField));
+  FPattern.Evaluate;
+  AssertNear('marker size in mm', 0.625 * 25.4, A.MarkerSize);
+  AssertTrue('allowance in mm', Piece.State = esValid);
+end;
+
+procedure TTestPatternUnits.TestFabricAllowanceStandsIn;
+var
+  Piece: TPieceObject;
+begin
+  FPattern.Units := muCentimetre;
+  FPattern.Fabrics[0].HasAllowance := True;
+  FPattern.Fabrics[0].Allowance := 1.5;
+  Piece := TPieceObject(Check(SquarePiece(FPattern, '10')));
+  AssertEquals('the fabric''s, in the pattern unit', '1.5', FPattern.FormulaText(Piece, PieceAllowanceField));
+end;
+
+procedure TTestPatternUnits.TestNotesPlacedInPatternUnit;
+var
+  Note: TNoteObject;
+begin
+  FPattern.Units := muCentimetre;
+  Pt('A', '2', '3');
+  Note := TNoteObject(Check(FPattern.AddNote('', 'Text', naPoint, FPattern.FindObject('A').Key, '', '1', '0')));
+  FPattern.Evaluate;
+  AssertTrue(FPattern.LastError, FPattern.MakeNoteFree(Note));
+  AssertEquals('x in cm', '3', FPattern.FormulaText(Note, NoteXField));
+  AssertEquals('y in cm', '3', FPattern.FormulaText(Note, NoteYField));
+end;
+
+procedure TTestPatternUnits.TestConvertToCurveHandlesInPatternUnit;
+var
+  A, B: TPointObject;
+  Curve: TCurveObject;
+begin
+  FPattern.Units := muCentimetre;
+  A := Pt('A', '0', '0');
+  B := Pt('B', '9', '0');
+  FPattern.Evaluate;
+  Curve := FPattern.ConvertToCurve(TLineObject(Check(FPattern.AddLine(A.Key, B.Key))));
+  AssertNotNull(FPattern.LastError, Curve);
+  AssertEquals('a third, in cm', '3', FPattern.FormulaText(Curve, 'length1'));
+end;
+
+procedure TTestPatternUnits.TestLengthText;
+begin
+  AssertEquals('12.3', FormatLength(12.34, muMillimetre));
+  AssertEquals('1.23', FormatLength(12.34, muCentimetre));
+  AssertEquals('0.486', FormatLength(12.34, muInch));
+  AssertEquals('no -0', '0', FormatLength(-0.01, muMillimetre));
+  AssertEquals('1.5 cm', LengthWithUnit(15, muCentimetre));
+  AssertEquals('to 0.01 in', '0.49', RoundLengthFormulaText(12.34, muInch));
+  AssertEquals('to 0.1 cm', '1.2', RoundLengthFormulaText(12.34, muCentimetre));
 end;
 
 initialization

@@ -55,12 +55,13 @@ type
     procedure TestRectangleFromCorner;
     procedure TestRectangleEitherWay;
     procedure TestRectangleTooThin;
+    procedure TestInPatternUnit;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft;
+  SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Units;
 
 const
   Radius = 2;
@@ -215,9 +216,9 @@ procedure TTestSnap.TestDescriptions;
 begin
   AssertEquals(Format(rsSnapPoint, ['B']), SnapDescription(FPattern, Snap(99, 1)));
   AssertEquals(Format(rsSnapCrossing, ['Line_A_B', 'Line_C_D']), SnapDescription(FPattern, Snap(50.6, 0.7)));
-  AssertEquals(Format(rsSnapEdge, ['Line_A_B', '30', 'B']), SnapDescription(FPattern, Snap(70, -1.5)));
-  AssertEquals(Format(rsSnapRight, ['30', 'B']), SnapDescription(FPattern, Snap(130, 0.8)));
-  AssertEquals(Format(rsSnapUp, ['30', 'D']), SnapDescription(FPattern, Snap(50.5, -80)));
+  AssertEquals(Format(rsSnapEdge, ['Line_A_B', '30 mm', 'B']), SnapDescription(FPattern, Snap(70, -1.5)));
+  AssertEquals(Format(rsSnapRight, ['30 mm', 'B']), SnapDescription(FPattern, Snap(130, 0.8)));
+  AssertEquals(Format(rsSnapUp, ['30 mm', 'D']), SnapDescription(FPattern, Snap(50.5, -80)));
   AssertEquals(Format(rsSnapFree, ['200', '200']), SnapDescription(FPattern, Snap(200, 200)));
 end;
 
@@ -294,6 +295,24 @@ begin
   AssertFalse(RectangleFromSnap(FPattern, Snap(200, 200), Vec2(300, 200.01), erOutline, Edges));
   AssertEquals(rsSnapTooSmall, FPattern.LastError);
   AssertEquals(Count, FPattern.ObjectCount);
+end;
+
+// In a cm pattern the read-outs and the formulas written are in cm
+procedure TTestSnap.TestInPatternUnit;
+var
+  Key: string;
+  Circle: TCircleObject;
+begin
+  FPattern.Units := muCentimetre;
+  FPattern.Evaluate;
+  // B is now at 1000 mm
+  AssertEquals(Format(rsSnapEdge, ['Line_A_B', '30 cm', 'B']), SnapDescription(FPattern, Snap(700, -1.5)));
+  Key := PointFromSnap(FPattern, Snap(700, -1.5));
+  AssertEquals('length along, in cm', '30', FPattern.FormulaText(TDraftObject(FPattern.FindNode(Key)), 'value'));
+  Circle := CircleFromSnap(FPattern, Snap(0.5, 0.5), Vec2(0, 123), erConstruction);
+  AssertNotNull(FPattern.LastError, Circle);
+  AssertEquals('radius to 0.1 cm', '12.3', FPattern.FormulaText(Circle, 'radius'));
+  AssertNull('under 0.05 cm is nothing', CircleFromSnap(FPattern, Snap(0.5, 0.5), Vec2(0, 0.4), erConstruction));
 end;
 
 initialization

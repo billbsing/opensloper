@@ -380,6 +380,7 @@ begin
   FCanvas.ShowPieceFills := FSettings.ShowPieceFills;
   SetSideShown(FSettings.ShowSidePanel);
   SetRulersShown(FSettings.ShowRulers);
+  FDocument.NewPattern(FPreferences.MeasureUnit);
   ApplyPreferences;
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
@@ -418,13 +419,13 @@ begin
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
 end;
 
-// Rulers, grid and cursor position are in the user's unit until patterns have
-// units of their own
+// Rulers, grid and cursor position are in the pattern's unit, with the grid
+// spacing the preferences give that unit
 procedure TMainForm.ApplyPreferences;
 var
   AUnit: TMeasureUnit;
 begin
-  AUnit := FPreferences.MeasureUnit;
+  AUnit := FDocument.Pattern.Units;
   FHorzRuler.MeasureUnit := AUnit;
   FVertRuler.MeasureUnit := AUnit;
   FRulerCorner.MeasureUnit := AUnit;
@@ -1154,6 +1155,9 @@ end;
 
 procedure TMainForm.DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
 begin
+  // A new or opened pattern may be in another unit
+  if dcObjectsReplaced in Changes then
+    ApplyPreferences;
   if dcFile in Changes then
     UpdateTitle;
   UpdateMenus;
@@ -1170,8 +1174,8 @@ end;
 
 procedure TMainForm.CanvasCursorMove(Sender: TObject; const ModelPos: TVec2);
 begin
-  StatusBar.Panels[PanelCursor].Text := Format(rsCursorAt, [CursorNumber(ModelPos.X, FPreferences.MeasureUnit),
-    CursorNumber(ModelPos.Y, FPreferences.MeasureUnit), MeasureUnitNames[FPreferences.MeasureUnit]]);
+  StatusBar.Panels[PanelCursor].Text := Format(rsCursorAt, [CursorNumber(ModelPos.X, FDocument.Pattern.Units),
+    CursorNumber(ModelPos.Y, FDocument.Pattern.Units), MeasureUnitNames[FDocument.Pattern.Units]]);
   FHorzRuler.ShowCursor(ModelPos);
   FVertRuler.ShowCursor(ModelPos);
 end;
@@ -1191,7 +1195,7 @@ end;
 // Along the top and left of the canvas, which they must line up with: the
 // top strip spans the panel, so the corner is exactly as wide as the left
 // ruler and the top ruler starts where the canvas does. They count in the
-// user's unit (see ApplyPreferences).
+// pattern's unit (see ApplyPreferences).
 procedure TMainForm.CreateRulers;
 begin
   FRulerTop := TPanel.Create(Self);
@@ -1368,7 +1372,7 @@ procedure TMainForm.MenuFileNewClick(Sender: TObject);
 begin
   if not ConfirmDiscard then
     Exit;
-  FDocument.NewPattern;
+  FDocument.NewPattern(FPreferences.MeasureUnit);
   FCanvas.SelectNone;
   FCanvas.RestoreView;
 end;

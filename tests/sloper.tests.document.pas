@@ -97,7 +97,7 @@ implementation
 
 uses
   Sloper.Core.JSON,
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.PatternFile;
+  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Units;
 
 procedure TTestDocument.SetUp;
 begin
@@ -845,6 +845,10 @@ begin
   AssertEquals('file name', '', FDocument.FileName);
   AssertFalse('history', FDocument.CanUndo);
   AssertFalse('modified', FDocument.Modified);
+  AssertTrue('mm unless asked', FDocument.Pattern.Units = muMillimetre);
+  FDocument.NewPattern(muInch);
+  AssertTrue('in the unit asked for', FDocument.Pattern.Units = muInch);
+  AssertFalse('still not modified', FDocument.Modified);
 end;
 
 initialization
