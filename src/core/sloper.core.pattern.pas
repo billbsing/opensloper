@@ -125,6 +125,7 @@ type
     // Files list each object after its inputs. A changed point may now read
     // objects further down, so they move up; the rest stay in their order.
     procedure OrderObjectsByInputs;
+    procedure FollowSplit(Source: TEdgeObject; First, Second: TSplitPart);
     function GetVariableCount: integer;
     function GetVariable(Index: integer): TVariable;
     function GetObjectCount: integer;
@@ -242,7 +243,8 @@ type
     function AddCurvePath(const NodeIds, Angles, LengthsIn, LengthsOut: array of string;
       Role: TEdgeRole = erConstruction; const AName: string = ''): TCurvePathObject;
     // Splits an edge at a point on it into two new edges, which follow the
-    // edge and the point. The edge itself stays.
+    // edge and the point. The edge itself stays, and the pieces and seams
+    // that used it take the parts instead (see FollowSplit).
     function SplitEdge(const EdgeId, PointId: string; out First, Second: TSplitPart): boolean;
     // A piece around the closed Path, with Allowance as the seam allowance of
     // every edge. An empty name takes the next free one: Piece, Piece2 and so on.
@@ -2155,7 +2157,58 @@ begin
   Source := TEdgeObject(FindNode(EdgeId));
   First := NewPart(1);
   Second := NewPart(2);
+  FollowSplit(Source, First, Second);
   Result := True;
+end;
+
+// Pieces that use the split edge take its parts instead, in the order their
+// paths run, so a seam or notch can use part of what was one edge. A notch
+// past the split point moves to the second part, measured from its start; a
+// seam on the edge takes both parts. A piece folded on the edge keeps it, as
+// a fold is one edge. Nothing changes while the parts are not valid.
+procedure TPattern.FollowSplit(Source: TEdgeObject; First, Second: TSplitPart);
+var
+  Index, PathIndex, Notch, SeamIndex: integer;
+  Piece: TPieceObject;
+  Order: array of string;
+  Position: double;
+  Moved: boolean;
+begin
+  Evaluate;
+  if (First.State <> esValid) or (Second.State <> esValid) then
+    Exit;
+  Moved := False;
+  for Index := 0 to FObjects.Count - 1 do
+  begin
+    if not (FObjects[Index] is TPieceObject) then
+      Continue;
+    Piece := TPieceObject(FObjects[Index]);
+    PathIndex := Piece.PathIndexOf(Source.Key);
+    if (PathIndex < 0) or (Piece.FoldEdgeKey = Source.Key) then
+      Continue;
+    for Notch := 0 to High(Piece.Notches) do
+      if (Piece.Notches[Notch].EdgeKey = Source.Key) and Piece.Field(Piece.NotchField(Notch)).Evaluate(FContext, Position) and
+        (Position * FContext.LengthScale > First.Length + DefaultTolerance) then
+      begin
+        Piece.SetNotchEdge(Notch, Second.Key);
+        SetStoredFormula(Piece, Piece.NotchField(Notch), '(' + Piece.Field(Piece.NotchField(Notch)).StoredText + ') - {' +
+          First.Key + '}.length');
+      end
+      else if Piece.Notches[Notch].EdgeKey = Source.Key then
+        Piece.SetNotchEdge(Notch, First.Key);
+    if Piece.Path[PathIndex].Reversed then
+      Order := [Second.Key, First.Key]
+    else
+      Order := [First.Key, Second.Key];
+    Piece.SplitPathEdge(PathIndex, Order[0], Order[1]);
+    for SeamIndex := 0 to FObjects.Count - 1 do
+      if FObjects[SeamIndex] is TSeamObject then
+        TSeamObject(FObjects[SeamIndex]).SplitEntry(Piece.Key, Source.Key, Order);
+    Moved := True;
+  end;
+  // A piece now reads the parts, which come after it
+  if Moved then
+    OrderObjectsByInputs;
 end;
 
 function TPattern.AddPiece(const AName: string; const Path: TPiecePath; const Allowance: string): TPieceObject;

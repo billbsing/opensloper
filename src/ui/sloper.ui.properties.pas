@@ -86,6 +86,18 @@ type
     FTypeBox: TComboBox;
     // The edge waiting to be changed, once the type box's handler has returned
     FConvertKey: string;
+    // Adds an edge's own seam allowance: one choice per edge without one,
+    // after the prompt, with the path index of each
+    FAllowanceBox: TComboBox;
+    FAllowanceIndexes: array of integer;
+    // The piece waiting for an allowance to be added or removed, once the
+    // handler of the control that asked has returned
+    FAllowanceKey: string;
+    // The grainline's kind, in the order of TGrainKind, and its two points
+    // when it runs between them: Choose..., then every point by name
+    FGrainBox, FGrainStartBox, FGrainEndBox: TComboBox;
+    FGrainPointKeys: TStringArray;
+    FGrainKey: string;
     FOnMessage: TPropertiesMessageEvent;
     // The edge of each fold choice; '' for none
     FFoldKeys: TStringArray;
@@ -177,6 +189,15 @@ type
     procedure FoldChange(Sender: TObject);
     procedure TypeChange(Sender: TObject);
     procedure ConvertQueued(Data: PtrInt);
+    procedure AllowanceChange(Sender: TObject);
+    // Data is the path index; added with the piece's allowance, or removed
+    procedure AddAllowanceQueued(Data: PtrInt);
+    procedure RemoveAllowanceQueued(Data: PtrInt);
+    function FieldRowCaption(Node: TEvalNode; const FieldName: string): string;
+    procedure AddGrainRows;
+    procedure RefreshGrainRows(Piece: TPieceObject);
+    procedure GrainChange(Sender: TObject);
+    procedure GrainQueued(Data: PtrInt);
     procedure FabricChange(Sender: TObject);
     procedure FillStyleChange(Sender: TObject);
     procedure FillColorChange(Sender: TObject);
@@ -289,6 +310,20 @@ resourcestring
   rsPropChangeFill = 'Change fill';
   rsPropMadeBy = 'Made by';
   rsPropNoFold = 'None';
+  rsPropGrainline = 'Grainline';
+  rsPropGrainNone = 'None';
+  rsPropGrainAngle = 'At an angle';
+  rsPropGrainPoints = 'Between two points';
+  rsPropGrainFrom = 'Grainline from';
+  rsPropGrainTo = 'Grainline to';
+  rsPropGrainChoose = 'Choose...';
+  rsPropChangeGrainline = 'Change grainline';
+  rsPropOwnAllowance = 'Own allowance';
+  rsPropOwnAllowancePrompt = 'Add for an edge...';
+  rsPropOwnAllowanceHint = 'Give one edge its own seam allowance; empty its row to go back to the piece''s';
+  rsPropEdgeAllowance = 'Allowance, %s';
+  rsPropAddEdgeAllowance = 'Add edge allowance';
+  rsPropRemoveEdgeAllowance = 'Remove edge allowance';
   rsPropChangeCut = 'Change cut';
   rsPropChangeFold = 'Change fold';
   rsPropChangeType = 'Change edge type';
@@ -542,6 +577,12 @@ begin
   FCutEdit := nil;
   FMirrorBox := nil;
   FFoldBox := nil;
+  FAllowanceBox := nil;
+  FAllowanceIndexes := nil;
+  FGrainBox := nil;
+  FGrainStartBox := nil;
+  FGrainEndBox := nil;
+  FGrainPointKeys := nil;
   FTypeBox := nil;
   FFoldKeys := nil;
   FFabricBox := nil;
@@ -774,7 +815,7 @@ begin
     // A marker's size goes under the marker
     for Index := 0 to Node.FieldCount - 1 do
       if (Node.Fields[Index].Name <> MarkerSizeField) and not ((Node is TNoteObject) and IsNoteValue(Node.Fields[Index].Name)) then
-        FEdits[Index] := AddEditRow(FieldCaption(Node.Fields[Index].Name), Index);
+        FEdits[Index] := AddEditRow(FieldRowCaption(Node, Node.Fields[Index].Name), Index);
     if Node is TVariable then
       FDescriptionEdit := AddEditRow(rsPropDescription, DescriptionTag);
     if Node is TEdgeObject then
@@ -938,6 +979,15 @@ begin
   Node := FDocument.Pattern.FindNode(FKey);
   if not Assigned(Node) then
     Exit;
+  // Emptying an edge's own allowance removes it, which takes its row away,
+  // so it waits until this edit's handler has returned
+  if (Edit.Tag >= 0) and (Node is TPieceObject) and (Trim(Edit.Text) = '') and
+    (TPieceObject(Node).OverridePathIndex(Node.Fields[Edit.Tag].Name) >= 0) then
+  begin
+    FAllowanceKey := FKey;
+    Application.QueueAsyncCall(@RemoveAllowanceQueued, TPieceObject(Node).OverridePathIndex(Node.Fields[Edit.Tag].Name));
+    Exit;
+  end;
   if Edit.Tag = DescriptionTag then
     Description := rsPropChangeDescription
   else if Edit.Tag = NameTag then
@@ -1390,6 +1440,7 @@ procedure TPropertiesPanel.AddPieceRows(Piece: TPieceObject);
 var
   Entry: TPieceEdge;
   Edge: TEvalNode;
+  Index: integer;
 begin
   FCutEdit := TSpinEdit.Create(Self);
   FCutEdit.MinValue := 1;
@@ -1414,6 +1465,22 @@ begin
   end;
   FFoldBox.OnChange := @FoldChange;
   AddRow(rsPropFold, FFoldBox, RowGap);
+  FAllowanceBox := TComboBox.Create(Self);
+  FAllowanceBox.Style := csDropDownList;
+  FAllowanceBox.Hint := rsPropOwnAllowanceHint;
+  FAllowanceBox.ShowHint := True;
+  FAllowanceBox.Items.Add(rsPropOwnAllowancePrompt);
+  for Index := 0 to High(Piece.Path) do
+    if not Piece.HasOverride(Index) then
+    begin
+      FAllowanceBox.Items.Add(FDocument.Pattern.FindNode(Piece.Path[Index].EdgeKey).DisplayName);
+      Insert(Index, FAllowanceIndexes, Length(FAllowanceIndexes));
+    end;
+  FAllowanceBox.ItemIndex := 0;
+  FAllowanceBox.Enabled := Length(FAllowanceIndexes) > 0;
+  FAllowanceBox.OnChange := @AllowanceChange;
+  AddRow(rsPropOwnAllowance, FAllowanceBox, RowGap);
+  AddGrainRows;
   FFabricBox := TComboBox.Create(Self);
   FFabricBox.Style := csDropDownList;
   FFabricBox.OnChange := @FabricChange;
@@ -1442,6 +1509,7 @@ begin
     FCutEdit.Value := Piece.CutCount;
     FMirrorBox.Checked := Piece.Mirrored;
     RefreshFabricRows(Piece);
+    RefreshGrainRows(Piece);
   finally
     FFillingPieceRows := False;
   end;
@@ -1725,6 +1793,181 @@ begin
   finally
     FCommitting := False;
   end;
+end;
+
+// An edge's own allowance is named after its edge, which its field is not
+function TPropertiesPanel.FieldRowCaption(Node: TEvalNode; const FieldName: string): string;
+var
+  PathIndex: integer;
+begin
+  PathIndex := -1;
+  if Node is TPieceObject then
+    PathIndex := TPieceObject(Node).OverridePathIndex(FieldName);
+  if PathIndex < 0 then
+    Exit(FieldCaption(FieldName));
+  Result := Format(rsPropEdgeAllowance, [FDocument.Pattern.FindNode(TPieceObject(Node).Path[PathIndex].EdgeKey).DisplayName]);
+end;
+
+// Adding a field rebuilds the panel, box and all, so it waits until this
+// handler has returned
+procedure TPropertiesPanel.AllowanceChange(Sender: TObject);
+begin
+  if FAllowanceBox.ItemIndex <= 0 then
+    Exit;
+  FAllowanceKey := FKey;
+  Application.QueueAsyncCall(@AddAllowanceQueued, FAllowanceIndexes[FAllowanceBox.ItemIndex - 1]);
+end;
+
+// Starts at the piece's own allowance, with its row ready to type in
+procedure TPropertiesPanel.AddAllowanceQueued(Data: PtrInt);
+var
+  Node: TEvalNode;
+  Piece: TPieceObject;
+  Index: integer;
+begin
+  if not Assigned(FDocument) or (FAllowanceKey = '') or (FAllowanceKey <> FKey) then
+    Exit;
+  FAllowanceKey := '';
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TPieceObject) or (Data > High(TPieceObject(Node).Path)) then
+    Exit;
+  Piece := TPieceObject(Node);
+  FDocument.BeginChange(rsPropAddEdgeAllowance);
+  FDocument.Commit(FDocument.Pattern.SetEdgeAllowance(Piece, Data, FDocument.Pattern.FormulaText(Piece, PieceAllowanceField)));
+  for Index := 0 to High(FEdits) do
+    if Assigned(FEdits[Index]) and (Index < Piece.FieldCount) and (Piece.Fields[Index].Name = Piece.OverrideField(Data)) then
+    begin
+      FEdits[Index].SetFocus;
+      FEdits[Index].SelectAll;
+    end;
+end;
+
+procedure TPropertiesPanel.RemoveAllowanceQueued(Data: PtrInt);
+var
+  Node: TEvalNode;
+begin
+  if not Assigned(FDocument) or (FAllowanceKey = '') or (FAllowanceKey <> FKey) then
+    Exit;
+  FAllowanceKey := '';
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TPieceObject) or (Data > High(TPieceObject(Node).Path)) then
+    Exit;
+  FDocument.BeginChange(rsPropRemoveEdgeAllowance);
+  FDocument.Commit(FDocument.Pattern.SetEdgeAllowance(TPieceObject(Node), Data, ''));
+end;
+
+procedure TPropertiesPanel.AddGrainRows;
+var
+  Point: TPointObject;
+
+  function NewBox: TComboBox;
+  begin
+    Result := TComboBox.Create(Self);
+    Result.Style := csDropDownList;
+    Result.OnChange := @GrainChange;
+  end;
+
+begin
+  FGrainBox := NewBox;
+  // In the order of TGrainKind
+  FGrainBox.Items.Add(rsPropGrainNone);
+  FGrainBox.Items.Add(rsPropGrainAngle);
+  FGrainBox.Items.Add(rsPropGrainPoints);
+  AddRow(rsPropGrainline, FGrainBox, RowGap);
+  FGrainStartBox := NewBox;
+  FGrainEndBox := NewBox;
+  FGrainStartBox.Items.Add(rsPropGrainChoose);
+  FGrainEndBox.Items.Add(rsPropGrainChoose);
+  Insert('', FGrainPointKeys, 0);
+  for Point in FDocument.Pattern.AllPoints do
+  begin
+    FGrainStartBox.Items.Add(Point.DisplayName);
+    FGrainEndBox.Items.Add(Point.DisplayName);
+    Insert(Point.Key, FGrainPointKeys, Length(FGrainPointKeys));
+  end;
+  AddRow(rsPropGrainFrom, FGrainStartBox, RowGap);
+  AddRow(rsPropGrainTo, FGrainEndBox, RowGap);
+end;
+
+procedure TPropertiesPanel.RefreshGrainRows(Piece: TPieceObject);
+
+  function PlaceOf(const Key: string): integer;
+  begin
+    for Result := 0 to High(FGrainPointKeys) do
+      if (Key <> '') and (FGrainPointKeys[Result] = Key) then
+        Exit;
+    Result := 0;
+  end;
+
+begin
+  if not Assigned(FGrainBox) then
+    Exit;
+  FGrainBox.ItemIndex := Ord(Piece.GrainKind);
+  if Piece.GrainKind = gkPoints then
+  begin
+    FGrainStartBox.ItemIndex := PlaceOf(Piece.GrainStartKey);
+    FGrainEndBox.ItemIndex := PlaceOf(Piece.GrainEndKey);
+  end
+  else
+  begin
+    FGrainStartBox.ItemIndex := 0;
+    FGrainEndBox.ItemIndex := 0;
+  end;
+  FGrainStartBox.Enabled := Piece.GrainKind = gkPoints;
+  FGrainEndBox.Enabled := Piece.GrainKind = gkPoints;
+end;
+
+// Between two points takes effect once both are chosen. Changing the kind
+// adds or removes the angle's row, so the change waits until this handler
+// has returned.
+procedure TPropertiesPanel.GrainChange(Sender: TObject);
+var
+  Points: boolean;
+begin
+  if FFillingPieceRows or not Assigned(FGrainBox) then
+    Exit;
+  Points := FGrainBox.ItemIndex = Ord(gkPoints);
+  FGrainStartBox.Enabled := Points;
+  FGrainEndBox.Enabled := Points;
+  if Points and ((FGrainStartBox.ItemIndex <= 0) or (FGrainEndBox.ItemIndex <= 0)) then
+    Exit;
+  FGrainKey := FKey;
+  Application.QueueAsyncCall(@GrainQueued, FGrainBox.ItemIndex);
+end;
+
+procedure TPropertiesPanel.GrainQueued(Data: PtrInt);
+var
+  Node: TEvalNode;
+  Piece: TPieceObject;
+  Reason: string;
+  Done: boolean;
+begin
+  if not Assigned(FDocument) or (FGrainKey = '') or (FGrainKey <> FKey) or not Assigned(FGrainBox) then
+    Exit;
+  FGrainKey := '';
+  Node := FDocument.Pattern.FindNode(FKey);
+  if not (Node is TPieceObject) then
+    Exit;
+  Piece := TPieceObject(Node);
+  FDocument.BeginChange(rsPropChangeGrainline);
+  case TGrainKind(Data) of
+    gkNone:
+    begin
+      FDocument.Pattern.ClearGrain(Piece);
+      Done := True;
+    end;
+    gkAngle:
+      if Piece.GrainKind = gkAngle then
+        Done := True
+      else
+        Done := FDocument.Pattern.SetGrainAngle(Piece, DefaultGrainAngle);
+    else
+      Done := FDocument.Pattern.SetGrainPoints(Piece, FGrainPointKeys[FGrainStartBox.ItemIndex], FGrainPointKeys[FGrainEndBox.ItemIndex]);
+  end;
+  Reason := FDocument.Pattern.LastError;
+  FDocument.Commit(Done);
+  if not Done and Assigned(FOnMessage) then
+    FOnMessage(Self, Reason);
 end;
 
 end.

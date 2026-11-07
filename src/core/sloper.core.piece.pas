@@ -148,8 +148,14 @@ type
     function PathIndexOf(const EdgeKey: string): integer;
     function OverrideField(PathIndex: integer): string;
     function HasOverride(PathIndex: integer): boolean;
+    // The path index of an override field (edge2.allowance is 1), or -1
+    function OverridePathIndex(const FieldName: string): integer;
     procedure AddOverride(PathIndex: integer);
     procedure RemoveOverride(PathIndex: integer);
+    // The edge at PathIndex becomes two, in the order the path runs: an
+    // override it had goes to both, and later overrides move up one
+    procedure SplitPathEdge(PathIndex: integer; const FirstKey, SecondKey: string);
+    procedure SetNotchEdge(Index: integer; const AEdgeKey: string);
     // Clears the old grainline's field, if any. gkAngle adds its field;
     // gkPoints takes the two point keys.
     procedure SetGrainKind(AKind: TGrainKind; const AStartKey: string = ''; const AEndKey: string = '');
@@ -912,6 +918,41 @@ begin
     Result := fkLength
   else
     Result := inherited FieldUnitKind(AName);
+end;
+
+procedure TPieceObject.SplitPathEdge(PathIndex: integer; const FirstKey, SecondKey: string);
+var
+  Index: integer;
+  Entry: TPieceEdge;
+  OverrideText: string;
+begin
+  Entry := FPath[PathIndex];
+  Insert(Entry, FPath, PathIndex + 1);
+  FPath[PathIndex].EdgeKey := FirstKey;
+  FPath[PathIndex + 1].EdgeKey := SecondKey;
+  // From the end, so no field is renamed onto one still to move
+  for Index := High(FPath) - 1 downto PathIndex + 1 do
+    if HasOverride(Index) then
+      RenameField(OverrideField(Index), OverrideField(Index + 1));
+  if HasOverride(PathIndex) then
+  begin
+    OverrideText := Field(OverrideField(PathIndex)).StoredText;
+    AddOverride(PathIndex + 1);
+    Field(OverrideField(PathIndex + 1)).ParseStored(OverrideText);
+  end;
+end;
+
+procedure TPieceObject.SetNotchEdge(Index: integer; const AEdgeKey: string);
+begin
+  FNotches[Index].EdgeKey := AEdgeKey;
+end;
+
+function TPieceObject.OverridePathIndex(const FieldName: string): integer;
+begin
+  for Result := 0 to High(FPath) do
+    if SameText(FieldName, OverrideField(Result)) then
+      Exit;
+  Result := -1;
 end;
 
 end.

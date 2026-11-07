@@ -14,8 +14,8 @@ These could not be tested properly during development.
 
 ## Known limits
 
-- A piece keeps the edges it was made from, so splitting an edge after making its piece does nothing for it: the piece has to be deleted and made again before a seam can use the parts.
-- An edge's own seam allowance, and a grainline between two points, can only be set through the Automation API.
+- ~~A piece keeps the edges it was made from, so splitting an edge after making its piece does nothing for it.~~ Fixed 2026-11-07: pieces, their notches and allowances, and seams take the parts.
+- ~~An edge's own seam allowance, and a grainline between two points, can only be set through the Automation API.~~ Fixed 2026-11-07: Own allowance and Grainline in the piece's properties.
 - Each Publish… opens another window, rather than finding one already open.
 
 ## List of Changes

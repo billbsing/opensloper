@@ -61,6 +61,9 @@ type
     function FieldUnitKind(const AName: string): TFieldUnitKind; override;
     function UsesPiece(const PieceKey: string): boolean;
     function UsesEdge(const PieceKey, EdgeKey: string): boolean;
+    // The piece's edge, split, becomes its parts, given in the order the
+    // piece's path runs; each side takes them in its own direction
+    procedure SplitEntry(const PieceKey, EdgeKey: string; const PathOrder: array of string);
     // Length of side B over side A, from the last good evaluation
     function Difference: double;
     // How far Difference is from the ease; positive when side B is too long
@@ -241,6 +244,34 @@ begin
     Result := fkLength
   else
     Result := inherited FieldUnitKind(AName);
+end;
+
+procedure TSeamObject.SplitEntry(const PieceKey, EdgeKey: string; const PathOrder: array of string);
+
+  procedure SplitIn(var Side: TSeamSide; WithPath: boolean);
+  var
+    Index, Part: integer;
+    Entry: TSeamEntry;
+  begin
+    for Index := High(Side) downto 0 do
+      if (Side[Index].PieceKey = PieceKey) and (Side[Index].EdgeKey = EdgeKey) then
+      begin
+        Delete(Side, Index, 1);
+        Entry.PieceKey := PieceKey;
+        for Part := 0 to High(PathOrder) do
+        begin
+          if WithPath then
+            Entry.EdgeKey := PathOrder[Part]
+          else
+            Entry.EdgeKey := PathOrder[High(PathOrder) - Part];
+          Insert(Entry, Side, Index + Part);
+        end;
+      end;
+  end;
+
+begin
+  SplitIn(FSideA, True);
+  SplitIn(FSideB, FReversed);
 end;
 
 end.
