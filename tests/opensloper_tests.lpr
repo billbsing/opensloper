@@ -78,7 +78,8 @@ uses
   Sloper.Tests.UnitConvert,
   Sloper.Tests.SplitPieces,
   Sloper.Tests.Docs,
-  Sloper.Tests.OperationInfo;
+  Sloper.Tests.OperationInfo,
+  Sloper.Tests.ApiMethods;
 
 var
   App: TTestRunner;

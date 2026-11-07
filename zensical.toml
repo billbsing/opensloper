@@ -22,6 +22,7 @@ nav = [
     "reference/functions.md",
     "reference/operations.md",
     "reference/cli.md",
+    "reference/api.md",
   ] },
 ]
 

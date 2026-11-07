@@ -41,7 +41,7 @@ my %allowed = (
   'src/api'      => [qw(Core Document Output API)],
   'src/output'   => [qw(Core Output)],
   'src/cli'      => [qw(Core Document Output API CLI Docs)],
-  'src/docs'     => [qw(Core CLI Docs)],
+  'src/docs'     => [qw(Core API CLI Docs)],
 );
 my %no_lcl = map { $_ => 1 } qw(src/core src/document src/api src/output src/cli src/docs);
 
