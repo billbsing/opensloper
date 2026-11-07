@@ -48,6 +48,8 @@ type
     Notes: TStringArray;
   end;
 
+  TSizeNumbers = specialize TArray<integer>;
+
 // Fills Measurements from a file's text; its root element says which kind it
 // is. On failure Measurements is left empty and ErrorMessage says why.
 function ImportSeamly(const Text: string; Catalogue: TCatalogue; Measurements: TMeasurementSet; out Report: TImportReport; out ErrorMessage: string): boolean;
@@ -726,7 +728,7 @@ begin
   Base := Measurement.ValueFor(First) + (BaseSize - SizeNumbers[First]) / SizeStep * Increase;
 end;
 
-function ReadSizeNumbers(Measurements: TMeasurementSet; out SizeNumbers: specialize TArray<integer>; out ErrorMessage: string): boolean;
+function ReadSizeNumbers(Measurements: TMeasurementSet; out SizeNumbers: TSizeNumbers; out ErrorMessage: string): boolean;
 var
   Index: integer;
 begin
@@ -748,7 +750,7 @@ function MultiSizeText(Measurements: TMeasurementSet; Catalogue: TCatalogue; con
 var
   Lines: TStringList;
   Used: TStringArray;
-  SizeNumbers: specialize TArray<integer>;
+  SizeNumbers: TSizeNumbers;
   Index, SizeIndex, BaseSize: integer;
   Base, Increase, OnLine: double;
   Name: string;
