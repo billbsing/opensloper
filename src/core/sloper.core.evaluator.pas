@@ -111,6 +111,7 @@ type
   private
     FNodes: TEvalNodeArray;
     FOrder: TEvalNodeArray;
+    procedure MarkCycles;
   public
     // Resolves dependencies, fills in dependents and sorts the nodes
     procedure Rebuild(const Nodes: TEvalNodeArray; Context: TEvalContext);
@@ -133,7 +134,7 @@ resourcestring
 implementation
 
 uses
-  Generics.Collections;
+  Math, Generics.Collections;
 
 type
   TEvalNodeSet = specialize THashSet<TEvalNode>;
@@ -413,6 +414,109 @@ begin
   end;
 
   // Nodes never reached are in a cycle or read one (only from loaded files)
+  MarkCycles;
+end;
+
+// Sorts the nodes Run never reached: those in a cycle are errors, and those
+// that only read one are blocked. A node is in a cycle when its strongly
+// connected component has more than one node or it reads itself. Tarjan's
+// algorithm finds the components in one pass over the edges, with its own
+// stacks, so a cycle as long as a file makes it neither takes minutes nor
+// overflows the program's stack.
+procedure TEvaluator.MarkCycles;
+type
+  TVisit = record
+    Node: TEvalNode;
+    NextDep: integer;
+  end;
+var
+  Number, LowLink: array of integer;  // by FIndex; Number 0 is not visited yet
+  OnStack, InCycle: array of boolean;
+  Visits: array of TVisit;
+  Members: TEvalNodeArray;
+  VisitCount, MemberCount, Counter, Index, First: integer;
+  Node, Dep, Member: TEvalNode;
+
+  procedure Visit(ANode: TEvalNode);
+  begin
+    Inc(Counter);
+    Number[ANode.FIndex] := Counter;
+    LowLink[ANode.FIndex] := Counter;
+    Members[MemberCount] := ANode;
+    Inc(MemberCount);
+    OnStack[ANode.FIndex] := True;
+    Visits[VisitCount].Node := ANode;
+    Visits[VisitCount].NextDep := 0;
+    Inc(VisitCount);
+  end;
+
+  function ReadsItself(ANode: TEvalNode): boolean;
+  var
+    Candidate: TEvalNode;
+  begin
+    for Candidate in ANode.FDeps do
+      if Candidate = ANode then
+        Exit(True);
+    Result := False;
+  end;
+
+begin
+  Number := nil;
+  LowLink := nil;
+  OnStack := nil;
+  InCycle := nil;
+  Visits := nil;
+  Members := nil;
+  SetLength(Number, Length(FNodes));
+  SetLength(LowLink, Length(FNodes));
+  SetLength(OnStack, Length(FNodes));
+  SetLength(InCycle, Length(FNodes));
+  SetLength(Visits, Length(FNodes));
+  SetLength(Members, Length(FNodes));
+  VisitCount := 0;
+  MemberCount := 0;
+  Counter := 0;
+  for Node in FNodes do
+  begin
+    if (Node.FState <> esDirty) or (Number[Node.FIndex] <> 0) then
+      Continue;
+    Visit(Node);
+    while VisitCount > 0 do
+    begin
+      Member := Visits[VisitCount - 1].Node;
+      if Visits[VisitCount - 1].NextDep <= High(Member.FDeps) then
+      begin
+        Dep := Member.FDeps[Visits[VisitCount - 1].NextDep];
+        Inc(Visits[VisitCount - 1].NextDep);
+        // A node Run reached is in no cycle
+        if Dep.FState <> esDirty then
+          Continue;
+        if Number[Dep.FIndex] = 0 then
+          Visit(Dep)
+        else if OnStack[Dep.FIndex] then
+          LowLink[Member.FIndex] := Min(LowLink[Member.FIndex], Number[Dep.FIndex]);
+        Continue;
+      end;
+      // Every dependency seen: pass the low link up, and close a component
+      // when this node is its root
+      Dec(VisitCount);
+      if VisitCount > 0 then
+        LowLink[Visits[VisitCount - 1].Node.FIndex] := Min(LowLink[Visits[VisitCount - 1].Node.FIndex], LowLink[Member.FIndex]);
+      if LowLink[Member.FIndex] = Number[Member.FIndex] then
+      begin
+        First := MemberCount - 1;
+        while Members[First] <> Member do
+          Dec(First);
+        for Index := First to MemberCount - 1 do
+        begin
+          OnStack[Members[Index].FIndex] := False;
+          InCycle[Members[Index].FIndex] := (MemberCount - First > 1) or ReadsItself(Member);
+        end;
+        MemberCount := First;
+      end;
+    end;
+  end;
+
   for Node in FNodes do
     if Node.FState = esDirty then
     begin
@@ -420,7 +524,7 @@ begin
       Node.FMessage := rsEvalCycle;
     end;
   for Node in FNodes do
-    if (Node.FState = esError) and (Node.FMessage = rsEvalCycle) and not Reaches(Node, Node, Context) then
+    if (Node.FState = esError) and (Node.FMessage = rsEvalCycle) and not InCycle[Node.FIndex] then
     begin
       Node.FState := esBlocked;
       for Dep in Node.FDeps do

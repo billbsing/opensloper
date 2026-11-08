@@ -72,6 +72,7 @@ type
     procedure TestInvalidBlocksDependents;
     procedure TestMissingInputIsAnError;
     procedure TestCycleIsAnError;
+    procedure TestLongCycleIsQuick;
     procedure TestReaches;
     procedure TestReachesLongChain;
     procedure TestRerunClearsOldStates;
@@ -308,6 +309,41 @@ begin
   AssertEquals(Format(rsEvalBlocked, ['Node a']), N('c').Message);
   AssertTrue('d', N('d').State = esValid);
   AssertEquals('cycle left out of the order', 1, Length(FEvaluator.Order));
+end;
+
+// Telling the nodes in a cycle from those that only read one once walked the
+// whole cycle for each of its nodes, so a crafted file with a long cycle took
+// minutes to load
+procedure TTestEvaluator.TestLongCycleIsQuick;
+const
+  RingLength = 20000;
+
+  function RingKey(I: integer): string;
+  begin
+    Result := Format('r%.6d', [I mod RingLength]);
+  end;
+
+var
+  I: integer;
+  Started: QWord;
+begin
+  for I := 0 to RingLength - 1 do
+    Node(RingKey(I), 1, [RingKey(I + 1)]);
+  Node('s', 1, ['s']);
+  Node('t', 1, [RingKey(0)]);
+  Node('u', 1, ['t', 's']);
+  Started := GetTickCount64;
+  RunGraph;
+  AssertTrue('seconds, not minutes', GetTickCount64 - Started < 5000);
+  for I := 0 to RingLength - 1 do
+    if N(RingKey(I)).Message <> rsEvalCycle then
+      Fail(RingKey(I) + ': ' + N(RingKey(I)).Message);
+  AssertTrue('a node reading itself', N('s').State = esError);
+  AssertEquals(rsEvalCycle, N('s').Message);
+  AssertTrue('t reads the cycle', N('t').State = esBlocked);
+  AssertEquals(Format(rsEvalBlocked, ['Node ' + RingKey(0)]), N('t').Message);
+  AssertTrue('u reads t', N('u').State = esBlocked);
+  AssertEquals(Format(rsEvalBlocked, ['Node t']), N('u').Message);
 end;
 
 procedure TTestEvaluator.TestReaches;
