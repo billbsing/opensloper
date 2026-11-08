@@ -192,7 +192,7 @@ begin
   Buttons.Top := 10000;
   Buttons.BevelOuter := bvNone;
   Buttons.AutoSize := True;
-  Buttons.BorderSpacing.Top:= 8;
+  Buttons.BorderSpacing.Top := 8;
   AddButton(Buttons, rsMeasurementsAdd, @AddClick);
   FSaveButton := AddButton(Buttons, rsMeasurementsSave, @SaveClick);
   // After the editors, which it disables while testing

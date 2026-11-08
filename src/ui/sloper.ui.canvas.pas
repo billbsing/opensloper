@@ -2497,7 +2497,8 @@ begin
     FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, MaterialTintAlpha))
   else
     for Stroke in HatchLines(Points, MaterialHatchPixels, Look.HatchAngle) do
-      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, MaterialHatchAlpha), 1);
+      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.Red, Look.Color.Green,
+        Look.Color.Blue, MaterialHatchAlpha), 1);
 end;
 
 // The cutting line, filled with its material; the seam line is the edges drawn over it
