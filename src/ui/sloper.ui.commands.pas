@@ -54,9 +54,16 @@ procedure SetActionHint(AAction: TAction);
 // divider too faint to see.
 procedure AddToolDivider(Bar: TToolBar);
 
+// Draws the lines between groups of menu items in the colour of the toolbar
+// dividers, in every menu of the app, as the Qt styles draw them too faint to
+// see on a dark menu. Safe to call more than once.
+procedure ShowMenuDividers;
+
 implementation
 
 uses
+  {$IFDEF LCLQt5}qt5,{$ENDIF}
+  {$IFDEF LCLQt6}qt6,{$ENDIF}
   SysUtils, Graphics, LCLProc, Sloper.UI.Icons;
 
 const
@@ -65,6 +72,8 @@ const
   ButtonPadding = 8;
   DividerSpace = 11;
   DividerInset = 4;
+  MenuDividerGap = 4;
+  MenuDividerInset = 6;
 
 type
   TDividerButton = class(TToolButton)
@@ -111,6 +120,39 @@ begin
     Button.Width := Bar.Scale96ToForm(DividerSpace);
 end;
 
+{$IF DEFINED(LCLQt5) or DEFINED(LCLQt6)}
+var
+  MenuDividersShown: boolean = False;
+
+function Scale96(Size: integer): integer;
+begin
+  Result := Round(Size * Screen.PixelsPerInch / 96);
+end;
+
+// Added to the app's style sheet, keeping any the Qt theme has set
+procedure ShowMenuDividers;
+var
+  App: QApplicationH;
+  Sheet: WideString;
+  Color: TColor;
+begin
+  if MenuDividersShown then
+    Exit;
+  MenuDividersShown := True;
+  App := QApplicationH(QCoreApplication_instance());
+  QApplication_styleSheet(App, @Sheet);
+  Color := ColorToRGB(clGrayText);
+  Sheet := Sheet + UTF8Decode(Format(LineEnding + 'QMenu::separator { height: 1px; margin: %dpx %dpx; background: #%.2x%.2x%.2x; }',
+    [Scale96(MenuDividerGap), Scale96(MenuDividerInset), Red(Color), Green(Color), Blue(Color)]));
+  QApplication_setStyleSheet(App, @Sheet);
+end;
+{$ELSE}
+
+procedure ShowMenuDividers;
+begin
+end;
+{$ENDIF}
+
 procedure SetActionHint(AAction: TAction);
 begin
   AAction.Hint := StringReplace(StripHotkey(AAction.Caption), '...', '', []);
@@ -125,6 +167,7 @@ begin
   FActions := TActionList.Create(Self);
   FActions.Images := FMenuIcons;
   Menu.Images := FMenuIcons;
+  ShowMenuDividers;
   FBar := TToolBar.Create(Self);
   FBar.Parent := Form;
   FBar.Align := alTop;

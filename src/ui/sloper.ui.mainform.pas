@@ -725,6 +725,7 @@ begin
   FActions := TActionList.Create(Self);
   FActions.Images := FMenuIcons;
   MainMenu.Images := FMenuIcons;
+  ShowMenuDividers;
   FCommandBar := NewBar(alTop);
   FToolBar := NewBar(alLeft);
   // Sized by hand, so a short window wraps the tools into another column
