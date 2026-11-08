@@ -21,7 +21,9 @@
 // right. Each change is its own undo step, made at once so the canvas behind
 // follows, so the dialog has only Close. A name or allowance commits on Enter
 // or on leaving the field, and Escape puts it back; a refused one keeps its
-// text, in red, with the reason under the fields.
+// text, in red, with the reason under the fields. The dialog is modal, so the
+// main window's Undo and Redo shortcuts cannot reach it: it handles them
+// itself, leaving them to a field that holds uncommitted typing.
 unit Sloper.UI.MaterialDialog;
 
 {$mode ObjFPC}{$H+}
@@ -63,6 +65,8 @@ type
     procedure FillChange(Sender: TObject);
     procedure EditKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
     procedure EditExit(Sender: TObject);
+    function HasUncommittedTyping: boolean;
+    procedure FormKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
     function GetSplit: integer;
     procedure SetSplit(Width96: integer);
   public
@@ -141,6 +145,8 @@ begin
   FGrid.MaterialIndex := Max(Index, 0);
   ShowFields;
   ActiveControl := FGrid;
+  KeyPreview := True;
+  OnKeyDown := @FormKeyDown;
 end;
 
 destructor TMaterialsDialog.Destroy;
@@ -480,6 +486,34 @@ end;
 procedure TMaterialsDialog.EditExit(Sender: TObject);
 begin
   Commit(FieldOf(Self, Sender), TEdit(Sender).Text, TEdit(Sender));
+end;
+
+// The focused field differs from the material, or holds a refused value
+function TMaterialsDialog.HasUncommittedTyping: boolean;
+var
+  Edit: TEdit;
+begin
+  Result := False;
+  if (ActiveControl <> FNameEdit) and (ActiveControl <> FAllowanceEdit) then
+    Exit;
+  Edit := TEdit(ActiveControl);
+  Result := (Edit.Color = RefusedPaper) or (Edit.Text <> MaterialFieldText(FDocument, Current, FieldOf(Self, Edit)));
+end;
+
+// Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo pattern changes, as in the
+// main window; the fields refresh as the document changes
+procedure TMaterialsDialog.FormKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
+begin
+  if (Key <> VK_Z) or not (ssModifier in Shift) or (ssAlt in Shift) or HasUncommittedTyping then
+    Exit;
+  FNameEdit.Color := clDefault;
+  FAllowanceEdit.Color := clDefault;
+  ShowReason('');
+  if ssShift in Shift then
+    FDocument.Redo
+  else
+    FDocument.Undo;
+  Key := 0;
 end;
 
 end.
