@@ -12,6 +12,20 @@ cd "$(dirname "$0")"
 
 CLI=release/opensloper-cli
 
+if echo "$*" | grep -q -- "--reinstall"; then
+  echo "Reinstalling virtual environment..."
+  rm -rf venv
+fi
+
+if [ ! -d "venv" ]; then
+  echo "Creating virtual environment..."
+  python3 -m venv venv
+
+  # Upgrade pip inside the environment first to prevent installation issues
+  ./venv/bin/pip install --upgrade pip
+  ./venv/bin/pip install -r requirements.txt
+fi
+
 if [ -x "$CLI" ]; then
   for topic in $("$CLI" doc); do
     "$CLI" doc "$topic" -o "docs/reference/$topic.md"
@@ -28,7 +42,7 @@ else
   echo "Note: $CLI is not built, so docs/reference/ and the tutorial pictures are left as they are (run ./build.sh first)"
 fi
 
-if [ "$1" = "--serve" ]; then
+if echo "$*" | grep -q -- "--serve"; then
   ./venv/bin/zensical serve
 else
   ./venv/bin/zensical build --clean --strict
