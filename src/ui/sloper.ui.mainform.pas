@@ -504,6 +504,9 @@ begin
   FMeasurements.OnOpenSet := @MenuFileMeasurementsClick;
   FMeasurements.OnNewSet := @MeasurementsNewSet;
   FMeasurements.OnEditSet := @MeasurementsEditSet;
+  FMeasurementWatch := TTimer.Create(Self);
+  FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
+  FMeasurementWatch.OnTimer := @MeasurementWatchTick;
   AlignSheet := FSidePanel.AddTabSheet;
   AlignSheet.Caption := rsTabAlign;
   FAlign := TAlignPanel.Create(Self);
@@ -528,9 +531,6 @@ begin
   FMaterials.Align := alClient;
   FMaterials.Document := FDocument;
   FMaterials.OnMessage := @ListPanelMessage;
-  FMeasurementWatch := TTimer.Create(Self);
-  FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
-  FMeasurementWatch.OnTimer := @MeasurementWatchTick;
   FSideSplitter := TSplitter.Create(Self);
   FSideSplitter.Parent := Self;
   FSideSplitter.Align := alRight;
