@@ -38,15 +38,19 @@ type
     mkEdge,            // an edge's ID
     mkPiece,           // a piece's ID
     mkObject,          // the ID of any object
-    mkMaterial,          // a material's ID
+    mkMaterial,        // a material's ID
     mkChoice,          // one of the words in Choices
     mkFlag,            // true or false
     mkWhole,           // a whole number
     mkText,            // text
     mkSize,            // a plain number, not a formula
+    mkSizeOrNull,      // a plain number, or null for none
+    mkFormula,         // a formula giving any value
+    mkPatternObject,   // one of the objects this table lists
     mkList,            // a list of objects, whose members are listed after it as list[].member
     mkGroup);          // an object, whose members are listed after it as group.member
 
+  // A name ending in [] is a list of values of its kind, such as sources[]
   TOperationMember = record
     // As in the file: x, nodes[].angle, grainline.start
     Name: string;
@@ -54,6 +58,8 @@ type
     // For mkChoice, the words it takes, separated by ", "
     Choices: string;
     Description: string;
+    // A file without it does not load
+    Required: boolean;
   end;
   TOperationMemberArray = array of TOperationMember;
 
@@ -76,7 +82,8 @@ function OperationInfos: TOperationInfoArray;
 // Members every object of the group has, besides its own
 function CommonMembers(Group: TOperationGroup): TOperationMemberArray;
 function FindOperationInfo(const TypeName: string; out Info: TOperationInfo): boolean;
-// The member with this name, such as nodes[].angle; False when not listed
+// The member with this name, such as nodes[].angle, or a list of values
+// named with [] after it; False when not listed
 function FindMember(const Info: TOperationInfo; const AName: string; out Member: TOperationMember): boolean;
 
 resourcestring
@@ -332,12 +339,14 @@ begin
   Table[Building].Derived := ADerived;
 end;
 
-function NewMember(const AName: string; AKind: TMemberKind; const ADescription: string; const AChoices: string = ''): TOperationMember;
+function NewMember(const AName: string; AKind: TMemberKind; const ADescription: string; const AChoices: string = '';
+  ARequired: boolean = False): TOperationMember;
 begin
   Result.Name := AName;
   Result.Kind := AKind;
   Result.Description := ADescription;
   Result.Choices := AChoices;
+  Result.Required := ARequired;
 end;
 
 procedure M(const AName: string; AKind: TMemberKind; const ADescription: string; const AChoices: string = '');
@@ -456,12 +465,12 @@ begin
   M('end', mkPoint, rsMemberCopyEnd);
   // Transforms
   Op('rotate', rsOpRotate, ogTransform, rsOpRotateSummary, '');
-  M('sources', mkList, rsMemberSources);
+  M('sources[]', mkObject, rsMemberSources);
   M('suffix', mkText, rsMemberSuffix);
   M('pivot', mkPoint, rsMemberPivot);
   M('angle', mkAngle, rsMemberTurn);
   Op('mirror', rsOpMirror, ogTransform, rsOpMirrorSummary, '');
-  M('sources', mkList, rsMemberSources);
+  M('sources[]', mkObject, rsMemberSources);
   M('suffix', mkText, rsMemberSuffix);
   M('axis', mkGroup, rsMemberAxis);
   M('axis.edge', mkEdge, rsMemberAxisEdge);
@@ -469,7 +478,7 @@ begin
   M('axis.b', mkPoint, rsMemberAxisB);
   M('angle', mkAngle, rsMemberAxisAngle);
   Op('move', rsOpMove, ogTransform, rsOpMoveSummary, '');
-  M('sources', mkList, rsMemberSources);
+  M('sources[]', mkObject, rsMemberSources);
   M('suffix', mkText, rsMemberSuffix);
   M('mode', mkChoice, rsMemberMoveMode, 'polar, cartesian');
   M('length', mkLength, rsMemberMoveLength);
@@ -545,7 +554,7 @@ end;
 
 function CommonMembers(Group: TOperationGroup): TOperationMemberArray;
 begin
-  Result := [NewMember('id', mkWhole, rsMemberId), NewMember('type', mkText, rsMemberType),
+  Result := [NewMember('id', mkWhole, rsMemberId, '', True), NewMember('type', mkText, rsMemberType, '', True),
     NewMember('name', mkText, rsMemberName)];
   if Group = ogEdge then
     Insert(NewMember('role', mkChoice, rsMemberRole, RoleChoices), Result, Length(Result));
@@ -576,13 +585,13 @@ var
 begin
   Member := Default(TOperationMember);
   for Candidate in Info.Members do
-    if Candidate.Name = AName then
+    if (Candidate.Name = AName) or (Candidate.Name = AName + '[]') then
     begin
       Member := Candidate;
       Exit(True);
     end;
   for Candidate in CommonMembers(Info.Group) do
-    if Candidate.Name = AName then
+    if (Candidate.Name = AName) or (Candidate.Name = AName + '[]') then
     begin
       Member := Candidate;
       Exit(True);

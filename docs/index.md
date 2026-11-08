@@ -29,9 +29,13 @@ direct way of drawing.
 - [The apps and their files](getting-started/files.md): how measurements, patterns and layouts fit together.
 - [A straight skirt block](tutorials/skirt-block.md): a first pattern, from
   measurements to pieces.
+- [The measurements app](measure/index.md): measurement files and size tables.
 - [The design window](design/index.md): drafting points, lines, formulas and
   pieces.
-- [Reference](reference/index.md): formula functions and the command line.
+- [The publish window](publish/index.md): laying out pieces and printing them
+  at true size.
+- [Reference](reference/index.md): formula functions, file formats, keyboard
+  shortcuts and the command line.
 
 !!! warning "Early development"
 

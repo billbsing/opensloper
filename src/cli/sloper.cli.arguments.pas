@@ -79,7 +79,8 @@ resourcestring
   rsCmdMeasurements = 'List a measurement file, set a value, or see what a pattern needs that it lacks';
   rsCmdPack = 'Pack a layout''s pieces and rewrite the layout file';
   rsCmdServe = 'Answer JSON-RPC 2.0 on stdin and stdout, one message per line';
-  rsCmdDoc = 'Write a page of the reference documentation as Markdown; with no topic, list the topics';
+  rsCmdDoc = 'Write a page of the reference documentation as Markdown, or a file format''s JSON Schema; with no ' +
+    'topic, list the topics';
   rsExitSuccess = 'Success';
   rsExitProblems = 'check: the pattern has problems';
   rsExitFailure = 'A usage error, or a file that could not be read or written';

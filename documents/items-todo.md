@@ -35,7 +35,7 @@ Rescoped 2026-11-06 into four stages (see Stages under Annotations in the design
 Done 2026-11-05 (see Preferences in the design document): one dialog in all three apps, Edit → Preferences…, with General (unit), Design (grid spacing per unit) and Publish (printer calibration, worked out from a measured test square). Calibration moved out of layout files; older layouts' values are ignored.
 
 Still to do:
-- New patterns take the preferred unit, once Pattern units is built (decided 2026-11-04, not started): each pattern has one unit, the preference sets it for new patterns and never changes an existing one, Tools → Convert Pattern Units… rewrites only lengths, and numbers may carry a suffix (`400mm`, `2in`; the suffix is built, converting to mm for now). Split 2026-11-06 into two stages (see Stages under Pattern units in the design document): stage 1, the pattern's unit, and stage 2, converting a pattern (both built 2026-11-07).
+- New patterns take the preferred unit, once Pattern units is built (decided 2026-11-04, not started): each pattern has one unit, the preference sets it for new patterns and never changes an existing one, Tools → Convert Pattern Units… rewrites only lengths, and numbers may carry a suffix (`400mm`, `2in`; the suffix is built, converting to mm for now). Split 2026-11-06 into two stages (see Pattern units in the design document): stage 1, the pattern's unit, and stage 2, converting a pattern (both built 2026-11-07).
 - An app already open picks up a preference changed in another app only when restarted.
 
 #### Marking line roles
@@ -44,6 +44,14 @@ Done 2026-11-05 (see Markings in the design document): edges can be placement, s
 #### File Format Standards
 For future claude creating new patterns and measurements, do we need to create storage file standards as part of the documents folder.
 Each store file type has currently a version number, and the JSON specification, so that claude can read/write measurement, design and  publish files.
+
+Decided 2026-11-08: user documentation pages and JSON Schema, both generated from the code, as the reference pages are. Done together with more documentation, in stages:
+
+- [x] **Stage 1, file formats.** A table of each user file's members outside the objects (pattern, measurements, layout), as `Sloper.Core.OperationInfo` is for objects, with a test that every member a saved file writes is listed. `opensloper-cli doc files` writes a File formats page: the shared rules, then each file's members and an example. `opensloper-cli doc` also writes `docs/reference/schemas/pattern.schema.json`, `measurements.schema.json` and `layout.schema.json` (JSON Schema 2020-12), the pattern's objects from the operations table. The committed-pages test covers the schemas, and `build-docs.sh` checks the examples and regression files against them with Python's `jsonschema`. The design document's File format section keeps the decisions and points to the page.
+- [x] **Stage 2, keyboard shortcuts.** A shortcuts table outside the LCL that the three apps take their shortcuts from, and a generated Keyboard shortcuts page.
+- [x] **Stage 3, Measure section.** Pages for the measurements app: a set, size tables, the catalogue and body figure, importing and exporting Valentina and Seamly2D files, and the measurements panel in the design app.
+- [x] **Stage 4, Publish section.** Pages for the publish app: making a layout, arranging and packing pieces, printing tiles and checking the scale, calibration, large-format and projector output, and exports.
+- [x] **Stage 5, shorter design document.** Summarise each section of `opensloper-design-document.md`, keeping decisions and their reasons, and moving what the user pages and reference pages now say to them.
 
 #### Publish - printing question
 How to adjust the print size if the square block is not 10x10.

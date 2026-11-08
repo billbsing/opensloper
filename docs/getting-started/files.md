@@ -34,3 +34,9 @@ its own unit, mm, cm or inches, and the numbers in its formulas are in it.
 A layout places the pieces of one or more patterns on printed pages, a plotter
 roll or a cutting machine's bed. It reads the patterns when it opens, so a
 change to a pattern shows in its layouts.
+
+## Inside the files
+
+The files are JSON text, so scripts and other programs can read and write them.
+[File formats](../reference/files.md) lists every member of each file, with a
+JSON Schema to check a file against.

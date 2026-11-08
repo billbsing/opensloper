@@ -1,0 +1,2246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://billbsing.github.io/opensloper/reference/schemas/pattern.schema.json",
+  "$comment": "Generated from the program by opensloper-cli doc pattern.schema.json; do not edit it by hand.",
+  "title": "OpenSloper pattern file (.sloper)",
+  "description": "Made by opensloper-design. It holds the definitions only: the formula for each point and line, and which edges make each piece. Positions are worked out again every time it opens.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "description": "What the file is; a file with another value does not load",
+      "const": "pattern"
+    },
+    "version": {
+      "description": "The version of the format; a program refuses a file newer than it knows",
+      "type": "integer"
+    },
+    "units": {
+      "description": "The unit of the numbers in formulas",
+      "enum": [
+        "mm",
+        "cm",
+        "in"
+      ]
+    },
+    "notes": {
+      "description": "Notes about the pattern",
+      "type": "string"
+    },
+    "measurementFile": {
+      "description": "The measurement file last used with it, relative to the pattern's folder unless absolute, with / between folders; empty when there is none",
+      "type": "string"
+    },
+    "identity": {
+      "description": "Tells the pattern from others when objects are pasted; made when the pattern is",
+      "type": "string"
+    },
+    "nextId": {
+      "description": "The next ID to hand out, above every ID in the file, so deleted IDs are never reused; when left out, one above the highest ID",
+      "type": "integer"
+    },
+    "variables": {
+      "description": "The # variables, in the order they were made",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The variable's ID; IDs are unique across variables, materials and objects",
+            "type": "integer"
+          },
+          "name": {
+            "description": "The name formulas use after #",
+            "type": "string"
+          },
+          "formula": {
+            "description": "Its value, in ID form: another object is written {12}",
+            "type": "string"
+          },
+          "description": {
+            "description": "What it is for",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "formula"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "objects": {
+      "description": "The points, edges, transforms, pieces, seams and notes, in the order they were made, each after every object it uses; their members are on the Operations and objects page",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/object"
+      }
+    },
+    "materials": {
+      "description": "The materials pieces are cut from; left out while the only one is the untouched Main",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The material's ID",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Its name, unique in the pattern",
+            "type": "string"
+          },
+          "color": {
+            "description": "Its colour, as #RRGGBB",
+            "type": "string"
+          },
+          "fill": {
+            "description": "How its pieces are filled on screen and in print",
+            "enum": [
+              "tint",
+              "hatch"
+            ]
+          },
+          "allowance": {
+            "description": "The seam allowance of its pieces, in the pattern's unit, when it has its own",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "color"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "view": {
+      "description": "How the design app last showed the pattern; not part of undo",
+      "type": "object",
+      "properties": {
+        "zoom": {
+          "description": "The zoom",
+          "type": "number"
+        },
+        "centre": {
+          "description": "The point in the middle of the window, as x and y in mm",
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "hiddenRoles": {
+          "description": "The kinds of line hidden on the canvas",
+          "type": "array",
+          "items": {
+            "enum": [
+              "construction",
+              "outline",
+              "placement",
+              "stitch",
+              "fold",
+              "cut",
+              "skive",
+              "edgeFinish"
+            ]
+          }
+        },
+        "hideAnnotations": {
+          "description": "Whether notes are hidden",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "version"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "object": {
+      "description": "An object of a pattern: a point, edge, transform, piece, seam or note",
+      "type": "object",
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "freePoint",
+            "offsetPoint",
+            "alongEdgePoint",
+            "betweenPoint",
+            "intersectPoint",
+            "circleEdgePoint",
+            "circleCirclePoint",
+            "projectPoint",
+            "repeat",
+            "cornerPoint",
+            "pointCopy",
+            "line",
+            "curve",
+            "curvePath",
+            "circle",
+            "arc",
+            "offsetEdge",
+            "splitPart",
+            "cornerArc",
+            "edgeCopy",
+            "rotate",
+            "mirror",
+            "move",
+            "piece",
+            "seam",
+            "note"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "freePoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/freePoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "offsetPoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/offsetPoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "alongEdgePoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/alongEdgePoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "betweenPoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/betweenPoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "intersectPoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/intersectPoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "circleEdgePoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/circleEdgePoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "circleCirclePoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/circleCirclePoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "projectPoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/projectPoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "repeat"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/repeat"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "cornerPoint"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/cornerPoint"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "pointCopy"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/pointCopy"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "line"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/line"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "curve"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/curve"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "curvePath"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/curvePath"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "circle"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/circle"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "arc"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/arc"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "offsetEdge"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/offsetEdge"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "splitPart"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/splitPart"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "cornerArc"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/cornerArc"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "edgeCopy"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/edgeCopy"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "rotate"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/rotate"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "mirror"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/mirror"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "move"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/move"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "piece"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/piece"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "seam"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/seam"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "note"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/note"
+          }
+        }
+      ]
+    },
+    "freePoint": {
+      "description": "Free point",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "x": {
+          "description": "Distance to the right of the origin",
+          "type": "string"
+        },
+        "y": {
+          "description": "Distance down from the origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "offsetPoint": {
+      "description": "Offset point",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "base": {
+          "description": "The point it is measured from",
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "description": "polar: a length at an angle; cartesian: across and down",
+          "enum": [
+            "polar",
+            "cartesian"
+          ]
+        },
+        "length": {
+          "description": "polar: how far from the base",
+          "type": "string"
+        },
+        "angle": {
+          "description": "polar: which way, 0° right and 90° up",
+          "type": "string"
+        },
+        "dx": {
+          "description": "cartesian: how far to the right",
+          "type": "string"
+        },
+        "dy": {
+          "description": "cartesian: how far down",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "alongEdgePoint": {
+      "description": "Point along an edge",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "edge": {
+          "description": "The edge it lies on",
+          "type": "integer",
+          "minimum": 1
+        },
+        "from": {
+          "description": "The end it is measured from",
+          "enum": [
+            "start",
+            "end"
+          ]
+        },
+        "mode": {
+          "description": "length: a distance along the edge; ratio: a share of its length, 0 to 1",
+          "enum": [
+            "length",
+            "ratio"
+          ]
+        },
+        "value": {
+          "description": "The distance or the ratio",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "betweenPoint": {
+      "description": "Point between points",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "a": {
+          "description": "The first point",
+          "type": "integer",
+          "minimum": 1
+        },
+        "b": {
+          "description": "The second point",
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "description": "ratio: a share of the way, 0 to 1; length: a distance from a",
+          "enum": [
+            "length",
+            "ratio"
+          ]
+        },
+        "value": {
+          "description": "The ratio or the distance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "intersectPoint": {
+      "description": "Intersection of edges",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "edgeA": {
+          "description": "The first edge",
+          "type": "integer",
+          "minimum": 1
+        },
+        "edgeB": {
+          "description": "The second edge",
+          "type": "integer",
+          "minimum": 1
+        },
+        "extendA": {
+          "description": "Let the first edge run on past its ends, along its end directions",
+          "type": "boolean"
+        },
+        "extendB": {
+          "description": "Let the second edge run on past its ends",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "Which crossing, counting from 1 along the first edge, so it stays the same one when sizes change",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "circleEdgePoint": {
+      "description": "Circle and edge",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "centre": {
+          "description": "The point at the centre",
+          "type": "integer",
+          "minimum": 1
+        },
+        "radius": {
+          "description": "The distance from the centre",
+          "type": "string"
+        },
+        "edge": {
+          "description": "The edge the circle crosses",
+          "type": "integer",
+          "minimum": 1
+        },
+        "extend": {
+          "description": "Let the edge run on past its ends",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "Which crossing, counting from 1 along the edge",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "circleCirclePoint": {
+      "description": "Circle and circle",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "centreA": {
+          "description": "The first centre",
+          "type": "integer",
+          "minimum": 1
+        },
+        "radiusA": {
+          "description": "The distance from the first centre",
+          "type": "string"
+        },
+        "centreB": {
+          "description": "The second centre",
+          "type": "integer",
+          "minimum": 1
+        },
+        "radiusB": {
+          "description": "The distance from the second centre",
+          "type": "string"
+        },
+        "pick": {
+          "description": "1: on the left going from the first centre to the second; 2: on the right",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "projectPoint": {
+      "description": "Point projected onto an edge",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "point": {
+          "description": "The point it comes from",
+          "type": "integer",
+          "minimum": 1
+        },
+        "edge": {
+          "description": "The edge it lands on",
+          "type": "integer",
+          "minimum": 1
+        },
+        "direction": {
+          "description": "perpendicular: square to the edge; angle: along the angle given",
+          "enum": [
+            "perpendicular",
+            "angle"
+          ]
+        },
+        "angle": {
+          "description": "angle: the direction to travel in",
+          "type": "string"
+        },
+        "extend": {
+          "description": "Let the edge run on past its ends",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "repeat": {
+      "description": "Repeat",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "a": {
+          "description": "The first point",
+          "type": "integer",
+          "minimum": 1
+        },
+        "b": {
+          "description": "The second point",
+          "type": "integer",
+          "minimum": 1
+        },
+        "edge": {
+          "description": "Along this edge, by equal length, in place of a and b",
+          "type": "integer",
+          "minimum": 1
+        },
+        "count": {
+          "description": "How many points",
+          "type": "string"
+        },
+        "ends": {
+          "description": "Whether the ends have points of their own",
+          "enum": [
+            "include",
+            "exclude"
+          ]
+        },
+        "points": {
+          "description": "The points in use by other objects, each with its number and ID",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": {
+                "description": "The point's number, from 1",
+                "type": "integer"
+              },
+              "id": {
+                "description": "The ID it was given when first used",
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "cornerPoint": {
+      "description": "Corner point",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "arc": {
+          "description": "The rounded corner",
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "description": "Which end: 1 or 2",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "pointCopy": {
+      "description": "Point copy",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "marker": {
+          "description": "A marker drawn at the point: a hole, a button or a match dot",
+          "enum": [
+            "plain",
+            "hole",
+            "button",
+            "match"
+          ]
+        },
+        "markerSize": {
+          "description": "The marker's size, when it has one",
+          "type": "string"
+        },
+        "transform": {
+          "description": "The transform that made it",
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "description": "What it is a copy of",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "line": {
+      "description": "Line",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "start": {
+          "description": "The point it starts at",
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "description": "The point it ends at",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "curve": {
+      "description": "Curve",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "start": {
+          "description": "The point it starts at",
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "description": "The point it ends at",
+          "type": "integer",
+          "minimum": 1
+        },
+        "angle1": {
+          "description": "The direction it leaves the start in",
+          "type": "string"
+        },
+        "length1": {
+          "description": "How far the start's handle reaches",
+          "type": "string"
+        },
+        "angle2": {
+          "description": "The direction of the end's handle, pointing back along the curve",
+          "type": "string"
+        },
+        "length2": {
+          "description": "How far the end's handle reaches",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "curvePath": {
+      "description": "Curve path",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "nodes": {
+          "description": "The points it passes through, in order",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "point": {
+                "description": "The point",
+                "type": "integer",
+                "minimum": 1
+              },
+              "angle": {
+                "description": "The direction of travel at the point",
+                "type": "string"
+              },
+              "lengthIn": {
+                "description": "How far the handle reaches back; not on the first point",
+                "type": "string"
+              },
+              "lengthOut": {
+                "description": "How far the handle reaches on; not on the last point",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "circle": {
+      "description": "Circle",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "centre": {
+          "description": "The point at the centre",
+          "type": "integer",
+          "minimum": 1
+        },
+        "radius": {
+          "description": "The distance from the centre",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "arc": {
+      "description": "Arc",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "centre": {
+          "description": "The point at the centre",
+          "type": "integer",
+          "minimum": 1
+        },
+        "radius": {
+          "description": "The distance from the centre",
+          "type": "string"
+        },
+        "angle1": {
+          "description": "Where it starts, 0° right and 90° up",
+          "type": "string"
+        },
+        "angle2": {
+          "description": "Where it ends",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "offsetEdge": {
+      "description": "Offset edge",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "edge": {
+          "description": "One edge to follow, forwards; a run is written as edges instead",
+          "type": "integer",
+          "minimum": 1
+        },
+        "edges": {
+          "description": "The joined edges to follow, in order",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "edge": {
+                "description": "An edge of the run",
+                "type": "integer",
+                "minimum": 1
+              },
+              "reversed": {
+                "description": "Whether the run follows it from its end to its start",
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "side": {
+          "description": "Which side, going along the run",
+          "enum": [
+            "left",
+            "right"
+          ]
+        },
+        "distance": {
+          "description": "How far from the run",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "splitPart": {
+      "description": "Part of a split edge",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "edge": {
+          "description": "The edge that was split",
+          "type": "integer",
+          "minimum": 1
+        },
+        "point": {
+          "description": "The point it was split at",
+          "type": "integer",
+          "minimum": 1
+        },
+        "part": {
+          "description": "1: from the start to the point; 2: from the point to the end",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "cornerArc": {
+      "description": "Rounded corner",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "vertex": {
+          "description": "The corner's point",
+          "type": "integer",
+          "minimum": 1
+        },
+        "edgeA": {
+          "description": "The first edge at the corner",
+          "type": "integer",
+          "minimum": 1
+        },
+        "edgeB": {
+          "description": "The second edge at the corner",
+          "type": "integer",
+          "minimum": 1
+        },
+        "radius": {
+          "description": "The arc's radius",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "edgeCopy": {
+      "description": "Edge copy",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "role": {
+          "description": "What the edge is: an outline makes pieces, the others are drawn and printed in their own style",
+          "enum": [
+            "construction",
+            "outline",
+            "placement",
+            "stitch",
+            "fold",
+            "cut",
+            "skive",
+            "edgeFinish"
+          ]
+        },
+        "transform": {
+          "description": "The transform that made it",
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "description": "What it is a copy of",
+          "type": "integer",
+          "minimum": 1
+        },
+        "start": {
+          "description": "The copy's start point",
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "description": "The copy's end point",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "rotate": {
+      "description": "Rotate",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "sources": {
+          "description": "The points and edges to copy; an edge brings its ends",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "suffix": {
+          "description": "Added to each copy's name",
+          "type": "string"
+        },
+        "pivot": {
+          "description": "The point it turns about",
+          "type": "integer",
+          "minimum": 1
+        },
+        "angle": {
+          "description": "How far it turns, anticlockwise",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "mirror": {
+      "description": "Mirror",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "sources": {
+          "description": "The points and edges to copy; an edge brings its ends",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "suffix": {
+          "description": "Added to each copy's name",
+          "type": "string"
+        },
+        "axis": {
+          "description": "The line to reflect in: an edge, two points, or a point and an angle",
+          "type": "object",
+          "properties": {
+            "edge": {
+              "description": "An edge to reflect in",
+              "type": "integer",
+              "minimum": 1
+            },
+            "a": {
+              "description": "A point on the line",
+              "type": "integer",
+              "minimum": 1
+            },
+            "b": {
+              "description": "A second point on the line",
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "angle": {
+          "description": "With axis.a only: the line's direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "move": {
+      "description": "Move",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "sources": {
+          "description": "The points and edges to copy; an edge brings its ends",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "suffix": {
+          "description": "Added to each copy's name",
+          "type": "string"
+        },
+        "mode": {
+          "description": "polar: a length at an angle; cartesian: across and down",
+          "enum": [
+            "polar",
+            "cartesian"
+          ]
+        },
+        "length": {
+          "description": "polar: how far",
+          "type": "string"
+        },
+        "angle": {
+          "description": "polar: which way",
+          "type": "string"
+        },
+        "dx": {
+          "description": "cartesian: how far to the right",
+          "type": "string"
+        },
+        "dy": {
+          "description": "cartesian: how far down",
+          "type": "string"
+        },
+        "pivot": {
+          "description": "With rotate: the point the copies turn about",
+          "type": "integer",
+          "minimum": 1
+        },
+        "rotate": {
+          "description": "With pivot: how far the copies turn",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "piece": {
+      "description": "Piece",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "path": {
+          "description": "The edges around the piece, clockwise",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "edge": {
+                "description": "An edge of the outline",
+                "type": "integer",
+                "minimum": 1
+              },
+              "reversed": {
+                "description": "Whether the path follows it from its end to its start",
+                "type": "boolean"
+              },
+              "allowance": {
+                "description": "The edge's own seam allowance, when it has one",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "allowance": {
+          "description": "The seam allowance",
+          "type": "string"
+        },
+        "grainline": {
+          "description": "Left out for none",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "description": "At an angle through the middle of the piece",
+              "type": "string"
+            },
+            "start": {
+              "description": "Or between two points: the first",
+              "type": "integer",
+              "minimum": 1
+            },
+            "end": {
+              "description": "The second point",
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "notches": {
+          "description": "Notches on the seam line",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "point": {
+                "description": "At a point on the seam line",
+                "type": "integer",
+                "minimum": 1
+              },
+              "edge": {
+                "description": "Or on an edge of the piece",
+                "type": "integer",
+                "minimum": 1
+              },
+              "position": {
+                "description": "With edge: the distance from the edge's start",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "markings": {
+          "description": "Points and lines marked on the piece",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "description": "point: a marked point; line: a marking line; stitch: stitch holes along an edge",
+                "enum": [
+                  "point",
+                  "line",
+                  "stitch"
+                ]
+              },
+              "point": {
+                "description": "point: the point or repeat",
+                "type": "integer",
+                "minimum": 1
+              },
+              "edge": {
+                "description": "line, stitch: the edge",
+                "type": "integer",
+                "minimum": 1
+              },
+              "spacing": {
+                "description": "stitch: the distance between holes, adjusted to fit",
+                "type": "string"
+              },
+              "size": {
+                "description": "stitch: the hole size",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "cut": {
+          "description": "How many to cut",
+          "type": "object",
+          "properties": {
+            "count": {
+              "description": "How many",
+              "type": "integer"
+            },
+            "mirrored": {
+              "description": "Whether every other one is mirrored",
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "foldEdge": {
+          "description": "The edge the piece is cut on the fold of, when it is",
+          "type": "integer",
+          "minimum": 1
+        },
+        "material": {
+          "description": "The material it is cut from",
+          "type": "integer",
+          "minimum": 1
+        },
+        "fill": {
+          "description": "How it is filled on screen, when not as its material",
+          "type": "object",
+          "properties": {
+            "color": {
+              "description": "Its own colour, as #rrggbb",
+              "type": "string"
+            },
+            "style": {
+              "description": "How it is filled: as its material, a tint or a hatch",
+              "enum": [
+                "material",
+                "tint",
+                "hatch"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "seam": {
+      "description": "Seam",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "sideA": {
+          "description": "The edges of side A, in order along the seam",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "piece": {
+                "description": "The piece",
+                "type": "integer",
+                "minimum": 1
+              },
+              "edge": {
+                "description": "The edge of that piece",
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "sideB": {
+          "description": "The edges of side B",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "piece": {
+                "description": "The piece",
+                "type": "integer",
+                "minimum": 1
+              },
+              "edge": {
+                "description": "The edge of that piece",
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "reversed": {
+          "description": "Whether side B runs the same way as its pieces' paths",
+          "type": "boolean"
+        },
+        "ease": {
+          "description": "How much longer side B should be than side A",
+          "type": "string"
+        },
+        "tolerance": {
+          "description": "How far the difference may be from the ease",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "note": {
+      "description": "Note",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The object's ID, a whole number that never changes; other objects refer to it",
+          "type": "integer"
+        },
+        "type": {
+          "description": "The kind of object, as in the headings on this page",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
+          "type": "string"
+        },
+        "anchor": {
+          "description": "What it hangs from; left out for a free note",
+          "type": "object",
+          "properties": {
+            "point": {
+              "description": "A point",
+              "type": "integer",
+              "minimum": 1
+            },
+            "edge": {
+              "description": "Or an edge",
+              "type": "integer",
+              "minimum": 1
+            },
+            "piece": {
+              "description": "Or a piece",
+              "type": "integer",
+              "minimum": 1
+            },
+            "position": {
+              "description": "With edge: how far along it, 0 to 1",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "x": {
+          "description": "A free note: its place across",
+          "type": "string"
+        },
+        "y": {
+          "description": "A free note: its place down",
+          "type": "string"
+        },
+        "dx": {
+          "description": "A hung note: how far right of what it hangs from",
+          "type": "string"
+        },
+        "dy": {
+          "description": "A hung note: how far down",
+          "type": "string"
+        },
+        "text": {
+          "description": "The text, with draft values in {= }",
+          "type": "string"
+        },
+        "size": {
+          "description": "The text size in points",
+          "type": "number"
+        },
+        "print": {
+          "description": "Whether it prints with its piece",
+          "type": "boolean"
+        },
+        "leader": {
+          "description": "A line to what it hangs from, making it a callout",
+          "enum": [
+            "none",
+            "arrow",
+            "dot",
+            "line"
+          ]
+        },
+        "align": {
+          "description": "How its lines line up",
+          "enum": [
+            "left",
+            "centre",
+            "right"
+          ]
+        },
+        "box": {
+          "description": "Whether it has a white box behind it",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

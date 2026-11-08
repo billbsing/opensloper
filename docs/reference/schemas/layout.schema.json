@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://billbsing.github.io/opensloper/reference/schemas/layout.schema.json",
+  "$comment": "Generated from the program by opensloper-cli doc layout.schema.json; do not edit it by hand.",
+  "title": "OpenSloper layout file (.slayout)",
+  "description": "Made by opensloper-publish: where the pieces of one or more patterns go on the pages, roll or material, and how they print. Positions are plain numbers in mm, from the top left, y down.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "description": "What the file is; a file with another value does not load",
+      "const": "layout"
+    },
+    "version": {
+      "description": "The version of the format; a program refuses a file newer than it knows",
+      "type": "integer"
+    },
+    "units": {
+      "description": "Always mm: values in this file are millimetres",
+      "const": "mm"
+    },
+    "name": {
+      "description": "The layout's name, for the title block",
+      "type": "string"
+    },
+    "nextId": {
+      "description": "The next source ID to hand out",
+      "type": "integer"
+    },
+    "sources": {
+      "description": "The patterns laid out, each with the measurements to draw it with",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The source's ID, which placements refer to",
+            "type": "integer"
+          },
+          "pattern": {
+            "description": "The pattern file, relative to the layout's folder",
+            "type": "string"
+          },
+          "measurementFile": {
+            "description": "The measurement file, relative to the layout's folder; the pattern's own when left out",
+            "type": "string"
+          },
+          "size": {
+            "description": "The size, for a size table; its first size when left out",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "pattern"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "output": {
+      "description": "What the layout prints on and how",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "tiled: pages taped together; large: a roll; projector: shown on the material; material: a sheet of material for a cutting machine",
+          "enum": [
+            "tiled",
+            "large",
+            "projector",
+            "material"
+          ]
+        },
+        "rollWidth": {
+          "description": "The roll's width, for large",
+          "type": "number"
+        },
+        "paper": {
+          "description": "The paper size, A4, A3 or Letter, or a name of your own with its width and height",
+          "type": "string"
+        },
+        "paperWidth": {
+          "description": "The paper's width, for a size of your own",
+          "type": "number"
+        },
+        "paperHeight": {
+          "description": "The paper's height, for a size of your own",
+          "type": "number"
+        },
+        "margin": {
+          "description": "The edge of the paper left blank",
+          "type": "number"
+        },
+        "overlap": {
+          "description": "How far tiles overlap",
+          "type": "number"
+        },
+        "marks": {
+          "description": "The marks for lining up tiles",
+          "enum": [
+            "diamond",
+            "none",
+            "halfCircle"
+          ]
+        },
+        "fill": {
+          "description": "How pieces are filled; none when left out",
+          "enum": [
+            "none",
+            "tint",
+            "hatch"
+          ]
+        },
+        "profile": {
+          "description": "The cutting machine profile, from the settings",
+          "type": "string"
+        },
+        "outputProfile": {
+          "description": "The output profile, from the settings, which chooses what prints",
+          "type": "string"
+        },
+        "materialWidth": {
+          "description": "The material's width, for material",
+          "type": "number"
+        },
+        "materialLength": {
+          "description": "The material's length, for material; 0 or left out for as long as needed",
+          "type": "number"
+        },
+        "allowTurns": {
+          "description": "Whether a piece may lie across the grain, for material",
+          "type": "boolean"
+        },
+        "material": {
+          "description": "Only pieces cut from this material, by name",
+          "type": "string"
+        },
+        "excludedPages": {
+          "description": "Pages left out of the print, by their captions",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "placements": {
+      "description": "Where each copy of each piece lies",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "description": "The source the piece is from",
+            "type": "integer"
+          },
+          "piece": {
+            "description": "The piece's ID in that source's pattern",
+            "type": "integer"
+          },
+          "copy": {
+            "description": "Which copy, from 1, for a piece cut more than once",
+            "type": "integer"
+          },
+          "x": {
+            "description": "The left of the piece's cutting line, after turning and flipping",
+            "type": "number"
+          },
+          "y": {
+            "description": "The top of the piece's cutting line, after turning and flipping",
+            "type": "number"
+          },
+          "rotation": {
+            "description": "The turn in degrees, a multiple of 90, anticlockwise",
+            "type": "integer"
+          },
+          "flipped": {
+            "description": "Whether the piece is flipped over, before it is turned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source",
+          "piece",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sheetNotes": {
+      "description": "Text placed on the sheet, not on a piece",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "description": "The text; it may hold fields such as {date}",
+            "type": "string"
+          },
+          "x": {
+            "description": "Its left",
+            "type": "number"
+          },
+          "y": {
+            "description": "Its top",
+            "type": "number"
+          },
+          "size": {
+            "description": "Its size in points",
+            "type": "number"
+          },
+          "align": {
+            "description": "How its lines line up",
+            "enum": [
+              "left",
+              "centre",
+              "right"
+            ]
+          },
+          "box": {
+            "description": "Whether it has a white box behind it",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "titleBlock": {
+      "description": "The title block; no title block when left out",
+      "type": "object",
+      "properties": {
+        "corner": {
+          "description": "The corner of the page it sits in",
+          "enum": [
+            "bottomRight",
+            "bottomLeft",
+            "topRight"
+          ]
+        },
+        "fields": {
+          "description": "What it shows, in order",
+          "type": "array",
+          "items": {
+            "enum": [
+              "pattern.name",
+              "measurements.name",
+              "layout.name",
+              "date",
+              "cutlist",
+              "materials"
+            ]
+          }
+        },
+        "everyPage": {
+          "description": "Whether it is on every page, not only the first",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "sources"
+  ],
+  "additionalProperties": false
+}

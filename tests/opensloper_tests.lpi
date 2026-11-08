@@ -237,6 +237,16 @@
         <UnitName Value="Sloper.Tests.Docs"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.fileinfo.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.FileInfo"/>
+      </Unit>
+      <Unit>
+        <Filename Value="sloper.tests.shortcuts.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Shortcuts"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.operationinfo.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.OperationInfo"/>

@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
-  Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.UI.Preferences,
+  Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.Preferences,
   Sloper.Core.Transform, Sloper.Core.Fragment;
 
 type
@@ -750,37 +750,37 @@ end;
 // The File, Edit and View commands from the form, and the top toolbar
 procedure TMainForm.CreateCommands;
 begin
-  MenuFileNew.Action := NewAction(rsMenuFileNew, aiNew, @MenuFileNewClick, ShortCut(VK_N, [ssModifier]));
-  MenuFileOpen.Action := NewAction(rsMenuFileOpen, aiOpen, @MenuFileOpenClick, ShortCut(VK_O, [ssModifier]));
-  MenuFileSave.Action := NewAction(rsMenuFileSave, aiSave, @MenuFileSaveClick, ShortCut(VK_S, [ssModifier]));
-  MenuFileSaveAs.Action := NewAction(rsMenuFileSaveAs, aiSaveAs, @MenuFileSaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
+  MenuFileNew.Action := NewAction(rsMenuFileNew, aiNew, @MenuFileNewClick, CommandShortCut(kcNew));
+  MenuFileOpen.Action := NewAction(rsMenuFileOpen, aiOpen, @MenuFileOpenClick, CommandShortCut(kcOpen));
+  MenuFileSave.Action := NewAction(rsMenuFileSave, aiSave, @MenuFileSaveClick, CommandShortCut(kcSave));
+  MenuFileSaveAs.Action := NewAction(rsMenuFileSaveAs, aiSaveAs, @MenuFileSaveAsClick, CommandShortCut(kcSaveAs));
   // Open Set is also the toolbar's measurements button
   MenuFileMeasurements.Caption := rsMenuFileMeasurements;
   MenuFileMeasurements.ImageIndex := Ord(aiMeasurements);
   AddMenuItem(MenuFileMeasurements, NewAction(rsMenuMeasurementsNew, aiNew, @MeasurementsNewSetClick));
-  FOpenSetAction := NewAction(rsMenuMeasurementsOpen, aiMeasurements, @MenuFileMeasurementsClick, ShortCut(VK_M, [ssModifier]));
+  FOpenSetAction := NewAction(rsMenuMeasurementsOpen, aiMeasurements, @MenuFileMeasurementsClick, CommandShortCut(kcOpenMeasurements));
   AddMenuItem(MenuFileMeasurements, FOpenSetAction);
   AddMenuItem(MenuFileMeasurements, NewAction(rsMenuMeasurementsEdit, aiOpen, @MeasurementsEditSet));
-  MenuFilePublish.Action := NewAction(rsMenuFilePublish, aiPublish, @MenuFilePublishClick, ShortCut(VK_P, [ssModifier]));
+  MenuFilePublish.Action := NewAction(rsMenuFilePublish, aiPublish, @MenuFilePublishClick, CommandShortCut(kcPublish));
   MenuFileExportDraft.Action := NewAction(rsMenuFileExportDraft, aiExportDraft, @MenuFileExportDraftClick);
-  MenuFileQuit.Action := NewAction(rsMenuFileQuit, aiQuit, @MenuFileQuitClick, ShortCut(VK_Q, [ssModifier]));
-  FUndoAction := NewAction(rsMenuEditUndo, aiUndo, @MenuEditUndoClick, ShortCut(VK_Z, [ssModifier]));
+  MenuFileQuit.Action := NewAction(rsMenuFileQuit, aiQuit, @MenuFileQuitClick, CommandShortCut(kcQuit));
+  FUndoAction := NewAction(rsMenuEditUndo, aiUndo, @MenuEditUndoClick, CommandShortCut(kcUndo));
   MenuEditUndo.Action := FUndoAction;
-  FRedoAction := NewAction(rsMenuEditRedo, aiRedo, @MenuEditRedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
+  FRedoAction := NewAction(rsMenuEditRedo, aiRedo, @MenuEditRedoClick, CommandShortCut(kcRedo));
   MenuEditRedo.Action := FRedoAction;
   // In a text field Cut, Copy and Paste work on its text
-  AddEditItem(NewAction(rsMenuEditCut, aiCut, @EditCutClick, ShortCut(VK_X, [ssModifier])));
-  AddEditItem(NewAction(rsMenuEditCopy, aiCopy, @EditCopyClick, ShortCut(VK_C, [ssModifier])));
-  AddEditItem(NewAction(rsMenuEditPaste, aiPaste, @EditPasteClick, ShortCut(VK_V, [ssModifier])));
+  AddEditItem(NewAction(rsMenuEditCut, aiCut, @EditCutClick, CommandShortCut(kcCut)));
+  AddEditItem(NewAction(rsMenuEditCopy, aiCopy, @EditCopyClick, CommandShortCut(kcCopy)));
+  AddEditItem(NewAction(rsMenuEditPaste, aiPaste, @EditPasteClick, CommandShortCut(kcPaste)));
   // The canvas handles the Delete key, so typing in a field can still delete text
   MenuEditDelete.Action := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
   MenuEdit.AddSeparator;
   AddMenuItem(MenuEdit, NewAction(rsMenuEditMaterials, aiPieceFills, @MaterialsEditClick));
-  AddMenuItem(MenuEdit, NewAction(rsMenuEditPreferences, aiPreferences, @PreferencesClick, ShortCut(VK_OEM_COMMA, [ssModifier])));
-  MenuViewZoomIn.Action := NewAction(rsMenuViewZoomIn, aiZoomIn, @MenuViewZoomInClick, ShortCut(VK_OEM_PLUS, [ssModifier]));
-  MenuViewZoomOut.Action := NewAction(rsMenuViewZoomOut, aiZoomOut, @MenuViewZoomOutClick, ShortCut(VK_OEM_MINUS, [ssModifier]));
-  MenuViewFit.Action := NewAction(rsMenuViewFit, aiFit, @MenuViewFitClick, ShortCut(VK_0, [ssModifier]));
-  MenuViewTrueSize.Action := NewAction(rsMenuViewTrueSize, aiTrueSize, @MenuViewTrueSizeClick, ShortCut(VK_1, [ssModifier]));
+  AddMenuItem(MenuEdit, NewAction(rsMenuEditPreferences, aiPreferences, @PreferencesClick, CommandShortCut(kcPreferences)));
+  MenuViewZoomIn.Action := NewAction(rsMenuViewZoomIn, aiZoomIn, @MenuViewZoomInClick, CommandShortCut(kcZoomIn));
+  MenuViewZoomOut.Action := NewAction(rsMenuViewZoomOut, aiZoomOut, @MenuViewZoomOutClick, CommandShortCut(kcZoomOut));
+  MenuViewFit.Action := NewAction(rsMenuViewFit, aiFit, @MenuViewFitClick, CommandShortCut(kcFit));
+  MenuViewTrueSize.Action := NewAction(rsMenuViewTrueSize, aiTrueSize, @MenuViewTrueSizeClick, CommandShortCut(kcTrueSize));
   MenuHelpAbout.Action := NewAction(rsMenuHelpAbout, aiAbout, @MenuHelpAboutClick);
   AddButton(FCommandBar, MenuFileNew.Action);
   AddButton(FCommandBar, MenuFileOpen.Action);
@@ -814,7 +814,7 @@ begin
   FSideAction := NewAction(rsMenuViewSidePanel, aiSidePanel, @SideItemClick);
   MenuView.Add(NewLine);
   AddMenuItem(MenuView, FSideAction);
-  FRulersAction := NewAction(rsMenuViewRulers, aiRulers, @RulersClick, ShortCut(VK_R, [ssModifier]));
+  FRulersAction := NewAction(rsMenuViewRulers, aiRulers, @RulersClick, CommandShortCut(kcRulers));
   AddMenuItem(MenuView, FRulersAction);
   MenuLabels := TMenuItem.Create(MainMenu);
   MenuLabels.Caption := rsMenuViewLabels;
@@ -905,7 +905,6 @@ end;
 // TOffsetSide, or Ord(True) for inside a piece.
 procedure TMainForm.CreateToolCommands;
 const
-  Keys: array[TCanvasTool] of string = ('S', 'P', 'L', 'C', 'O', 'R', 'K', 'T', 'E', 'X', 'A');
   ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiCircle, aiRectangle, aiPiece, aiNotch, aiSeam, aiText,
     aiCallout);
   MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
@@ -972,7 +971,7 @@ begin
   // The canvas reads the tool keys itself, so they are in the caption only
   for Tool := Low(TCanvasTool) to High(TCanvasTool) do
   begin
-    FToolActions[Tool] := NewAction(Format(rsHintKey, [Captions[Tool], Keys[Tool]]), ToolIcons[Tool], @ToolClick, 0, Ord(Tool));
+    FToolActions[Tool] := NewAction(Format(rsHintKey, [Captions[Tool], ShortcutInfo(ToolCommands[Tool]).Keys]), ToolIcons[Tool], @ToolClick, 0, Ord(Tool));
     FToolActions[Tool].GroupIndex := 1;
     Item := AddMenuItem(MenuTools, FToolActions[Tool]);
     Item.RadioItem := True;

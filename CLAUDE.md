@@ -15,14 +15,14 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
 - `src/publish/` — `opensloper-publish`, layouts and printing.
 - `src/cli/` — `opensloper-cli` (export, export-draft, layout, check, measurements, serve, doc), built on the core and ConsoleTools. Its commands and options are tables in `Sloper.CLI.Arguments`, which build the parser and the CLI reference page.
-- `src/docs/` — code that writes the generated reference pages of the user documentation (`opensloper-cli doc TOPIC`). Doc generation code goes here.
+- `src/docs/` — code that writes the generated reference pages and file format schemas of the user documentation (`opensloper-cli doc TOPIC`). Doc generation code goes here.
 - `src/packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.
 - `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources; `make-icons.sh` regenerates the apps' `.ico` files after an SVG changes, and `linux/` holds the `.desktop` entries.
 - `data/` — files the apps read at run time: the measurement catalogue and its body figures, and the Tabler toolbar icons (`data/icons`, MIT).
 - `tests/` — FPCUnit test project and regression patterns.
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
 - `documents/` — internal development notes, the design document, `coding-standards.md`, `known-issues.md` and the GPL unit header (`gpl-header.txt`).
-- `docs/` — user documentation (Markdown, built with Zensical from `zensical.toml`, licensed CC BY-SA 4.0). `docs/reference/` holds generated pages: never edit them by hand; run `./build.sh` then `./build-docs.sh`, and a test fails while a committed page is out of date.
+- `docs/` — user documentation (Markdown, built with Zensical from `zensical.toml`, licensed CC BY-SA 4.0). `docs/reference/` holds generated pages and `docs/reference/schemas/` the generated JSON Schemas of the user files: never edit them by hand; run `./build.sh` then `./build-docs.sh`, and a test fails while a committed page is out of date.
 
 ## Build and test
 
@@ -33,6 +33,7 @@ git submodule update --init --recursive
 ./format.sh        # format sources with jcfsettings.cfg (--check to list only)
 ./check-standards.sh  # rules the formatter cannot check (errors fail, warnings advise)
 ./build-docs.sh    # regenerate docs/reference/ and build the site into release/site_docs (--serve to preview)
+./venv/bin/python check-schemas.py  # check example and regression files against the file schemas (build-docs.sh runs it)
 ```
 
 Toolchain overrides (`LAZBUILD`, `LAZARUS_PCP`, `LCL_WIDGETSET`) go in the gitignored `build.local.sh`; see `build.local.sh.example`.

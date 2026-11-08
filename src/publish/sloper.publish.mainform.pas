@@ -28,7 +28,7 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Core.TextFields, Sloper.Core.Note,
   Sloper.Output.Layout, Sloper.Output.LayoutDocument,
-  Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.UI.RecentMenu;
+  Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu;
 
 type
   TPublishForm = class(TForm)
@@ -402,32 +402,32 @@ begin
   Bar := TMainMenu.Create(Self);
   Menu := Bar;
   FCommands := TCommandSet.Create(Self, Bar);
-  OpenAction := FCommands.NewAction(rsMenuOpen, aiOpen, @OpenClick, ShortCut(VK_O, [ssModifier]));
-  SaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, ShortCut(VK_S, [ssModifier]));
-  ExportActions[efPDF] := FCommands.NewAction(rsMenuExport, aiExportPDF, @ExportClick, ShortCut(VK_E, [ssModifier]), Ord(efPDF));
+  OpenAction := FCommands.NewAction(rsMenuOpen, aiOpen, @OpenClick, CommandShortCut(kcOpen));
+  SaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, CommandShortCut(kcSave));
+  ExportActions[efPDF] := FCommands.NewAction(rsMenuExport, aiExportPDF, @ExportClick, CommandShortCut(kcExportPDF), Ord(efPDF));
   ExportActions[efSVG] := FCommands.NewAction(rsMenuExportSVG, aiExportSVG, @ExportClick, 0, Ord(efSVG));
   ExportActions[efDXF] := FCommands.NewAction(rsMenuExportDXF, aiExportDXF, @ExportClick, 0, Ord(efDXF));
   ExportActions[efMachineDXF] := FCommands.NewAction(rsMenuExportMachineDXF, aiExportMachineDXF, @ExportClick, 0, Ord(efMachineDXF));
-  FUndoAction := FCommands.NewAction(rsMenuUndo, aiUndo, @UndoClick, ShortCut(VK_Z, [ssModifier]));
-  FRedoAction := FCommands.NewAction(rsMenuRedo, aiRedo, @RedoClick, ShortCut(VK_Z, [ssModifier, ssShift]));
-  FitAction := FCommands.NewAction(rsMenuFit, aiFit, @FitClick, ShortCut(VK_0, [ssModifier]));
-  ReloadAction := FCommands.NewAction(rsMenuReload, aiReload, @ReloadClick, ShortCut(VK_R, [ssModifier]));
+  FUndoAction := FCommands.NewAction(rsMenuUndo, aiUndo, @UndoClick, CommandShortCut(kcUndo));
+  FRedoAction := FCommands.NewAction(rsMenuRedo, aiRedo, @RedoClick, CommandShortCut(kcRedo));
+  FitAction := FCommands.NewAction(rsMenuFit, aiFit, @FitClick, CommandShortCut(kcFit));
+  ReloadAction := FCommands.NewAction(rsMenuReload, aiReload, @ReloadClick, CommandShortCut(kcReload));
 
   Group := AddMenu(rsMenuFile);
   OpenItem := FCommands.AddMenuItem(Group, OpenAction);
   FRecent := TRecentMenu.Create(Self, Group, OpenItem, rlLayouts, @RecentOpen);
   FCommands.AddMenuItem(Group, SaveAction);
-  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, ShortCut(VK_S, [ssModifier, ssShift])));
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, CommandShortCut(kcSaveAs)));
   Group.AddSeparator;
   for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
     FCommands.AddMenuItem(Group, ExportActions[ExportFormat]);
   Group.AddSeparator;
-  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuQuit, aiQuit, @QuitClick, ShortCut(VK_Q, [ssModifier])));
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuQuit, aiQuit, @QuitClick, CommandShortCut(kcQuit)));
   Group := AddMenu(rsMenuEdit);
   FCommands.AddMenuItem(Group, FUndoAction);
   FCommands.AddMenuItem(Group, FRedoAction);
   Group.AddSeparator;
-  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuPreferences, aiPreferences, @PreferencesClick, ShortCut(VK_OEM_COMMA, [ssModifier])));
+  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuPreferences, aiPreferences, @PreferencesClick, CommandShortCut(kcPreferences)));
   Group := AddMenu(rsMenuView);
   FCommands.AddMenuItem(Group, FitAction);
   FCommands.AddMenuItem(Group, ReloadAction);

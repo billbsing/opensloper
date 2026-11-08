@@ -76,8 +76,10 @@ begin
   for Topic in DocTopics do
   begin
     AssertTrue(Topic, ReferencePage(Topic, Expected));
-    AssertTrue(Err, ReadTextFile(ConcatPaths([ReferenceFolder, Topic + '.md']), Committed, Err));
-    AssertEquals('docs/reference/' + Topic + '.md is out of date: run ./build.sh then ./build-docs.sh', Expected, Committed);
+    AssertTrue(Err, ReadTextFile(ConcatPaths([ReferenceFolder, StringReplace(DocTopicPath(Topic), '/', PathDelim, [rfReplaceAll])]),
+      Committed, Err));
+    AssertEquals('docs/reference/' + DocTopicPath(Topic) + ' is out of date: run ./build.sh then ./build-docs.sh', Expected,
+      Committed);
   end;
 end;
 

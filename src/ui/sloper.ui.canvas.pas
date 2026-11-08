@@ -29,7 +29,7 @@ interface
 uses
   Classes, SysUtils, Controls, StdCtrls, Menus, Graphics, LCLType, LMessages, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry,
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
-  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Core.Fragment,
+  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Core.Fragment, Sloper.Core.Shortcuts,
   Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
   Sloper.UI.Scene;
 
@@ -370,10 +370,16 @@ resourcestring
   rsCanvasAddSeam = 'Add seam';
   rsCanvasSplit = 'Split edge';
 
+const
+  // Where each tool's key is, in Sloper.Core.Shortcuts
+  ToolCommands: array[TCanvasTool] of TKeyCommand = (kcToolSelect, kcToolPoint, kcToolLine, kcToolCurve, kcToolCircle,
+    kcToolRectangle, kcToolPiece, kcToolNotch, kcToolSeam, kcToolText, kcToolCallout);
+
 implementation
 
 uses
-  Math, Forms, StrUtils, LCLIntf, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Materials, Sloper.Core.PieceDetect,
+  Math, Forms, StrUtils, LCLIntf, Sloper.UI.Commands, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator,
+  Sloper.Core.Materials, Sloper.Core.PieceDetect,
   Sloper.UI.RulerTicks, Sloper.UI.ObjectList;
 
 const
@@ -2327,8 +2333,18 @@ end;
 procedure TPatternCanvas.KeyDown(var Key: word; Shift: TShiftState);
 var
   Step: double;
+  KeyTool: TCanvasTool;
 begin
   inherited KeyDown(Key, Shift);
+  // The tool keys come from the shortcuts table; none while a button is down
+  if Shift * [ssLeft, ssRight, ssMiddle] = [] then
+    for KeyTool := Low(TCanvasTool) to High(TCanvasTool) do
+      if (Key <> 0) and (CommandShortCut(ToolCommands[KeyTool]) = ShortCut(Key, Shift)) then
+      begin
+        SetTool(KeyTool);
+        Key := 0;
+        Exit;
+      end;
   if ssShift in Shift then
     Step := NudgeStepLarge
   else
@@ -2374,24 +2390,6 @@ begin
       if FTool <> ctSeam then
         Exit;
       MakeSeam;
-    end;
-    VK_S, VK_P, VK_L, VK_C, VK_O, VK_R, VK_K, VK_T, VK_E, VK_X, VK_A:
-    begin
-      if Shift <> [] then
-        Exit;
-      case Key of
-        VK_S: SetTool(ctSelect);
-        VK_P: SetTool(ctPoint);
-        VK_L: SetTool(ctLine);
-        VK_C: SetTool(ctCurve);
-        VK_K: SetTool(ctPiece);
-        VK_T: SetTool(ctNotch);
-        VK_E: SetTool(ctSeam);
-        VK_O: SetTool(ctCircle);
-        VK_R: SetTool(ctRectangle);
-        VK_X: SetTool(ctText);
-        VK_A: SetTool(ctCallout);
-      end;
     end;
     VK_N:
     begin

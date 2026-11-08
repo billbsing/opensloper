@@ -28,11 +28,15 @@ unit Sloper.Docs.Reference;
 interface
 
 const
-  // Each is written to docs/reference/TOPIC.md
-  DocTopics: array[0..3] of string = ('functions', 'operations', 'cli', 'api');
+  // A page is written to docs/reference/TOPIC.md, and a schema, whose topic is
+  // its file name, to docs/reference/schemas/TOPIC
+  DocTopics: array[0..8] of string = ('functions', 'operations', 'files', 'shortcuts', 'cli', 'api', 'pattern.schema.json',
+    'measurements.schema.json', 'layout.schema.json');
 
-// The page for Topic; False when there is no such topic
+// The page or schema for Topic; False when there is no such topic
 function ReferencePage(const Topic: string; out Markdown: string): boolean;
+// Where Topic is written, relative to docs/reference, with / between folders
+function DocTopicPath(const Topic: string): string;
 
 resourcestring
   rsDocGenerated = 'This page is generated from the program by `opensloper-cli doc %s`; do not edit it by hand.';
@@ -100,6 +104,56 @@ resourcestring
   rsDocKindText = 'text';
   rsDocKindSize = 'number';
   rsDocKindList = 'list';
+  rsDocKindListOf = 'list, each %s';
+  rsDocKindSizeOrNull = 'number or null';
+  rsDocKindFormula = 'formula';
+  rsDocKindPatternObject = 'object';
+  rsDocFilesTitle = 'File formats';
+  rsDocFilesIntro = 'The apps keep their files as JSON text, so other programs, scripts and assistants such as Claude ' +
+    'can read and write them. Each kind of file is described here, and by a JSON Schema that a validator can check a ' +
+    'file against.';
+  rsDocFilesRulesTitle = 'Rules for every file';
+  rsDocFilesRules =
+    '- The file is UTF-8 JSON with one object at the top. Its `format` says what kind of file it is and its `version` ' +
+    'which version of that format; a program refuses a file newer than it knows.' + LineEnding +
+    '- Lengths in measurement and layout files are millimetres. A pattern''s formulas are in the pattern''s own ' +
+    '`units`; a number may also carry its unit, as `2in`.' + LineEnding +
+    '- Objects have IDs, whole numbers above 0 that never change and are never reused. Other objects and formulas refer ' +
+    'to them by ID: a member such as `base` holds the number, and formula text writes it in braces, `{12}`. Names are ' +
+    'for people: letters, digits and underscore, not starting with a digit.' + LineEnding +
+    '- File names inside a file are relative to that file''s folder unless absolute, and written with `/`.' + LineEnding +
+    '- The apps write every member in a fixed order, two spaces to a level, with numbers in the shortest form that ' +
+    'reads back exactly and `.` as the decimal point, so files compare well in version control.' + LineEnding +
+    '- Members marked required must be there for the file to load. Others may be left out of a file written by hand, ' +
+    'and take their defaults. A file that does not load says why, and nothing of it is used.' + LineEnding +
+    '- The schemas list exactly the members the apps write. The apps also read a few members older files have, which ' +
+    'the schemas leave out.';
+  rsDocFilesVersion = 'Version %d. JSON Schema: [%s](schemas/%s).';
+  rsDocFilesObjects = 'Each entry in `objects` is an object whose members depend on its `type`; they are listed on ' +
+    '[Operations and objects](operations.md).';
+  rsDocExample = 'Example';
+  rsDocShortcutsTitle = 'Keyboard shortcuts';
+  rsDocShortcutsIntro = 'On macOS, Cmd takes the place of Ctrl. Keys on the canvas work while the canvas has the focus: ' +
+    'click it first if you were typing in a panel.';
+  rsDocKeys = 'Keys';
+  rsDocWhatItDoes = 'What it does';
+  rsDocAppDesign = 'Design app';
+  rsDocAppMeasurements = 'Measurements app';
+  rsDocAppPublish = 'Publish app';
+  rsDocShortcutFile = 'File';
+  rsDocShortcutEdit = 'Edit';
+  rsDocShortcutView = 'View';
+  rsDocShortcutTools = 'Tools';
+  rsDocShortcutCanvas = 'On the canvas';
+  rsDocShortcutPanels = 'In the tables';
+  rsDocShortcutMouse = 'Mouse';
+  rsDocKeysAnd = '%s and %s';
+  rsDocKeyArrows = 'the arrow keys';
+  rsDocKeyWheel = 'the wheel';
+  rsDocKeyDrag = 'drag';
+  rsDocKeyClick = 'click';
+  rsDocKeyMiddleDrag = 'drag with the middle button';
+  rsDocKeyRightClick = 'right-click';
   rsDocKindGroup = 'group';
   rsDocApiTitle = 'Automation API';
   rsDocApiIntro = '`opensloper-cli serve` lets a script or an assistant such as Claude drive a pattern. It reads ' +
@@ -142,8 +196,8 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Units, Sloper.Core.OperationInfo, Sloper.API.Server,
-  Sloper.API.Methods, Sloper.CLI.Arguments;
+  SysUtils, StrUtils, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Units, Sloper.Core.OperationInfo, Sloper.Core.FileInfo,
+  Sloper.Core.PatternFile, Sloper.Core.Shortcuts, Sloper.API.Server, Sloper.API.Methods, Sloper.CLI.Arguments, Sloper.Docs.Schema;
 
 // Characters that would end a table cell or start markup
 function Cell(const Text: string): string;
@@ -233,11 +287,15 @@ function KindText(const Member: TOperationMember): string;
 const
   Kinds: array[TMemberKind] of string = (rsDocKindLength, rsDocKindAngle, rsDocKindNumber, rsDocKindLengthOrRatio,
     rsDocKindPoint, rsDocKindEdge, rsDocKindPiece, rsDocKindObject, rsDocKindMaterial, rsDocKindChoice, rsDocKindFlag,
-    rsDocKindWhole, rsDocKindText, rsDocKindSize, rsDocKindList, rsDocKindGroup);
+    rsDocKindWhole, rsDocKindText, rsDocKindSize, rsDocKindSizeOrNull, rsDocKindFormula, rsDocKindPatternObject,
+    rsDocKindList, rsDocKindGroup);
 begin
-  if Member.Kind <> mkChoice then
-    Exit(Kinds[Member.Kind]);
-  Result := Format(rsDocKindChoice, [CodedList(Member.Choices)]);
+  if Member.Kind = mkChoice then
+    Result := Format(rsDocKindChoice, [CodedList(Member.Choices)])
+  else
+    Result := Kinds[Member.Kind];
+  if Member.Name.EndsWith('[]') then
+    Result := Format(rsDocKindListOf, [Result]);
 end;
 
 function MemberTable(const Members: TOperationMemberArray): string;
@@ -248,6 +306,115 @@ begin
   for Member in Members do
     Result := Result + Row([Code(Member.Name), KindText(Member), Cell(Member.Description)]);
   Result := Result + LineEnding;
+end;
+
+// With a column for the members a file needs
+function FileMemberTable(const Members: TOperationMemberArray): string;
+var
+  Member: TOperationMember;
+  Required: string;
+begin
+  Result := HeaderRow([rsDocMember, rsDocValue, rsDocRequired, rsDocDescription]);
+  for Member in Members do
+  begin
+    Required := '';
+    if Member.Required then
+      Required := rsDocYes;
+    Result := Result + Row([Code(Member.Name), KindText(Member), Required, Cell(Member.Description)]);
+  end;
+  Result := Result + LineEnding;
+end;
+
+// Keys as the site draws them, ++ctrl+shift+s++, with mouse actions in words:
+// Mod+Wheel is ++ctrl++ and the wheel
+function KeysMarkdown(const Keys: string): string;
+const
+  Words: array[0..5] of string = ('Arrows', 'Wheel', 'Drag', 'Click', 'Middle-drag', 'Right-click');
+  WordTexts: array[0..5] of string = (rsDocKeyArrows, rsDocKeyWheel, rsDocKeyDrag, rsDocKeyClick, rsDocKeyMiddleDrag,
+    rsDocKeyRightClick);
+  Arrows: array[0..3] of string = ('Left', 'Right', 'Up', 'Down');
+var
+  Part, Pressed, Action, Name: string;
+  Index: integer;
+begin
+  Pressed := '';
+  Action := '';
+  for Part in Keys.Split(['+']) do
+  begin
+    Index := IndexStr(Part, Words);
+    if Index >= 0 then
+    begin
+      Action := WordTexts[Index];
+      Continue;
+    end;
+    if Part = 'Mod' then
+      Name := 'ctrl'
+    else if IndexStr(Part, Arrows) >= 0 then
+      Name := 'arrow-' + LowerCase(Part)
+    else
+      Name := LowerCase(Part);
+    if Pressed <> '' then
+      Pressed := Pressed + '+';
+    Pressed := Pressed + Name;
+  end;
+  if Pressed <> '' then
+    Pressed := '++' + Pressed + '++';
+  if (Pressed <> '') and (Action <> '') then
+    Result := Format(rsDocKeysAnd, [Pressed, Action])
+  else
+    Result := Pressed + Action;
+  if Result <> '' then
+    Result[1] := UpCase(Result[1]);
+end;
+
+function ShortcutsPage: string;
+const
+  AppTitles: array[TShortcutApp] of string = (rsDocAppDesign, rsDocAppMeasurements, rsDocAppPublish);
+  GroupTitles: array[TShortcutGroup] of string = (rsDocShortcutFile, rsDocShortcutEdit, rsDocShortcutView, rsDocShortcutTools,
+    rsDocShortcutCanvas, rsDocShortcutPanels, rsDocShortcutMouse);
+var
+  App: TShortcutApp;
+  Group: TShortcutGroup;
+  Command: TKeyCommand;
+  Info: TShortcutInfo;
+  Table: string;
+begin
+  Result := Heading(1, rsDocShortcutsTitle) + Generated('shortcuts') + Paragraph(rsDocShortcutsIntro);
+  for App := Low(TShortcutApp) to High(TShortcutApp) do
+  begin
+    Result := Result + Heading(2, AppTitles[App]);
+    for Group := Low(TShortcutGroup) to High(TShortcutGroup) do
+    begin
+      Table := '';
+      for Command := Low(TKeyCommand) to High(TKeyCommand) do
+      begin
+        Info := ShortcutInfo(Command);
+        if (Info.Group = Group) and (App in Info.Apps) then
+          Table := Table + Row([KeysMarkdown(Info.Keys), Cell(Info.Description)]);
+      end;
+      if Table <> '' then
+        Result := Result + Heading(3, GroupTitles[Group]) + HeaderRow([rsDocKeys, rsDocWhatItDoes]) + Table + LineEnding;
+    end;
+  end;
+end;
+
+function FilesPage: string;
+var
+  Info: TFileFormatInfo;
+  SchemaName: string;
+begin
+  Result := Heading(1, rsDocFilesTitle) + Generated('files') + Paragraph(rsDocFilesIntro);
+  Result := Result + Heading(2, rsDocFilesRulesTitle) + Paragraph(rsDocFilesRules);
+  for Info in FileFormatInfos do
+  begin
+    SchemaName := Info.FormatName + SchemaSuffix;
+    Result := Result + Heading(2, Info.Title + ' (' + Code(Info.Extension) + ')') + Paragraph(Info.Summary);
+    Result := Result + Paragraph(Format(rsDocFilesVersion, [Info.Version, SchemaName, SchemaName]));
+    Result := Result + FileMemberTable(Info.Members);
+    if Info.FormatName = PatternFormat then
+      Result := Result + Paragraph(rsDocFilesObjects);
+    Result := Result + Heading(3, rsDocExample) + Paragraph('```json' + LineEnding + Info.Example + LineEnding + '```');
+  end;
 end;
 
 function OperationsPage: string;
@@ -415,6 +582,12 @@ begin
     Markdown := CliPage
   else if Topic = 'api' then
     Markdown := ApiPage
+  else if Topic = 'files' then
+    Markdown := FilesPage
+  else if Topic = 'shortcuts' then
+    Markdown := ShortcutsPage
+  else if Topic.EndsWith(SchemaSuffix) then
+    Result := FileSchema(Copy(Topic, 1, Length(Topic) - Length(SchemaSuffix)), Markdown)
   else
   begin
     Markdown := '';
@@ -422,6 +595,14 @@ begin
   end;
   // Pages are written with LF line ends on every system
   Markdown := StringReplace(Markdown, LineEnding, #10, [rfReplaceAll]);
+end;
+
+function DocTopicPath(const Topic: string): string;
+begin
+  if Topic.EndsWith(SchemaSuffix) then
+    Result := 'schemas/' + Topic
+  else
+    Result := Topic + '.md';
 end;
 
 end.

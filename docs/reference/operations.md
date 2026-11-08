@@ -303,7 +303,7 @@ Copies of points and edges turned about a point: dart rotation, slash and spread
 
 | Member | Value | Description |
 | --- | --- | --- |
-| `sources` | list | The points and edges to copy; an edge brings its ends |
+| `sources[]` | list, each object ID | The points and edges to copy; an edge brings its ends |
 | `suffix` | text | Added to each copy's name |
 | `pivot` | point ID | The point it turns about |
 | `angle` | angle formula | How far it turns, anticlockwise |
@@ -314,7 +314,7 @@ Copies of points and edges reflected in a line: half a piece made whole.
 
 | Member | Value | Description |
 | --- | --- | --- |
-| `sources` | list | The points and edges to copy; an edge brings its ends |
+| `sources[]` | list, each object ID | The points and edges to copy; an edge brings its ends |
 | `suffix` | text | Added to each copy's name |
 | `axis` | group | The line to reflect in: an edge, two points, or a point and an angle |
 | `axis.edge` | edge ID | An edge to reflect in |
@@ -328,7 +328,7 @@ Copies of points and edges moved aside, and turned if wanted: developing facings
 
 | Member | Value | Description |
 | --- | --- | --- |
-| `sources` | list | The points and edges to copy; an edge brings its ends |
+| `sources[]` | list, each object ID | The points and edges to copy; an edge brings its ends |
 | `suffix` | text | Added to each copy's name |
 | `mode` | one of: `polar`, `cartesian` | polar: a length at an angle; cartesian: across and down |
 | `length` | length formula | polar: how far |

@@ -80,6 +80,8 @@ uses
   Sloper.Tests.UnitConvert,
   Sloper.Tests.SplitPieces,
   Sloper.Tests.Docs,
+  Sloper.Tests.FileInfo,
+  Sloper.Tests.Shortcuts,
   Sloper.Tests.OperationInfo,
   Sloper.Tests.ApiMethods;
 

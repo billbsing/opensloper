@@ -27,7 +27,7 @@ unit Sloper.UI.Commands;
 interface
 
 uses
-  Classes, Forms, Controls, Menus, ActnList, ComCtrls, Sloper.UI.IconSet;
+  Classes, Forms, Controls, Menus, ActnList, ComCtrls, Sloper.UI.IconSet, Sloper.Core.Shortcuts;
 
 type
   TCommandSet = class(TComponent)
@@ -59,12 +59,18 @@ procedure AddToolDivider(Bar: TToolBar);
 // see on a dark menu. Safe to call more than once.
 procedure ShowMenuDividers;
 
+// The key of a command, as Sloper.Core.Shortcuts gives it; 0 when its keys
+// are not one key press, such as Arrows
+function CommandShortCut(Command: TKeyCommand): TShortCut;
+// Keys written as the shortcuts table writes them, such as Mod+Shift+S
+function KeysToShortCut(const Keys: string): TShortCut;
+
 implementation
 
 uses
   {$IFDEF LCLQt5}qt5,{$ENDIF}
   {$IFDEF LCLQt6}qt6,{$ENDIF}
-  SysUtils, Graphics, LCLProc, Sloper.UI.Icons;
+  SysUtils, StrUtils, Graphics, LCLProc, LCLType, Sloper.UI.Icons;
 
 const
   ToolIconSize = 24;
@@ -152,6 +158,38 @@ procedure ShowMenuDividers;
 begin
 end;
 {$ENDIF}
+
+function KeysToShortCut(const Keys: string): TShortCut;
+const
+  // In the order of ShortcutKeyNames
+  NamedKeys: array[0..High(ShortcutKeyNames)] of word = (VK_OEM_COMMA, VK_OEM_PLUS, VK_OEM_MINUS, VK_DELETE, VK_ESCAPE,
+    VK_RETURN, VK_TAB, VK_SPACE, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_F2);
+var
+  KeyName: string;
+  Modifiers: TShortcutModifiers;
+  Shift: TShiftState;
+  Key: word;
+begin
+  if not ParseShortcut(Keys, KeyName, Modifiers) then
+    Exit(0);
+  if Length(KeyName) = 1 then
+    Key := Ord(KeyName[1])
+  else
+    Key := NamedKeys[IndexStr(KeyName, ShortcutKeyNames)];
+  Shift := [];
+  if smMod in Modifiers then
+    Include(Shift, ssModifier);
+  if smShift in Modifiers then
+    Include(Shift, ssShift);
+  if smAlt in Modifiers then
+    Include(Shift, ssAlt);
+  Result := ShortCut(Key, Shift);
+end;
+
+function CommandShortCut(Command: TKeyCommand): TShortCut;
+begin
+  Result := KeysToShortCut(ShortcutInfo(Command).Keys);
+end;
 
 procedure SetActionHint(AAction: TAction);
 begin

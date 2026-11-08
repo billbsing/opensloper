@@ -72,7 +72,7 @@ opensloper-cli serve
 
 ### doc
 
-Write a page of the reference documentation as Markdown; with no topic, list the topics
+Write a page of the reference documentation as Markdown, or a file format's JSON Schema; with no topic, list the topics
 
 ```
 opensloper-cli doc TOPIC [-o FILE]

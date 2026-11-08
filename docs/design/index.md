@@ -52,7 +52,8 @@ points and edges placed by formulas, then closed outlines become pieces.
 | See the whole pattern | ++ctrl+0++ (View → Fit Pattern) |
 | See it at true size | ++ctrl+1++ (View → True Size) |
 
-On a Mac, ++cmd++ takes the place of ++ctrl++.
+On a Mac, ++cmd++ takes the place of ++ctrl++. Every key is listed in
+[Keyboard shortcuts](../reference/shortcuts.md).
 
 ## Selecting and editing
 

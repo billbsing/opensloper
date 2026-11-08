@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://billbsing.github.io/opensloper/reference/schemas/measurements.schema.json",
+  "$comment": "Generated from the program by opensloper-cli doc measurements.schema.json; do not edit it by hand.",
+  "title": "OpenSloper measurements file (.slm)",
+  "description": "Made by opensloper-measurements: one person's measurements, with a value each, or a size table, with a value for each size. Patterns refer to a measurement by its key, as @waist.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "description": "What the file is; a file with another value does not load",
+      "const": "measurements"
+    },
+    "version": {
+      "description": "The version of the format; a program refuses a file newer than it knows",
+      "type": "integer"
+    },
+    "units": {
+      "description": "Always mm: values in this file are millimetres",
+      "const": "mm"
+    },
+    "name": {
+      "description": "Whose measurements, or the name of the size table",
+      "type": "string"
+    },
+    "notes": {
+      "description": "Notes, such as how they were taken",
+      "type": "string"
+    },
+    "sizes": {
+      "description": "A size table's sizes, as named; left out for one person's set",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "measurements": {
+      "description": "The measurements, in the order shown",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "description": "The name patterns use after @; letters, digits and underscore",
+            "type": "string"
+          },
+          "value": {
+            "description": "The value, in a set with no sizes",
+            "type": "number"
+          },
+          "values": {
+            "description": "In a size table, one value for each size in order; null for a size with no value",
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "description": {
+            "description": "What is measured",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "measurements"
+  ],
+  "additionalProperties": false
+}
