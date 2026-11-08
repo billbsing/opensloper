@@ -31,12 +31,9 @@ uses
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
   Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Core.Fragment, Sloper.Core.Shortcuts,
   Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
-  Sloper.UI.Scene;
+  Sloper.UI.Scene, Sloper.UI.CanvasInput;
 
 type
-  // cmRefused: a drag was refused; the reason stays up until the button is released
-  // cmBoxing: dragging a selection box from empty canvas or a piece
-  TCanvasMode = (cmIdle, cmPressed, cmPanning, cmDragging, cmRefused, cmBoxing);
   // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
   // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
   // or removes a notch on a piece's seam line; ctSeam picks the edges of the
@@ -53,7 +50,7 @@ type
     FBitmap: TBGRABitmap;
     FSelection: TStringArray;
     FHoverKey: string;
-    FMode: TCanvasMode;
+    FInput: TCanvasInput;
     FPressPos, FLastPos: TPoint;
     FPressKey: string;
     // Where the last plain click selected something, for clicking again to
@@ -69,7 +66,6 @@ type
     FHandle: TCurveHandle;
     // The field that identifies the handle under the cursor, and its curve
     FHoverHandleField, FHoverHandleEdge: string;
-    FSpaceDown: boolean;
     FTool: TCanvasTool;
     // Where a click would go, while a drawing tool is in use
     FSnap: TSnap;
@@ -786,24 +782,24 @@ begin
     if not CanDragNote(TNoteObject(Node), Reason) then
     begin
       ShowMessageText(Reason);
-      FMode := cmRefused;
+      FInput.Mode := cmRefused;
       Exit;
     end;
     FDragOffset := TNoteObject(Node).Position - ModelAt(FPressPos.X, FPressPos.Y);
     FDocument.BeginChange(rsCanvasMoveNote);
-    FMode := cmDragging;
+    FInput.Mode := cmDragging;
     Exit;
   end;
   Point := TPointObject(Node);
   if not CanDrag(Point, Reason) then
   begin
     ShowMessageText(Reason);
-    FMode := cmRefused;
+    FInput.Mode := cmRefused;
     Exit;
   end;
   FDragOffset := Point.Position - ModelAt(FPressPos.X, FPressPos.Y);
   FDocument.BeginChange(rsCanvasMovePoint);
-  FMode := cmDragging;
+  FInput.Mode := cmDragging;
 end;
 
 procedure TPatternCanvas.StartHandleDrag;
@@ -813,13 +809,13 @@ begin
   if not CanDragHandle(TEdgeObject(FDocument.Pattern.FindNode(FHandle.EdgeKey)), FHandle, Reason) then
   begin
     ShowMessageText(Reason);
-    FMode := cmRefused;
+    FInput.Mode := cmRefused;
     Exit;
   end;
   FDragOffset := FHandle.Position - ModelAt(FPressPos.X, FPressPos.Y);
   FDocument.BeginChange(rsCanvasMoveHandle);
   FDraggingHandle := True;
-  FMode := cmDragging;
+  FInput.Mode := cmDragging;
 end;
 
 procedure TPatternCanvas.DragTo(X, Y: integer);
@@ -861,9 +857,9 @@ begin
     FSnapShown := False;
     Invalidate;
   end
-  else if FMode = cmDragging then
+  else if FInput.Mode = cmDragging then
     FDocument.CancelChange;
-  FMode := cmIdle;
+  FInput.Mode := cmIdle;
   FDraggingHandle := False;
 end;
 
@@ -1580,7 +1576,7 @@ begin
   ClearSeamSides;
   FHasStart := False;
   FSnapShown := False;
-  if FMode = cmDragging then
+  if FInput.Mode = cmDragging then
     CancelDrag;
   FTool := Value;
   if FTool <> ctSelect then
@@ -2079,17 +2075,37 @@ begin
     LCLIntf.SetFocus(Handle);
 end;
 
+function CanvasButton(Button: TMouseButton): TCanvasButton;
+begin
+  case Button of
+    mbLeft: Result := cbLeft;
+    mbMiddle: Result := cbMiddle;
+    mbRight: Result := cbRight;
+    else
+      Result := cbOther;
+  end;
+end;
+
 procedure TPatternCanvas.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+var
+  Pressed: TCanvasButton;
 begin
   inherited MouseDown(Button, Shift, X, Y);
   TakeFocus;
+  Pressed := CanvasButton(Button);
+  // The release of the button that began the gesture never came
+  if FInput.Holds(Pressed) then
+  begin
+    CancelDrag;
+    Invalidate;
+  end;
+  // One gesture at a time: a drag holds an open change until its release
+  if FInput.Press(Pressed) = paIgnore then
+    Exit;
   FPressPos := Point(X, Y);
   FLastPos := FPressPos;
-  if (Button = mbMiddle) or ((Button = mbLeft) and FSpaceDown) then
-  begin
-    FMode := cmPanning;
+  if FInput.Mode = cmPanning then
     Exit;
-  end;
   if not Assigned(FDocument) then
     Exit;
   if FPicking then
@@ -2143,7 +2159,7 @@ begin
     FPressKey := FHandle.EdgeKey
   else if not FPressTip then
     FPressKey := ObjectKeyAt(X, Y);
-  FMode := cmPressed;
+  FInput.Mode := cmPressed;
 end;
 
 procedure TPatternCanvas.MouseMove(Shift: TShiftState; X, Y: integer);
@@ -2154,7 +2170,7 @@ begin
   inherited MouseMove(Shift, X, Y);
   if Assigned(FOnCursorMove) then
     FOnCursorMove(Self, ModelAt(X, Y));
-  case FMode of
+  case FInput.Mode of
     cmPanning:
     begin
       FView.Pan(X - FLastPos.X, Y - FLastPos.Y);
@@ -2165,24 +2181,24 @@ begin
         if FPressTip then
         begin
           FTipDragging := True;
-          FMode := cmDragging;
+          FInput.Mode := cmDragging;
           UpdateSnap(X, Y);
         end
         else if FPressHandle then
         begin
           StartHandleDrag;
-          if FMode = cmDragging then
+          if FInput.Mode = cmDragging then
             DragTo(X, Y);
         end
         else if (FPressKey <> '') and ((FDocument.Pattern.FindNode(FPressKey) is TPointObject) or (FDocument.Pattern.FindNode(FPressKey) is TNoteObject)) then
         begin
           StartDrag;
-          if FMode = cmDragging then
+          if FInput.Mode = cmDragging then
             DragTo(X, Y);
         end
         else
         begin
-          FMode := cmBoxing;
+          FInput.Mode := cmBoxing;
           Invalidate;
         end;
     cmDragging:
@@ -2218,7 +2234,10 @@ end;
 procedure TPatternCanvas.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
 begin
   inherited MouseUp(Button, Shift, X, Y);
-  case FMode of
+  // Another button let go mid-gesture leaves it running
+  if not FInput.Holds(CanvasButton(Button)) then
+    Exit;
+  case FInput.Mode of
     cmDragging:
       if FTipDragging then
         FinishTipDrag
@@ -2247,7 +2266,7 @@ begin
         else
           SetSelection([ClickKey(X, Y, Shift)]);
   end;
-  FMode := cmIdle;
+  FInput.Mode := cmIdle;
 end;
 
 // What a plain click selects. Clicking again where lines lie in the same
@@ -2336,8 +2355,9 @@ var
   KeyTool: TCanvasTool;
 begin
   inherited KeyDown(Key, Shift);
-  // The tool keys come from the shortcuts table; none while a button is down
-  if Shift * [ssLeft, ssRight, ssMiddle] = [] then
+  // The tool keys come from the shortcuts table. None of the keys that change
+  // the tool or the pattern act mid-gesture: a drag holds an open change.
+  if FInput.TakesKeys then
     for KeyTool := Low(TCanvasTool) to High(TCanvasTool) do
       if (Key <> 0) and (CommandShortCut(ToolCommands[KeyTool]) = ShortCut(Key, Shift)) then
       begin
@@ -2351,13 +2371,13 @@ begin
     Step := NudgeStep;
   case Key of
     VK_SPACE:
-      FSpaceDown := True;
+      FInput.SpaceDown := True;
     VK_ESCAPE:
-      if FMode = cmDragging then
+      if FInput.Mode = cmDragging then
         CancelDrag
-      else if FMode = cmBoxing then
+      else if FInput.Mode = cmBoxing then
       begin
-        FMode := cmIdle;
+        FInput.Mode := cmIdle;
         Invalidate;
       end
       else if FPicking then
@@ -2378,33 +2398,41 @@ begin
       else
         SelectNone;
     VK_DELETE, VK_BACK:
-      DeleteSelection;
+    begin
+      // Shift+Delete means Cut elsewhere; deleting would lose what was meant to be kept
+      if not IsPlainKey(Shift) then
+        Exit;
+      if FInput.TakesKeys then
+        DeleteSelection;
+    end;
     VK_TAB:
     begin
       if FTool <> ctSeam then
         Exit;
-      ChangeSeamSide(not (ssShift in Shift));
+      if FInput.TakesKeys then
+        ChangeSeamSide(not (ssShift in Shift));
     end;
     VK_RETURN:
     begin
       if FTool <> ctSeam then
         Exit;
-      MakeSeam;
+      if FInput.TakesKeys then
+        MakeSeam;
     end;
     VK_N:
     begin
-      if Shift <> [] then
+      if not IsPlainKey(Shift) then
         Exit;
       SetLabelsHeld(True);
     end;
-    VK_LEFT:
-      Nudge(-Step, 0);
-    VK_RIGHT:
-      Nudge(Step, 0);
-    VK_UP:
-      Nudge(0, -Step);
-    VK_DOWN:
-      Nudge(0, Step);
+    VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN:
+      if FInput.TakesKeys then
+        case Key of
+          VK_LEFT: Nudge(-Step, 0);
+          VK_RIGHT: Nudge(Step, 0);
+          VK_UP: Nudge(0, -Step);
+          VK_DOWN: Nudge(0, Step);
+        end;
     else
       Exit;
   end;
@@ -2428,13 +2456,14 @@ procedure TPatternCanvas.DoExit;
 begin
   inherited DoExit;
   SetLabelsHeld(False);
+  FInput.LoseFocus;
 end;
 
 procedure TPatternCanvas.KeyUp(var Key: word; Shift: TShiftState);
 begin
   inherited KeyUp(Key, Shift);
   if Key = VK_SPACE then
-    FSpaceDown := False
+    FInput.SpaceDown := False
   else if Key = VK_N then
     SetLabelsHeld(False);
 end;
@@ -3082,7 +3111,7 @@ procedure TPatternCanvas.DrawBox;
 var
   X1, Y1, X2, Y2: single;
 begin
-  if FMode <> cmBoxing then
+  if FInput.Mode <> cmBoxing then
     Exit;
   X1 := Min(FPressPos.X, FLastPos.X) + 0.5;
   X2 := Max(FPressPos.X, FLastPos.X) + 0.5;

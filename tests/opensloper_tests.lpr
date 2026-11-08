@@ -53,6 +53,7 @@ uses
   Sloper.Tests.Settings,
   Sloper.Tests.RecentFiles,
   Sloper.Tests.RulerTicks,
+  Sloper.Tests.CanvasInput,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper,
   Sloper.Tests.Piece,

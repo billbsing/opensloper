@@ -287,6 +287,11 @@
         <UnitName Value="Sloper.Tests.RulerTicks"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.canvasinput.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.CanvasInput"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.objectlist.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.ObjectList"/>
