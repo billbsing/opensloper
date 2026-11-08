@@ -112,6 +112,13 @@ type
 
   TFormulaNode = class;
 
+const
+  // Brackets, signs, functions and chained operators a formula may nest, so a
+  // formula from a shared file cannot overflow the stack when parsed, evaluated
+  // or freed
+  MaxFormulaDepth = 256;
+
+type
   TFormula = class
   private
     FStoredText: string;
@@ -159,11 +166,13 @@ type
   TFormulaNode = class
   public
     Token: integer;  // token index, for error positions
+    Depth: integer;  // levels of nodes below this one; 0 for a number or reference
     function Eval(Formula: TFormula; Context: TFormulaContext): double; virtual; abstract;
   end;
 
 resourcestring
   rsFormulaEmpty = 'The formula is empty';
+  rsFormulaTooDeep = 'The formula is nested too deeply (more than %d levels)';
   rsFormulaUnknownName = 'Unknown name "%s"';
   rsFormulaUnknownMeasurement = 'Unknown measurement "@%s"';
   rsFormulaUnknownVariable = 'Unknown variable "#%s"';
@@ -268,7 +277,9 @@ type
     FTokens: TFormulaTokenArray;
     FTokenRefs: array of integer;
     FPos: integer;
+    FNesting: integer;
     function AtOp(AOp: char): boolean;
+    procedure SetDepth(Node: TFormulaNode; ChildDepth: integer);
     function ParseExpr: TFormulaNode;
     function ParseTerm: TFormulaNode;
     function ParseUnary: TFormulaNode;
@@ -454,6 +465,15 @@ begin
   raise EFormulaError.Create(Msg, FPos);
 end;
 
+// Every chained operator, sign and function adds a level, so evaluating and
+// freeing the tree recurse no deeper than MaxFormulaDepth
+procedure TFormulaParser.SetDepth(Node: TFormulaNode; ChildDepth: integer);
+begin
+  Node.Depth := ChildDepth + 1;
+  if Node.Depth > MaxFormulaDepth then
+    Error(Format(rsFormulaTooDeep, [MaxFormulaDepth]));
+end;
+
 function TFormulaParser.AtOp(AOp: char): boolean;
 begin
   Result := (FPos <= High(FTokens)) and (FTokens[FPos].Kind = ftOperator) and (FTokens[FPos].Op = AOp);
@@ -470,6 +490,7 @@ begin
   for Index := 0 to High(TokenRefs) do
     FTokenRefs[Index] := TokenRefs[Index];
   FPos := 0;
+  FNesting := 0;
   Result := ParseExpr;
   if FPos <= High(FTokens) then
   begin
@@ -493,6 +514,7 @@ begin
     Inc(FPos);
     try
       Node.Right := ParseTerm;
+      SetDepth(Node, Max(Node.Left.Depth, Node.Right.Depth));
     except
       FreeAndNil(Result);
       raise;
@@ -515,6 +537,7 @@ begin
     Inc(FPos);
     try
       Node.Right := ParseUnary;
+      SetDepth(Node, Max(Node.Left.Depth, Node.Right.Depth));
     except
       FreeAndNil(Result);
       raise;
@@ -522,31 +545,42 @@ begin
   end;
 end;
 
+// Every recursion of the parser passes through here, so counting here bounds
+// the stack for brackets and signs that add no node
 function TFormulaParser.ParseUnary: TFormulaNode;
 var
   Node: TNegateNode;
 begin
-  // In ObjFPC mode a bare ParseUnary here is the result variable; the
-  // brackets make it a recursive call
-  if AtOp('+') then
-  begin
-    Inc(FPos);
-    Exit(ParseUnary());
-  end;
-  if AtOp('-') then
-  begin
-    Node := TNegateNode.Create;
-    Node.Token := FPos;
-    Inc(FPos);
-    try
-      Node.Operand := ParseUnary();
-    except
-      FreeAndNil(Node);
-      raise;
+  Inc(FNesting);
+  try
+    // The formula itself is the first level, so MaxFormulaDepth brackets fit
+    if FNesting > MaxFormulaDepth + 1 then
+      Error(Format(rsFormulaTooDeep, [MaxFormulaDepth]));
+    // In ObjFPC mode a bare ParseUnary here is the result variable; the
+    // brackets make it a recursive call
+    if AtOp('+') then
+    begin
+      Inc(FPos);
+      Exit(ParseUnary());
     end;
-    Exit(Node);
+    if AtOp('-') then
+    begin
+      Node := TNegateNode.Create;
+      Node.Token := FPos;
+      Inc(FPos);
+      try
+        Node.Operand := ParseUnary();
+        SetDepth(Node, Node.Operand.Depth);
+      except
+        FreeAndNil(Node);
+        raise;
+      end;
+      Exit(Node);
+    end;
+    Result := ParsePower;
+  finally
+    Dec(FNesting);
   end;
-  Result := ParsePower;
 end;
 
 function TFormulaParser.ParsePower: TFormulaNode;
@@ -565,6 +599,7 @@ begin
     // The exponent may carry its own sign: 2^-1
     try
       Node.Right := ParseUnary;
+      SetDepth(Node, Max(Node.Left.Depth, Node.Right.Depth));
     except
       FreeAndNil(Result);
       raise;
@@ -638,6 +673,7 @@ begin
       SetLength(Node.Args, ArgCount + 1);
       Node.Args[ArgCount] := nil;
       Node.Args[ArgCount] := ParseExpr;
+      Node.Depth := Max(Node.Depth, Node.Args[ArgCount].Depth);
       if not AtOp(',') then
         Break;
       Inc(FPos);
@@ -645,6 +681,7 @@ begin
     if not AtOp(')') then
       Error(rsFormulaExpectedClose);
     Inc(FPos);
+    SetDepth(Node, Node.Depth);
     ArgCount := Length(Node.Args);
     if (ArgCount < FunctionMinArgs[Func]) or ((FunctionMaxArgs[Func] >= 0) and (ArgCount > FunctionMaxArgs[Func])) then
     begin

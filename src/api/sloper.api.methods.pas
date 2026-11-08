@@ -81,7 +81,7 @@ resourcestring
   rsApiOpenMeasurements = 'A measurement file to use in place of the one the pattern names';
   rsApiOpenSize = 'The size to use from a size table';
   rsApiSave = 'Saves the pattern.';
-  rsApiSavePath = 'Where to save it; by default, where it was opened from';
+  rsApiSavePath = 'Where to save it, a .sloper file; by default, where it was opened from. A file that is not a pattern is never replaced';
   rsApiConvertUnits = 'Converts the pattern to another unit, rewriting only lengths, as one undo step. While a number''s ' +
     'role is open nothing changes and the reply lists it; mark each and call again.';
   rsApiConvertUnitsUnits = 'The unit to convert to';
@@ -294,7 +294,7 @@ resourcestring
   rsApiRenderReturns = '`format` and the `svg` text';
   rsApiExport = 'Exports a saved layout file as PDF, SVG, DXF or machine DXF.';
   rsApiExportLayout = 'The layout file (.slayout)';
-  rsApiExportPath = 'The file to write';
+  rsApiExportPath = 'The file to write, ending in the format''s extension (.pdf, .svg or .dxf)';
   rsApiExportFormat = 'By default, from the file name''s extension';
   rsApiExportProfile = 'A machine profile from the settings, in place of the layout''s';
   rsApiExportReturns = 'The `path` written';

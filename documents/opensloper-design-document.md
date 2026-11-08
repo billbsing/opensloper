@@ -148,6 +148,8 @@ Decision: a small recursive-descent parser of our own (`Sloper.Core.Formula`, on
 
 **Failures are states.** A parse error gives a message and a position in the text as typed. Evaluation errors (division by zero, square root of a negative, `asin` out of range, a missing value) set `ErrorMessage` and `ErrorPos`. FPU exceptions are masked during evaluation, and infinite or NaN results become errors. A formula that fails to parse keeps its text, so a file round-trips unchanged.
 
+**Depth is limited.** A formula nests at most 256 levels (`MaxFormulaDepth`): brackets, signs, function calls and each operator in a chain such as `1+1+…` count. The parser, evaluation and freeing all recurse, so without the limit a crafted file or API call overflowed the stack and crashed the program (found in the security review of 2026-11-08). For the same reason, graph walks over dependencies (`TEvaluator.Reaches`) use a list of pending nodes rather than recursion, since a file can make a chain as long as it likes.
+
 ## Pattern units
 
 Decided 2026-11-04, built 2026-11-07.
@@ -737,9 +739,28 @@ Built (`Sloper.API.Server`, `opensloper-cli serve`): JSON-RPC 2.0 over stdin and
 
 ### Safety and scope
 
-- Automation is off by default in the GUI, listens only locally (a Unix domain socket, or 127.0.0.1) and requires a token printed at start-up.
+Reviewed 2026-11-08.
+
+**`serve` over stdio needs no token.** Only the process that started it holds its pipes, and that process can already do anything the user can, so a token would protect nothing. The MCP server over stdio is the same.
+
+**The GUI's `--automation` socket needs protection**, since any local process could connect:
+
+- Off by default; turned on per session from the GUI or the command line.
+- Listens only locally: on Linux and macOS a Unix domain socket in `$XDG_RUNTIME_DIR` (or a private folder made for it) with mode `0600`, so file permissions already keep other users out; on Windows 127.0.0.1, never 0.0.0.0. If it ever speaks HTTP, it also checks `Host` and `Origin`, against DNS rebinding from web pages.
+- **A token the app generates, never one the user picks**: 32 random bytes from the OS, new at each start, written to a file only the user can read (beside the socket), and compared in constant time. The connecting program (the MCP bridge in `opensloper-cli`) reads the file and sends it; the user never pastes it into a chat, so it never reaches the model, the transcript or anything prompt injection could repeat. Printing it at start-up was dropped: a GUI started from the desktop has no terminal, and printed text ends up in logs.
+- **Consent is the user's, in the app**: the first connection asks "Allow Claude to edit this pattern?" (allow once or for the session), and while a client is connected the window shows that automation is on, with a button to disconnect.
+
+**Prompt injection is the larger risk.** Claude reads names, notes and descriptions from patterns other people share, and that text can carry instructions. A token does not help, since the attack comes through the client the user trusts, so the API limits what a steered client can do:
+
+- `save` writes only `.sloper` files and replaces only a file that already holds a pattern (its `format` is `pattern`); `export` writes only a file with its format's extension. Built 2026-11-08.
+- `set_measurement` writes only the pattern's measurement file, and only after it loads as one.
+- Still to come for `--automation`: writes outside the open pattern's folder ask the user first, and every change is one undo step labelled `Claude: <summary>`.
+
+**Other rules:**
+
 - The API works on the open document; file access is limited to `open`, `save` and `export` with paths the caller gives.
 - The API layer depends only on the document and core layers, keeping both usable without it.
+- Nothing runs a shell: the apps start each other with `TProcess` and an argument list, so file names cannot inject commands. Text written into SVG is escaped (`EscapeXML`).
 
 ## Garment view
 

@@ -435,30 +435,41 @@ end;
 class function TEvaluator.Reaches(From, Target: TEvalNode; Context: TEvalContext): boolean;
 var
   Visited: TEvalNodeSet;
-
-  function Visit(Current: TEvalNode): boolean;
-  var
-    DepKey: string;
-    Dep: TEvalNode;
-  begin
-    for DepKey in Current.DependencyKeys do
-    begin
-      Dep := Context.FindNode(DepKey);
-      if not Assigned(Dep) then
-        Continue;
-      if Dep = Target then
-        Exit(True);
-      // Add is False when Dep was already visited
-      if Visited.Add(Dep) and Visit(Dep) then
-        Exit(True);
-    end;
-    Result := False;
-  end;
-
+  Pending: TEvalNodeArray;
+  Count: integer;
+  Current, Dep: TEvalNode;
+  DepKey: string;
 begin
+  // A list of nodes still to look at rather than recursion, since a chain of
+  // dependencies can be as long as a file makes it
+  Result := False;
+  Pending := nil;
+  SetLength(Pending, 16);
+  Pending[0] := From;
+  Count := 1;
   Visited := TEvalNodeSet.Create;
   try
-    Result := Visit(From);
+    while Count > 0 do
+    begin
+      Dec(Count);
+      Current := Pending[Count];
+      for DepKey in Current.DependencyKeys do
+      begin
+        Dep := Context.FindNode(DepKey);
+        if not Assigned(Dep) then
+          Continue;
+        if Dep = Target then
+          Exit(True);
+        // Add is False when Dep was already visited
+        if Visited.Add(Dep) then
+        begin
+          if Count = Length(Pending) then
+            SetLength(Pending, 2 * Count);
+          Pending[Count] := Dep;
+          Inc(Count);
+        end;
+      end;
+    end;
   finally
     FreeAndNil(Visited);
   end;

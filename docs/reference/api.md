@@ -46,7 +46,7 @@ Saves the pattern.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
-| `path` | text |  | Where to save it; by default, where it was opened from |
+| `path` | text |  | Where to save it, a .sloper file; by default, where it was opened from. A file that is not a pattern is never replaced |
 
 Returns: The pattern's file, measurement file, unit, object and variable counts, and whether it is modified.
 
@@ -686,7 +686,7 @@ Exports a saved layout file as PDF, SVG, DXF or machine DXF.
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
 | `layout` | text | yes | The layout file (.slayout) |
-| `path` | text | yes | The file to write |
+| `path` | text | yes | The file to write, ending in the format's extension (.pdf, .svg or .dxf) |
 | `format` | one of: `pdf`, `svg`, `dxf`, `machine-dxf` |  | By default, from the file name's extension |
 | `profile` | text |  | A machine profile from the settings, in place of the layout's |
 

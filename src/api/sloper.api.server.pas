@@ -138,6 +138,9 @@ resourcestring
   rsApiUnknownId = 'There is no object or variable with ID %d';
   rsApiUnknownName = 'There is no object or variable named "%s"';
   rsApiNoFileName = 'The pattern has no file name yet; give a "path"';
+  rsApiSaveExtension = '"%s" is not a .sloper file; patterns are saved only as .sloper files';
+  rsApiNotAPattern = '"%s" is not a pattern file, so it is not replaced';
+  rsApiExportExtension = 'A %s export is written to a %s file';
   rsApiNothingToUndo = 'There is nothing to undo';
   rsApiNothingToRedo = 'There is nothing to redo';
   rsApiSetFormula = 'Change %s';
@@ -197,7 +200,7 @@ uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
   Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Core.Fragment, Sloper.Output.DraftSVG, Sloper.Output.Layout,
-  Sloper.Output.LayoutExport;
+  Sloper.Output.LayoutExport, Sloper.Core.Version;
 
 const
   VariableType = 'variable';
@@ -707,6 +710,32 @@ begin
   end;
 end;
 
+// Whether the file holds a pattern, by its "format" member
+function IsPatternFile(const Path: string): boolean;
+var
+  Text, Err, FormatName: string;
+  Root: TJSONObject;
+begin
+  Result := False;
+  if not ReadTextFile(Path, Text, Err) or not ParseJSONObject(Text, Root, Err) then
+    Exit;
+  try
+    Result := GetJSONString(Root, 'format', FormatName) and (FormatName = PatternFormat);
+  finally
+    FreeAndNil(Root);
+  end;
+end;
+
+// A client may be steered by text in a shared pattern, so the API writes only
+// .sloper files and replaces only a file that already holds a pattern
+procedure CheckPatternTarget(const Path: string);
+begin
+  if not SameText(ExtractFileExt(Path), PatternFileExt) then
+    raise EApiError.Create(RpcRefused, Format(rsApiSaveExtension, [ExtractFileName(Path)]));
+  if FileExists(Path) and not IsPatternFile(Path) then
+    raise EApiError.Create(RpcRefused, Format(rsApiNotAPattern, [ExtractFileName(Path)]));
+end;
+
 function TApiServer.DoSave(Params: TJSONObject): TJSONData;
 var
   Err, Path: string;
@@ -716,6 +745,7 @@ begin
     Path := FDocument.FileName;
   if Path = '' then
     raise EApiError.Create(RpcRefused, rsApiNoFileName);
+  CheckPatternTarget(Path);
   if not FDocument.SaveToFile(Path, Err) then
     raise EApiError.Create(RpcRefused, Err);
   Result := DocumentInfo;
@@ -2140,6 +2170,9 @@ begin
   Target := RequireString(Params, 'path');
   if not ExportFormatFor(OptionalString(Params, 'format'), Target, Chosen) then
     raise EApiError.Create(RpcInvalidParams, rsExportBadFormat);
+  // So an export cannot be written over a file of another kind
+  if not SameText(ExtractFileExt(Target), ExportExtensions[Chosen]) then
+    raise EApiError.Create(RpcRefused, Format(rsApiExportExtension, [ExportNames[Chosen], ExportExtensions[Chosen]]));
   Layout := TLayout.Create;
   try
     if not Layout.LoadFromFile(LayoutFile, Err) then

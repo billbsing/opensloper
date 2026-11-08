@@ -29,7 +29,7 @@ type
   TTestAPI = class(TOSTestCase)
   private
     FServer: TApiServer;
-    FFolder, FPatternPath, FSetPath: string;
+    FFolder, FPatternPath, FCopyPath, FSetPath: string;
     FReply: TJSONObject;
     procedure WriteFiles;
     procedure OpenTestPattern;
@@ -93,6 +93,7 @@ type
     procedure TestRepeatPointAsAnInput;
     procedure TestSave;
     procedure TestSaveNeedsAPath;
+    procedure TestSaveReplacesOnlyPatterns;
     procedure TestBadJSON;
     procedure TestNotARequest;
     procedure TestUnknownMethod;
@@ -160,6 +161,7 @@ begin
   FFolder := ConcatPaths([GetTempDir, 'opensloper-api-test']);
   ForceDirectories(FFolder);
   FPatternPath := ConcatPaths([FFolder, 'test.sloper']);
+  FCopyPath := ConcatPaths([FFolder, 'copy.sloper']);
   FSetPath := ConcatPaths([FFolder, 'test.slm']);
   WriteFiles;
 end;
@@ -170,7 +172,7 @@ begin
   FreeAndNil(FServer);
   DeleteFile(FPatternPath);
   DeleteFile(FSetPath);
-  DeleteFile(FPatternPath + '2');
+  DeleteFile(FCopyPath);
   RemoveDir(FFolder);
 end;
 
@@ -359,13 +361,13 @@ begin
     Pattern.AddFreePoint('A', '0', '0');
     if not Assigned(Pattern.AddOffsetPoint('B', Pattern.FindObject('A').Key, omPolar, '@waist / 4 + #ease', '0')) then
       Fail(Pattern.LastError);
-    if not SavePatternToFile(Pattern, FPatternPath + '2', Err) then
+    if not SavePatternToFile(Pattern, FCopyPath, Err) then
       Fail(Err);
   finally
     FreeAndNil(Pattern);
     FreeAndNil(MeasurementSet);
   end;
-  Call('open', PathParams(FPatternPath + '2'));
+  Call('open', PathParams(FCopyPath));
   AssertEquals('units', 'in', Answer.Get('units', ''));
   AssertNear('a quarter of the waist plus an inch, in mm', 200 + 25.4, ObjectNamed('B').Get('x', 0.0));
   Call('get_object', '{"name": "ease"}');
@@ -869,11 +871,11 @@ var
 begin
   OpenTestPattern;
   Call('set_formula', '{"name": "A", "field": "x", "formula": "5"}');
-  Call('save', PathParams(FPatternPath + '2'));
+  Call('save', PathParams(FCopyPath));
   AssertFalse('saved', Answer.Get('modified', True));
   Copy := TPattern.Create;
   try
-    AssertTrue(Err, LoadPatternFromFile(Copy, FPatternPath + '2', Err));
+    AssertTrue(Err, LoadPatternFromFile(Copy, FCopyPath, Err));
     AssertEquals('5', Copy.FormulaText(Copy.FindObject('A'), 'x'));
   finally
     FreeAndNil(Copy);
@@ -885,6 +887,41 @@ begin
   Call('save');
   AssertEquals(RpcRefused, ErrorCode);
   AssertEquals(rsApiNoFileName, ErrorText);
+end;
+
+// A client may be steered by text in a shared pattern, so save writes only
+// pattern files and never replaces another kind of file
+procedure TTestAPI.TestSaveReplacesOnlyPatterns;
+
+  procedure AssertRefused(const FileName, Msg: string);
+  var
+    Path, Text, Err: string;
+  begin
+    Path := ConcatPaths([FFolder, FileName]);
+    AssertTrue(Err, WriteTextFile(Path, '{"format": "layout", "version": 1}', Err));
+    try
+      Call('save', PathParams(Path));
+      AssertEquals(FileName, RpcRefused, ErrorCode);
+      AssertEquals(FileName, Format(Msg, [FileName]), ErrorText);
+      AssertTrue(Err, ReadTextFile(Path, Text, Err));
+      AssertEquals(FileName + ' kept', '{"format": "layout", "version": 1}', Text);
+    finally
+      DeleteFile(Path);
+    end;
+  end;
+
+begin
+  OpenTestPattern;
+  AssertRefused('notes.txt', rsApiSaveExtension);
+  AssertRefused('layout.sloper', rsApiNotAPattern);
+  Call('save', PathParams(ConcatPaths([FFolder, 'nothing.json'])));
+  AssertEquals('a new file needs the extension', RpcRefused, ErrorCode);
+  AssertFalse(FileExists(ConcatPaths([FFolder, 'nothing.json'])));
+  Call('save', PathParams(ChangeFileExt(FCopyPath, '.SLOPER')));
+  Answer;
+  DeleteFile(ChangeFileExt(FCopyPath, '.SLOPER'));
+  Call('save', PathParams(FPatternPath));
+  AssertFalse('a pattern is replaced', Answer.Get('modified', True));
 end;
 
 procedure TTestAPI.TestBadJSON;
@@ -1314,6 +1351,12 @@ begin
     AssertEquals('no layout yet', RpcRefused, ErrorCode);
     Call('export', Format('{"layout": %s, "path": "a.png"}', [AsJSONString(Layout)]));
     AssertEquals('unknown format', RpcInvalidParams, ErrorCode);
+    Call('export', Format('{"layout": %s, "path": %s, "format": "pdf"}', [AsJSONString(Layout), AsJSONString(Target)]));
+    AssertEquals('a PDF needs .pdf', RpcRefused, ErrorCode);
+    AssertEquals(Format(rsApiExportExtension, ['pdf', '.pdf']), ErrorText);
+    Call('export', Format('{"layout": %s, "path": %s, "format": "machine-dxf"}', [AsJSONString(Layout),
+      AsJSONString(ChangeFileExt(Target, '.txt'))]));
+    AssertEquals('a machine DXF needs .dxf', Format(rsApiExportExtension, ['machine-dxf', '.dxf']), ErrorText);
     WriteLayoutFor(Pattern, Layout);
     Call('export', Format('{"layout": %s, "path": %s}', [AsJSONString(Layout), AsJSONString(Target)]));
     AssertEquals('path', Target, Answer.Get('path', ''));
@@ -1502,8 +1545,8 @@ procedure TTestAPI.TestAddedPatternSavesAndReopens;
 begin
   Call('add_point', '{"type": "freePoint", "name": "A", "x": 5, "y": 0}');
   Call('add_point', '{"type": "offsetPoint", "name": "B", "base": "A", "length": 10, "angle": 0}');
-  Call('save', PathParams(FPatternPath + '2'));
-  Call('open', PathParams(FPatternPath + '2'));
+  Call('save', PathParams(FCopyPath));
+  Call('open', PathParams(FCopyPath));
   AssertEquals(2, Answer.Get('objects', 0));
   AssertNear('evaluates after reopening', 15, ObjectNamed('B').Get('x', 0.0));
 end;

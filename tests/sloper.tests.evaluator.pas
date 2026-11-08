@@ -43,6 +43,8 @@ type
   TSumContext = class(TEvalContext)
   public
     Nodes: TList;
+    // Nodes by key, so a long chain is quick to look up
+    Index: TStringList;
     constructor Create;
     destructor Destroy; override;
     function FindNode(const Key: string): TEvalNode; override;
@@ -71,6 +73,7 @@ type
     procedure TestMissingInputIsAnError;
     procedure TestCycleIsAnError;
     procedure TestReaches;
+    procedure TestReachesLongChain;
     procedure TestRerunClearsOldStates;
   end;
 
@@ -106,6 +109,9 @@ end;
 constructor TSumContext.Create;
 begin
   Nodes := TList.Create;
+  Index := TStringList.Create;
+  Index.Sorted := True;
+  Index.CaseSensitive := True;
 end;
 
 destructor TSumContext.Destroy;
@@ -115,6 +121,7 @@ begin
   for I := 0 to Nodes.Count - 1 do
     TObject(Nodes[I]).Free;
   FreeAndNil(Nodes);
+  FreeAndNil(Index);
   inherited Destroy;
 end;
 
@@ -122,10 +129,10 @@ function TSumContext.FindNode(const Key: string): TEvalNode;
 var
   I: integer;
 begin
-  for I := 0 to Nodes.Count - 1 do
-    if TEvalNode(Nodes[I]).Key = Key then
-      Exit(TEvalNode(Nodes[I]));
-  Result := nil;
+  if Index.Find(Key, I) then
+    Result := TEvalNode(Index.Objects[I])
+  else
+    Result := nil;
 end;
 
 function TSumContext.MeasurementValue(const Key: string; out V: double): boolean;
@@ -171,6 +178,7 @@ begin
   for I := 0 to High(Inputs) do
     Result.Inputs[I] := Inputs[I];
   FContext.Nodes.Add(Result);
+  FContext.Index.AddObject(Key, Result);
 end;
 
 function TTestEvaluator.N(const Key: string): TSumNode;
@@ -310,6 +318,28 @@ begin
   AssertTrue('c reads a', TEvaluator.Reaches(N('c'), N('a'), FContext));
   AssertFalse('a does not read c', TEvaluator.Reaches(N('a'), N('c'), FContext));
   AssertFalse('a does not read itself', TEvaluator.Reaches(N('a'), N('a'), FContext));
+end;
+
+// A file can hold any number of objects, so following a long chain of
+// dependencies must not overflow the stack
+procedure TTestEvaluator.TestReachesLongChain;
+const
+  ChainLength = 100000;
+
+// Padded, so each key sorts after the last and the index adds it at the end
+  function ChainKey(I: integer): string;
+  begin
+    Result := Format('n%.6d', [I]);
+  end;
+
+var
+  I: integer;
+begin
+  Node(ChainKey(0), 1, []);
+  for I := 1 to ChainLength do
+    Node(ChainKey(I), 1, [ChainKey(I - 1)]);
+  AssertTrue('the end reads the start', TEvaluator.Reaches(N(ChainKey(ChainLength)), N(ChainKey(0)), FContext));
+  AssertFalse('the start does not read the end', TEvaluator.Reaches(N(ChainKey(0)), N(ChainKey(ChainLength)), FContext));
 end;
 
 procedure TTestEvaluator.TestRerunClearsOldStates;

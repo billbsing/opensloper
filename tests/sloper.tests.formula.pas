@@ -100,6 +100,7 @@ type
     procedure TestUnknownNames;
     procedure TestPropertyErrors;
     procedure TestFunctionErrors;
+    procedure TestTooDeep;
     procedure TestStoredFormRejectsNames;
     procedure TestFailedParseKeepsText;
     procedure TestEvaluationErrors;
@@ -109,7 +110,7 @@ type
 implementation
 
 uses
-  SysUtils;
+  SysUtils, StrUtils;
 
   { TTestResolver }
 
@@ -605,6 +606,30 @@ begin
   AssertParseError('1 + sin(1, 2)', Format(rsFormulaArgCount, ['sin', 1]), 5);
   AssertParseError('min(1)', Format(rsFormulaArgCountAtLeast, ['min', 2]), 1);
   AssertParseError('max(1, 2', rsFormulaExpectedClose, 9);
+end;
+
+// A formula from a shared file or the Automation API must not overflow the
+// stack: brackets, signs and long chains all build deep trees
+procedure TTestFormula.TestTooDeep;
+var
+  Deep: string;
+  V: double;
+begin
+  Deep := StringOfChar('(', MaxFormulaDepth) + '1' + StringOfChar(')', MaxFormulaDepth);
+  AssertTrue('at the limit', FFormula.Parse(Deep, FResolver));
+  AssertTrue(FFormula.Evaluate(FContext, V));
+  AssertFalse('brackets', FFormula.Parse(StringOfChar('(', 100000) + '1' + StringOfChar(')', 100000), FResolver));
+  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertFalse('signs', FFormula.Parse(StringOfChar('-', 100000) + '1', FResolver));
+  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertFalse('functions', FFormula.Parse(DupeString('abs(', 100000) + '1' + StringOfChar(')', 100000), FResolver));
+  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertFalse('powers', FFormula.Parse(DupeString('2^', 100000) + '1', FResolver));
+  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertFalse('a chain', FFormula.Parse('1' + DupeString('+1', 100000), FResolver));
+  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertFalse('stored form', FFormula.ParseStored(StringOfChar('(', 100000) + '1' + StringOfChar(')', 100000)));
+  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
 end;
 
 procedure TTestFormula.TestStoredFormRejectsNames;
