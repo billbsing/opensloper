@@ -83,7 +83,7 @@ type
     ShowSidePanel: boolean;
     // Rulers along the top and left of the drafting canvas
     ShowRulers: boolean;
-    // Whether the drafting canvas fills pieces with their fabric
+    // Whether the drafting canvas fills pieces with their material
     ShowPieceFills: boolean;
     // Besides the built-in Standard
     MachineProfiles: TMachineProfileArray;

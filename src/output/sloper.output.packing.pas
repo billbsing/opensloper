@@ -49,7 +49,7 @@ type
 function PackLayout(Layout: TLayout): TPackResult;
 
 resourcestring
-  rsPackProjector = 'Pieces cannot be packed for a projector, as the layout has no fabric width';
+  rsPackProjector = 'Pieces cannot be packed for a projector, as the layout has no material width';
   rsPackNoPrintArea = 'The margin and overlap leave nothing to print on';
   rsPackNothing = 'There is nothing to pack';
   rsPackNoBetter = 'Packing would not improve this arrangement, so nothing moved';
