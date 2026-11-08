@@ -50,6 +50,10 @@ type
 // shortcut itself.
 procedure SetActionHint(AAction: TAction);
 
+// A line between groups of buttons. Drawn here, as the Qt styles draw the
+// divider too faint to see.
+procedure AddToolDivider(Bar: TToolBar);
+
 implementation
 
 uses
@@ -59,6 +63,53 @@ const
   ToolIconSize = 24;
   MenuIconSize = 16;
   ButtonPadding = 8;
+  DividerSpace = 11;
+  DividerInset = 4;
+
+type
+  TDividerButton = class(TToolButton)
+  protected
+    procedure Paint; override;
+  end;
+
+function IsVerticalBar(Button: TToolButton): boolean;
+begin
+  Result := Assigned(Button.Parent) and (Button.Parent.Align in [alLeft, alRight]);
+end;
+
+procedure TDividerButton.Paint;
+var
+  Inset, Middle: integer;
+begin
+  Inset := Scale96ToForm(DividerInset);
+  Canvas.Pen.Color := clGrayText;
+  Canvas.Pen.Width := 1;
+  if IsVerticalBar(Self) then
+  begin
+    Middle := ClientHeight div 2;
+    Canvas.Line(Inset, Middle, ClientWidth - Inset, Middle);
+  end
+  else
+  begin
+    Middle := ClientWidth div 2;
+    Canvas.Line(Middle, Inset, Middle, ClientHeight - Inset);
+  end;
+end;
+
+procedure AddToolDivider(Bar: TToolBar);
+var
+  Button: TToolButton;
+begin
+  // The bar sizes a divider by its Width or Height along the bar, and a new
+  // button gets the full button size when it joins the bar
+  Button := TDividerButton.Create(Bar);
+  Button.Parent := Bar;
+  Button.Style := tbsDivider;
+  if IsVerticalBar(Button) then
+    Button.Height := Bar.Scale96ToForm(DividerSpace)
+  else
+    Button.Width := Bar.Scale96ToForm(DividerSpace);
+end;
 
 procedure SetActionHint(AAction: TAction);
 begin
@@ -119,12 +170,8 @@ begin
 end;
 
 procedure TCommandSet.AddDivider;
-var
-  Button: TToolButton;
 begin
-  Button := TToolButton.Create(FBar);
-  Button.Parent := FBar;
-  Button.Style := tbsDivider;
+  AddToolDivider(FBar);
 end;
 
 end.

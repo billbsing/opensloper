@@ -29,7 +29,8 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
-  Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform, Sloper.Core.Fragment;
+  Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.UI.Preferences,
+  Sloper.Core.Transform, Sloper.Core.Fragment;
 
 type
 
@@ -691,12 +692,8 @@ begin
 end;
 
 procedure TMainForm.AddDivider(Bar: TToolBar);
-var
-  Button: TToolButton;
 begin
-  Button := TToolButton.Create(Bar);
-  Button.Parent := Bar;
-  Button.Style := tbsDivider;
+  AddToolDivider(Bar);
 end;
 
 // Commands along the top, drafting tools down the left. Without the icon
