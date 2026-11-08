@@ -19,7 +19,7 @@ points and edges placed by formulas, then closed outlines become pieces.
     | Variables | The pattern's `#` variables |
     | Measurements | The measurement file's values, with a slider to try a size up or down |
     | Lines | Which kinds of line are shown |
-    | Fabrics | The fabrics pieces are cut from |
+    | Materials | The materials pieces are cut from |
 
 - **Status bar**, along the bottom: where the pointer is, what a click will
   make, and whether the pattern has problems.

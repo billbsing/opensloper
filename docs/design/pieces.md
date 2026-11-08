@@ -1,7 +1,7 @@
 # Pieces
 
 A piece is a closed outline of edges, with everything needed to cut it: seam
-allowance, grainline, notches, how many to cut, and its fabric.
+allowance, grainline, notches, how many to cut, and its material.
 
 ## Make a piece
 
@@ -43,12 +43,12 @@ turned over, as for a left and a right. **Fold** puts a piece on the fold of
 one of its straight edges: that edge has no allowance and shows a fold mark,
 and the label reads *Front, cut 1 on fold*.
 
-## Fabric
+## Material
 
-Each piece is cut from a fabric, which gives it its colour on screen and puts
-it on that fabric's cut list. The Fabrics tab adds, renames and recolours
-fabrics, and can give one a seam allowance: new pieces start with the first
-fabric's.
+Each piece is cut from a material, which gives it its colour on screen and puts
+it on that material's cut list. The Materials tab adds, renames and recolours
+materials, and can give one a seam allowance: new pieces start with the first
+material's.
 
 ## Markings
 
