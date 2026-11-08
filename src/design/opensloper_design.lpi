@@ -219,6 +219,11 @@
         <UnitName Value="Sloper.UI.SelectionEdits"/>
       </Unit>
       <Unit>
+        <Filename Value="../ui/sloper.ui.patternpainter.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.PatternPainter"/>
+      </Unit>
+      <Unit>
         <Filename Value="../ui/sloper.ui.scene.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.Scene"/>
