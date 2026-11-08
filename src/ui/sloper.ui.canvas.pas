@@ -31,7 +31,7 @@ uses
   Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
   Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Core.Fragment, Sloper.Core.Shortcuts,
   Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
-  Sloper.UI.Scene, Sloper.UI.CanvasInput;
+  Sloper.UI.Scene, Sloper.UI.CanvasInput, Sloper.UI.SelectionEdits;
 
 type
   // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
@@ -107,8 +107,6 @@ type
     FOnMessage: TCanvasMessageEvent;
     FOnSelectionChange: TNotifyEvent;
     FOnNoteAdded: TNotifyEvent;
-    function ObjectNames(const Keys: TStringArray): string;
-    function DeleteSelected(const Description: string): boolean;
     procedure TakeFocus;
     function NoteValues: TFieldValues;
     function NotesHere(X, Y: integer): TStringArray;
@@ -117,9 +115,6 @@ type
     procedure AddCalloutHere;
     procedure FinishTipDrag;
     procedure DrawNotes;
-    function MarkerKey(const Key: string): string;
-    procedure MarkHoles;
-    procedure FinishOffset(Added: TOffsetEdge);
     function EdgeShift(const Key: string): TVec2;
     function ClickKey(X, Y: integer; Shift: TShiftState): string;
     procedure ShowPickMenu(X, Y: integer);
@@ -127,6 +122,7 @@ type
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure ShowMessageText(const AText: string);
+    procedure ApplyEdit(const Edit: TSelectionEdit);
     function ModelAt(X, Y: integer): TVec2;
     function ObjectKeyAt(X, Y: integer): string;
     function IsSelected(const Key: string): boolean;
@@ -296,47 +292,14 @@ resourcestring
   rsCanvasAddCallout = 'Add callout';
   rsCanvasMoveTip = 'Move callout tip';
   rsCanvasMoveHandle = 'Move curve handle';
-  rsCanvasNudge = 'Nudge';
-  rsCanvasTransform = 'Add %s';
-  rsCanvasPickCentre = 'Select the point for its centre first';
   rsCanvasAddRound = 'Add circle or arc';
   rsCanvasAddRectangle = 'Add rectangle';
-  rsCanvasPickEdgeToOffset = 'Select the edges to offset first';
-  rsCanvasPickPieceEdges = 'Select the piece and the edges of it to offset';
-  rsCanvasAddOffset = 'Add offset edge';
-  rsCanvasPickEdgesToConvert = 'Select the edges to change first';
-  rsCanvasConvertToLine = 'Change to line';
-  rsCanvasConvertToCurve = 'Change to curve';
-  rsCanvasMergePoints = 'Merge points';
-  rsCanvasMerged = 'Merged %d points into %s';
-  rsCanvasPickPointToBreak = 'Select the point to break first';
-  rsCanvasBreakPoint = 'Break point';
-  rsCanvasPickToCopy = 'Select the points and edges to copy first';
-  rsCanvasCannotCopy = '%s cannot be copied; only points and edges can';
-  rsCanvasCopied = 'Copied %s';
-  rsCanvasCut = 'Cut';
-  rsCanvasCutDone = 'Cut %s';
-  rsCanvasCannotCut = 'Nothing was cut: %s cannot be copied; only points and edges can';
-  rsCanvasCopiedLeftOut = 'Copied %s; left out %s, which cannot be copied';
-  rsCanvasPaste = 'Paste';
-  rsCanvasPasted = 'Pasted %s';
-  rsCanvasPastedRenamed = 'Pasted %s; renamed %s';
-  rsCanvasBroken = 'Broke %s into %d points';
-  rsCanvasPickCornerEdges = 'Select the two straight edges that meet at the corner';
-  rsCanvasRoundCorner = 'Round corner';
-  rsCanvasPickHole = 'Select the points to mark as holes';
-  rsCanvasPickMarkingEdge = 'Select the piece and the edge for the marking';
-  rsCanvasPickLine = 'Select the piece and the marking line or marked point to attach to it';
-  rsCanvasPickMarkingToRemove = 'Select the piece and the point or edge of the marking to remove';
-  rsCanvasAddMarking = 'Add marking';
-  rsCanvasRemoveMarking = 'Remove marking';
   rsCanvasPickPivot = 'Rotate Copy: click the point to turn about; Escape cancels';
   rsCanvasPickAxis = 'Mirror Copy: click a straight edge, or the first of two points; Escape cancels';
   rsCanvasPickSecond = 'Mirror Copy: click the second point; Escape cancels';
   rsCanvasPickPoint = 'Click a point';
   rsCanvasPickEdge = 'Click a straight edge or a point';
   rsCanvasNothingSelected = 'Select the points and edges to copy first';
-  rsCanvasDelete = 'Delete';
   rsCanvasHover = '%s: %s';
   rsCanvasCycle = '%s (%d of %d here; click again for the next)';
   rsCanvasPickItem = '%s (%s)';
@@ -364,7 +327,6 @@ resourcestring
   rsCanvasSeamProgress = 'Side %s: A %s, B %s, difference %s. Tab changes side, Enter makes the seam';
   rsCanvasSeamSides = 'Pick edges for both sides first';
   rsCanvasAddSeam = 'Add seam';
-  rsCanvasSplit = 'Split edge';
 
 const
   // Where each tool's key is, in Sloper.Core.Shortcuts
@@ -379,9 +341,6 @@ uses
   Sloper.UI.RulerTicks, Sloper.UI.ObjectList;
 
 const
-  // A new arc's sweep, as a starting point for typing the real values; its
-  // radius and other starting lengths are per unit (StartingLengths)
-  NewArcSweep = '90';
   // How strongly a material's colour shows under the lines
   MaterialTintAlpha = 60;
   MaterialHatchAlpha = 130;
@@ -881,181 +840,51 @@ begin
   FHoverHandleEdge := EdgeKey;
 end;
 
-procedure TPatternCanvas.Nudge(DX, DY: double);
-var
-  Selected, Reason, MergeKey: string;
-  Node: TEvalNode;
-  Moved, Done: boolean;
+procedure TPatternCanvas.ApplyEdit(const Edit: TSelectionEdit);
 begin
-  if not Assigned(FDocument) or (Length(FSelection) = 0) then
-    Exit;
-  FDocument.BeginChange(rsCanvasNudge);
-  Moved := False;
-  MergeKey := 'nudge';
-  for Selected in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Selected);
-    if not (Node is TPointObject) and not (Node is TNoteObject) then
-      Continue;
-    MergeKey := MergeKey + ':' + Selected;
-    if Node is TNoteObject then
-      Done := DragNote(FDocument.Pattern, TNoteObject(Node), TNoteObject(Node).Position + Vec2(DX, DY), Reason)
-    else
-      Done := DragPoint(FDocument.Pattern, TPointObject(Node), TPointObject(Node).Position + Vec2(DX, DY), Reason);
-    if not Done then
-    begin
-      ShowMessageText(Reason);
-      FDocument.CancelChange;
-      Exit;
-    end;
-    Moved := True;
-  end;
-  FDocument.Commit(Moved, MergeKey);
+  if Edit.Reselect then
+    SetSelection(Edit.Selection);
+  if Edit.Message <> '' then
+    ShowMessageText(Edit.Message);
+  Invalidate;
+end;
+
+procedure TPatternCanvas.Nudge(DX, DY: double);
+begin
+  if Assigned(FDocument) then
+    ApplyEdit(NudgeSelection(FDocument, FSelection, Vec2(DX, DY)));
 end;
 
 procedure TPatternCanvas.DeleteSelection;
 begin
-  DeleteSelected(rsCanvasDelete);
-end;
-
-function TPatternCanvas.DeleteSelected(const Description: string): boolean;
-var
-  Index: integer;
-  Node: TEvalNode;
-begin
-  Result := False;
-  if not Assigned(FDocument) or (Length(FSelection) = 0) then
-    Exit;
-  FDocument.BeginChange(Description);
-  // Later objects can use earlier ones, so delete from the end of the pattern
-  for Index := FDocument.Pattern.ObjectCount - 1 downto 0 do
-  begin
-    Node := FDocument.Pattern.Objects[Index];
-    if IsSelected(Node.Key) and not FDocument.Pattern.Delete(Node) then
-    begin
-      ShowMessageText(FDocument.Pattern.LastError);
-      FDocument.CancelChange;
-      Exit;
-    end;
-  end;
-  FDocument.EndChange;
-  SetSelection(nil);
-  Result := True;
-end;
-
-// For the status bar: "A, B, Line_A_B"
-function TPatternCanvas.ObjectNames(const Keys: TStringArray): string;
-var
-  Key: string;
-  Node: TEvalNode;
-begin
-  Result := '';
-  for Key in Keys do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if not Assigned(Node) then
-      Continue;
-    if Result <> '' then
-      Result := Result + ', ';
-    Result := Result + Node.DisplayName;
-  end;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.DeleteSelection(FDocument, FSelection, rsSelectionDelete));
 end;
 
 function TPatternCanvas.CopySelection: TFragmentCopy;
-var
-  LeftOut: string;
 begin
   Result := Default(TFragmentCopy);
-  if not Assigned(FDocument) then
-    Exit;
-  if Length(FSelection) = 0 then
-  begin
-    ShowMessageText(rsCanvasPickToCopy);
-    Exit;
-  end;
-  Result := CopyFragment(FDocument.Pattern, FSelection);
-  LeftOut := string.Join(', ', Result.LeftOut);
-  if Result.Text = '' then
-    ShowMessageText(Format(rsCanvasCannotCopy, [LeftOut]))
-  else if LeftOut <> '' then
-    ShowMessageText(Format(rsCanvasCopiedLeftOut, [ObjectNames(Result.Keys), LeftOut]))
-  else
-    ShowMessageText(Format(rsCanvasCopied, [ObjectNames(Result.Keys)]));
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.CopySelection(FDocument, FSelection, Result));
 end;
 
-// Everything selected must be copied, or Delete would lose what is left out
 function TPatternCanvas.CutSelection: TFragmentCopy;
-var
-  Names: string;
 begin
   Result := Default(TFragmentCopy);
-  if not Assigned(FDocument) then
-    Exit;
-  if Length(FSelection) = 0 then
-  begin
-    ShowMessageText(rsCanvasPickToCopy);
-    Exit;
-  end;
-  Result := CopyFragment(FDocument.Pattern, FSelection);
-  if Length(Result.LeftOut) > 0 then
-  begin
-    ShowMessageText(Format(rsCanvasCannotCut, [string.Join(', ', Result.LeftOut)]));
-    Exit(Default(TFragmentCopy));
-  end;
-  Names := ObjectNames(Result.Keys);
-  if not DeleteSelected(rsCanvasCut) then
-    Exit(Default(TFragmentCopy));
-  ShowMessageText(Format(rsCanvasCutDone, [Names]));
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.CutSelection(FDocument, FSelection, Result));
 end;
 
 procedure TPatternCanvas.PasteFragmentText(const FragmentText: string);
-var
-  Pasted: TFragmentPaste;
-  Reason: string;
-  Done: boolean;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  FDocument.BeginChange(rsCanvasPaste);
-  Done := PasteFragment(FDocument.Pattern, FragmentText, Pasted, Reason);
-  if not FDocument.Commit(Done) then
-  begin
-    ShowMessageText(Reason);
-    Exit;
-  end;
-  SetSelection(Pasted.Keys);
-  if Length(Pasted.Renamed) > 0 then
-    ShowMessageText(Format(rsCanvasPastedRenamed, [ObjectNames(Pasted.Keys), string.Join(', ', Pasted.Renamed)]))
-  else
-    ShowMessageText(Format(rsCanvasPasted, [ObjectNames(Pasted.Keys)]));
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.PasteFragmentText(FDocument, FragmentText));
 end;
 
 procedure TPatternCanvas.SplitSelection;
-var
-  EdgeKey, PointKey, Reason, FirstKey, SecondKey: string;
-  First, Second: TSplitPart;
-  Done: boolean;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  if not SplitFromSelection(FDocument.Pattern, FSelection, EdgeKey, PointKey, Reason) then
-  begin
-    ShowMessageText(Reason);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasSplit);
-  Done := FDocument.Pattern.SplitEdge(EdgeKey, FDocument.Pattern.UsePoint(PointKey), First, Second);
-  if Done then
-  begin
-    FirstKey := First.Key;
-    SecondKey := Second.Key;
-  end;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Done) then
-    SetSelection([FirstKey, SecondKey])
-  else
-    ShowMessageText(Reason);
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.SplitSelection(FDocument, FSelection));
 end;
 
 { Transforms }
@@ -1069,34 +898,10 @@ begin
     Cursor := crDefault;
 end;
 
-// An arc about the selected point; circles have their own tool
 procedure TPatternCanvas.AddArcHere;
-var
-  Node: TEvalNode;
-  Added: TEdgeObject;
-  Key, Reason: string;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Node := nil;
-  if Length(FSelection) = 1 then
-    Node := FDocument.Pattern.FindNode(FSelection[0]);
-  if not (Node is TPointObject) then
-  begin
-    ShowMessageText(rsCanvasPickCentre);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddRound);
-  Added := FDocument.Pattern.AddArc(FDocument.Pattern.UsePoint(Node.Key), StartingLengths[slArcRadius, FDocument.Pattern.Units], '0', NewArcSweep, FDrawRole);
-  Key := '';
-  if Assigned(Added) then
-    Key := Added.Key;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Assigned(Added)) then
-    SetSelection([Key])
-  else
-    ShowMessageText(Reason);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(AddArcAtSelection(FDocument, FSelection, FDrawRole));
 end;
 
 // The second click of a circle or rectangle: its first point, made if need
@@ -1136,338 +941,52 @@ begin
   Invalidate;
 end;
 
-// One edge, or a run of them in any order, which follows the first selected
 procedure TPatternCanvas.OffsetSelection(Side: TOffsetSide);
-var
-  Edges: TStringArray;
-  Run: TRunEdgeArray;
-  Added: TOffsetEdge;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Edges := EdgeKeys(FDocument.Pattern, FSelection);
-  if (Length(Edges) = 0) or (Length(Edges) <> Length(FSelection)) then
-  begin
-    ShowMessageText(rsCanvasPickEdgeToOffset);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddOffset);
-  Added := nil;
-  if Length(Edges) = 1 then
-    Added := FDocument.Pattern.AddOffsetEdge(Edges[0], StartingLengths[slOffsetDistance, FDocument.Pattern.Units], Side, erConstruction)
-  else if FDocument.Pattern.ChainRun(Edges, Run) then
-    Added := FDocument.Pattern.AddOffsetRun(Run, StartingLengths[slOffsetDistance, FDocument.Pattern.Units], Side, erConstruction);
-  FinishOffset(Added);
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.OffsetSelection(FDocument, FSelection, Side));
 end;
 
-// Edges of a piece, selected with it, offset inside it (as a stitch line)
-// or outside it (as a construction line)
 procedure TPatternCanvas.OffsetSelectionInPiece(Inside: boolean);
-var
-  Key: string;
-  Node: TEvalNode;
-  Piece: TPieceObject;
-  Edges: TStringArray;
-  Run: TRunEdgeArray;
-  Side: TOffsetSide;
-  Role: TEdgeRole;
-  Added: TOffsetEdge;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Piece := nil;
-  for Key in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if Node is TPieceObject then
-      Piece := TPieceObject(Node);
-  end;
-  Edges := EdgeKeys(FDocument.Pattern, FSelection);
-  if not Assigned(Piece) or (Length(Edges) = 0) or (Length(Edges) + 1 <> Length(FSelection)) then
-  begin
-    ShowMessageText(rsCanvasPickPieceEdges);
-    Exit;
-  end;
-  Role := erConstruction;
-  if Inside then
-    Role := erStitch;
-  FDocument.BeginChange(rsCanvasAddOffset);
-  Added := nil;
-  if FDocument.Pattern.PieceRun(Piece, Edges, Inside, Run, Side) then
-    Added := FDocument.Pattern.AddOffsetRun(Run, StartingLengths[slOffsetDistance, FDocument.Pattern.Units], Side, Role);
-  FinishOffset(Added);
-end;
-
-procedure TPatternCanvas.FinishOffset(Added: TOffsetEdge);
-var
-  Key, Reason: string;
-begin
-  Key := '';
-  if Assigned(Added) then
-    Key := Added.Key;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Assigned(Added)) then
-    SetSelection([Key])
-  else
-    ShowMessageText(Reason);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.OffsetSelectionInPiece(FDocument, FSelection, Inside));
 end;
 
 procedure TPatternCanvas.ConvertSelection(ToCurve: boolean);
-var
-  Key, Reason: string;
-  Node: TEvalNode;
-  Edges: TStringArray;
-  Done: boolean;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Edges := nil;
-  for Key in FSelection do
-    if FDocument.Pattern.FindNode(Key) is TEdgeObject then
-      Insert(Key, Edges, Length(Edges));
-  if Length(Edges) = 0 then
-  begin
-    ShowMessageText(rsCanvasPickEdgesToConvert);
-    Exit;
-  end;
-  if ToCurve then
-    FDocument.BeginChange(rsCanvasConvertToCurve)
-  else
-    FDocument.BeginChange(rsCanvasConvertToLine);
-  Done := True;
-  // Each edge keeps its ID, so it is found again after the one before it changed
-  for Key in Edges do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if ToCurve then
-      Done := Assigned(FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)))
-    else
-      Done := Assigned(FDocument.Pattern.ConvertToLine(TEdgeObject(Node)));
-    if not Done then
-      Break;
-  end;
-  Reason := FDocument.Pattern.LastError;
-  if not FDocument.Commit(Done) then
-    ShowMessageText(Reason);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.ConvertSelection(FDocument, FSelection, ToCurve));
 end;
 
 procedure TPatternCanvas.MergeSelection;
-var
-  Kept: TPointObject;
-  Key, Reason, KeptName: string;
-  Points: TStringArray;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Points := nil;
-  for Key in FSelection do
-    if FDocument.Pattern.FindNode(Key) is TPointObject then
-      Insert(Key, Points, Length(Points));
-  FDocument.BeginChange(rsCanvasMergePoints);
-  Kept := FDocument.Pattern.MergePoints(Points);
-  Key := '';
-  KeptName := '';
-  if Assigned(Kept) then
-  begin
-    Key := Kept.Key;
-    KeptName := Kept.Name;
-  end;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Assigned(Kept)) then
-  begin
-    SetSelection([Key]);
-    ShowMessageText(Format(rsCanvasMerged, [Length(Points), KeptName]));
-  end
-  else
-    ShowMessageText(Reason);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.MergeSelection(FDocument, FSelection));
 end;
 
 procedure TPatternCanvas.BreakSelection;
-var
-  Node: TEvalNode;
-  Broken: TPointObjectArray;
-  Keys: TStringArray;
-  Item: TPointObject;
-  Reason, OldName: string;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Node := nil;
-  if Length(FSelection) = 1 then
-    Node := FDocument.Pattern.FindNode(FSelection[0]);
-  if not (Node is TPointObject) then
-  begin
-    ShowMessageText(rsCanvasPickPointToBreak);
-    Exit;
-  end;
-  OldName := Node.DisplayName;
-  FDocument.BeginChange(rsCanvasBreakPoint);
-  Broken := FDocument.Pattern.BreakPoint(TPointObject(Node));
-  Keys := nil;
-  for Item in Broken do
-    Insert(Item.Key, Keys, Length(Keys));
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Length(Broken) > 0) then
-  begin
-    SetSelection(Keys);
-    ShowMessageText(Format(rsCanvasBroken, [OldName, Length(Keys)]));
-  end
-  else
-    ShowMessageText(Reason);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.BreakSelection(FDocument, FSelection));
 end;
 
 procedure TPatternCanvas.RoundSelectedCorner;
-var
-  Added: TCornerArc;
-  Key, Reason: string;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  if (Length(FSelection) <> 2) or not (FDocument.Pattern.FindNode(FSelection[0]) is TEdgeObject) or not
-    (FDocument.Pattern.FindNode(FSelection[1]) is TEdgeObject) then
-  begin
-    ShowMessageText(rsCanvasPickCornerEdges);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasRoundCorner);
-  Added := FDocument.Pattern.AddRoundCorner(FSelection[0], FSelection[1], StartingLengths[slCornerRadius, FDocument.Pattern.Units]);
-  Key := '';
-  if Assigned(Added) then
-    Key := Added.Key;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Assigned(Added)) then
-    SetSelection([Key])
-  else
-    ShowMessageText(Reason);
-  Invalidate;
-end;
-
-// A repeat's point stands for its repeat, which holds the marker
-function TPatternCanvas.MarkerKey(const Key: string): string;
-var
-  Node: TEvalNode;
-begin
-  Result := Key;
-  Node := FDocument.Pattern.FindNode(Key);
-  if Node is TRepeatPoint then
-    Result := TRepeatPoint(Node).Source.Key;
-end;
-
-// Every selected point or repeat becomes a hole, joining the pieces it lies in
-procedure TPatternCanvas.MarkHoles;
-var
-  Key, Target, Reason: string;
-  Node: TEvalNode;
-  Targets: TStringArray;
-  Done: boolean;
-begin
-  Targets := nil;
-  for Key in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    Target := MarkerKey(Key);
-    if ((Node is TPointObject) or (Node is TRepeatObject)) and (TDraftObject(FDocument.Pattern.FindNode(Target)).Marker <> pmHole) and
-      (IndexStr(Target, Targets) < 0) then
-      Insert(Target, Targets, Length(Targets));
-  end;
-  if Length(Targets) = 0 then
-  begin
-    ShowMessageText(rsCanvasPickHole);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddMarking);
-  Done := True;
-  for Target in Targets do
-    Done := Done and FDocument.Pattern.SetMarker(Target, pmHole);
-  Reason := FDocument.Pattern.LastError;
-  if not FDocument.Commit(Done) then
-    ShowMessageText(Reason);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.RoundSelectedCorner(FDocument, FSelection));
 end;
 
 procedure TPatternCanvas.MarkSelection(Kind: TMarkingKind);
-var
-  Key, Reason, Target: string;
-  Node: TEvalNode;
-  Piece: TPieceObject;
-  Done: boolean;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  if Kind = mkPoint then
-  begin
-    MarkHoles;
-    Exit;
-  end;
-  Piece := nil;
-  Target := '';
-  for Key in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if Node is TPieceObject then
-      Piece := TPieceObject(Node)
-    else if (Node is TEdgeObject) or ((Kind = mkLine) and ((Node is TPointObject) or (Node is TRepeatObject))) then
-      Target := MarkerKey(Key);
-  end;
-  if not Assigned(Piece) or (Target = '') or (Length(FSelection) <> 2) then
-  begin
-    if Kind = mkLine then
-      ShowMessageText(rsCanvasPickLine)
-    else
-      ShowMessageText(rsCanvasPickMarkingEdge);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddMarking);
-  if Kind = mkStitchHoles then
-    Done := FDocument.Pattern.AddStitchMarking(Piece, Target, StartingLengths[slStitchSpacing, FDocument.Pattern.Units],
-      StartingLengths[slStitchSize, FDocument.Pattern.Units])
-  else if FDocument.Pattern.FindNode(Target) is TEdgeObject then
-    Done := FDocument.Pattern.AddLineMarking(Piece, Target)
-  else
-    Done := FDocument.Pattern.AddPointMarking(Piece, Target);
-  Reason := FDocument.Pattern.LastError;
-  if not FDocument.Commit(Done) then
-    ShowMessageText(Reason);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.MarkSelection(FDocument, FSelection, Kind));
 end;
 
 procedure TPatternCanvas.UnmarkSelection;
-var
-  Key, Target: string;
-  Node: TEvalNode;
-  Piece: TPieceObject;
-  Index: integer;
-  Done: boolean;
 begin
-  if not Assigned(FDocument) then
-    Exit;
-  Piece := nil;
-  Target := '';
-  for Key in FSelection do
-  begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if Node is TPieceObject then
-      Piece := TPieceObject(Node)
-    else
-      Target := MarkerKey(Key);
-  end;
-  if not Assigned(Piece) or (Target = '') then
-  begin
-    ShowMessageText(rsCanvasPickMarkingToRemove);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasRemoveMarking);
-  Done := False;
-  for Index := High(Piece.Markings) downto 0 do
-    if (Piece.Markings[Index].PointKey = Target) or (Piece.Markings[Index].EdgeKey = Target) then
-      Done := FDocument.Pattern.RemoveMarking(Piece, Index) or Done;
-  if not FDocument.Commit(Done) then
-    ShowMessageText(rsCanvasPickMarkingToRemove);
-  Invalidate;
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.UnmarkSelection(FDocument, FSelection));
 end;
 
 procedure TPatternCanvas.StartTransform(Kind: TTransformKind);
@@ -1503,21 +1022,9 @@ begin
 end;
 
 procedure TPatternCanvas.MakeTransform(const Spec: TTransformSpec);
-var
-  Transform: TTransformObject;
-  Key, Reason: string;
 begin
   EndPicking;
-  FDocument.BeginChange(Format(rsCanvasTransform, [Spec.Name]));
-  Transform := FDocument.Pattern.AddTransform(Spec);
-  Key := '';
-  if Assigned(Transform) then
-    Key := Transform.Key;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Assigned(Transform)) then
-    SetSelection([Key])
-  else
-    ShowMessageText(Reason);
+  ApplyEdit(AddTransform(FDocument, Spec));
 end;
 
 procedure TPatternCanvas.PickHere(X, Y: integer);

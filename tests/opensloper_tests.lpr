@@ -54,6 +54,7 @@ uses
   Sloper.Tests.RecentFiles,
   Sloper.Tests.RulerTicks,
   Sloper.Tests.CanvasInput,
+  Sloper.Tests.SelectionEdits,
   Sloper.Tests.AppPaths,
   Sloper.Tests.Clipper,
   Sloper.Tests.Piece,
