@@ -151,10 +151,13 @@ var
   Err: string;
 begin
   FSettings.NameColumnShare := 0.625;
+  FSettings.MaterialDialogSplit := 260;
   Other := TAppSettings.Create;
   try
+    AssertEquals('no split by default', 0, Other.MaterialDialogSplit);
     AssertTrue(Err, Other.LoadFromText(FSettings.SaveToText, Err));
     AssertNear('share', 0.625, Other.NameColumnShare);
+    AssertEquals('material dialog split', 260, Other.MaterialDialogSplit);
   finally
     FreeAndNil(Other);
   end;

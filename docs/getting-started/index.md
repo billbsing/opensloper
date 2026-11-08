@@ -37,7 +37,7 @@ If you cloned without `--recursive`, fetch the libraries first with
 1. Start **opensloper-measurements** and make a measurement file (`.slm`) with
    the measurements your pattern needs, or open one you have.
 2. Start **opensloper-design**, make a new pattern (File → New) and choose its
-   measurement file (File → Measurements…). Draw points and lines; their places are formulas that can read
+   measurement file (File → Measurements → Open Set…). Draw points and lines; their places are formulas that can read
    the measurements.
 3. Make pieces from the closed outlines, then open **opensloper-publish** from
    the design app (File → Publish…) to lay the pieces out and print them.

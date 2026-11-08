@@ -46,6 +46,7 @@ uses
   Sloper.Tests.Snap,
   Sloper.Tests.GridColumns,
   Sloper.Tests.ObjectList,
+  Sloper.Tests.PanelEdits,
   Sloper.Tests.Completion,
   Sloper.Tests.API,
   Sloper.Tests.DraftSVG,

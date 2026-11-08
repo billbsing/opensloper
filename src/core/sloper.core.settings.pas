@@ -85,6 +85,8 @@ type
     ShowRulers: boolean;
     // Whether the drafting canvas fills pieces with their material
     ShowPieceFills: boolean;
+    // The width of the Materials dialog's list, at 96 pixels per inch; 0 for the default
+    MaterialDialogSplit: integer;
     // Besides the built-in Standard
     MachineProfiles: TMachineProfileArray;
     // Besides the built-in ones
@@ -188,6 +190,7 @@ begin
   ShowSidePanel := True;
   ShowRulers := True;
   ShowPieceFills := True;
+  MaterialDialogSplit := 0;
   Preferences := DefaultPreferences;
   MachineProfiles := nil;
   OutputProfiles := nil;
@@ -309,6 +312,8 @@ begin
     Obj.Add('showSidePanel', ShowSidePanel);
     Obj.Add('showRulers', ShowRulers);
     Obj.Add('showPieceFills', ShowPieceFills);
+    if MaterialDialogSplit > 0 then
+      Obj.Add('materialDialogSplit', MaterialDialogSplit);
     Obj.Add('measureUnit', MeasureUnitNames[Preferences.MeasureUnit]);
     Obj.Add('gridSteps', GridStepsToJSON(Preferences.GridSteps));
     Obj.Add('calibrationX', JSONFloat(Preferences.Calibration.X));
@@ -331,6 +336,7 @@ var
   TextValue: string;
   Version: integer;
   Share: double;
+  Split: integer;
   Mode: TLabelMode;
   AUnit: TMeasureUnit;
   Shown: boolean;
@@ -361,6 +367,8 @@ begin
       ShowRulers := Shown;
     if GetJSONBoolean(Obj, 'showPieceFills', Shown) then
       ShowPieceFills := Shown;
+    if GetJSONInteger(Obj, 'materialDialogSplit', Split) and (Split > 0) then
+      MaterialDialogSplit := Split;
     if GetJSONString(Obj, 'measureUnit', TextValue) then
       for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
         if TextValue = MeasureUnitNames[AUnit] then

@@ -282,6 +282,11 @@
         <UnitName Value="Sloper.Tests.ObjectList"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.paneledits.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.PanelEdits"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.completion.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Completion"/>

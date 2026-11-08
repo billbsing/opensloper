@@ -18,13 +18,17 @@
 
 // The measurements tab of the side panel: the current set, with keys the
 // pattern needs and the set lacks shown as missing. It allows the small edits
-// the design gives the drafting app: changing a value or description and adding
-// a key. Everything else belongs to the measurements app. These edits go
-// straight to the file, so they are not undo steps.
+// the design gives the drafting app, in the grid: a value or description, a
+// value for a missing key, and a new key from Add. Everything else belongs to
+// the measurements app. Edits belong to the file rather than the pattern, so
+// they are not undo steps: they are held, marked in bold, until Save writes
+// them all at once, or Revert drops them. They do not change the pattern
+// until they are saved.
 
 // The Test size slider tries the pattern a size up or down: every measurement
 // is scaled by up to 20% either way, 1% a step. Nothing is saved; the values
-// shown are the scaled ones, and editing waits until the slider is back at 0%.
+// shown are the scaled ones. Editing waits until the slider is back at 0%,
+// and the slider waits until there are no unsaved edits.
 unit Sloper.UI.MeasurementsPanel;
 
 {$mode ObjFPC}{$H+}
@@ -32,77 +36,88 @@ unit Sloper.UI.MeasurementsPanel;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, LCLType, Sloper.UI.ListPanel;
+  Classes, SysUtils, System.UITypes, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, Dialogs, LCLType, Sloper.UI.ListPanel,
+  Sloper.UI.PanelEdits;
 
 type
   TMeasurementsPanel = class(TListPanel)
   private
     FFileLabel: TLabel;
-    FEditors: TGroupBox;
-    FKeyEdit, FValueEdit, FDescriptionEdit: TEdit;
-    FSaveButton: TButton;
+    FButtons: TPanel;
+    FAddButton, FSaveButton, FRevertButton: TButton;
     FSizeBar: TPanel;
     FSizeBox: TComboBox;
     FTestLabel: TLabel;
     FTestSlider: TTrackBar;
     FTestReset: TButton;
     FTestGroup: TGroupBox;
+    FPending: TPendingMeasurements;
+    // The file the pending edits are for; another file drops them
+    FPendingPath: string;
     // While the slider is being set from the document
     FShowingTest: boolean;
-    FOnOpenSet: TNotifyEvent;
     FOnNewSet: TNotifyEvent;
-    FOnEditSet: TNotifyEvent;
-    function AddEditor(const ACaption: string): TEdit;
     function AddButton(Host: TWinControl; const ACaption: string; OnPress: TNotifyEvent): TButton;
+    function Testing: boolean;
     procedure UpdateFileLabel;
     procedure UpdateSizes;
+    procedure UpdateButtons;
     procedure SizeChange(Sender: TObject);
     procedure BuildTestBar;
     procedure UpdateTest;
     procedure TestChange(Sender: TObject);
     procedure TestResetClick(Sender: TObject);
-    procedure EditClick(Sender: TObject);
-    procedure ShowEditors;
-    procedure Save;
-    procedure OpenClick(Sender: TObject);
-    procedure NewClick(Sender: TObject);
     procedure AddClick(Sender: TObject);
     procedure SaveClick(Sender: TObject);
-    procedure EditorKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
+    procedure RevertClick(Sender: TObject);
+    function PendingRow(Index: integer): TListPanelRow;
   protected
     function BuildRows: TListPanelRowArray; override;
-    procedure SelectionChosen; override;
+    function CellEditable(const Key: string; Column: integer): boolean; override;
+    function CellEditText(const Key: string; Column: integer; const Shown: string): string; override;
+    function CommitCell(const Key: string; Column: integer; const AText: string; out Reason: string): boolean; override;
   public
     constructor Create(AOwner: TComponent); override;
-    // The user wants to open another set
-    property OnOpenSet: TNotifyEvent read FOnOpenSet write FOnOpenSet;
+    destructor Destroy; override;
+    // Writes the unsaved edits to the file; False when they could not be
+    function Save: boolean;
+    // Drops the unsaved edits
+    procedure Revert;
+    // Asks whether to save or discard unsaved edits before they would be
+    // lost; False when the user cancelled, or saving failed
+    function ConfirmPending(CanCancel: boolean = True): boolean;
+    function HasPending: boolean;
     // The user wants a new, empty file; saving with no file asks for this first
     property OnNewSet: TNotifyEvent read FOnNewSet write FOnNewSet;
-    // The user wants the set in the measurements app
-    property OnEditSet: TNotifyEvent read FOnEditSet write FOnEditSet;
   end;
 
 resourcestring
   rsMeasurementsNoSet = 'No measurement set';
-  rsMeasurementsOpen = '&Open...';
-  rsMeasurementsNew = '&New...';
-  rsMeasurementsEdit = '&Edit...';
   rsMeasurementsSize = 'Size';
   rsMeasurementsAdd = '&Add';
   rsMeasurementsSave = '&Save';
+  rsMeasurementsRevert = '&Revert';
+  rsMeasurementsSaveHint = 'Write the edits in bold to the measurement file';
+  rsMeasurementsRevertHint = 'Drop the edits in bold';
   rsMeasurementsKey = 'Key';
   rsMeasurementsValue = 'Value (mm)';
   rsMeasurementsDescription = 'Description';
   rsMeasurementsMissing = 'Missing';
-  rsMeasurementsBadValue = 'The value must be a number, such as 820 or 41.5';
+  rsMeasurementsEdited = '%s *';
   rsMeasurementsTest = 'Test size: %s';
   rsMeasurementsTestOff = '0%';
   rsMeasurementsTestOn = '%s%%, editing paused';
-  rsMeasurementsTestReset = '&Reset';
+  rsMeasurementsTestPaused = 'Save or revert the edits to try other sizes';
+  rsMeasurementsTestReset = 'R&eset';
   rsMeasurementsTestHint = 'Tries the pattern with every measurement larger or smaller, 1% a step. Nothing is saved.';
   rsMeasurementsTestTitle = 'Test Sizes';
   rsMeasurementsSetTitle = 'Measurement Set';
-  rsMeasurementsEditorsTitle = 'Measurement';
+  rsMeasurementsPendingTitle = 'Unsaved Measurements';
+  rsMeasurementsPendingAsk = 'Save the measurement edits to %s?';
+  rsMeasurementsPendingNewSet = 'a new measurement set';
+  rsMeasurementsPendingSave = 'Save';
+  rsMeasurementsPendingDiscard = 'Discard';
+  rsMeasurementsPendingCancel = 'Cancel';
 
 implementation
 
@@ -110,28 +125,17 @@ uses
   Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.UI.ObjectList;
 
 const
-  MaxValue = 1e12;
   // Test size steps, in percent either way
   MaxTestPercent = 20;
   TestTickPercent = 5;
 
-function ParseValue(const Text: string; out Value: double): boolean;
-var
-  Settings: TFormatSettings;
-begin
-  Settings := DefaultFormatSettings;
-  Settings.DecimalSeparator := '.';
-  Result := TryStrToFloat(Trim(Text), Value, Settings) and (Abs(Value) < MaxValue);
-end;
-
 constructor TMeasurementsPanel.Create(AOwner: TComponent);
 var
-  FileBar, Buttons: TPanel;
   SetGroup: TGroupBox;
   SizeLabel: TLabel;
 begin
   inherited Create(AOwner);
-  MultiSelect := False;
+  FPending := TPendingMeasurements.Create;
   // Above the search box
   SetGroup := TGroupBox.Create(Self);
   SetGroup.Parent := FHeader;
@@ -142,25 +146,17 @@ begin
   SetGroup.Caption := rsMeasurementsSetTitle;
   SetGroup.ChildSizing.TopBottomSpacing := 8;
 
-  FileBar := TPanel.Create(Self);
-  FileBar.Parent := SetGroup;
-  FileBar.Align := alTop;
-  FileBar.Top := -1;
-  FileBar.BevelOuter := bvNone;
-  FileBar.AutoSize := True;
-  AddButton(FileBar, rsMeasurementsNew, @NewClick);
-  AddButton(FileBar, rsMeasurementsOpen, @OpenClick);
-  AddButton(FileBar, rsMeasurementsEdit, @EditClick);
   FFileLabel := TLabel.Create(Self);
-  FFileLabel.Parent := FileBar;
-  FFileLabel.Align := alClient;
-  FFileLabel.Layout := tlCenter;
+  FFileLabel.Parent := SetGroup;
+  FFileLabel.Align := alTop;
+  FFileLabel.Top := -1;
   FFileLabel.Caption := rsMeasurementsNoSet;
   FSizeBar := TPanel.Create(Self);
   FSizeBar.Visible := False;
   FSizeBar.Parent := SetGroup;
   FSizeBar.Align := alTop;
   FSizeBar.Top := 1000;
+  FSizeBar.BorderSpacing.Top := 6;
   FSizeBar.BevelOuter := bvNone;
   FSizeBar.AutoSize := True;
   SizeLabel := TLabel.Create(Self);
@@ -175,29 +171,30 @@ begin
   FSizeBox.Style := csDropDownList;
   FSizeBox.OnChange := @SizeChange;
 
-  FEditors := TGroupBox.Create(Self);
-  FEditors.Parent := Self;
-  FEditors.Align := alBottom;
-  FEditors.BorderSpacing.Top := 6;
-  FEditors.AutoSize := True;
-  FEditors.Caption := rsMeasurementsEditorsTitle;
-  FEditors.ChildSizing.TopBottomSpacing := 8;
-
-  FKeyEdit := AddEditor(rsMeasurementsKey);
-  FValueEdit := AddEditor(rsMeasurementsValue);
-  FDescriptionEdit := AddEditor(rsMeasurementsDescription);
-  Buttons := TPanel.Create(Self);
-  Buttons.Parent := FEditors;
-  Buttons.Align := alTop;
-  Buttons.Top := 10000;
-  Buttons.BevelOuter := bvNone;
-  Buttons.AutoSize := True;
-  Buttons.BorderSpacing.Top := 8;
-  AddButton(Buttons, rsMeasurementsAdd, @AddClick);
-  FSaveButton := AddButton(Buttons, rsMeasurementsSave, @SaveClick);
-  // After the editors, which it disables while testing
+  // The buttons are the bottom row, under the test sizes
+  FButtons := TPanel.Create(Self);
+  FButtons.Parent := Self;
+  FButtons.Align := alBottom;
+  FButtons.Top := 200000;
+  FButtons.BevelOuter := bvNone;
+  FButtons.AutoSize := True;
+  FAddButton := AddButton(FButtons, rsMeasurementsAdd, @AddClick);
+  FSaveButton := AddButton(FButtons, rsMeasurementsSave, @SaveClick);
+  FSaveButton.Hint := rsMeasurementsSaveHint;
+  FSaveButton.ShowHint := True;
+  FRevertButton := AddButton(FButtons, rsMeasurementsRevert, @RevertClick);
+  FRevertButton.Hint := rsMeasurementsRevertHint;
+  FRevertButton.ShowHint := True;
   BuildTestBar;
   SetColumns([rsMeasurementsKey, rsMeasurementsValue, rsMeasurementsDescription], [120, 100, 240]);
+  SetEditableColumns([True, True, True], [False, False, False]);
+  UpdateButtons;
+end;
+
+destructor TMeasurementsPanel.Destroy;
+begin
+  inherited Destroy;
+  FreeAndNil(FPending);
 end;
 
 function TMeasurementsPanel.AddButton(Host: TWinControl; const ACaption: string; OnPress: TNotifyEvent): TButton;
@@ -210,24 +207,17 @@ begin
   Result.Align := alLeft;
   Result.Left := Host.ControlCount * 100;
   Result.OnClick := OnPress;
-  Result.BorderSpacing.Right := 8;
 end;
 
-// A caption above a field, one under another
-function TMeasurementsPanel.AddEditor(const ACaption: string): TEdit;
-var
-  Title: TLabel;
+// Exactly 1 is the slider at its centre, so this is not a tolerance compare
+function TMeasurementsPanel.Testing: boolean;
 begin
-  Title := TLabel.Create(Self);
-  Title.Parent := FEditors;
-  Title.Align := alTop;
-  Title.Top := FEditors.ControlCount * 100;
-  Title.Caption := ACaption;
-  Result := TEdit.Create(Self);
-  Result.Parent := FEditors;
-  Result.Align := alTop;
-  Result.Top := FEditors.ControlCount * 100;
-  Result.OnKeyDown := @EditorKeyDown;
+  Result := Assigned(Document) and (Document.MeasurementScale <> 1);
+end;
+
+function TMeasurementsPanel.HasPending: boolean;
+begin
+  Result := Assigned(FPending) and (FPending.Count > 0);
 end;
 
 procedure TMeasurementsPanel.UpdateFileLabel;
@@ -260,14 +250,27 @@ begin
   FSizeBox.ItemIndex := Document.Measurements.SizeIndex;
 end;
 
-procedure TMeasurementsPanel.SizeChange(Sender: TObject);
+procedure TMeasurementsPanel.UpdateButtons;
 begin
-  if Assigned(Document) and (FSizeBox.ItemIndex >= 0) then
-    Document.SelectMeasurementSize(FSizeBox.Items[FSizeBox.ItemIndex]);
+  FAddButton.Enabled := Assigned(Document) and not Testing;
+  FSaveButton.Enabled := HasPending;
+  FRevertButton.Enabled := HasPending;
 end;
 
-// At the bottom, under the editors: the label above the slider and its Reset
-// button
+// Another size shows other values, so the edits are settled first
+procedure TMeasurementsPanel.SizeChange(Sender: TObject);
+begin
+  if not Assigned(Document) or (FSizeBox.ItemIndex < 0) then
+    Exit;
+  if not ConfirmPending then
+  begin
+    UpdateSizes;
+    Exit;
+  end;
+  Document.SelectMeasurementSize(FSizeBox.Items[FSizeBox.ItemIndex]);
+end;
+
+// Over the buttons: the label above the slider and its Reset button
 procedure TMeasurementsPanel.BuildTestBar;
 var
   Row: TPanel;
@@ -275,10 +278,10 @@ begin
   FTestGroup := TGroupBox.Create(Self);
   FTestGroup.Parent := Self;
   FTestGroup.Align := alBottom;
-  // Below the editors, which are docked at the bottom too
   FTestGroup.Top := 100000;
   FTestGroup.Caption := rsMeasurementsTestTitle;
   FTestGroup.BorderSpacing.Top := 6;
+  FTestGroup.BorderSpacing.Bottom := 6;
   FTestGroup.AutoSize := True;
   FTestGroup.Hint := rsMeasurementsTestHint;
   FTestGroup.ShowHint := True;
@@ -313,12 +316,10 @@ end;
 procedure TMeasurementsPanel.UpdateTest;
 var
   Percent: integer;
-  Testing: boolean;
 begin
   Percent := 0;
   if Assigned(Document) then
     Percent := Round((Document.MeasurementScale - 1) * 100);
-  Testing := Percent <> 0;
   FShowingTest := True;
   try
     FTestSlider.Position := Percent;
@@ -330,16 +331,19 @@ begin
     FTestLabel.Caption := Format(rsMeasurementsTest, [Format(rsMeasurementsTestOn, ['+' + IntToStr(Percent)])])
   else if Testing then
     FTestLabel.Caption := Format(rsMeasurementsTest, [Format(rsMeasurementsTestOn, [IntToStr(Percent)])])
+  else if HasPending then
+    FTestLabel.Caption := rsMeasurementsTestPaused
   else
     FTestLabel.Caption := Format(rsMeasurementsTest, [rsMeasurementsTestOff]);
   FTestReset.Enabled := Testing;
-  FEditors.Enabled := not Testing;
+  FTestSlider.Enabled := not HasPending;
 end;
 
 procedure TMeasurementsPanel.TestChange(Sender: TObject);
 begin
   if FShowingTest or not Assigned(Document) then
     Exit;
+  FinishEditing;
   Document.SetMeasurementScale(1 + FTestSlider.Position / 100);
 end;
 
@@ -348,26 +352,54 @@ begin
   FTestSlider.Position := 0;
 end;
 
-procedure TMeasurementsPanel.EditClick(Sender: TObject);
+function TMeasurementsPanel.PendingRow(Index: integer): TListPanelRow;
+var
+  Item: TPendingMeasurement;
+  ValueText: string;
 begin
-  if Assigned(FOnEditSet) then
-    FOnEditSet(Self);
+  Item := FPending[Index];
+  ValueText := '';
+  if Item.HasValue then
+    ValueText := FormatJSONFloat(Item.Value);
+  Result := Default(TListPanelRow);
+  Result.Key := Item.Key;
+  Result.State := esValid;
+  Result.Marked := True;
+  Result.Cells := [Format(rsMeasurementsEdited, [Item.Key]), ValueText, Item.Description];
 end;
 
 function TMeasurementsPanel.BuildRows: TListPanelRowArray;
 var
   Rows: TMeasurementRowArray;
-  Index: integer;
+  Index, Count, PendingIndex: integer;
+  Listed: array of boolean;
+  LowerSearch: string;
 begin
   Result := nil;
+  if Document.MeasurementPath <> FPendingPath then
+  begin
+    FPending.Clear;
+    FPendingPath := Document.MeasurementPath;
+  end;
   UpdateFileLabel;
   UpdateSizes;
   UpdateTest;
+  UpdateButtons;
   Rows := MeasurementRows(Document.Pattern, Document.Measurements, SearchText);
-  SetLength(Result, Length(Rows));
+  Listed := nil;
+  SetLength(Listed, FPending.Count);
+  SetLength(Result, Length(Rows) + FPending.Count);
   for Index := 0 to High(Rows) do
   begin
+    PendingIndex := FPending.IndexOf(Rows[Index].Key);
+    if PendingIndex >= 0 then
+    begin
+      Listed[PendingIndex] := True;
+      Result[Index] := PendingRow(PendingIndex);
+      Continue;
+    end;
     Result[Index].Key := Rows[Index].Key;
+    Result[Index].Marked := False;
     if Rows[Index].Missing then
     begin
       Result[Index].State := esError;
@@ -379,81 +411,112 @@ begin
       Result[Index].Cells := [Rows[Index].Key, Rows[Index].Value, Rows[Index].Description];
     end;
   end;
+  // New keys from Add come last, when the search lets them through
+  Count := Length(Rows);
+  LowerSearch := LowerCase(Trim(SearchText));
+  for Index := 0 to FPending.Count - 1 do
+    if not Listed[Index] and FPending[Index].IsNew and ((LowerSearch = '') or (Pos(LowerSearch, LowerCase(FPending[Index].Key)) > 0)) then
+    begin
+      Result[Count] := PendingRow(Index);
+      Inc(Count);
+    end;
+  SetLength(Result, Count);
 end;
 
-// Keys are not renamed here, so the key field is only for a new one
-procedure TMeasurementsPanel.ShowEditors;
+// Nothing is edited while trying sizes, since the values shown are scaled;
+// a key is only edited on a row made by Add
+function TMeasurementsPanel.CellEditable(const Key: string; Column: integer): boolean;
 var
-  Measurement: TMeasurement;
+  Index: integer;
 begin
-  FKeyEdit.Text := '';
-  FValueEdit.Text := '';
-  FDescriptionEdit.Text := '';
-  FKeyEdit.ReadOnly := Length(Selection) > 0;
-  if Length(Selection) = 0 then
-    Exit;
-  FKeyEdit.Text := Selection[0];
-  Measurement := nil;
-  if Assigned(Document.Measurements) then
-    Measurement := Document.Measurements.Find(Selection[0]);
-  if Assigned(Measurement) then
+  Result := Assigned(Document) and not Testing and inherited CellEditable(Key, Column);
+  if Result and (Column = Ord(mcKey)) then
   begin
-    if Measurement.HasValue then
-      FValueEdit.Text := FormatJSONFloat(Measurement.Value);
-    FDescriptionEdit.Text := Measurement.Description;
+    Index := FPending.IndexOf(Key);
+    Result := (Index >= 0) and FPending[Index].IsNew;
   end;
 end;
 
-procedure TMeasurementsPanel.SelectionChosen;
+function TMeasurementsPanel.CellEditText(const Key: string; Column: integer; const Shown: string): string;
+var
+  Index: integer;
 begin
-  ShowEditors;
-  inherited SelectionChosen;
+  Result := Shown;
+  Index := FPending.IndexOf(Key);
+  if (Column = Ord(mcKey)) and (Index >= 0) then
+    Result := FPending[Index].Key
+  else if (Column = Ord(mcValue)) and (Shown = rsMeasurementsMissing) then
+    Result := '';
 end;
 
-procedure TMeasurementsPanel.Save;
+function TMeasurementsPanel.CommitCell(const Key: string; Column: integer; const AText: string; out Reason: string): boolean;
 var
-  Value: double;
-  Key, Err: string;
-  Change: TMeasurementChange;
+  NewKey: string;
 begin
+  Reason := '';
+  if not Assigned(Document) or (Column < Ord(Low(TMeasurementColumn))) or (Column > Ord(High(TMeasurementColumn))) then
+    Exit(False);
+  Result := FPending.CommitCell(Document.Measurements, Key, TMeasurementColumn(Column), AText, NewKey, Reason);
+  if not Result then
+    Exit;
+  if NewKey <> Key then
+    ShowSelection([NewKey]);
+  QueueRefresh;
+end;
+
+procedure TMeasurementsPanel.AddClick(Sender: TObject);
+var
+  Key: string;
+begin
+  if not Assigned(Document) or Testing then
+    Exit;
+  FinishEditing;
+  Key := FPending.AddNew(Document.Measurements);
+  Refresh;
+  FocusCell(Key, Ord(mcKey), True);
+end;
+
+function TMeasurementsPanel.Save: boolean;
+var
+  Edits: TMeasurementEditArray;
+  Changes: TMeasurementChangeArray;
+  Reason: string;
+begin
+  Result := True;
   if not Assigned(Document) then
     Exit;
-  Key := Trim(FKeyEdit.Text);
-  if not ParseValue(FValueEdit.Text, Value) then
+  FinishEditing;
+  if not HasPending then
+    Exit;
+  Result := False;
+  if not FPending.Edits(Edits, Reason) then
   begin
-    ShowMessageText(rsMeasurementsBadValue);
-    FValueEdit.SetFocus;
+    ShowMessageText(Reason);
     Exit;
   end;
   if (Document.MeasurementPath = '') and Assigned(FOnNewSet) then
     FOnNewSet(Self);
   if Document.MeasurementPath = '' then
     Exit;
-  if not Document.ChangeMeasurement(Key, Value, FDescriptionEdit.Text, Change, Err) then
+  // A new file is read with no edits, so they are kept for it
+  FPendingPath := Document.MeasurementPath;
+  if not Document.ChangeMeasurements(Edits, Changes, Reason) then
   begin
-    ShowMessageText(Err);
+    ShowMessageText(Reason);
     Exit;
   end;
-  ShowMessageText(MeasurementChangeText(Change, Document.MeasurementPath));
-  ChooseKeys([Change.Key]);
+  FPending.Clear;
+  Refresh;
+  ShowMessageText(MeasurementsSavedText(Changes, Document.MeasurementPath));
+  Result := True;
 end;
 
-procedure TMeasurementsPanel.OpenClick(Sender: TObject);
+procedure TMeasurementsPanel.Revert;
 begin
-  if Assigned(FOnOpenSet) then
-    FOnOpenSet(Self);
-end;
-
-procedure TMeasurementsPanel.NewClick(Sender: TObject);
-begin
-  if Assigned(FOnNewSet) then
-    FOnNewSet(Self);
-end;
-
-procedure TMeasurementsPanel.AddClick(Sender: TObject);
-begin
-  ChooseKeys(nil);
-  FKeyEdit.SetFocus;
+  FinishEditing;
+  FPending.Clear;
+  ClearRefusals;
+  ShowMessageText('');
 end;
 
 procedure TMeasurementsPanel.SaveClick(Sender: TObject);
@@ -461,18 +524,39 @@ begin
   Save;
 end;
 
-procedure TMeasurementsPanel.EditorKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
+procedure TMeasurementsPanel.RevertClick(Sender: TObject);
 begin
-  case Key of
-    VK_RETURN:
+  Revert;
+end;
+
+function TMeasurementsPanel.ConfirmPending(CanCancel: boolean): boolean;
+var
+  Target: string;
+  Answer: TModalResult;
+begin
+  FinishEditing;
+  if not HasPending then
+    Exit(True);
+  if Document.MeasurementPath = '' then
+    Target := rsMeasurementsPendingNewSet
+  else
+    Target := ExtractFileName(Document.MeasurementPath);
+  if CanCancel then
+    Answer := QuestionDlg(rsMeasurementsPendingTitle, Format(rsMeasurementsPendingAsk, [Target]), mtConfirmation,
+      [mrYes, rsMeasurementsPendingSave, mrNo, rsMeasurementsPendingDiscard, mrCancel, rsMeasurementsPendingCancel, 'IsCancel'], 0)
+  else
+    Answer := QuestionDlg(rsMeasurementsPendingTitle, Format(rsMeasurementsPendingAsk, [Target]), mtConfirmation,
+      [mrYes, rsMeasurementsPendingSave, mrNo, rsMeasurementsPendingDiscard], 0);
+  case Answer of
+    mrYes:
+      Result := Save;
+    mrCancel:
+      Result := False;
+    else
     begin
-      Save;
-      Key := 0;
-    end;
-    VK_ESCAPE:
-    begin
-      ShowEditors;
-      Key := 0;
+      // Discarding, or closing the question when it cannot be cancelled
+      Revert;
+      Result := True;
     end;
   end;
 end;

@@ -143,6 +143,15 @@ type
     HadValue: boolean;
     Added: boolean;
   end;
+  TMeasurementChangeArray = array of TMeasurementChange;
+
+  // A value and description to give a key, adding it when it is new
+  TMeasurementEdit = record
+    Key: string;
+    Value: double;
+    Description: string;
+  end;
+  TMeasurementEditArray = array of TMeasurementEdit;
 
 // Re-reads the file, gives Key this value and description, adding it when it
 // is new, and writes the file atomically, so a change made elsewhere to any
@@ -151,6 +160,10 @@ type
 // file is left as it was.
 function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
   out Change: TMeasurementChange; out ErrorMessage: string; const Size: string = ''; KeepDescription: boolean = False): boolean;
+// As ChangeMeasurementInFile for several keys at once, read once and written
+// once: either every edit is made or, on failure, none is.
+function ChangeMeasurementsInFile(const FileName: string; const Edits: TMeasurementEditArray;
+  out Changes: TMeasurementChangeArray; out ErrorMessage: string; const Size: string = ''): boolean;
 // Which of Keys the set cannot give, in the order of Keys
 function MissingMeasurements(const Keys: TStringArray; MeasurementSet: TMeasurementSet): TMissingMeasurementArray;
 // The set as a table, tab separated with a heading, for scripts: one value
@@ -679,48 +692,96 @@ begin
   Result := LoadFromText(Text, ErrorMessage);
 end;
 
+// Reads the file and picks the size, ready for edits
+function OpenMeasurementsForEdit(MeasurementSet: TMeasurementSet; const FileName, Size: string; out ErrorMessage: string): boolean;
+begin
+  Result := False;
+  if not MeasurementSet.LoadFromFile(FileName, ErrorMessage) then
+    Exit;
+  if (MeasurementSet.SizeCount > 0) and (Size = '') then
+  begin
+    ErrorMessage := rsMeasurementNeedsSize;
+    Exit;
+  end;
+  if (Size <> '') and not MeasurementSet.SelectSize(Size) then
+  begin
+    ErrorMessage := Format(rsMeasurementUnknownSize, [Size]);
+    Exit;
+  end;
+  Result := True;
+end;
+
+function ApplyMeasurementEdit(MeasurementSet: TMeasurementSet; const Key: string; Value: double; const Description: string;
+  KeepDescription: boolean; out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+var
+  Existing: TMeasurement;
+begin
+  Result := False;
+  Change := Default(TMeasurementChange);
+  Existing := MeasurementSet.Find(Key);
+  if not Assigned(Existing) then
+  begin
+    if not MeasurementSet.CheckKey(Key, nil, ErrorMessage) then
+      Exit;
+    Change.Key := Key;
+    Change.Added := True;
+    MeasurementSet.Add(Key, Value, Description);
+  end
+  else
+  begin
+    Change.Key := Existing.Key;
+    Change.OldValue := Existing.Value;
+    Change.HadValue := Existing.HasValue;
+    Existing.Value := Value;
+    if not KeepDescription then
+      Existing.Description := Description;
+  end;
+  Change.Value := Value;
+  Result := True;
+end;
+
 function ChangeMeasurementInFile(const FileName, Key: string; Value: double; const Description: string;
   out Change: TMeasurementChange; out ErrorMessage: string; const Size: string; KeepDescription: boolean): boolean;
 var
   MeasurementSet: TMeasurementSet;
-  Existing: TMeasurement;
 begin
   Result := False;
   Change := Default(TMeasurementChange);
   MeasurementSet := TMeasurementSet.Create;
   try
-    if not MeasurementSet.LoadFromFile(FileName, ErrorMessage) then
+    if not OpenMeasurementsForEdit(MeasurementSet, FileName, Size, ErrorMessage) or not ApplyMeasurementEdit(MeasurementSet,
+      Key, Value, Description, KeepDescription, Change, ErrorMessage) then
       Exit;
-    if (MeasurementSet.SizeCount > 0) and (Size = '') then
-    begin
-      ErrorMessage := rsMeasurementNeedsSize;
-      Exit;
-    end;
-    if (Size <> '') and not MeasurementSet.SelectSize(Size) then
-    begin
-      ErrorMessage := Format(rsMeasurementUnknownSize, [Size]);
-      Exit;
-    end;
-    Existing := MeasurementSet.Find(Key);
-    if not Assigned(Existing) then
-    begin
-      if not MeasurementSet.CheckKey(Key, nil, ErrorMessage) then
-        Exit;
-      Change.Key := Key;
-      Change.Added := True;
-      MeasurementSet.Add(Key, Value, Description);
-    end
-    else
-    begin
-      Change.Key := Existing.Key;
-      Change.OldValue := Existing.Value;
-      Change.HadValue := Existing.HasValue;
-      Existing.Value := Value;
-      if not KeepDescription then
-        Existing.Description := Description;
-    end;
-    Change.Value := Value;
     Result := WriteTextFileAtomic(FileName, MeasurementSet.SaveToText, ErrorMessage);
+  finally
+    FreeAndNil(MeasurementSet);
+  end;
+end;
+
+function ChangeMeasurementsInFile(const FileName: string; const Edits: TMeasurementEditArray;
+  out Changes: TMeasurementChangeArray; out ErrorMessage: string; const Size: string): boolean;
+var
+  MeasurementSet: TMeasurementSet;
+  Index: integer;
+begin
+  Result := False;
+  Changes := nil;
+  ErrorMessage := '';
+  MeasurementSet := TMeasurementSet.Create;
+  try
+    if not OpenMeasurementsForEdit(MeasurementSet, FileName, Size, ErrorMessage) then
+      Exit;
+    SetLength(Changes, Length(Edits));
+    for Index := 0 to High(Edits) do
+      if not ApplyMeasurementEdit(MeasurementSet, Edits[Index].Key, Edits[Index].Value, Edits[Index].Description, False,
+        Changes[Index], ErrorMessage) then
+      begin
+        Changes := nil;
+        Exit;
+      end;
+    Result := WriteTextFileAtomic(FileName, MeasurementSet.SaveToText, ErrorMessage);
+    if not Result then
+      Changes := nil;
   finally
     FreeAndNil(MeasurementSet);
   end;

@@ -338,7 +338,7 @@ implementation
 
 uses
   Math, Sloper.Core.EvalTypes, Sloper.Core.Variables, Sloper.Core.Drag, Sloper.Core.Settings,
-  Sloper.UI.MaterialPanel, Sloper.UI.GridColumns, Sloper.UI.ObjectList;
+  Sloper.UI.MaterialGrid, Sloper.UI.GridColumns, Sloper.UI.ObjectList;
 
 function RoleCaption(Role: TEdgeRole): string;
 begin

@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
-  Sloper.UI.MaterialPanel, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform, Sloper.Core.Fragment;
+  Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform, Sloper.Core.Fragment;
 
 type
 
@@ -117,7 +117,9 @@ type
     FAlign: TAlignPanel;
     FNewSetDialog: TSaveDialog;
     FMeasurementWatch: TTimer;
-    FChoosingVariable: boolean;
+    FOpenSetAction: TAction;
+    // The Materials dialog's list width, kept in the settings
+    FMaterialSplit: integer;
     FCanvas: TPatternCanvas;
     FProperties: TPropertiesPanel;
     FShown: boolean;
@@ -158,9 +160,9 @@ type
     procedure AlignSelect(Sender: TObject; const Key: string);
     procedure ObjectsZoom(Sender: TObject);
     procedure ObjectsDelete(Sender: TObject);
-    procedure VariablesSelect(Sender: TObject);
-    procedure VariablesAdded(Sender: TObject);
     procedure MeasurementsNewSet(Sender: TObject);
+    procedure MeasurementsNewSetClick(Sender: TObject);
+    procedure MaterialsEditClick(Sender: TObject);
     procedure MeasurementsEditSet(Sender: TObject);
     procedure MeasurementWatchTick(Sender: TObject);
     procedure CreateToolCommands;
@@ -228,7 +230,10 @@ resourcestring
   rsMenuFileOpen = '&Open...';
   rsMenuFileSave = '&Save';
   rsMenuFileSaveAs = 'Save &As...';
-  rsMenuFileMeasurements = '&Measurements...';
+  rsMenuFileMeasurements = '&Measurements';
+  rsMenuMeasurementsNew = '&New Set...';
+  rsMenuMeasurementsOpen = '&Open Set...';
+  rsMenuMeasurementsEdit = '&Edit in Measurements App...';
   rsMenuFilePublish = '&Publish...';
   rsMenuFileExportDraft = 'E&xport Draft SVG...';
   rsExportDraftFilter = 'SVG (*.svg)|*.svg';
@@ -252,6 +257,7 @@ resourcestring
   rsMenuEditPaste = '&Paste';
   rsMenuEditDelete = '&Delete';
   rsMenuEditPreferences = 'Pre&ferences...';
+  rsMenuEditMaterials = '&Materials...';
   rsMenuView = '&View';
   rsMenuViewZoomIn = 'Zoom &In';
   rsMenuViewZoomOut = 'Zoom &Out';
@@ -413,6 +419,7 @@ begin
   FSettings := TAppSettings.Create;
   FSettings.LoadFromFile(TAppPaths.SettingsFile, Err);
   FProperties.NameShare := FSettings.NameColumnShare;
+  FMaterialSplit := FSettings.MaterialDialogSplit;
   FPreferences := FSettings.Preferences;
   FRoles.SetPresets(FSettings.RolePresets);
 end;
@@ -429,6 +436,7 @@ begin
   FSettings.ShowPieceFills := FCanvas.ShowPieceFills;
   FSettings.ShowSidePanel := FSidePanel.Visible;
   FSettings.ShowRulers := FRulersAction.Checked;
+  FSettings.MaterialDialogSplit := FMaterialSplit;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
   FSettings.SaveToFile(TAppPaths.SettingsFile, Err);
 end;
@@ -498,12 +506,8 @@ begin
   FObjects.OnZoom := @ObjectsZoom;
   FObjects.OnDelete := @ObjectsDelete;
   FVariables := TVariablesPanel(AddTab(rsTabVariables, TVariablesPanel.Create(Self)));
-  FVariables.OnSelect := @VariablesSelect;
-  FVariables.OnAdded := @VariablesAdded;
   FMeasurements := TMeasurementsPanel(AddTab(rsTabMeasurements, TMeasurementsPanel.Create(Self)));
-  FMeasurements.OnOpenSet := @MenuFileMeasurementsClick;
   FMeasurements.OnNewSet := @MeasurementsNewSet;
-  FMeasurements.OnEditSet := @MeasurementsEditSet;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
@@ -531,6 +535,7 @@ begin
   FMaterials.Align := alClient;
   FMaterials.Document := FDocument;
   FMaterials.OnMessage := @ListPanelMessage;
+  FMaterials.OnEdit := @MaterialsEditClick;
   FSideSplitter := TSplitter.Create(Self);
   FSideSplitter.Parent := Self;
   FSideSplitter.Align := alRight;
@@ -578,25 +583,6 @@ begin
   FCanvas.DeleteSelection;
 end;
 
-// A variable is not on the canvas, so choosing one clears the canvas selection
-procedure TMainForm.VariablesSelect(Sender: TObject);
-begin
-  FChoosingVariable := True;
-  try
-    FCanvas.SelectNone;
-  finally
-    FChoosingVariable := False;
-  end;
-  FProperties.ShowSelection(FVariables.Selection);
-end;
-
-procedure TMainForm.VariablesAdded(Sender: TObject);
-begin
-  // The name is edited in the properties, which share the side panel with the list
-  FSidePanel.ActivePage := FProperties.Parent as TTabSheet;
-  FProperties.FocusName;
-end;
-
 procedure TMainForm.MeasurementsEditSet(Sender: TObject);
 var
   ProgramFile: string;
@@ -627,8 +613,19 @@ begin
   end;
 end;
 
+// Unsaved edits in the Measurements tab are settled before the file they are
+// for is read again
 procedure TMainForm.MeasurementWatchTick(Sender: TObject);
 begin
+  if FMeasurements.HasPending and FDocument.MeasurementFileChanged then
+  begin
+    FMeasurementWatch.Enabled := False;
+    try
+      FMeasurements.ConfirmPending(False);
+    finally
+      FMeasurementWatch.Enabled := True;
+    end;
+  end;
   if FDocument.CheckMeasurementFile then
     StatusBar.Panels[PanelMessage].Text := Format(rsMeasurementsReloaded, [ExtractFileName(FDocument.MeasurementPath)]);
 end;
@@ -759,8 +756,13 @@ begin
   MenuFileOpen.Action := NewAction(rsMenuFileOpen, aiOpen, @MenuFileOpenClick, ShortCut(VK_O, [ssModifier]));
   MenuFileSave.Action := NewAction(rsMenuFileSave, aiSave, @MenuFileSaveClick, ShortCut(VK_S, [ssModifier]));
   MenuFileSaveAs.Action := NewAction(rsMenuFileSaveAs, aiSaveAs, @MenuFileSaveAsClick, ShortCut(VK_S, [ssModifier, ssShift]));
-  MenuFileMeasurements.Action := NewAction(rsMenuFileMeasurements, aiMeasurements, @MenuFileMeasurementsClick,
-    ShortCut(VK_M, [ssModifier]));
+  // Open Set is also the toolbar's measurements button
+  MenuFileMeasurements.Caption := rsMenuFileMeasurements;
+  MenuFileMeasurements.ImageIndex := Ord(aiMeasurements);
+  AddMenuItem(MenuFileMeasurements, NewAction(rsMenuMeasurementsNew, aiNew, @MeasurementsNewSetClick));
+  FOpenSetAction := NewAction(rsMenuMeasurementsOpen, aiMeasurements, @MenuFileMeasurementsClick, ShortCut(VK_M, [ssModifier]));
+  AddMenuItem(MenuFileMeasurements, FOpenSetAction);
+  AddMenuItem(MenuFileMeasurements, NewAction(rsMenuMeasurementsEdit, aiOpen, @MeasurementsEditSet));
   MenuFilePublish.Action := NewAction(rsMenuFilePublish, aiPublish, @MenuFilePublishClick, ShortCut(VK_P, [ssModifier]));
   MenuFileExportDraft.Action := NewAction(rsMenuFileExportDraft, aiExportDraft, @MenuFileExportDraftClick);
   MenuFileQuit.Action := NewAction(rsMenuFileQuit, aiQuit, @MenuFileQuitClick, ShortCut(VK_Q, [ssModifier]));
@@ -775,6 +777,7 @@ begin
   // The canvas handles the Delete key, so typing in a field can still delete text
   MenuEditDelete.Action := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
   MenuEdit.AddSeparator;
+  AddMenuItem(MenuEdit, NewAction(rsMenuEditMaterials, aiPieceFills, @MaterialsEditClick));
   AddMenuItem(MenuEdit, NewAction(rsMenuEditPreferences, aiPreferences, @PreferencesClick, ShortCut(VK_OEM_COMMA, [ssModifier])));
   MenuViewZoomIn.Action := NewAction(rsMenuViewZoomIn, aiZoomIn, @MenuViewZoomInClick, ShortCut(VK_OEM_PLUS, [ssModifier]));
   MenuViewZoomOut.Action := NewAction(rsMenuViewZoomOut, aiZoomOut, @MenuViewZoomOutClick, ShortCut(VK_OEM_MINUS, [ssModifier]));
@@ -794,7 +797,7 @@ begin
   AddButton(FCommandBar, MenuViewFit.Action);
   AddButton(FCommandBar, MenuViewTrueSize.Action);
   AddDivider(FCommandBar);
-  AddButton(FCommandBar, MenuFileMeasurements.Action);
+  AddButton(FCommandBar, FOpenSetAction);
   AddButton(FCommandBar, MenuFilePublish.Action);
   AddButton(FCommandBar, MenuFileExportDraft.Action);
 end;
@@ -1157,10 +1160,6 @@ procedure TMainForm.CanvasSelectionChange(Sender: TObject);
 begin
   FObjects.ShowSelection(FCanvas.Selection);
   FAlign.Selection := FCanvas.Selection;
-  // Choosing a variable shows it in the properties itself
-  if FChoosingVariable then
-    Exit;
-  FVariables.ShowSelection(nil);
   FProperties.ShowSelection(FCanvas.Selection);
 end;
 
@@ -1356,6 +1355,8 @@ end;
 
 function TMainForm.ConfirmDiscard: boolean;
 begin
+  if not FMeasurements.ConfirmPending then
+    Exit(False);
   if not FDocument.Modified then
     Exit(True);
   case MessageDlg(Format(rsSaveChanges, [DisplayName]), mtConfirmation, [mbYes, mbNo, mbCancel], 0) of
@@ -1440,11 +1441,31 @@ begin
   SaveAs;
 end;
 
+procedure TMainForm.MaterialsEditClick(Sender: TObject);
+var
+  Dialog: TMaterialsDialog;
+begin
+  Dialog := TMaterialsDialog.CreateFor(Self, FDocument, FMaterials.MaterialIndex);
+  try
+    Dialog.Split := FMaterialSplit;
+    Dialog.ShowModal;
+    FMaterialSplit := Dialog.Split;
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
+procedure TMainForm.MeasurementsNewSetClick(Sender: TObject);
+begin
+  if FMeasurements.ConfirmPending then
+    MeasurementsNewSet(Sender);
+end;
+
 procedure TMainForm.MenuFileMeasurementsClick(Sender: TObject);
 var
   Err: string;
 begin
-  if not MeasurementsDialog.Execute then
+  if not FMeasurements.ConfirmPending or not MeasurementsDialog.Execute then
     Exit;
   if not FDocument.UseMeasurements(MeasurementsDialog.FileName, Err) then
     MessageDlg(Format(rsMeasurementsFailed, [MeasurementsDialog.FileName, Err]), mtError, [mbOK], 0);

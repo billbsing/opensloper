@@ -140,6 +140,11 @@ type
     // since the set is not part of it. On failure nothing changes.
     function ChangeMeasurement(const Key: string; Value: double; const Description: string;
       out Change: TMeasurementChange; out ErrorMessage: string): boolean;
+    // Several such edits, with one write of the file; on failure none is made
+    function ChangeMeasurements(const Edits: TMeasurementEditArray; out Changes: TMeasurementChangeArray;
+      out ErrorMessage: string): boolean;
+    // Whether the measurement file now differs from the set as it was read
+    function MeasurementFileChanged: boolean;
     // Uses this size of a size table and re-evaluates; False when it is not in
     // the set. Not an undo step, and not saved: a set starts on its first size.
     function SelectMeasurementSize(const Size: string): boolean;
@@ -497,11 +502,28 @@ end;
 function TPatternDocument.ChangeMeasurement(const Key: string; Value: double; const Description: string;
   out Change: TMeasurementChange; out ErrorMessage: string): boolean;
 var
+  Edits: TMeasurementEditArray;
+  Changes: TMeasurementChangeArray;
+begin
+  Change := Default(TMeasurementChange);
+  Edits := nil;
+  SetLength(Edits, 1);
+  Edits[0].Key := Key;
+  Edits[0].Value := Value;
+  Edits[0].Description := Description;
+  Result := ChangeMeasurements(Edits, Changes, ErrorMessage);
+  if Result then
+    Change := Changes[0];
+end;
+
+function TPatternDocument.ChangeMeasurements(const Edits: TMeasurementEditArray; out Changes: TMeasurementChangeArray;
+  out ErrorMessage: string): boolean;
+var
   NewSet: TMeasurementSet;
   Size: string;
 begin
   RequireNoChange;
-  Change := Default(TMeasurementChange);
+  Changes := nil;
   ErrorMessage := '';
   if FMeasurementPath = '' then
   begin
@@ -511,7 +533,7 @@ begin
   Size := '';
   if Assigned(FMeasurements) then
     Size := FMeasurements.SizeName;
-  if not ChangeMeasurementInFile(FMeasurementPath, Key, Value, Description, Change, ErrorMessage, Size) then
+  if not ChangeMeasurementsInFile(FMeasurementPath, Edits, Changes, ErrorMessage, Size) then
     Exit(False);
   NewSet := TMeasurementSet.Create;
   try
@@ -527,6 +549,13 @@ begin
   FPattern.Evaluate;
   Notify([dcPattern, dcMeasurements]);
   Result := True;
+end;
+
+function TPatternDocument.MeasurementFileChanged: boolean;
+var
+  Text, Reason: string;
+begin
+  Result := (FMeasurementPath <> '') and ReadTextFile(FMeasurementPath, Text, Reason) and (Text <> FMeasurementText);
 end;
 
 function TPatternDocument.GetMeasurementScale: double;

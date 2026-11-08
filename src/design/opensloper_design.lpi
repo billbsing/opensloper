@@ -289,6 +289,21 @@
         <UnitName Value="Sloper.UI.MaterialPanel"/>
       </Unit>
       <Unit>
+        <Filename Value="../ui/sloper.ui.materialgrid.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.MaterialGrid"/>
+      </Unit>
+      <Unit>
+        <Filename Value="../ui/sloper.ui.materialdialog.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.MaterialDialog"/>
+      </Unit>
+      <Unit>
+        <Filename Value="../ui/sloper.ui.paneledits.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.PanelEdits"/>
+      </Unit>
+      <Unit>
         <Filename Value="../ui/sloper.ui.rolespanel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.RolesPanel"/>

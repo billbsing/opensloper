@@ -28,12 +28,12 @@ holds four measurements:
 | `skirt_length` | 600 | Waist to hem, at the side |
 
 In opensloper-design, start a new pattern (File → New), choose the measurement
-file (File → Measurements…) and save the pattern beside it as
+file (File → Measurements → Open Set…) and save the pattern beside it as
 `skirt-block.sloper`.
 
 The block is worked out from a few values that several points share. Make each
-as a variable: in the Variables tab click Add, then give it its name and
-formula in the Properties tab.
+as a variable: in the Variables tab click Add, type its name and press
+++enter++, then type its formula in the Formula cell.
 
 | Name | Formula | What it is |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ right of C in the same way, each with Length `#half_hip`, then draw:
 
 ![The frame](images/skirt-1-frame.svg)
 
-Change a measurement in the Measurements tab, or try the slider at the bottom
+Change a measurement in the Measurements tab and click Save, or try the slider at the bottom
 of it, and the frame follows.
 
 ## 3. The side seam

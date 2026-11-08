@@ -33,7 +33,7 @@ type
   TFormulaCompleter = class(TComponent)
   private
     FList: TListBox;
-    FEdit: TEdit;
+    FEdit: TCustomEdit;
     FCompletion: TCompletion;
     FPattern: TPattern;
     FNode: TEvalNode;
@@ -45,7 +45,7 @@ type
     function GetVisible: boolean;
   public
     // Looks again at the text around Edit's caret; hides when there is nothing to offer
-    procedure Update(AEdit: TEdit; APattern: TPattern; ANode: TEvalNode; Explicit: boolean);
+    procedure Update(AEdit: TCustomEdit; APattern: TPattern; ANode: TEvalNode; Explicit: boolean);
     procedure Hide;
     // True when the list used the key
     function HandleKey(var Key: word): boolean;
@@ -89,7 +89,7 @@ begin
   FList.SetBounds(Max(0, Min(Corner.X, Form.ClientWidth - ListWidth)), Corner.Y, ListWidth, ListHeight);
 end;
 
-procedure TFormulaCompleter.Update(AEdit: TEdit; APattern: TPattern; ANode: TEvalNode; Explicit: boolean);
+procedure TFormulaCompleter.Update(AEdit: TCustomEdit; APattern: TPattern; ANode: TEvalNode; Explicit: boolean);
 var
   Item: TCompletionItem;
 begin

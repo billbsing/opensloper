@@ -46,9 +46,11 @@ and the label reads *Front, cut 1 on fold*.
 ## Material
 
 Each piece is cut from a material, which gives it its colour on screen and puts
-it on that material's cut list. The Materials tab adds, renames and recolours
-materials, and can give one a seam allowance: new pieces start with the first
-material's.
+it on that material's cut list. The Materials tab lists them with the cut
+list; Edit… opens the Materials window, which adds, renames, recolours and
+deletes materials, switches one between a tint and hatching, and can give one
+a seam allowance: new pieces start with the first material's. Each change is
+one undo step and shows at once on the canvas.
 
 ## Markings
 

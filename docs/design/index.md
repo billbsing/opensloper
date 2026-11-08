@@ -61,6 +61,20 @@ selection. Drag on empty canvas to select everything inside a box. The
 Properties tab shows the selected object, and a change there is made when you
 press ++enter++ or leave the field.
 
+## Editing in the lists
+
+The Variables and Measurements tabs are edited in their lists. Click a cell and
+type, or press ++f2++ or ++enter++, to change it; ++enter++ or leaving the cell
+makes the change, and ++escape++ puts the old text back. A value that cannot be
+used keeps its text, with the cell in red and the reason in the status bar,
+until you fix it or press ++escape++ on it. Formula cells offer names as you
+type, as in the Properties tab. ++delete++ removes the row only when no cell is
+open.
+
+The Materials tab is a list to read: its Edit… button, a double-click on a
+row, or Edit → Materials… opens the Materials window, where materials are
+added, renamed, recoloured and deleted.
+
 Every change is one step in Edit → Undo (++ctrl+z++) and Edit → Redo
 (++ctrl+shift+z++). ++delete++ removes the selection; it is refused while
 something else uses an object, and the status bar says what.

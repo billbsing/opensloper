@@ -7,19 +7,33 @@ number, `250`, or read measurements, variables and other objects:
 ## Measurements
 
 A pattern reads its measurements from a measurement file (`.slm`), chosen with
-File → Measurements…. In a formula a measurement is written with `@`:
-`@waist`, `@waist_to_hip`. The Measurements tab lists the file's values; a key
-the pattern uses that the file lacks is shown in red.
+File → Measurements → Open Set… (++ctrl+m++), or a new one made with New
+Set…. In a formula a measurement is written with `@`: `@waist`,
+`@waist_to_hip`. The Measurements tab lists the file's values; a key the
+pattern uses that the file lacks is shown in red as Missing.
+
+A value or description can be changed in the Measurements tab's list, and a
+missing key given a value there; Add makes a new key. These edits belong to
+the measurement file, not the pattern, so they are not undo steps: they show
+in bold until Save writes them to the file, and Revert drops them. The pattern
+uses them once they are saved. If you would lose them, by opening another file
+or closing the app, you are asked whether to save them. Anything else, such as
+sizes or deleting keys, is done in the measurements app: File → Measurements →
+Edit in Measurements App….
 
 Swap in another person's file, or another size, and the whole pattern redraws.
 To see how the pattern behaves a size up or down without changing any file,
-move the slider at the bottom of the Measurements tab; Reset puts it back.
+move the slider at the bottom of the Measurements tab; Reset puts it back. The
+list cannot be edited while the slider is away from 0%, and the slider waits
+while there are unsaved edits.
 
 ## Variables
 
 A variable holds a value used in more than one place, such as the ease, and is
-written with `#`: `#hip_ease`. Add one in the Variables tab, then name it and
-give it a formula in the Properties tab. A variable can read measurements and
+written with `#`: `#hip_ease`. In the Variables tab click Add, type its name
+and press ++enter++, then type its formula in the Formula cell. Name, formula
+and description are all edited in the list, and each change is one undo
+step. A variable can read measurements and
 other variables, but not points or edges.
 
 ## Reading objects

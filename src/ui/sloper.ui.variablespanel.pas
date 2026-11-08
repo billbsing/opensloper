@@ -16,9 +16,9 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// The variables tab of the side panel: the pattern's # variables, with Add and
-// Delete. A selected variable is edited in the properties panel, like an
-// object. Adding and deleting are undoable changes to the pattern.
+// The variables tab of the side panel: the pattern's # variables, edited in
+// the grid, with Add and Delete. Name, formula and description are editable,
+// and each committed cell, add or delete is one undoable change to the pattern.
 unit Sloper.UI.VariablesPanel;
 
 {$mode ObjFPC}{$H+}
@@ -32,16 +32,14 @@ type
   TVariablesPanel = class(TListPanel)
   private
     FButtons: TPanel;
-    FOnAdded: TNotifyEvent;
     procedure AddClick(Sender: TObject);
     procedure DeleteClick(Sender: TObject);
   protected
     function BuildRows: TListPanelRowArray; override;
+    function CommitCell(const Key: string; Column: integer; const AText: string; out Reason: string): boolean; override;
     procedure DeleteRequested; override;
   public
     constructor Create(AOwner: TComponent); override;
-    // A new variable is selected, ready to be named
-    property OnAdded: TNotifyEvent read FOnAdded write FOnAdded;
   end;
 
 resourcestring
@@ -57,7 +55,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.UI.ObjectList;
+  Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.UI.ObjectList, Sloper.UI.PanelEdits;
 
 const
   NewVariableFormula = '0';
@@ -89,6 +87,17 @@ begin
   AddButton(rsVariablesAdd, @AddClick);
   AddButton(rsVariablesDelete, @DeleteClick);
   SetColumns([rsColumnVariableName, rsColumnFormula, rsColumnVariableValue, rsColumnDescription], [110, 150, 70, 200]);
+  SetEditableColumns([True, True, False, True], [False, True, False, False]);
+end;
+
+function TVariablesPanel.CommitCell(const Key: string; Column: integer; const AText: string; out Reason: string): boolean;
+var
+  ErrorPos: integer;
+begin
+  Reason := '';
+  if not Assigned(Document) or (Column < Ord(Low(TVariableColumn))) or (Column > Ord(High(TVariableColumn))) then
+    Exit(False);
+  Result := CommitVariableCell(Document, Key, TVariableColumn(Column), AText, Reason, ErrorPos);
 end;
 
 function TVariablesPanel.BuildRows: TListPanelRowArray;
@@ -114,6 +123,7 @@ var
 begin
   if not Assigned(Document) then
     Exit;
+  FinishEditing;
   Document.BeginChange(rsVariablesAddChange);
   Variable := Document.Pattern.AddVariable(Document.Pattern.NewVariableName, NewVariableFormula);
   Reason := Document.Pattern.LastError;
@@ -126,9 +136,8 @@ begin
     ShowMessageText(Reason);
     Exit;
   end;
-  ChooseKeys([Key]);
-  if Assigned(FOnAdded) then
-    FOnAdded(Self);
+  // The new row is there now, as the panel refreshes on every change
+  FocusCell(Key, Ord(vcName), True);
 end;
 
 procedure TVariablesPanel.DeleteClick(Sender: TObject);

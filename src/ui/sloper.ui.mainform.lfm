@@ -54,7 +54,7 @@ object MainForm: TMainForm
         Caption = '-'
       end
       object MenuFileMeasurements: TMenuItem
-        Caption = '&Measurements...'
+        Caption = '&Measurements'
       end
       object MenuFilePublish: TMenuItem
         Caption = '&Publish...'
