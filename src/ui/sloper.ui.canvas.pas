@@ -373,17 +373,17 @@ resourcestring
 implementation
 
 uses
-  Math, Forms, StrUtils, LCLIntf, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Fabrics, Sloper.Core.PieceDetect,
+  Math, Forms, StrUtils, LCLIntf, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Materials, Sloper.Core.PieceDetect,
   Sloper.UI.RulerTicks, Sloper.UI.ObjectList;
 
 const
   // A new arc's sweep, as a starting point for typing the real values; its
   // radius and other starting lengths are per unit (StartingLengths)
   NewArcSweep = '90';
-  // How strongly a fabric's colour shows under the lines
-  FabricTintAlpha = 60;
-  FabricHatchAlpha = 130;
-  FabricHatchPixels = 8;
+  // How strongly a material's colour shows under the lines
+  MaterialTintAlpha = 60;
+  MaterialHatchAlpha = 130;
+  MaterialHatchPixels = 8;
   // Screen pixels
   MarkingLineWidth = 1.5;
   PointRadius = 3.5;
@@ -2494,13 +2494,13 @@ begin
   if not FShowPieceFills or not Look.Filled then
     Exit;
   if Look.Fill = ffTint then
-    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, FabricTintAlpha))
+    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, MaterialTintAlpha))
   else
-    for Stroke in HatchLines(Points, FabricHatchPixels, Look.HatchAngle) do
-      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, FabricHatchAlpha), 1);
+    for Stroke in HatchLines(Points, MaterialHatchPixels, Look.HatchAngle) do
+      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, MaterialHatchAlpha), 1);
 end;
 
-// The cutting line, filled with its fabric; the seam line is the edges drawn over it
+// The cutting line, filled with its material; the seam line is the edges drawn over it
 procedure TPatternCanvas.DrawPiece(Piece: TPieceObject);
 var
   Screen: array of TPointF;

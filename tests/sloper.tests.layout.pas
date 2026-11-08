@@ -63,12 +63,12 @@ type
     procedure TestHalfCircleMarks;
     procedure TestTintFill;
     procedure TestNoTintOnProjector;
-    procedure TestTintUsesFabricColour;
+    procedure TestTintUsesMaterialColour;
     procedure TestHatchFill;
     procedure TestNoHatchOnProjector;
-    procedure TestNoFabricStaysUnfilled;
+    procedure TestNoMaterialStaysUnfilled;
     procedure TestCutListField;
-    procedure TestCaptionNamesFabric;
+    procedure TestCaptionNamesMaterial;
     procedure TestMissingOutputMembersKeepDefaults;
     procedure TestOldCalibrationIsIgnored;
     procedure TestPlaceNewPieces;
@@ -558,13 +558,13 @@ begin
   AssertEquals('stays dark', 0, Pos('h f', LayoutToPDF(FLayout)));
 end;
 
-procedure TTestLayout.TestTintUsesFabricColour;
+procedure TTestLayout.TestTintUsesMaterialColour;
 begin
   WritePattern;
   Prepare;
   FLayout.PlaceNewPieces;
   FLayout.Output.Fill := lfTint;
-  AssertTrue(FLayout.Sources[0].Pattern.SetFabricColor(FLayout.Sources[0].Pattern.Fabrics[0], '#000000'));
+  AssertTrue(FLayout.Sources[0].Pattern.SetMaterialColor(FLayout.Sources[0].Pattern.Materials[0], '#000000'));
   AssertTrue('tint in colour', Pos(' rg', LayoutToPDF(FLayout)) > 0);
 end;
 
@@ -598,7 +598,7 @@ begin
   AssertEquals('stays as it was', Plain, LayoutToPDF(FLayout));
 end;
 
-procedure TTestLayout.TestNoFabricStaysUnfilled;
+procedure TTestLayout.TestNoMaterialStaysUnfilled;
 var
   Index: integer;
   Pattern: TPattern;
@@ -609,7 +609,7 @@ begin
   Pattern := FLayout.Sources[0].Pattern;
   for Index := 0 to Pattern.ObjectCount - 1 do
     if Pattern.Objects[Index] is TPieceObject then
-      Pattern.SetPieceFabric(TPieceObject(Pattern.Objects[Index]), nil);
+      Pattern.SetPieceMaterial(TPieceObject(Pattern.Objects[Index]), nil);
   FLayout.Output.Fill := lfTint;
   AssertEquals('no fill', 0, Pos('h f', LayoutToPDF(FLayout)));
 end;
@@ -622,14 +622,14 @@ begin
   Prepare;
   Values := FLayout.FieldValues('', '');
   AssertEquals(FLayout.Sources[0].Pattern.CutList, Values.CutList);
-  AssertEquals('Main', Values.Fabrics);
-  AssertEquals(Values.CutList + ' / Main', ExpandFields('{cutlist} / {fabrics}', Values));
+  AssertEquals('Main', Values.Materials);
+  AssertEquals(Values.CutList + ' / Main', ExpandFields('{cutlist} / {materials}', Values));
   FLayout.Title.Fields := nil;
   Insert(FieldCutList, FLayout.Title.Fields, 0);
   AssertEquals(Format(rsTitleCutList, [Values.CutList]), FLayout.TitleLines(Values)[0]);
 end;
 
-procedure TTestLayout.TestCaptionNamesFabric;
+procedure TTestLayout.TestCaptionNamesMaterial;
 var
   Pattern: TPattern;
 begin
@@ -638,7 +638,7 @@ begin
   FLayout.PlaceNewPieces;
   Pattern := FLayout.Sources[0].Pattern;
   AssertEquals('none yet', 0, Pos('Denim', FLayout.PlacedPieces[0].Caption));
-  AssertTrue(Pattern.RenameFabric(Pattern.Fabrics[0], 'Denim'));
+  AssertTrue(Pattern.RenameMaterial(Pattern.Materials[0], 'Denim'));
   AssertTrue(FLayout.PlacedPieces[0].Caption, Pos('Denim', FLayout.PlacedPieces[0].Caption) > 0);
 end;
 

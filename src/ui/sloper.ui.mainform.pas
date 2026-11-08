@@ -29,7 +29,7 @@ uses
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
-  Sloper.UI.FabricsPanel, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform, Sloper.Core.Fragment;
+  Sloper.UI.MaterialPanel, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.Core.Transform, Sloper.Core.Fragment;
 
 type
 
@@ -108,7 +108,7 @@ type
     FSidePanel: TPageControl;
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
-    FFabrics: TFabricsPanel;
+    FMaterials: TMaterialsPanel;
     FRoles: TRolesPanel;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FObjects: TObjectsPanel;
@@ -257,7 +257,7 @@ resourcestring
   rsMenuViewZoomOut = 'Zoom &Out';
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
-  rsTabFabrics = 'Fabrics';
+  rsTabMaterials = 'Materials';
   rsTabLines = 'Lines';
   rsMenuViewSidePanel = '&Side Panel';
   rsMenuViewRulers = '&Rulers';
@@ -479,7 +479,7 @@ procedure TMainForm.CreateSidePanel;
   end;
 
 var
-  PropertySheet, AlignSheet, FabricsSheet, RolesSheet: TTabSheet;
+  PropertySheet, AlignSheet, MaterialsSheet, RolesSheet: TTabSheet;
 begin
   FSidePanel := TPageControl.Create(Self);
   FSidePanel.Parent := Self;
@@ -521,13 +521,13 @@ begin
   FRoles.Align := alClient;
   FRoles.Document := FDocument;
   FRoles.OnMessage := @ListPanelMessage;
-  FabricsSheet := FSidePanel.AddTabSheet;
-  FabricsSheet.Caption := rsTabFabrics;
-  FFabrics := TFabricsPanel.Create(Self);
-  FFabrics.Parent := FabricsSheet;
-  FFabrics.Align := alClient;
-  FFabrics.Document := FDocument;
-  FFabrics.OnMessage := @ListPanelMessage;
+  MaterialsSheet := FSidePanel.AddTabSheet;
+  MaterialsSheet.Caption := rsTabMaterials;
+  FMaterials := TMaterialsPanel.Create(Self);
+  FMaterials.Parent := MaterialsSheet;
+  FMaterials.Align := alClient;
+  FMaterials.Document := FDocument;
+  FMaterials.OnMessage := @ListPanelMessage;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
@@ -1170,7 +1170,7 @@ begin
   FreeAndNil(FSettings);
   // The canvas and panels listen to the document, so they let go first
   FCanvas.Document := nil;
-  FFabrics.Document := nil;
+  FMaterials.Document := nil;
   FProperties.Document := nil;
   FObjects.Document := nil;
   FVariables.Document := nil;

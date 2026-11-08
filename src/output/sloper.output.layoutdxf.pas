@@ -60,7 +60,7 @@ implementation
 
 uses
   SysUtils, Classes, Math, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Drag, Sloper.Core.Draft, Sloper.Core.Piece,
-  Sloper.Core.Fabrics, Sloper.Core.Pattern;
+  Sloper.Core.Materials, Sloper.Core.Pattern;
 
 const
   NumberDecimals = 3;
@@ -351,7 +351,7 @@ var
   Hole: TVec2;
   Stroke: TLine2;
   Index: integer;
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 
   procedure AddText(const AText: string);
   begin
@@ -428,9 +428,9 @@ begin
   if SizeName <> '' then
     AddText(Format(rsDXFSize, [SizeName]));
   AddText(Format(rsDXFQuantity, [Piece.CutCount]));
-  Fabric := Pattern.FabricOf(Piece);
-  if Assigned(Fabric) and (Fabric.Key <> '') then
-    AddText(Format(rsDXFMaterial, [Fabric.Name]));
+  Material := Pattern.MaterialOf(Piece);
+  if Assigned(Material) and (Material.Key <> '') then
+    AddText(Format(rsDXFMaterial, [Material.Name]));
   Writer.EndBlock;
 end;
 
@@ -469,7 +469,7 @@ begin
     for Placement in Layout.Placements do
     begin
       Key := IntToStr(Placement.SourceId) + ':' + Placement.PieceKey;
-      if Seen.Contains(Key) or not Layout.FindPiece(Placement, Source, Piece) or not Piece.HasResult or not Layout.InFabric(Source, Piece) then
+      if Seen.Contains(Key) or not Layout.FindPiece(Placement, Source, Piece) or not Piece.HasResult or not Layout.InMaterial(Source, Piece) then
         Continue;
       Seen.Add(Key);
       SizeName := '';

@@ -24,7 +24,7 @@ interface
 
 uses
   SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Draft,
-  Sloper.Core.Fabrics, Sloper.Core.Piece;
+  Sloper.Core.Materials, Sloper.Core.Piece;
 
 type
   TTestAccessories = class(TOSTestCase)
@@ -67,12 +67,12 @@ type
     procedure TestCornerLeavesConstruction;
     procedure TestAllFourCornersMakeAPiece;
     procedure TestCornerRoundTrip;
-    procedure TestFabricAllowanceSetsPiece;
-    procedure TestFabricAllowanceForNewPiece;
-    procedure TestFabricWithoutAllowanceLeavesPiece;
+    procedure TestMaterialAllowanceSetsPiece;
+    procedure TestMaterialAllowanceForNewPiece;
+    procedure TestMaterialWithoutAllowanceLeavesPiece;
     procedure TestExplicitAllowanceStands;
-    procedure TestFabricAllowanceRoundTrip;
-    procedure TestFabricAllowanceRefusesNegative;
+    procedure TestMaterialAllowanceRoundTrip;
+    procedure TestMaterialAllowanceRefusesNegative;
     procedure TestLeatherHasNoAllowance;
     procedure TestHoleMarking;
     procedure TestHoleFollowsItsPoint;
@@ -504,35 +504,35 @@ begin
   AssertEquals(SavePatternToText(FPattern), SavePatternToText(FLoaded));
 end;
 
-procedure TTestAccessories.TestFabricAllowanceSetsPiece;
+procedure TTestAccessories.TestMaterialAllowanceSetsPiece;
 var
-  Leather: TPatternFabric;
+  Leather: TPatternMaterial;
   Piece: TPieceObject;
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  Leather := FPattern.AddFabric('Leather');
-  AssertTrue(FPattern.SetFabricAllowance(Leather, True, 3));
-  FPattern.SetPieceFabric(Piece, Leather);
+  Leather := FPattern.AddMaterial('Leather');
+  AssertTrue(FPattern.SetMaterialAllowance(Leather, True, 3));
+  FPattern.SetPieceMaterial(Piece, Leather);
   FPattern.Evaluate;
   AssertEquals('3', FPattern.FormulaText(Piece, PieceAllowanceField));
 end;
 
-procedure TTestAccessories.TestFabricAllowanceForNewPiece;
+procedure TTestAccessories.TestMaterialAllowanceForNewPiece;
 begin
-  AssertTrue(FPattern.SetFabricAllowance(FPattern.Fabrics[0], True, 4.5));
+  AssertTrue(FPattern.SetMaterialAllowance(FPattern.Materials[0], True, 4.5));
   Rectangle;
   AssertEquals('4.5', FPattern.FormulaText(PieceAt(50, 50), PieceAllowanceField));
 end;
 
-procedure TTestAccessories.TestFabricWithoutAllowanceLeavesPiece;
+procedure TTestAccessories.TestMaterialWithoutAllowanceLeavesPiece;
 var
   Piece: TPieceObject;
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
   AssertTrue(FPattern.SetFormula(Piece, PieceAllowanceField, '12'));
-  FPattern.SetPieceFabric(Piece, FPattern.AddFabric('Lining'));
+  FPattern.SetPieceMaterial(Piece, FPattern.AddMaterial('Lining'));
   AssertEquals('12', FPattern.FormulaText(Piece, PieceAllowanceField));
 end;
 
@@ -541,36 +541,36 @@ var
   Path: TPiecePath;
   Reason: string;
 begin
-  AssertTrue(FPattern.SetFabricAllowance(FPattern.Fabrics[0], True, 3));
+  AssertTrue(FPattern.SetMaterialAllowance(FPattern.Materials[0], True, 3));
   Rectangle;
   AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(50, 50), Path, Reason));
   AssertEquals('25', FPattern.FormulaText(FPattern.AddPiece('Panel', Path, '25'), PieceAllowanceField));
 end;
 
-procedure TTestAccessories.TestFabricAllowanceRoundTrip;
+procedure TTestAccessories.TestMaterialAllowanceRoundTrip;
 begin
-  AssertTrue(FPattern.SetFabricAllowance(FPattern.AddFabric('Leather'), True, 0));
+  AssertTrue(FPattern.SetMaterialAllowance(FPattern.AddMaterial('Leather'), True, 0));
   Reloaded;
-  AssertTrue(FLoaded.Fabrics[1].HasAllowance);
-  AssertEquals(0, FLoaded.Fabrics[1].Allowance, 1e-9);
-  AssertFalse('the other has none', FLoaded.Fabrics[0].HasAllowance);
+  AssertTrue(FLoaded.Materials[1].HasAllowance);
+  AssertEquals(0, FLoaded.Materials[1].Allowance, 1e-9);
+  AssertFalse('the other has none', FLoaded.Materials[0].HasAllowance);
 end;
 
-procedure TTestAccessories.TestFabricAllowanceRefusesNegative;
+procedure TTestAccessories.TestMaterialAllowanceRefusesNegative;
 begin
-  AssertFalse(FPattern.SetFabricAllowance(FPattern.Fabrics[0], True, -1));
+  AssertFalse(FPattern.SetMaterialAllowance(FPattern.Materials[0], True, -1));
 end;
 
 procedure TTestAccessories.TestLeatherHasNoAllowance;
 var
-  Leather: TPatternFabric;
+  Leather: TPatternMaterial;
   Piece: TPieceObject;
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  Leather := FPattern.AddFabric('Leather');
-  AssertTrue(FPattern.SetFabricAllowance(Leather, True, 0));
-  FPattern.SetPieceFabric(Piece, Leather);
+  Leather := FPattern.AddMaterial('Leather');
+  AssertTrue(FPattern.SetMaterialAllowance(Leather, True, 0));
+  FPattern.SetPieceMaterial(Piece, Leather);
   FPattern.Evaluate;
   AssertEquals('cut on the line', Piece.Area, Abs(SignedArea(Piece.CutLine)), 1);
 end;

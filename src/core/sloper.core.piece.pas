@@ -27,12 +27,12 @@ interface
 
 uses
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.SeamAllowance,
-  Sloper.Core.Fabrics;
+  Sloper.Core.Materials;
 
 const
   // The formula field of the seam allowance, and its member in pattern files
   PieceAllowanceField = 'allowance';
-  // Asks AddPiece for the starting allowance: the first fabric's, or the
+  // Asks AddPiece for the starting allowance: the first material's, or the
   // pattern unit's (StartingLengths)
   DefaultPieceAllowance = '';
   GrainAngleField = 'grainline.angle';
@@ -124,7 +124,7 @@ type
     FFoldEdgeKey: string;
     FFoldLine: TLine2;
     FFoldInwards: double;
-    FFabricKey: string;
+    FMaterialKey: string;
     FFillColor: string;
     FFillStyle: TPieceFillStyle;
     function BuildOutline(Context: TEvalContext; DefaultWidth: double; out Outline: TVec2Array; out Widths, EdgeWidths: TDoubleArray): TEvalState;
@@ -216,10 +216,10 @@ type
     // Last good line of the fold, along its edge
     property FoldLine: TLine2 read FFoldLine;
     function OnFold: boolean;
-    // The fabric it is cut from. While the pattern's first fabric has no ID,
-    // '' is that fabric; once it has, '' is no fabric.
-    property FabricKey: string read FFabricKey write FFabricKey;
-    // Its own colour, or '' for the fabric's
+    // The material it is cut from. While the pattern's first material has no ID,
+    // '' is that material; once it has, '' is no material.
+    property MaterialKey: string read FMaterialKey write FMaterialKey;
+    // Its own colour, or '' for the material's
     property FillColor: string read FFillColor write FFillColor;
     property FillStyle: TPieceFillStyle read FFillStyle write FFillStyle;
   end;

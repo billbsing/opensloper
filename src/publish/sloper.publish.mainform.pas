@@ -50,7 +50,7 @@ type
     FStatus: TStatusBar;
     FPatternsSide: TWinControl;
     FOutputScroll: TScrollBox;
-    FKindBox, FPaperBox, FMarksBox, FFillBox, FProfileBox, FOutputProfileBox, FFabricBox, FSizeBox: TComboBox;
+    FKindBox, FPaperBox, FMarksBox, FFillBox, FProfileBox, FOutputProfileBox, FMaterialBox, FSizeBox: TComboBox;
     FAllowTurnsBox: TCheckBox;
     FSourceBox: TListBox;
     FSourceSetLabel: TLabel;
@@ -80,7 +80,7 @@ type
     function CurrentSource: TLayoutSource;
     procedure RefreshPatternsTab;
     procedure RefreshProfiles;
-    procedure RefreshFabrics;
+    procedure RefreshMaterials;
     procedure AddSourceClick(Sender: TObject);
     procedure RemoveSourceClick(Sender: TObject);
     procedure ChooseSetClick(Sender: TObject);
@@ -169,8 +169,8 @@ resourcestring
   rsMaterialWidth = 'Material width (mm)';
   rsMaterialLength = 'Material length (mm), 0 for a roll';
   rsAllowTurns = 'Allow quarter turns (no grain)';
-  rsFabricLimit = 'Fabric';
-  rsFabricAll = 'All fabrics';
+  rsMaterialLimit = 'Material';
+  rsMaterialAll = 'All materials';
   rsRollWidth = 'Roll width (mm)';
   rsPaper = 'Paper';
   rsMargin = 'Margin (mm)';
@@ -226,7 +226,7 @@ resourcestring
   rsFieldMeasurements = 'Measurements';
   rsFieldLayout = 'Layout name';
   rsFieldCutList = 'Cut list';
-  rsFieldFabrics = 'Fabrics';
+  rsFieldMaterials = 'Materials';
   rsFieldDate = 'Date';
   rsSheetNote = 'Sheet note';
   rsNoteSize = 'Text size (pt)';
@@ -237,7 +237,7 @@ resourcestring
   rsNoteBox = 'On a white box';
   rsAddNote = 'Add note';
   rsDeleteNote = 'Delete note';
-  rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages} {cutlist} {fabrics}';
+  rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages} {cutlist} {materials}';
   rsNewNote = 'New note';
   rsChangeTitle = 'Change title block';
   rsChangeNote = 'Change note';
@@ -292,7 +292,7 @@ const
   MaxNoteSize = 200;
   NoteMemoHeight = 110;
   // In the order of FFieldBoxes
-  TitleFields: array[0..5] of string = (FieldPatternName, FieldMeasurementsName, FieldLayoutName, FieldDate, FieldCutList, FieldFabrics);
+  TitleFields: array[0..5] of string = (FieldPatternName, FieldMeasurementsName, FieldLayoutName, FieldDate, FieldCutList, FieldMaterials);
   SideGap = 6;
   SideRowStep = 100;
   ProblemsHeight = 110;
@@ -501,7 +501,7 @@ end;
 
 procedure TPublishForm.BuildNotesTab;
 const
-  FieldCaptions: array[0..5] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldFabrics);
+  FieldCaptions: array[0..5] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldMaterials);
 var
   Index: integer;
 begin
@@ -729,7 +729,7 @@ begin
   FFillBox.Items.Add(rsFillHatch);
   FOutputProfileBox := AddChoice(rsOutputProfile);
   FProfileBox := AddChoice(rsProfile);
-  FFabricBox := AddChoice(rsFabricLimit);
+  FMaterialBox := AddChoice(rsMaterialLimit);
   BeginGroup(rsExportGroup);
   AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
   AddButton(rsExportSVG, @ExportClick).Tag := Ord(efSVG);
@@ -797,27 +797,27 @@ begin
     FOutputProfileBox.ItemIndex := FOutputProfileBox.Items.IndexOf(Layout.Output.OutputProfile);
 end;
 
-// Every fabric in the layout's patterns, each name once; a name no pattern has
+// Every material in the layout's patterns, each name once; a name no pattern has
 // stays listed, so the choice is not lost when a pattern changes
-procedure TPublishForm.RefreshFabrics;
+procedure TPublishForm.RefreshMaterials;
 var
   Source: TLayoutSource;
   Index: integer;
   Layout: TLayout;
 begin
   Layout := FDocument.Layout;
-  FFabricBox.Items.Clear;
-  FFabricBox.Items.Add(rsFabricAll);
+  FMaterialBox.Items.Clear;
+  FMaterialBox.Items.Add(rsMaterialAll);
   for Source in Layout.Sources do
     if Assigned(Source.Pattern) then
-      for Index := 0 to Source.Pattern.FabricCount - 1 do
-        if FFabricBox.Items.IndexOf(Source.Pattern.Fabrics[Index].Name) < 0 then
-          FFabricBox.Items.Add(Source.Pattern.Fabrics[Index].Name);
-  if (Layout.Output.Fabric <> '') and (FFabricBox.Items.IndexOf(Layout.Output.Fabric) < 0) then
-    FFabricBox.Items.Add(Layout.Output.Fabric);
-  FFabricBox.ItemIndex := 0;
-  if Layout.Output.Fabric <> '' then
-    FFabricBox.ItemIndex := FFabricBox.Items.IndexOf(Layout.Output.Fabric);
+      for Index := 0 to Source.Pattern.MaterialCount - 1 do
+        if FMaterialBox.Items.IndexOf(Source.Pattern.Materials[Index].Name) < 0 then
+          FMaterialBox.Items.Add(Source.Pattern.Materials[Index].Name);
+  if (Layout.Output.Material <> '') and (FMaterialBox.Items.IndexOf(Layout.Output.Material) < 0) then
+    FMaterialBox.Items.Add(Layout.Output.Material);
+  FMaterialBox.ItemIndex := 0;
+  if Layout.Output.Material <> '' then
+    FMaterialBox.ItemIndex := FMaterialBox.Items.IndexOf(Layout.Output.Material);
 end;
 
 procedure TPublishForm.RefreshPatternsTab;
@@ -1124,7 +1124,7 @@ begin
     FFillBox.ItemIndex := Ord(Layout.Output.Fill);
     FFillBox.Enabled := Layout.Output.Kind <> okProjector;
     RefreshProfiles;
-    RefreshFabrics;
+    RefreshMaterials;
     FMaterialWidthEdit.Value := Layout.Output.MaterialWidth;
     FMaterialWidthEdit.Enabled := Layout.Output.Kind = okMaterial;
     FMaterialLengthEdit.Value := Layout.Output.MaterialLength;
@@ -1199,10 +1199,10 @@ begin
   Output.MaterialWidth := FMaterialWidthEdit.Value;
   Output.MaterialLength := FMaterialLengthEdit.Value;
   Output.AllowTurns := FAllowTurnsBox.Checked;
-  if FFabricBox.ItemIndex > 0 then
-    Output.Fabric := FFabricBox.Items[FFabricBox.ItemIndex]
+  if FMaterialBox.ItemIndex > 0 then
+    Output.Material := FMaterialBox.Items[FMaterialBox.ItemIndex]
   else
-    Output.Fabric := '';
+    Output.Material := '';
   if FProfileBox.ItemIndex > 0 then
     Output.Profile := FProfileBox.Items[FProfileBox.ItemIndex]
   else

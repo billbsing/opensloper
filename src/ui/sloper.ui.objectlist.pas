@@ -32,7 +32,7 @@ uses
 
 type
   // ofPieces: pieces and seams; ofNotes: notes; ofProblems: anything not
-  // valid, seams out of tolerance and pieces with no fabric
+  // valid, seams out of tolerance and pieces with no material
   TObjectFilter = (ofAll, ofPoints, ofEdges, ofPieces, ofNotes, ofProblems);
 
   TObjectRow = record
@@ -430,7 +430,7 @@ begin
     ofPieces: Result := (DraftObject is TPieceObject) or (DraftObject is TSeamObject);
     ofNotes: Result := DraftObject is TNoteObject;
     ofProblems: Result := (DraftObject.State <> esValid) or ((DraftObject is TSeamObject) and TSeamObject(DraftObject).OutOfTolerance) or
-        ((DraftObject is TPieceObject) and not Assigned(Pattern.FabricOf(TPieceObject(DraftObject))));
+        ((DraftObject is TPieceObject) and not Assigned(Pattern.MaterialOf(TPieceObject(DraftObject))));
     else
       Result := True;
   end;

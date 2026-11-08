@@ -26,7 +26,7 @@ unit Sloper.Publish.PreviewCanvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.Core.Note,
+  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Materials, Sloper.Core.Geometry, Sloper.Core.Note,
   Sloper.Core.TextFields, Sloper.Output.Layout,
   Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling;
 

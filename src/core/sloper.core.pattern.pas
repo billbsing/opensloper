@@ -29,7 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
-  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Piece, Sloper.Core.Seam,
+  Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Materials, Sloper.Core.Piece, Sloper.Core.Seam,
   Sloper.Core.Transform, Sloper.Core.Note, Sloper.Core.Geometry, Sloper.Core.Units;
 
 type
@@ -88,7 +88,7 @@ type
     FLastErrorField: string;
     FLastErrorPos: integer;
     FNameExclude: TDraftObject;
-    FFabrics: TPatternFabricList;
+    FMaterials: TPatternMaterialList;
     // Marking lines and marked points to give a piece after the next
     // evaluation, which works out where they lie; FAssignLoose adds every one
     // without a piece
@@ -98,15 +98,15 @@ type
     function AssignPendingMarkings: boolean;
     // Takes the object's marking lines or marked points off every piece
     procedure DetachMarking(const Key: string);
-    procedure ResetFabrics;
-    // Gives the first fabric an ID and puts every piece on it, ready to be
+    procedure ResetMaterials;
+    // Gives the first material an ID and puts every piece on it, ready to be
     // written to the file
-    procedure MakeFabricsExplicit;
-    function FabricNameTaken(const AName: string; Exclude: TPatternFabric = nil): boolean;
-    function CheckFabricName(const AName: string; Exclude: TPatternFabric): boolean;
-    function FreeFabricColor: string;
-    function GetFabricCount: integer;
-    function GetFabric(Index: integer): TPatternFabric;
+    procedure MakeMaterialsExplicit;
+    function MaterialNameTaken(const AName: string; Exclude: TPatternMaterial = nil): boolean;
+    function CheckMaterialName(const AName: string; Exclude: TPatternMaterial): boolean;
+    function FreeMaterialColor: string;
+    function GetMaterialCount: integer;
+    function GetMaterial(Index: integer): TPatternMaterial;
     function DeleteNode(Node: TEvalNode): boolean;
     function DeleteTransform(Transform: TTransformObject): boolean;
     function CopiesOf(Transform: TTransformObject): TDraftObjectArray;
@@ -380,34 +380,34 @@ type
     // A transform and a copy of each source, as one change. The copies start
     // where the formulas put them. Nil with LastError set when refused.
     function AddTransform(const Spec: TTransformSpec): TTransformObject;
-    // Fabrics. Changing them returns False when refused, with the reason in
+    // Materials. Changing them returns False when refused, with the reason in
     // LastError. An empty name or colour takes the next free one.
-    function AddFabric(const AName: string = ''; const AColor: string = ''; AFill: TFabricFill = ffTint): TPatternFabric;
-    function RenameFabric(Fabric: TPatternFabric; const NewName: string): boolean;
-    function SetFabricColor(Fabric: TPatternFabric; const AColor: string): boolean;
-    // A fabric's allowance goes on a piece when it takes the fabric; it does not
+    function AddMaterial(const AName: string = ''; const AColor: string = ''; AFill: TMaterialFill = ffTint): TPatternMaterial;
+    function RenameMaterial(Material: TPatternMaterial; const NewName: string): boolean;
+    function SetMaterialColor(Material: TPatternMaterial; const AColor: string): boolean;
+    // A material's allowance goes on a piece when it takes the material; it does not
     // follow later changes, so the piece can be set by hand
-    function SetFabricAllowance(Fabric: TPatternFabric; HasAllowance: boolean; Allowance: double): boolean;
-    procedure SetFabricFill(Fabric: TPatternFabric; AFill: TFabricFill);
-    // Refused for the last fabric and for one that pieces use
-    function DeleteFabric(Fabric: TPatternFabric): boolean;
-    function FindFabric(const Key: string): TPatternFabric;
-    function FindFabricNamed(const AName: string): TPatternFabric;
-    // The piece's fabric, or nil when it has none
-    function FabricOf(Piece: TPieceObject): TPatternFabric;
-    // nil leaves the piece with no fabric
-    procedure SetPieceFabric(Piece: TPieceObject; Fabric: TPatternFabric);
-    // An empty colour and pfFabric go back to the fabric's
+    function SetMaterialAllowance(Material: TPatternMaterial; HasAllowance: boolean; Allowance: double): boolean;
+    procedure SetMaterialFill(Material: TPatternMaterial; AFill: TMaterialFill);
+    // Refused for the last material and for one that pieces use
+    function DeleteMaterial(Material: TPatternMaterial): boolean;
+    function FindMaterial(const Key: string): TPatternMaterial;
+    function FindMaterialNamed(const AName: string): TPatternMaterial;
+    // The piece's material, or nil when it has none
+    function MaterialOf(Piece: TPieceObject): TPatternMaterial;
+    // nil leaves the piece with no material
+    procedure SetPieceMaterial(Piece: TPieceObject; Material: TPatternMaterial);
+    // An empty colour and pfMaterial go back to the material's
     function SetPieceFill(Piece: TPieceObject; const AColor: string; Style: TPieceFillStyle): boolean;
     function PieceLook(Piece: TPieceObject): TPieceLook;
-    // CutCaption, with the fabric's name once the pattern has named its fabrics
+    // CutCaption, with the material's name once the pattern has named its materials
     // Whole is for a piece opened out to cut flat
     function PieceCaption(Piece: TPieceObject; Whole: boolean = False): string;
     // "Main: Front ×1 on fold, Back ×2 · Lining: Front ×1 on fold"
     function CutList: string;
-    function FabricNames: string;
-    // For loaders: replaces the first fabric, unless a fabric was inserted already
-    procedure InsertFabric(Fabric: TPatternFabric);
+    function MaterialNames: string;
+    // For loaders: replaces the first material, unless a material was inserted already
+    procedure InsertMaterial(Material: TPatternMaterial);
     // Rebuilds the graph and computes everything
     procedure Evaluate;
     // Measurements the pattern uses (after Evaluate), then variables, then objects
@@ -441,8 +441,8 @@ type
     property VariableCount: integer read GetVariableCount;
     property Variables[Index: integer]: TVariable read GetVariable;
     property ObjectCount: integer read GetObjectCount;
-    property FabricCount: integer read GetFabricCount;
-    property Fabrics[Index: integer]: TPatternFabric read GetFabric;
+    property MaterialCount: integer read GetMaterialCount;
+    property Materials[Index: integer]: TPatternMaterial read GetMaterial;
     property Objects[Index: integer]: TDraftObject read GetObject;
     // The next ID to hand out. Loaders and undo may raise it; IDs are never reused.
     property NextId: integer read FNextId write FNextId;
@@ -488,16 +488,16 @@ resourcestring
   rsPatternCornerInPiece = '%s is part of %s; delete the piece first, then make it again after rounding the corner';
   rsPatternPieceRepeats = 'A piece cannot use %s twice';
   rsPatternNotInPiece = '%s is not part of %s';
-  rsPatternFabricTaken = 'There is already a fabric called %s';
-  rsPatternFabricBadColor = '%s is not a colour; use the form #5B8DB8';
-  rsPatternLastFabric = 'A pattern needs at least one fabric';
-  rsPatternFabricInUse = '%s cannot be deleted: %s is cut from it';
-  rsPatternPieceCaptionFabric = '%s, %s';
+  rsPatternMaterialTaken = 'There is already a material called %s';
+  rsPatternMaterialBadColor = '%s is not a colour; use the form #5B8DB8';
+  rsPatternLastMaterial = 'A pattern needs at least one material';
+  rsPatternMaterialInUse = '%s cannot be deleted: %s is cut from it';
+  rsPatternPieceCaptionMaterial = '%s, %s';
   rsPatternCutEntry = '%s ×%d';
   rsPatternCutEntryFold = '%s ×%d on fold';
   rsPatternCutEntryMirrored = '%s ×%d mirrored';
   rsPatternCutGroup = '%s: %s';
-  rsPatternNoFabric = 'No fabric';
+  rsPatternNoMaterial = 'No material';
   rsPatternObjectsInUse = '%s cannot be deleted: %s uses %s';
   rsPatternCopyOfTransform = '%s is a copy made by %s, so it changes with it';
   rsPatternTransformNothing = 'Select the points and edges to copy';
@@ -729,7 +729,7 @@ begin
   FResolver := TPatternResolver.Create(Self, True);
   FVariableResolver := TPatternResolver.Create(Self, False);
   FContext := TPatternContext.Create(Self);
-  FFabrics := TPatternFabricList.Create;
+  FMaterials := TPatternMaterialList.Create;
   FMeasurementScale := 1;
   Clear;
 end;
@@ -745,7 +745,7 @@ begin
   FreeAndNil(FResolver);
   FreeAndNil(FVariableResolver);
   FreeAndNil(FContext);
-  FreeAndNil(FFabrics);
+  FreeAndNil(FMaterials);
   inherited Destroy;
 end;
 
@@ -765,213 +765,213 @@ begin
   MeasurementFile := '';
   Identity := '';
   View := Default(TPatternView);
-  ResetFabrics;
+  ResetMaterials;
 end;
 
 // As formula text, always with a decimal point
-function AllowanceText(Fabric: TPatternFabric): string;
+function AllowanceText(Material: TPatternMaterial): string;
 var
   Formats: TFormatSettings;
 begin
   Formats := DefaultFormatSettings;
   Formats.DecimalSeparator := '.';
-  Result := FloatToStr(Fabric.Allowance, Formats);
+  Result := FloatToStr(Material.Allowance, Formats);
 end;
 
-procedure TPattern.ResetFabrics;
+procedure TPattern.ResetMaterials;
 var
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
-  FFabrics.Clear;
-  Fabric := TPatternFabric.Create;
-  FFabrics.Add(Fabric);
-  Fabric.Name := DefaultFabricName;
-  Fabric.Color := FabricPalette[0];
+  FMaterials.Clear;
+  Material := TPatternMaterial.Create;
+  FMaterials.Add(Material);
+  Material.Name := DefaultMaterialName;
+  Material.Color := MaterialPalette[0];
 end;
 
-procedure TPattern.MakeFabricsExplicit;
+procedure TPattern.MakeMaterialsExplicit;
 var
   Index: integer;
 begin
-  if FFabrics[0].Key <> '' then
+  if FMaterials[0].Key <> '' then
     Exit;
-  FFabrics[0].Key := IntToStr(FNextId);
+  FMaterials[0].Key := IntToStr(FNextId);
   Inc(FNextId);
   for Index := 0 to FObjects.Count - 1 do
     if Objects[Index] is TPieceObject then
-      TPieceObject(Objects[Index]).FabricKey := FFabrics[0].Key;
+      TPieceObject(Objects[Index]).MaterialKey := FMaterials[0].Key;
 end;
 
-function TPattern.GetFabricCount: integer;
+function TPattern.GetMaterialCount: integer;
 begin
-  Result := FFabrics.Count;
+  Result := FMaterials.Count;
 end;
 
-function TPattern.GetFabric(Index: integer): TPatternFabric;
+function TPattern.GetMaterial(Index: integer): TPatternMaterial;
 begin
-  Result := FFabrics[Index];
+  Result := FMaterials[Index];
 end;
 
-function TPattern.FabricNameTaken(const AName: string; Exclude: TPatternFabric): boolean;
+function TPattern.MaterialNameTaken(const AName: string; Exclude: TPatternMaterial): boolean;
 var
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
   Result := False;
-  for Fabric in FFabrics do
-    if (Fabric <> Exclude) and SameName(Fabric.Name, AName) then
+  for Material in FMaterials do
+    if (Material <> Exclude) and SameName(Material.Name, AName) then
       Exit(True);
 end;
 
-function TPattern.CheckFabricName(const AName: string; Exclude: TPatternFabric): boolean;
+function TPattern.CheckMaterialName(const AName: string; Exclude: TPatternMaterial): boolean;
 var
   Reason: string;
 begin
   if not CheckName(AName, Reason) then
     Exit(SetError(Reason));
-  if FabricNameTaken(AName, Exclude) then
-    Exit(SetError(Format(rsPatternFabricTaken, [AName])));
+  if MaterialNameTaken(AName, Exclude) then
+    Exit(SetError(Format(rsPatternMaterialTaken, [AName])));
   Result := True;
 end;
 
-// The first colour of the palette no fabric has; they repeat once all are used
-function TPattern.FreeFabricColor: string;
+// The first colour of the palette no material has; they repeat once all are used
+function TPattern.FreeMaterialColor: string;
 var
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
   Taken: boolean;
 begin
-  for Result in FabricPalette do
+  for Result in MaterialPalette do
   begin
     Taken := False;
-    for Fabric in FFabrics do
-      Taken := Taken or SameText(Fabric.Color, Result);
+    for Material in FMaterials do
+      Taken := Taken or SameText(Material.Color, Result);
     if not Taken then
       Exit;
   end;
-  Result := FabricPalette[FFabrics.Count mod Length(FabricPalette)];
+  Result := MaterialPalette[FMaterials.Count mod Length(MaterialPalette)];
 end;
 
-function TPattern.AddFabric(const AName, AColor: string; AFill: TFabricFill): TPatternFabric;
+function TPattern.AddMaterial(const AName, AColor: string; AFill: TMaterialFill): TPatternMaterial;
 var
-  FabricName, FabricColor: string;
+  MaterialName, MaterialColor: string;
   Number: integer;
 begin
   Result := nil;
-  FabricName := Trim(AName);
-  if FabricName = '' then
+  MaterialName := Trim(AName);
+  if MaterialName = '' then
   begin
     Number := 1;
-    FabricName := NewFabricBaseName;
-    while FabricNameTaken(FabricName) do
+    MaterialName := NewMaterialBaseName;
+    while MaterialNameTaken(MaterialName) do
     begin
       Inc(Number);
-      FabricName := NewFabricBaseName + IntToStr(Number);
+      MaterialName := NewMaterialBaseName + IntToStr(Number);
     end;
   end
-  else if not CheckFabricName(FabricName, nil) then
+  else if not CheckMaterialName(MaterialName, nil) then
     Exit;
-  FabricColor := AColor;
-  if FabricColor = '' then
-    FabricColor := FreeFabricColor
-  else if not IsFabricColor(FabricColor) then
+  MaterialColor := AColor;
+  if MaterialColor = '' then
+    MaterialColor := FreeMaterialColor
+  else if not IsMaterialColor(MaterialColor) then
   begin
-    SetError(Format(rsPatternFabricBadColor, [FabricColor]));
+    SetError(Format(rsPatternMaterialBadColor, [MaterialColor]));
     Exit;
   end;
-  MakeFabricsExplicit;
-  Result := TPatternFabric.Create;
-  FFabrics.Add(Result);
+  MakeMaterialsExplicit;
+  Result := TPatternMaterial.Create;
+  FMaterials.Add(Result);
   Result.Key := IntToStr(FNextId);
   Inc(FNextId);
-  Result.Name := FabricName;
-  Result.Color := UpperCase(FabricColor);
+  Result.Name := MaterialName;
+  Result.Color := UpperCase(MaterialColor);
   Result.Fill := AFill;
 end;
 
-function TPattern.RenameFabric(Fabric: TPatternFabric; const NewName: string): boolean;
+function TPattern.RenameMaterial(Material: TPatternMaterial; const NewName: string): boolean;
 begin
-  if not CheckFabricName(Trim(NewName), Fabric) then
+  if not CheckMaterialName(Trim(NewName), Material) then
     Exit(False);
-  MakeFabricsExplicit;
-  Fabric.Name := Trim(NewName);
+  MakeMaterialsExplicit;
+  Material.Name := Trim(NewName);
   Result := True;
 end;
 
-function TPattern.SetFabricAllowance(Fabric: TPatternFabric; HasAllowance: boolean; Allowance: double): boolean;
+function TPattern.SetMaterialAllowance(Material: TPatternMaterial; HasAllowance: boolean; Allowance: double): boolean;
 begin
   if HasAllowance and (Allowance < 0) then
     Exit(SetError(rsPieceNegativeAllowance));
-  MakeFabricsExplicit;
-  Fabric.HasAllowance := HasAllowance;
-  Fabric.Allowance := Allowance;
+  MakeMaterialsExplicit;
+  Material.HasAllowance := HasAllowance;
+  Material.Allowance := Allowance;
   Result := True;
 end;
 
-function TPattern.SetFabricColor(Fabric: TPatternFabric; const AColor: string): boolean;
+function TPattern.SetMaterialColor(Material: TPatternMaterial; const AColor: string): boolean;
 begin
-  if not IsFabricColor(AColor) then
-    Exit(SetError(Format(rsPatternFabricBadColor, [AColor])));
-  MakeFabricsExplicit;
-  Fabric.Color := UpperCase(AColor);
+  if not IsMaterialColor(AColor) then
+    Exit(SetError(Format(rsPatternMaterialBadColor, [AColor])));
+  MakeMaterialsExplicit;
+  Material.Color := UpperCase(AColor);
   Result := True;
 end;
 
-procedure TPattern.SetFabricFill(Fabric: TPatternFabric; AFill: TFabricFill);
+procedure TPattern.SetMaterialFill(Material: TPatternMaterial; AFill: TMaterialFill);
 begin
-  MakeFabricsExplicit;
-  Fabric.Fill := AFill;
+  MakeMaterialsExplicit;
+  Material.Fill := AFill;
 end;
 
-function TPattern.DeleteFabric(Fabric: TPatternFabric): boolean;
+function TPattern.DeleteMaterial(Material: TPatternMaterial): boolean;
 var
   Index: integer;
 begin
-  if FFabrics.Count = 1 then
-    Exit(SetError(rsPatternLastFabric));
+  if FMaterials.Count = 1 then
+    Exit(SetError(rsPatternLastMaterial));
   for Index := 0 to FObjects.Count - 1 do
-    if (Objects[Index] is TPieceObject) and (FabricOf(TPieceObject(Objects[Index])) = Fabric) then
-      Exit(SetError(Format(rsPatternFabricInUse, [Fabric.Name, Objects[Index].DisplayName])));
-  FFabrics.Remove(Fabric);
+    if (Objects[Index] is TPieceObject) and (MaterialOf(TPieceObject(Objects[Index])) = Material) then
+      Exit(SetError(Format(rsPatternMaterialInUse, [Material.Name, Objects[Index].DisplayName])));
+  FMaterials.Remove(Material);
   Result := True;
 end;
 
-function TPattern.FindFabric(const Key: string): TPatternFabric;
+function TPattern.FindMaterial(const Key: string): TPatternMaterial;
 begin
-  for Result in FFabrics do
+  for Result in FMaterials do
     if Result.Key = Key then
       Exit;
   Result := nil;
 end;
 
-function TPattern.FindFabricNamed(const AName: string): TPatternFabric;
+function TPattern.FindMaterialNamed(const AName: string): TPatternMaterial;
 begin
-  for Result in FFabrics do
+  for Result in FMaterials do
     if SameName(Result.Name, AName) then
       Exit;
   Result := nil;
 end;
 
-function TPattern.FabricOf(Piece: TPieceObject): TPatternFabric;
+function TPattern.MaterialOf(Piece: TPieceObject): TPatternMaterial;
 begin
-  Result := FindFabric(Piece.FabricKey);
+  Result := FindMaterial(Piece.MaterialKey);
 end;
 
-procedure TPattern.SetPieceFabric(Piece: TPieceObject; Fabric: TPatternFabric);
+procedure TPattern.SetPieceMaterial(Piece: TPieceObject; Material: TPatternMaterial);
 begin
-  // The first fabric has a key to tell it from none only once it is explicit
-  if not Assigned(Fabric) then
-    MakeFabricsExplicit;
-  if Assigned(Fabric) then
-    Piece.FabricKey := Fabric.Key
+  // The first material has a key to tell it from none only once it is explicit
+  if not Assigned(Material) then
+    MakeMaterialsExplicit;
+  if Assigned(Material) then
+    Piece.MaterialKey := Material.Key
   else
-    Piece.FabricKey := '';
-  if Assigned(Fabric) and Fabric.HasAllowance then
-    SetFormula(Piece, PieceAllowanceField, AllowanceText(Fabric));
+    Piece.MaterialKey := '';
+  if Assigned(Material) and Material.HasAllowance then
+    SetFormula(Piece, PieceAllowanceField, AllowanceText(Material));
 end;
 
 function TPattern.SetPieceFill(Piece: TPieceObject; const AColor: string; Style: TPieceFillStyle): boolean;
 begin
-  if (AColor <> '') and not IsFabricColor(AColor) then
-    Exit(SetError(Format(rsPatternFabricBadColor, [AColor])));
+  if (AColor <> '') and not IsMaterialColor(AColor) then
+    Exit(SetError(Format(rsPatternMaterialBadColor, [AColor])));
   Piece.FillColor := UpperCase(AColor);
   Piece.FillStyle := Style;
   Result := True;
@@ -979,20 +979,20 @@ end;
 
 function TPattern.PieceLook(Piece: TPieceObject): TPieceLook;
 var
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
   Result := Default(TPieceLook);
-  Fabric := FabricOf(Piece);
-  if not Assigned(Fabric) then
+  Material := MaterialOf(Piece);
+  if not Assigned(Material) then
     Exit;
   Result.Filled := True;
-  Result.HatchAngle := FabricHatchAngle(FFabrics.IndexOf(Fabric));
+  Result.HatchAngle := MaterialHatchAngle(FMaterials.IndexOf(Material));
   if Piece.FillColor <> '' then
-    Result.Color := ParseFabricColor(Piece.FillColor)
+    Result.Color := ParseMaterialColor(Piece.FillColor)
   else
-    Result.Color := ParseFabricColor(Fabric.Color);
+    Result.Color := ParseMaterialColor(Material.Color);
   case Piece.FillStyle of
-    pfFabric: Result.Fill := Fabric.Fill;
+    pfMaterial: Result.Fill := Material.Fill;
     pfTint: Result.Fill := ffTint;
     pfHatch: Result.Fill := ffHatch;
   end;
@@ -1000,12 +1000,12 @@ end;
 
 function TPattern.PieceCaption(Piece: TPieceObject; Whole: boolean): string;
 var
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
   Result := Piece.CutCaption(Whole);
-  Fabric := FabricOf(Piece);
-  if Assigned(Fabric) and (Fabric.Key <> '') then
-    Result := Format(rsPatternPieceCaptionFabric, [Result, Fabric.Name]);
+  Material := MaterialOf(Piece);
+  if Assigned(Material) and (Material.Key <> '') then
+    Result := Format(rsPatternPieceCaptionMaterial, [Result, Material.Name]);
 end;
 
 function TPattern.CutList: string;
@@ -1025,14 +1025,14 @@ var
       Result := Format(rsPatternCutEntry, [Piece.DisplayName, Piece.CutCount]);
   end;
 
-  procedure AddGroup(Fabric: TPatternFabric; const Caption: string);
+  procedure AddGroup(Material: TPatternMaterial; const Caption: string);
   var
     Entries: string;
     Place: integer;
   begin
     Entries := '';
     for Place := 0 to FObjects.Count - 1 do
-      if (Objects[Place] is TPieceObject) and (FabricOf(TPieceObject(Objects[Place])) = Fabric) then
+      if (Objects[Place] is TPieceObject) and (MaterialOf(TPieceObject(Objects[Place])) = Material) then
       begin
         if Entries <> '' then
           Entries := Entries + EntryGap;
@@ -1047,30 +1047,30 @@ var
 
 begin
   Result := '';
-  for Index := 0 to FFabrics.Count - 1 do
-    AddGroup(FFabrics[Index], FFabrics[Index].Name);
-  AddGroup(nil, rsPatternNoFabric);
+  for Index := 0 to FMaterials.Count - 1 do
+    AddGroup(FMaterials[Index], FMaterials[Index].Name);
+  AddGroup(nil, rsPatternNoMaterial);
 end;
 
-function TPattern.FabricNames: string;
+function TPattern.MaterialNames: string;
 var
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
   Result := '';
-  for Fabric in FFabrics do
+  for Material in FMaterials do
   begin
     if Result <> '' then
       Result := Result + ', ';
-    Result := Result + Fabric.Name;
+    Result := Result + Material.Name;
   end;
 end;
 
-procedure TPattern.InsertFabric(Fabric: TPatternFabric);
+procedure TPattern.InsertMaterial(Material: TPatternMaterial);
 begin
-  if FFabrics[0].Key = '' then
-    FFabrics.Clear;
-  FFabrics.Add(Fabric);
-  KeepIdsAbove(Fabric.Key);
+  if FMaterials[0].Key = '' then
+    FMaterials.Clear;
+  FMaterials.Add(Material);
+  KeepIdsAbove(Material.Key);
 end;
 
 // Every source once, points first, an edge bringing its ends. Virtual repeat
@@ -2266,10 +2266,10 @@ begin
     Exit;
   end;
   Result := TPieceObject.Create(IntToStr(FNextId), Path);
-  // The first fabric's allowance stands in for the general default
+  // The first material's allowance stands in for the general default
   PieceAllowance := Allowance;
-  if (Allowance = DefaultPieceAllowance) and FFabrics[0].HasAllowance then
-    PieceAllowance := AllowanceText(FFabrics[0])
+  if (Allowance = DefaultPieceAllowance) and FMaterials[0].HasAllowance then
+    PieceAllowance := AllowanceText(FMaterials[0])
   else if Allowance = DefaultPieceAllowance then
     PieceAllowance := StartingLengths[slPieceAllowance, FUnits];
   if not ParseFields(Result, [PieceAllowanceField], [PieceAllowance]) then
@@ -2279,7 +2279,7 @@ begin
   end;
   Inc(FNextId);
   Result.Name := PieceName;
-  Result.FabricKey := FFabrics[0].Key;
+  Result.MaterialKey := FMaterials[0].Key;
   AddObjectNode(Result);
   SetGrainAngle(Result, DefaultGrainAngle);
   // Lines drawn before the piece was made join it now

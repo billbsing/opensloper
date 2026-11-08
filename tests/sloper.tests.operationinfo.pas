@@ -50,7 +50,7 @@ implementation
 
 uses
   SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.Geometry, Sloper.Core.Evaluator, Sloper.Core.Piece, Sloper.Core.PieceDetect,
-  Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.Fabrics, Sloper.Core.Transform, Sloper.Core.PatternFile,
+  Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.Materials, Sloper.Core.Transform, Sloper.Core.PatternFile,
   Sloper.Core.OperationInfo;
 
 procedure TTestOperationInfo.SetUp;
@@ -180,7 +180,7 @@ begin
   AssertTrue(FPattern.LastError, FPattern.AddLineMarking(Piece, Placement));
   AssertTrue(FPattern.LastError, FPattern.SetCut(Piece, 2, True));
   AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, DA));
-  FPattern.SetPieceFabric(Piece, TPatternFabric(Check(FPattern.AddFabric('Lining'))));
+  FPattern.SetPieceMaterial(Piece, TPatternMaterial(Check(FPattern.AddMaterial('Lining'))));
   AssertTrue(FPattern.LastError, FPattern.SetPieceFill(Piece, '#ff0000', pfHatch));
   Side := [Default(TSeamEntry)];
   Side[0].PieceKey := Piece.Key;

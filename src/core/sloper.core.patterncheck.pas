@@ -44,7 +44,7 @@ function ReportFloat(Value: double): TJSONData;
 function StateName(State: TEvalState): string;
 // One line per measurement, variable or object in error or invalid, as
 // "Name (error): message", then one per seam out of tolerance and one per piece
-// with no fabric, one per marking line in no piece or outside its piece, and
+// with no material, one per marking line in no piece or outside its piece, and
 // one per printing note in no piece.
 // Blocked ones fail because of these, so they are only counted.
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
@@ -57,7 +57,7 @@ resourcestring
   rsCheckProblem = '%s (%s): %s';
   rsCheckError = 'error';
   rsCheckInvalid = 'invalid';
-  rsCheckNoFabric = '%s has no fabric';
+  rsCheckNoMaterial = '%s has no material';
   rsCheckLineOutside = '%s lies outside %s, which it is marked on';
   rsCheckLineLoose = '%s is a marking line in no piece, so it does not print';
   rsCheckMarkerLoose = '%s has a marker but is in no piece, so it does not print';
@@ -185,10 +185,10 @@ begin
         FormatFloat(SeamFormat, Seam.Mismatch), FormatFloat(SeamFormat, Seam.Ease)]);
     end;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if (Pattern.Objects[Index] is TPieceObject) and not Assigned(Pattern.FabricOf(TPieceObject(Pattern.Objects[Index]))) then
+    if (Pattern.Objects[Index] is TPieceObject) and not Assigned(Pattern.MaterialOf(TPieceObject(Pattern.Objects[Index]))) then
     begin
       SetLength(Result, Length(Result) + 1);
-      Result[High(Result)] := Format(rsCheckNoFabric, [Pattern.Objects[Index].DisplayName]);
+      Result[High(Result)] := Format(rsCheckNoMaterial, [Pattern.Objects[Index].DisplayName]);
     end;
   AddMarkingLineProblems(Pattern, Result);
   for Index := 0 to Pattern.ObjectCount - 1 do

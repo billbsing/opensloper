@@ -42,13 +42,13 @@ resourcestring
   rsPDFPrintFullSize = 'Print at 100% / actual size. Do not "fit to page".';
   rsPDFCheckSquare = 'This square must measure %s. If it does not, set the printer calibration in Preferences.';
   rsPDFPages = '%d pages to print, %d blank, %d left out';
-  rsPDFProjectorFit = 'Set the projector so that this square measures %s on the fabric.';
+  rsPDFProjectorFit = 'Set the projector so that this square measures %s on the material.';
   rsPDFProjectorZoom = 'Show at 100%, then adjust the projector, not the viewer.';
 
 implementation
 
 uses
-  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.Note,
+  SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Materials, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.Note,
   Sloper.Output.PDFWriter, Sloper.Output.Tiling;
 
 const
@@ -223,7 +223,7 @@ end;
 
 // One sheet: the check block across the top, then the layout, as long as it
 // needs to be. For a projector it is light on dark, and the lines are thick
-// enough to see on fabric.
+// enough to see on material.
 procedure TLayoutPrinter.DrawOneSheet;
 var
   Margin, Bottom, SheetWidth, SheetLength: double;
@@ -400,11 +400,11 @@ begin
   end;
 end;
 
-// Under the lines. A piece with no fabric stays unfilled, and on a projector
+// Under the lines. A piece with no material stays unfilled, and on a projector
 // nothing is filled, as its output is dark.
 procedure TLayoutPrinter.DrawFill(const Page: TTilePage; const Shape: TPlacedPiece);
 var
-  Tint: TFabricColor;
+  Tint: TMaterialColor;
   Stroke: TLine2;
 begin
   if (FLayout.Output.Kind = okProjector) or not Shape.Look.Filled then
@@ -412,7 +412,7 @@ begin
   case FLayout.Output.Fill of
     lfTint:
     begin
-      Tint := FabricTint(Shape.Look.Color);
+      Tint := MaterialTint(Shape.Look.Color);
       FWriter.SetColor(Tint.Red / 255, Tint.Green / 255, Tint.Blue / 255);
       FWriter.FillPolygon(PagePoints(Page, Shape.CutLine));
       FWriter.SetGray(0);

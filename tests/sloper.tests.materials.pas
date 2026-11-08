@@ -16,18 +16,18 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-unit Sloper.Tests.Fabrics;
+unit Sloper.Tests.Materials;
 
 {$mode ObjFPC}{$H+}
 
 interface
 
 uses
-  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Fabrics,
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Materials,
   Sloper.Core.Piece;
 
 type
-  TTestFabrics = class(TOSTestCase)
+  TTestMaterials = class(TOSTestCase)
   private
     FPattern, FLoaded: TPattern;
     function AddSquare(const PieceName: string; Left: double): TPieceObject;
@@ -40,25 +40,25 @@ type
     procedure TestSimpleFileStaysSimple;
     procedure TestIdsDoNotMoveWhileMainIsImplicit;
     procedure TestFirstChangeGivesMainAnIdAndItsPieces;
-    procedure TestNewPieceTakesFirstFabric;
+    procedure TestNewPieceTakesFirstMaterial;
     procedure TestRoundTrip;
-    procedure TestFabricsMayFollowObjectsInFile;
+    procedure TestMaterialsMayFollowObjectsInFile;
     procedure TestNamesFollowNameRules;
     procedure TestNamesAreUniqueIgnoringCase;
-    procedure TestNewFabricsTakeFreeNamesAndColours;
+    procedure TestNewMaterialsTakeFreeNamesAndColours;
     procedure TestRefusesBadColour;
-    procedure TestRefusesDeletingLastFabric;
-    procedure TestRefusesDeletingUsedFabric;
-    procedure TestDeletesUnusedFabric;
-    procedure TestNoFabricIsUnfilledAndAProblem;
-    procedure TestLookComesFromFabric;
+    procedure TestRefusesDeletingLastMaterial;
+    procedure TestRefusesDeletingUsedMaterial;
+    procedure TestDeletesUnusedMaterial;
+    procedure TestNoMaterialIsUnfilledAndAProblem;
+    procedure TestLookComesFromMaterial;
     procedure TestPieceOverridesLook;
-    procedure TestCaptionNamesExplicitFabricOnly;
+    procedure TestCaptionNamesExplicitMaterialOnly;
     procedure TestCutList;
-    procedure TestRefusesUnknownFabric;
-    procedure TestRefusesRepeatedFabricId;
+    procedure TestRefusesUnknownMaterial;
+    procedure TestRefusesRepeatedMaterialId;
     procedure TestRefusesBadFileColour;
-    procedure TestRefusesEmptyFabricList;
+    procedure TestRefusesEmptyMaterialList;
     procedure TestHatchAnglesDiffer;
     procedure TestColorTextRoundTrip;
     procedure TestTintIsLighter;
@@ -66,12 +66,12 @@ type
     procedure TestHatchSpansConcaveShape;
     procedure TestHatchOfNothing;
     procedure TestUndoTakesBackFirstChange;
-    procedure TestUndoRestoresFabricOfPiece;
-    procedure TestProblemsFilterFindsNoFabric;
-    procedure TestSVGUsesFabricColour;
-    procedure TestSVGHatchesAHatchedFabric;
-    procedure TestSVGLeavesNoFabricUnfilled;
-    procedure TestSVGLabelNamesFabric;
+    procedure TestUndoRestoresMaterialOfPiece;
+    procedure TestProblemsFilterFindsNoMaterial;
+    procedure TestSVGUsesMaterialColour;
+    procedure TestSVGHatchesAHatchedMaterial;
+    procedure TestSVGLeavesNoMaterialUnfilled;
+    procedure TestSVGLabelNamesMaterial;
     procedure TestSettingsKeepFillsToggle;
   end;
 
@@ -84,20 +84,20 @@ uses
 const
   SquareSize = 100;
 
-procedure TTestFabrics.SetUp;
+procedure TTestMaterials.SetUp;
 begin
   inherited SetUp;
   FPattern := TPattern.Create;
 end;
 
-procedure TTestFabrics.TearDown;
+procedure TTestMaterials.TearDown;
 begin
   FreeAndNil(FLoaded);
   FreeAndNil(FPattern);
   inherited TearDown;
 end;
 
-function TTestFabrics.AddSquare(const PieceName: string; Left: double): TPieceObject;
+function TTestMaterials.AddSquare(const PieceName: string; Left: double): TPieceObject;
 var
   Corners: array[0..3] of TFreePoint;
   Path: TPiecePath;
@@ -118,7 +118,7 @@ begin
   FPattern.Evaluate;
 end;
 
-function TTestFabrics.Reloaded: TPattern;
+function TTestMaterials.Reloaded: TPattern;
 var
   Reason: string;
 begin
@@ -129,25 +129,25 @@ begin
   Result := FLoaded;
 end;
 
-procedure TTestFabrics.TestNewPatternHasMain;
+procedure TTestMaterials.TestNewPatternHasMain;
 begin
-  AssertEquals(1, FPattern.FabricCount);
-  AssertEquals(DefaultFabricName, FPattern.Fabrics[0].Name);
-  AssertEquals('no ID yet', '', FPattern.Fabrics[0].Key);
-  AssertTrue(IsFabricColor(FPattern.Fabrics[0].Color));
+  AssertEquals(1, FPattern.MaterialCount);
+  AssertEquals(DefaultMaterialName, FPattern.Materials[0].Name);
+  AssertEquals('no ID yet', '', FPattern.Materials[0].Key);
+  AssertTrue(IsMaterialColor(FPattern.Materials[0].Color));
 end;
 
-procedure TTestFabrics.TestSimpleFileStaysSimple;
+procedure TTestMaterials.TestSimpleFileStaysSimple;
 var
   Text: string;
 begin
   AddSquare('Front', 0);
   Text := SavePatternToText(FPattern);
-  AssertEquals('no list', 0, Pos('"fabrics"', Text));
-  AssertEquals('no fabric on the piece', 0, Pos('"fabric"', Text));
+  AssertEquals('no list', 0, Pos('"materials"', Text));
+  AssertEquals('no material on the piece', 0, Pos('"material"', Text));
 end;
 
-procedure TTestFabrics.TestIdsDoNotMoveWhileMainIsImplicit;
+procedure TTestMaterials.TestIdsDoNotMoveWhileMainIsImplicit;
 var
   Before: integer;
 begin
@@ -156,118 +156,118 @@ begin
   AssertEquals('4 points, 4 edges and a piece', Before + 9, FPattern.NextId);
 end;
 
-procedure TTestFabrics.TestFirstChangeGivesMainAnIdAndItsPieces;
+procedure TTestMaterials.TestFirstChangeGivesMainAnIdAndItsPieces;
 var
   Piece: TPieceObject;
 begin
   Piece := AddSquare('Front', 0);
-  AssertTrue(FPattern.RenameFabric(FPattern.Fabrics[0], 'Denim'));
-  AssertTrue('has an ID', FPattern.Fabrics[0].Key <> '');
-  AssertEquals(FPattern.Fabrics[0].Key, Piece.FabricKey);
-  AssertTrue('still cut from it', FPattern.FabricOf(Piece) = FPattern.Fabrics[0]);
+  AssertTrue(FPattern.RenameMaterial(FPattern.Materials[0], 'Denim'));
+  AssertTrue('has an ID', FPattern.Materials[0].Key <> '');
+  AssertEquals(FPattern.Materials[0].Key, Piece.MaterialKey);
+  AssertTrue('still cut from it', FPattern.MaterialOf(Piece) = FPattern.Materials[0]);
 end;
 
-procedure TTestFabrics.TestNewPieceTakesFirstFabric;
+procedure TTestMaterials.TestNewPieceTakesFirstMaterial;
 var
-  Lining: TPatternFabric;
+  Lining: TPatternMaterial;
 begin
-  Lining := FPattern.AddFabric('Lining');
+  Lining := FPattern.AddMaterial('Lining');
   AssertTrue(Assigned(Lining));
-  AssertTrue(FPattern.FabricOf(AddSquare('Front', 0)) = FPattern.Fabrics[0]);
+  AssertTrue(FPattern.MaterialOf(AddSquare('Front', 0)) = FPattern.Materials[0]);
 end;
 
-procedure TTestFabrics.TestRoundTrip;
+procedure TTestMaterials.TestRoundTrip;
 var
   Piece, Back: TPieceObject;
-  Lining: TPatternFabric;
+  Lining: TPatternMaterial;
 begin
   Piece := AddSquare('Front', 0);
-  Lining := FPattern.AddFabric('Lining', '#c9a227', ffHatch);
-  FPattern.SetPieceFabric(Piece, Lining);
+  Lining := FPattern.AddMaterial('Lining', '#c9a227', ffHatch);
+  FPattern.SetPieceMaterial(Piece, Lining);
   AssertTrue(FPattern.SetPieceFill(Piece, '#112233', pfTint));
   Reloaded;
-  AssertEquals(2, FLoaded.FabricCount);
-  AssertEquals('Lining', FLoaded.Fabrics[1].Name);
-  AssertEquals('#C9A227', FLoaded.Fabrics[1].Color);
-  AssertTrue(FLoaded.Fabrics[1].Fill = ffHatch);
+  AssertEquals(2, FLoaded.MaterialCount);
+  AssertEquals('Lining', FLoaded.Materials[1].Name);
+  AssertEquals('#C9A227', FLoaded.Materials[1].Color);
+  AssertTrue(FLoaded.Materials[1].Fill = ffHatch);
   Back := TPieceObject(FLoaded.FindObject('Front'));
-  AssertEquals(Lining.Key, Back.FabricKey);
+  AssertEquals(Lining.Key, Back.MaterialKey);
   AssertEquals('#112233', Back.FillColor);
   AssertTrue(Back.FillStyle = pfTint);
   AssertEquals('saves the same', SavePatternToText(FPattern), SavePatternToText(FLoaded));
 end;
 
-procedure TTestFabrics.TestFabricsMayFollowObjectsInFile;
+procedure TTestMaterials.TestMaterialsMayFollowObjectsInFile;
 var
   Reason: string;
 begin
-  FPattern.SetPieceFabric(AddSquare('Front', 0), FPattern.AddFabric('Lining'));
-  // The writer puts fabrics after objects, so this is the ordinary case
-  AssertTrue(Pos('"objects"', SavePatternToText(FPattern)) < Pos('"fabrics"', SavePatternToText(FPattern)));
+  FPattern.SetPieceMaterial(AddSquare('Front', 0), FPattern.AddMaterial('Lining'));
+  // The writer puts materials after objects, so this is the ordinary case
+  AssertTrue(Pos('"objects"', SavePatternToText(FPattern)) < Pos('"materials"', SavePatternToText(FPattern)));
   FLoaded := TPattern.Create;
   AssertTrue(Reason, LoadPatternFromText(FLoaded, SavePatternToText(FPattern), Reason));
 end;
 
-procedure TTestFabrics.TestNamesFollowNameRules;
+procedure TTestMaterials.TestNamesFollowNameRules;
 begin
-  AssertTrue(not Assigned(FPattern.AddFabric('2nd')));
-  AssertTrue(not Assigned(FPattern.AddFabric('Inter facing')));
-  AssertFalse(FPattern.RenameFabric(FPattern.Fabrics[0], 'not a name'));
-  AssertEquals('refused without changing', DefaultFabricName, FPattern.Fabrics[0].Name);
-  AssertEquals('stays implicit', '', FPattern.Fabrics[0].Key);
+  AssertTrue(not Assigned(FPattern.AddMaterial('2nd')));
+  AssertTrue(not Assigned(FPattern.AddMaterial('Inter facing')));
+  AssertFalse(FPattern.RenameMaterial(FPattern.Materials[0], 'not a name'));
+  AssertEquals('refused without changing', DefaultMaterialName, FPattern.Materials[0].Name);
+  AssertEquals('stays implicit', '', FPattern.Materials[0].Key);
 end;
 
-procedure TTestFabrics.TestNamesAreUniqueIgnoringCase;
+procedure TTestMaterials.TestNamesAreUniqueIgnoringCase;
 begin
-  AssertTrue(not Assigned(FPattern.AddFabric('MAIN')));
+  AssertTrue(not Assigned(FPattern.AddMaterial('MAIN')));
   AssertTrue(FPattern.LastError <> '');
-  AssertTrue('own name in another case', FPattern.RenameFabric(FPattern.Fabrics[0], 'MAIN'));
+  AssertTrue('own name in another case', FPattern.RenameMaterial(FPattern.Materials[0], 'MAIN'));
 end;
 
-procedure TTestFabrics.TestNewFabricsTakeFreeNamesAndColours;
+procedure TTestMaterials.TestNewMaterialsTakeFreeNamesAndColours;
 var
-  First, Second: TPatternFabric;
+  First, Second: TPatternMaterial;
 begin
-  First := FPattern.AddFabric;
-  Second := FPattern.AddFabric;
-  AssertEquals(NewFabricBaseName, First.Name);
-  AssertEquals(NewFabricBaseName + '2', Second.Name);
-  AssertEquals(FabricPalette[1], First.Color);
-  AssertEquals(FabricPalette[2], Second.Color);
+  First := FPattern.AddMaterial;
+  Second := FPattern.AddMaterial;
+  AssertEquals(NewMaterialBaseName, First.Name);
+  AssertEquals(NewMaterialBaseName + '2', Second.Name);
+  AssertEquals(MaterialPalette[1], First.Color);
+  AssertEquals(MaterialPalette[2], Second.Color);
 end;
 
-procedure TTestFabrics.TestRefusesBadColour;
+procedure TTestMaterials.TestRefusesBadColour;
 begin
-  AssertFalse(FPattern.SetFabricColor(FPattern.Fabrics[0], 'blue'));
-  AssertFalse(FPattern.SetFabricColor(FPattern.Fabrics[0], '#12345G'));
-  AssertTrue(not Assigned(FPattern.AddFabric('Lining', '#123')));
-  AssertFalse(FPattern.SetPieceFill(AddSquare('Front', 0), 'red', pfFabric));
+  AssertFalse(FPattern.SetMaterialColor(FPattern.Materials[0], 'blue'));
+  AssertFalse(FPattern.SetMaterialColor(FPattern.Materials[0], '#12345G'));
+  AssertTrue(not Assigned(FPattern.AddMaterial('Lining', '#123')));
+  AssertFalse(FPattern.SetPieceFill(AddSquare('Front', 0), 'red', pfMaterial));
 end;
 
-procedure TTestFabrics.TestRefusesDeletingLastFabric;
+procedure TTestMaterials.TestRefusesDeletingLastMaterial;
 begin
-  AssertFalse(FPattern.DeleteFabric(FPattern.Fabrics[0]));
-  AssertEquals(rsPatternLastFabric, FPattern.LastError);
+  AssertFalse(FPattern.DeleteMaterial(FPattern.Materials[0]));
+  AssertEquals(rsPatternLastMaterial, FPattern.LastError);
 end;
 
-procedure TTestFabrics.TestRefusesDeletingUsedFabric;
+procedure TTestMaterials.TestRefusesDeletingUsedMaterial;
 var
-  Lining: TPatternFabric;
+  Lining: TPatternMaterial;
 begin
-  Lining := FPattern.AddFabric('Lining');
-  FPattern.SetPieceFabric(AddSquare('Front', 0), Lining);
-  AssertFalse(FPattern.DeleteFabric(Lining));
-  AssertEquals(Format(rsPatternFabricInUse, ['Lining', 'Front']), FPattern.LastError);
-  AssertEquals(2, FPattern.FabricCount);
+  Lining := FPattern.AddMaterial('Lining');
+  FPattern.SetPieceMaterial(AddSquare('Front', 0), Lining);
+  AssertFalse(FPattern.DeleteMaterial(Lining));
+  AssertEquals(Format(rsPatternMaterialInUse, ['Lining', 'Front']), FPattern.LastError);
+  AssertEquals(2, FPattern.MaterialCount);
 end;
 
-procedure TTestFabrics.TestDeletesUnusedFabric;
+procedure TTestMaterials.TestDeletesUnusedMaterial;
 begin
-  AssertTrue(FPattern.DeleteFabric(FPattern.AddFabric('Lining')));
-  AssertEquals(1, FPattern.FabricCount);
+  AssertTrue(FPattern.DeleteMaterial(FPattern.AddMaterial('Lining')));
+  AssertEquals(1, FPattern.MaterialCount);
 end;
 
-procedure TTestFabrics.TestNoFabricIsUnfilledAndAProblem;
+procedure TTestMaterials.TestNoMaterialIsUnfilledAndAProblem;
 var
   Piece: TPieceObject;
   Blocked: integer;
@@ -275,58 +275,58 @@ var
 begin
   Piece := AddSquare('Front', 0);
   AssertEquals('none at first', 0, Length(PatternProblems(FPattern, Blocked)));
-  FPattern.SetPieceFabric(Piece, nil);
-  AssertTrue('Main is explicit', FPattern.Fabrics[0].Key <> '');
-  AssertTrue(not Assigned(FPattern.FabricOf(Piece)));
+  FPattern.SetPieceMaterial(Piece, nil);
+  AssertTrue('Main is explicit', FPattern.Materials[0].Key <> '');
+  AssertTrue(not Assigned(FPattern.MaterialOf(Piece)));
   AssertFalse(FPattern.PieceLook(Piece).Filled);
   Problems := PatternProblems(FPattern, Blocked);
   AssertEquals(1, Length(Problems));
-  AssertEquals(Format(rsCheckNoFabric, ['Front']), Problems[0]);
-  AssertTrue('survives saving', not Assigned(Reloaded.FabricOf(TPieceObject(FLoaded.FindObject('Front')))));
+  AssertEquals(Format(rsCheckNoMaterial, ['Front']), Problems[0]);
+  AssertTrue('survives saving', not Assigned(Reloaded.MaterialOf(TPieceObject(FLoaded.FindObject('Front')))));
 end;
 
-procedure TTestFabrics.TestLookComesFromFabric;
+procedure TTestMaterials.TestLookComesFromMaterial;
 var
   Piece: TPieceObject;
   Look: TPieceLook;
 begin
   Piece := AddSquare('Front', 0);
-  AssertTrue(FPattern.SetFabricColor(FPattern.Fabrics[0], '#102030'));
-  FPattern.SetFabricFill(FPattern.Fabrics[0], ffHatch);
+  AssertTrue(FPattern.SetMaterialColor(FPattern.Materials[0], '#102030'));
+  FPattern.SetMaterialFill(FPattern.Materials[0], ffHatch);
   Look := FPattern.PieceLook(Piece);
   AssertTrue(Look.Filled);
-  AssertEquals('#102030', FabricColorText(Look.Color));
+  AssertEquals('#102030', MaterialColorText(Look.Color));
   AssertTrue(Look.Fill = ffHatch);
 end;
 
-procedure TTestFabrics.TestPieceOverridesLook;
+procedure TTestMaterials.TestPieceOverridesLook;
 var
   Piece: TPieceObject;
   Look: TPieceLook;
 begin
   Piece := AddSquare('Front', 0);
-  FPattern.SetFabricFill(FPattern.Fabrics[0], ffHatch);
+  FPattern.SetMaterialFill(FPattern.Materials[0], ffHatch);
   AssertTrue(FPattern.SetPieceFill(Piece, '#ABCDEF', pfTint));
   Look := FPattern.PieceLook(Piece);
-  AssertEquals('#ABCDEF', FabricColorText(Look.Color));
+  AssertEquals('#ABCDEF', MaterialColorText(Look.Color));
   AssertTrue(Look.Fill = ffTint);
-  AssertTrue(FPattern.SetPieceFill(Piece, '', pfFabric));
+  AssertTrue(FPattern.SetPieceFill(Piece, '', pfMaterial));
   Look := FPattern.PieceLook(Piece);
-  AssertEquals(FPattern.Fabrics[0].Color, FabricColorText(Look.Color));
+  AssertEquals(FPattern.Materials[0].Color, MaterialColorText(Look.Color));
   AssertTrue(Look.Fill = ffHatch);
 end;
 
-procedure TTestFabrics.TestCaptionNamesExplicitFabricOnly;
+procedure TTestMaterials.TestCaptionNamesExplicitMaterialOnly;
 var
   Piece: TPieceObject;
 begin
   Piece := AddSquare('Front', 0);
   AssertEquals('Front, cut 1', FPattern.PieceCaption(Piece));
-  FPattern.SetPieceFabric(Piece, FPattern.AddFabric('Lining'));
+  FPattern.SetPieceMaterial(Piece, FPattern.AddMaterial('Lining'));
   AssertEquals('Front, cut 1, Lining', FPattern.PieceCaption(Piece));
 end;
 
-procedure TTestFabrics.TestCutList;
+procedure TTestMaterials.TestCutList;
 var
   Front, Back, Yoke: TPieceObject;
 begin
@@ -335,82 +335,82 @@ begin
   Yoke := AddSquare('Yoke', 400);
   AssertTrue(FPattern.SetCut(Back, 2, False));
   AssertEquals('Main: Front ×1, Back ×2, Yoke ×1', FPattern.CutList);
-  FPattern.SetPieceFabric(Yoke, FPattern.AddFabric('Lining'));
+  FPattern.SetPieceMaterial(Yoke, FPattern.AddMaterial('Lining'));
   AssertTrue(FPattern.SetFoldEdge(Front, Front.Path[0].EdgeKey));
   AssertTrue(FPattern.SetCut(Back, 2, True));
   AssertEquals('Main: Front ×1 on fold, Back ×2 mirrored · Lining: Yoke ×1', FPattern.CutList);
-  FPattern.SetPieceFabric(Yoke, nil);
-  AssertEquals('Main: Front ×1 on fold, Back ×2 mirrored · ' + rsPatternNoFabric + ': Yoke ×1', FPattern.CutList);
-  AssertEquals('Main, Lining', FPattern.FabricNames);
+  FPattern.SetPieceMaterial(Yoke, nil);
+  AssertEquals('Main: Front ×1 on fold, Back ×2 mirrored · ' + rsPatternNoMaterial + ': Yoke ×1', FPattern.CutList);
+  AssertEquals('Main, Lining', FPattern.MaterialNames);
 end;
 
 const
   FileStart = '{"format":"pattern","version":1,"variables":[],';
 
-procedure TTestFabrics.TestRefusesUnknownFabric;
+procedure TTestMaterials.TestRefusesUnknownMaterial;
 var
   Reason, Text: string;
 begin
-  FPattern.AddFabric('Lining');
+  FPattern.AddMaterial('Lining');
   AddSquare('Front', 0);
-  Text := StringReplace(SavePatternToText(FPattern), '"fabric": ' + FPattern.Fabrics[0].Key, '"fabric": 999', []);
+  Text := StringReplace(SavePatternToText(FPattern), '"material": ' + FPattern.Materials[0].Key, '"material": 999', []);
   AssertTrue('the test changed the file', Text <> SavePatternToText(FPattern));
   FLoaded := TPattern.Create;
   AssertFalse(LoadPatternFromText(FLoaded, Text, Reason));
-  AssertTrue(Reason, Pos('fabric', Reason) > 0);
+  AssertTrue(Reason, Pos('material', Reason) > 0);
 end;
 
-procedure TTestFabrics.TestRefusesRepeatedFabricId;
+procedure TTestMaterials.TestRefusesRepeatedMaterialId;
 var
   Reason: string;
 begin
   FLoaded := TPattern.Create;
-  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"fabrics":[' +
+  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"materials":[' +
     '{"id":1,"name":"A","color":"#112233"},{"id":1,"name":"B","color":"#112233"}]}', Reason));
-  AssertEquals(Format(rsPatternFileBadId, [2, 'fabrics']), Reason);
+  AssertEquals(Format(rsPatternFileBadId, [2, 'materials']), Reason);
 end;
 
-procedure TTestFabrics.TestRefusesBadFileColour;
+procedure TTestMaterials.TestRefusesBadFileColour;
 var
   Reason: string;
 begin
   FLoaded := TPattern.Create;
-  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"fabrics":[{"id":1,"name":"A","color":"red"}]}', Reason));
+  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"materials":[{"id":1,"name":"A","color":"red"}]}', Reason));
   AssertTrue(Reason, Pos('red', Reason) > 0);
 end;
 
-procedure TTestFabrics.TestRefusesEmptyFabricList;
+procedure TTestMaterials.TestRefusesEmptyMaterialList;
 var
   Reason: string;
 begin
   FLoaded := TPattern.Create;
-  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"fabrics":[]}', Reason));
-  AssertEquals(Format(rsPatternFileList, ['fabrics']), Reason);
+  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"materials":[]}', Reason));
+  AssertEquals(Format(rsPatternFileList, ['materials']), Reason);
 end;
 
-procedure TTestFabrics.TestHatchAnglesDiffer;
+procedure TTestMaterials.TestHatchAnglesDiffer;
 begin
-  AssertTrue(FabricHatchAngle(0) <> FabricHatchAngle(1));
-  AssertTrue(FabricHatchAngle(1) <> FabricHatchAngle(2));
+  AssertTrue(MaterialHatchAngle(0) <> MaterialHatchAngle(1));
+  AssertTrue(MaterialHatchAngle(1) <> MaterialHatchAngle(2));
 end;
 
-procedure TTestFabrics.TestColorTextRoundTrip;
+procedure TTestMaterials.TestColorTextRoundTrip;
 begin
-  AssertEquals('#5B8DB8', FabricColorText(ParseFabricColor('#5b8db8')));
-  AssertEquals('#000000', FabricColorText(ParseFabricColor('nonsense')));
+  AssertEquals('#5B8DB8', MaterialColorText(ParseMaterialColor('#5b8db8')));
+  AssertEquals('#000000', MaterialColorText(ParseMaterialColor('nonsense')));
 end;
 
-procedure TTestFabrics.TestTintIsLighter;
+procedure TTestMaterials.TestTintIsLighter;
 var
-  Tint: TFabricColor;
+  Tint: TMaterialColor;
 begin
-  Tint := FabricTint(ParseFabricColor('#000000'));
+  Tint := MaterialTint(ParseMaterialColor('#000000'));
   AssertEquals(178, Tint.Red);
-  Tint := FabricTint(ParseFabricColor('#FFFFFF'));
+  Tint := MaterialTint(ParseMaterialColor('#FFFFFF'));
   AssertEquals(255, Tint.Blue);
 end;
 
-procedure TTestFabrics.TestHatchLinesStayInsideSquare;
+procedure TTestMaterials.TestHatchLinesStayInsideSquare;
 const
   Tolerance = 1e-6;
 var
@@ -440,7 +440,7 @@ begin
     AssertEquals(100, Abs(Line.P2.X - Line.P1.X), Tolerance);
 end;
 
-procedure TTestFabrics.TestHatchSpansConcaveShape;
+procedure TTestMaterials.TestHatchSpansConcaveShape;
 var
   Notched: TVec2Array;
   Lines: TLine2Array;
@@ -462,12 +462,12 @@ begin
   AssertEquals(10, Abs(Lines[2].P2.X - Lines[2].P1.X), 1e-6);
 end;
 
-procedure TTestFabrics.TestHatchOfNothing;
+procedure TTestMaterials.TestHatchOfNothing;
 begin
   AssertEquals(0, Length(HatchLines(nil, 10, 45)));
 end;
 
-procedure TTestFabrics.TestUndoTakesBackFirstChange;
+procedure TTestMaterials.TestUndoTakesBackFirstChange;
 var
   Document: TPatternDocument;
   Reason: string;
@@ -478,93 +478,93 @@ begin
     AssertTrue(Reason, LoadPatternFromText(Document.Pattern, SavePatternToText(FPattern), Reason));
     Document.Pattern.Evaluate;
     Document.BeginChange('add');
-    AssertTrue(Document.Commit(Assigned(Document.Pattern.AddFabric('Lining'))));
-    AssertEquals(2, Document.Pattern.FabricCount);
+    AssertTrue(Document.Commit(Assigned(Document.Pattern.AddMaterial('Lining'))));
+    AssertEquals(2, Document.Pattern.MaterialCount);
     AssertTrue(Document.Undo);
-    AssertEquals(1, Document.Pattern.FabricCount);
-    AssertEquals('Main is implicit again', '', Document.Pattern.Fabrics[0].Key);
-    AssertEquals('', TPieceObject(Document.Pattern.FindObject('Front')).FabricKey);
+    AssertEquals(1, Document.Pattern.MaterialCount);
+    AssertEquals('Main is implicit again', '', Document.Pattern.Materials[0].Key);
+    AssertEquals('', TPieceObject(Document.Pattern.FindObject('Front')).MaterialKey);
     AssertTrue(Document.Redo);
-    AssertEquals(2, Document.Pattern.FabricCount);
-    AssertEquals('Lining', Document.Pattern.Fabrics[1].Name);
+    AssertEquals(2, Document.Pattern.MaterialCount);
+    AssertEquals('Lining', Document.Pattern.Materials[1].Name);
   finally
     FreeAndNil(Document);
   end;
 end;
 
-procedure TTestFabrics.TestUndoRestoresFabricOfPiece;
+procedure TTestMaterials.TestUndoRestoresMaterialOfPiece;
 var
   Document: TPatternDocument;
   Reason, Key: string;
 begin
   Document := TPatternDocument.Create;
   try
-    FPattern.AddFabric('Lining');
+    FPattern.AddMaterial('Lining');
     AddSquare('Front', 0);
     AssertTrue(Reason, LoadPatternFromText(Document.Pattern, SavePatternToText(FPattern), Reason));
     Document.Pattern.Evaluate;
     Key := Document.Pattern.FindObject('Front').Key;
-    Document.BeginChange('fabric');
-    Document.Pattern.SetPieceFabric(TPieceObject(Document.Pattern.FindNode(Key)), Document.Pattern.Fabrics[1]);
+    Document.BeginChange('material');
+    Document.Pattern.SetPieceMaterial(TPieceObject(Document.Pattern.FindNode(Key)), Document.Pattern.Materials[1]);
     AssertTrue(Document.EndChange);
     AssertTrue(Document.Undo);
-    AssertTrue(Document.Pattern.FabricOf(TPieceObject(Document.Pattern.FindNode(Key))) = Document.Pattern.Fabrics[0]);
+    AssertTrue(Document.Pattern.MaterialOf(TPieceObject(Document.Pattern.FindNode(Key))) = Document.Pattern.Materials[0]);
   finally
     FreeAndNil(Document);
   end;
 end;
 
-procedure TTestFabrics.TestProblemsFilterFindsNoFabric;
+procedure TTestMaterials.TestProblemsFilterFindsNoMaterial;
 var
   Piece: TPieceObject;
 begin
   Piece := AddSquare('Front', 0);
   AssertEquals(0, Length(ObjectRows(FPattern, ofProblems, '')));
-  FPattern.SetPieceFabric(Piece, nil);
+  FPattern.SetPieceMaterial(Piece, nil);
   AssertEquals(1, Length(ObjectRows(FPattern, ofProblems, '')));
 end;
 
-procedure TTestFabrics.TestSVGUsesFabricColour;
+procedure TTestMaterials.TestSVGUsesMaterialColour;
 var
   Tint: string;
 begin
   AddSquare('Front', 0);
-  AssertTrue(FPattern.SetFabricColor(FPattern.Fabrics[0], '#000000'));
-  Tint := LowerCase(FabricColorText(FabricTint(ParseFabricColor('#000000'))));
+  AssertTrue(FPattern.SetMaterialColor(FPattern.Materials[0], '#000000'));
+  Tint := LowerCase(MaterialColorText(MaterialTint(ParseMaterialColor('#000000'))));
   AssertTrue(Pos('fill="' + Tint + '"', DraftToSVG(FPattern, DefaultDraftSVGOptions)) > 0);
 end;
 
-procedure TTestFabrics.TestSVGHatchesAHatchedFabric;
+procedure TTestMaterials.TestSVGHatchesAHatchedMaterial;
 var
   Text: string;
 begin
   AddSquare('Front', 0);
-  FPattern.SetFabricFill(FPattern.Fabrics[0], ffHatch);
+  FPattern.SetMaterialFill(FPattern.Materials[0], ffHatch);
   Text := DraftToSVG(FPattern, DefaultDraftSVGOptions);
   AssertTrue('hatched', Pos('data-hatch="Front"', Text) > 0);
 end;
 
-procedure TTestFabrics.TestSVGLeavesNoFabricUnfilled;
+procedure TTestMaterials.TestSVGLeavesNoMaterialUnfilled;
 var
   Text: string;
 begin
-  FPattern.SetPieceFabric(AddSquare('Front', 0), nil);
+  FPattern.SetPieceMaterial(AddSquare('Front', 0), nil);
   Text := DraftToSVG(FPattern, DefaultDraftSVGOptions);
   AssertEquals('no hatching', 0, Pos('data-hatch', Text));
   AssertEquals('no tint', 0, Pos('fill="#d', Text));
 end;
 
-procedure TTestFabrics.TestSVGLabelNamesFabric;
+procedure TTestMaterials.TestSVGLabelNamesMaterial;
 var
   Options: TDraftSVGOptions;
 begin
   Options := DefaultDraftSVGOptions;
   Options.Labels := True;
-  FPattern.SetPieceFabric(AddSquare('Front', 0), FPattern.AddFabric('Lining'));
+  FPattern.SetPieceMaterial(AddSquare('Front', 0), FPattern.AddMaterial('Lining'));
   AssertTrue(Pos('Front, cut 1, Lining', DraftToSVG(FPattern, Options)) > 0);
 end;
 
-procedure TTestFabrics.TestSettingsKeepFillsToggle;
+procedure TTestMaterials.TestSettingsKeepFillsToggle;
 var
   Settings: TAppSettings;
   Reason: string;
@@ -581,5 +581,5 @@ begin
 end;
 
 initialization
-  RegisterTest(TTestFabrics);
+  RegisterTest(TTestMaterials);
 end.

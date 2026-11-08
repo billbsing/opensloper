@@ -81,7 +81,7 @@ function MarkFor(const Number: TUnitNumber; IsLength: boolean): TUnitMark;
 // to the new unit's drag precision, other powers to six places, and a small
 // non-zero value kept to two significant figures rather than rounded to 0
 function ConvertedNumber(Value, LengthPower: double; FromUnits, ToUnits: TMeasureUnit): double;
-// Rewrites every number whose power is not 0, converts fabric allowances and
+// Rewrites every number whose power is not 0, converts material allowances and
 // sets the pattern's unit. Every number must be decided. Call inside a
 // document change, and evaluate afterwards. On failure the pattern may be
 // partly changed, so the change is to be cancelled.
@@ -95,7 +95,7 @@ implementation
 
 uses
   Math, Sloper.Core.Evaluator, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Draft,
-  Sloper.Core.Fabrics, Sloper.Core.Variables;
+  Sloper.Core.Materials, Sloper.Core.Variables;
 
 const
   Tolerance = 1e-9;
@@ -705,7 +705,7 @@ var
   Node: TEvalNode;
   Formula: TFormula;
   Text: string;
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
   ErrorMessage := '';
   FromUnits := Pattern.Units;
@@ -745,11 +745,11 @@ begin
     end;
     First := Last + 1;
   end;
-  for Index := 0 to Pattern.FabricCount - 1 do
+  for Index := 0 to Pattern.MaterialCount - 1 do
   begin
-    Fabric := Pattern.Fabrics[Index];
-    if Fabric.HasAllowance then
-      Fabric.Allowance := ConvertedNumber(Fabric.Allowance, 1, FromUnits, ToUnits);
+    Material := Pattern.Materials[Index];
+    if Material.HasAllowance then
+      Material.Allowance := ConvertedNumber(Material.Allowance, 1, FromUnits, ToUnits);
   end;
   Pattern.Units := ToUnits;
   Result := True;

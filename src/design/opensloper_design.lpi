@@ -279,14 +279,14 @@
         <UnitName Value="Sloper.UI.MeasurementsPanel"/>
       </Unit>
       <Unit>
-        <Filename Value="../core/sloper.core.fabrics.pas"/>
+        <Filename Value="../core/sloper.core.materials.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Core.Fabrics"/>
+        <UnitName Value="Sloper.Core.Materials"/>
       </Unit>
       <Unit>
-        <Filename Value="../ui/sloper.ui.fabricspanel.pas"/>
+        <Filename Value="../ui/sloper.ui.materialpanel.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.UI.FabricsPanel"/>
+        <UnitName Value="Sloper.UI.MaterialPanel"/>
       </Unit>
       <Unit>
         <Filename Value="../ui/sloper.ui.rolespanel.pas"/>

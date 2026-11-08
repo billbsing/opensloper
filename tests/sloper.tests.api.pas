@@ -55,9 +55,9 @@ type
     procedure TestSetMarker;
     procedure TestOffsetRun;
     procedure TestRenderHidesRoles;
-    procedure TestFabricMethods;
-    procedure TestFabricRefusals;
-    procedure TestPieceFabricAndFill;
+    procedure TestMaterialMethods;
+    procedure TestMaterialRefusals;
+    procedure TestPieceMaterialAndFill;
     procedure TestOpen;
     procedure TestInchPattern;
     procedure TestConvertUnits;
@@ -477,9 +477,9 @@ begin
   AssertEquals('Offset_B_O', Answer.Get('name', ''));
   Call('create_piece', '{"x": 100, "y": 50, "name": "Flap"}');
   AssertEquals('valid', Answer.Get('state', ''));
-  Call('add_fabric', '{"name": "Leather"}');
-  Call('set_fabric', '{"fabric": "Leather", "allowance": 0}');
-  AssertEquals(0, TJSONArray(Answer.Find('fabrics')).Objects[1].Get('allowance', -1.0), 1e-9);
+  Call('add_material', '{"name": "Leather"}');
+  Call('set_material', '{"material": "Leather", "allowance": 0}');
+  AssertEquals(0, TJSONArray(Answer.Find('materials')).Objects[1].Get('allowance', -1.0), 1e-9);
 end;
 
 procedure TTestAPI.TestCircleArcAndCircleCircle;
@@ -498,65 +498,65 @@ begin
   AssertEquals('valid', Answer.Get('state', ''));
 end;
 
-procedure TTestAPI.TestFabricMethods;
+procedure TTestAPI.TestMaterialMethods;
 var
   List: TJSONArray;
 begin
   OpenTestPattern;
-  Call('list_fabrics');
-  List := TJSONArray(Answer.Find('fabrics'));
+  Call('list_materials');
+  List := TJSONArray(Answer.Find('materials'));
   AssertEquals(1, List.Count);
   AssertEquals('Main', List.Objects[0].Get('name', ''));
   AssertEquals('no ID yet', 0, List.Objects[0].Get('id', -1));
-  Call('add_fabric', '{"name": "Lining", "color": "#C9A227", "fill": "hatch"}');
-  List := TJSONArray(Answer.Find('fabrics'));
+  Call('add_material', '{"name": "Lining", "color": "#C9A227", "fill": "hatch"}');
+  List := TJSONArray(Answer.Find('materials'));
   AssertEquals(2, List.Count);
   AssertEquals('hatch', List.Objects[1].Get('fill', ''));
-  Call('rename_fabric', '{"fabric": "Lining", "name": "Silk"}');
-  Call('set_fabric', '{"fabric": "Silk", "color": "#112233", "fill": "tint"}');
-  List := TJSONArray(Answer.Find('fabrics'));
+  Call('rename_material', '{"material": "Lining", "name": "Silk"}');
+  Call('set_material', '{"material": "Silk", "color": "#112233", "fill": "tint"}');
+  List := TJSONArray(Answer.Find('materials'));
   AssertEquals('Silk', List.Objects[1].Get('name', ''));
   AssertEquals('#112233', List.Objects[1].Get('color', ''));
   AssertEquals('tint', List.Objects[1].Get('fill', ''));
-  Call('delete_fabric', '{"fabric": "Silk"}');
-  AssertEquals(1, TJSONArray(Answer.Find('fabrics')).Count);
+  Call('delete_material', '{"material": "Silk"}');
+  AssertEquals(1, TJSONArray(Answer.Find('materials')).Count);
   Call('undo');
-  Call('list_fabrics');
-  AssertEquals('undo brings it back', 2, TJSONArray(Answer.Find('fabrics')).Count);
+  Call('list_materials');
+  AssertEquals('undo brings it back', 2, TJSONArray(Answer.Find('materials')).Count);
 end;
 
-procedure TTestAPI.TestFabricRefusals;
+procedure TTestAPI.TestMaterialRefusals;
 begin
   OpenTestPattern;
-  Call('delete_fabric', '{"fabric": "Main"}');
-  AssertEquals(rsPatternLastFabric, ErrorText);
-  Call('add_fabric', '{"name": "Main"}');
-  AssertEquals(Format(rsPatternFabricTaken, ['Main']), ErrorText);
-  Call('add_fabric', '{"color": "blue"}');
-  AssertEquals(Format(rsPatternFabricBadColor, ['blue']), ErrorText);
-  Call('rename_fabric', '{"fabric": "Nothing", "name": "X"}');
-  AssertEquals(Format(rsApiNoFabric, ['Nothing']), ErrorText);
+  Call('delete_material', '{"material": "Main"}');
+  AssertEquals(rsPatternLastMaterial, ErrorText);
+  Call('add_material', '{"name": "Main"}');
+  AssertEquals(Format(rsPatternMaterialTaken, ['Main']), ErrorText);
+  Call('add_material', '{"color": "blue"}');
+  AssertEquals(Format(rsPatternMaterialBadColor, ['blue']), ErrorText);
+  Call('rename_material', '{"material": "Nothing", "name": "X"}');
+  AssertEquals(Format(rsApiNoMaterial, ['Nothing']), ErrorText);
 end;
 
-procedure TTestAPI.TestPieceFabricAndFill;
+procedure TTestAPI.TestPieceMaterialAndFill;
 begin
   AddSquare;
   Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
-  AssertEquals('Main', Answer.Get('fabric', ''));
-  Call('add_fabric', '{"name": "Lining"}');
-  Call('set_piece_fabric', '{"name": "Front", "fabric": "Lining"}');
-  AssertEquals('Lining', Answer.Get('fabric', ''));
+  AssertEquals('Main', Answer.Get('material', ''));
+  Call('add_material', '{"name": "Lining"}');
+  Call('set_piece_material', '{"name": "Front", "material": "Lining"}');
+  AssertEquals('Lining', Answer.Get('material', ''));
   Call('set_piece_fill', '{"name": "Front", "color": "#123456", "style": "hatch"}');
   AssertEquals('#123456', Answer.Get('fillColor', ''));
   AssertEquals('hatch', Answer.Get('fillStyle', ''));
-  Call('list_fabrics');
+  Call('list_materials');
   AssertTrue(Pos('Lining: Front', Answer.Get('cutList', '')) > 0);
-  Call('delete_fabric', '{"fabric": "Lining"}');
-  AssertEquals(Format(rsPatternFabricInUse, ['Lining', 'Front']), ErrorText);
-  Call('set_piece_fabric', '{"name": "Front", "none": true}');
-  AssertEquals('none', '', Answer.Get('fabric', ''));
-  Call('set_piece_fabric', '{"name": "Front"}');
-  AssertEquals(rsApiFabricOrNone, ErrorText);
+  Call('delete_material', '{"material": "Lining"}');
+  AssertEquals(Format(rsPatternMaterialInUse, ['Lining', 'Front']), ErrorText);
+  Call('set_piece_material', '{"name": "Front", "none": true}');
+  AssertEquals('none', '', Answer.Get('material', ''));
+  Call('set_piece_material', '{"name": "Front"}');
+  AssertEquals(rsApiMaterialOrNone, ErrorText);
 end;
 
 procedure TTestAPI.TestOpenMissingFile;

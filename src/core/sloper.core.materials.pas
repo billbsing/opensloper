@@ -16,11 +16,11 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// The fabrics of a pattern, how a piece's fabric looks, and hatching. Colours
-// are "#RRGGBB" text, as in pattern files. A pattern starts with one fabric,
+// The materials of a pattern, how a piece's material looks, and hatching. Colours
+// are "#RRGGBB" text, as in pattern files. A pattern starts with one material,
 // Main, that has no ID and is not written to the file, until the user changes
 // the list. No LCL dependency.
-unit Sloper.Core.Fabrics;
+unit Sloper.Core.Materials;
 
 {$mode ObjFPC}{$H+}
 
@@ -30,55 +30,55 @@ uses
   SysUtils, Generics.Collections, Sloper.Core.Geometry;
 
 const
-  DefaultFabricName = 'Main';
+  DefaultMaterialName = 'Main';
   // Not translated: a name has to keep to the name rules
-  NewFabricBaseName = 'Fabric';
+  NewMaterialBaseName = 'Material';
   // As written in pattern files and the Automation API
-  FabricFillNames: array[0..1] of string = ('tint', 'hatch');
-  PieceFillNames: array[0..2] of string = ('fabric', 'tint', 'hatch');
+  MaterialFillNames: array[0..1] of string = ('tint', 'hatch');
+  PieceFillNames: array[0..2] of string = ('material', 'tint', 'hatch');
   // Told apart by hue and by lightness, so also with colour-blindness
-  FabricPalette: array[0..5] of string = ('#5B8DB8', '#C9A227', '#2E9E7B', '#CC79A7', '#D55E00', '#7A5AA6');
-  // The share of the fabric's colour in a printed or opaque tint; the rest is white
-  FabricTintShare = 0.3;
+  MaterialPalette: array[0..5] of string = ('#5B8DB8', '#C9A227', '#2E9E7B', '#CC79A7', '#D55E00', '#7A5AA6');
+  // The share of the material's colour in a printed or opaque tint; the rest is white
+  MaterialTintShare = 0.3;
 
 type
-  TFabricFill = (ffTint, ffHatch);
-  // A piece's own fill style: pfFabric takes the fabric's
-  TPieceFillStyle = (pfFabric, pfTint, pfHatch);
+  TMaterialFill = (ffTint, ffHatch);
+  // A piece's own fill style: pfMaterial takes the material's
+  TPieceFillStyle = (pfMaterial, pfTint, pfHatch);
 
-  TFabricColor = record
+  TMaterialColor = record
     Red, Green, Blue: byte;
   end;
 
-  TPatternFabric = class
+  TPatternMaterial = class
   public
     Key, Name, Color: string;
-    Fill: TFabricFill;
-    // The seam allowance a piece takes when it goes on this fabric
+    Fill: TMaterialFill;
+    // The seam allowance a piece takes when it goes on this material
     HasAllowance: boolean;
     Allowance: double;
   end;
 
-  TPatternFabricList = specialize TObjectList<TPatternFabric>;
+  TPatternMaterialList = specialize TObjectList<TPatternMaterial>;
 
-  // How a piece is filled, with its fabric and any override worked out.
-  // Not Filled for a piece with no fabric.
+  // How a piece is filled, with its material and any override worked out.
+  // Not Filled for a piece with no material.
   TPieceLook = record
     Filled: boolean;
-    Color: TFabricColor;
-    Fill: TFabricFill;
+    Color: TMaterialColor;
+    Fill: TMaterialFill;
     HatchAngle: double;
   end;
 
-function IsFabricColor(const Text: string): boolean;
+function IsMaterialColor(const Text: string): boolean;
 // Black for text that is not a colour
-function ParseFabricColor(const Text: string): TFabricColor;
-function FabricColorText(const Color: TFabricColor): string;
+function ParseMaterialColor(const Text: string): TMaterialColor;
+function MaterialColorText(const Color: TMaterialColor): string;
 // The colour mixed with white, for a fill that has to be opaque
-function FabricTint(const Color: TFabricColor): TFabricColor;
-// A fabric's place in the list decides its hatching, so hatched fabrics can
+function MaterialTint(const Color: TMaterialColor): TMaterialColor;
+// A material's place in the list decides its hatching, so hatched materials can
 // be told apart on a black-and-white print
-function FabricHatchAngle(Index: integer): double;
+function MaterialHatchAngle(Index: integer): double;
 // Parallel lines across a closed polygon, Spacing apart at Angle degrees, on
 // fixed rows so they stay put as the polygon changes
 function HatchLines(const Polygon: TVec2Array; Spacing, Angle: double): TLine2Array;
@@ -91,7 +91,7 @@ uses
 const
   HatchAngles: array[0..3] of double = (45, 135, 0, 90);
 
-function IsFabricColor(const Text: string): boolean;
+function IsMaterialColor(const Text: string): boolean;
 var
   Index: integer;
 begin
@@ -102,26 +102,26 @@ begin
         Exit(False);
 end;
 
-function ParseFabricColor(const Text: string): TFabricColor;
+function ParseMaterialColor(const Text: string): TMaterialColor;
 begin
-  Result := Default(TFabricColor);
-  if not IsFabricColor(Text) then
+  Result := Default(TMaterialColor);
+  if not IsMaterialColor(Text) then
     Exit;
   Result.Red := StrToInt('$' + Copy(Text, 2, 2));
   Result.Green := StrToInt('$' + Copy(Text, 4, 2));
   Result.Blue := StrToInt('$' + Copy(Text, 6, 2));
 end;
 
-function FabricColorText(const Color: TFabricColor): string;
+function MaterialColorText(const Color: TMaterialColor): string;
 begin
   Result := '#' + IntToHex(Color.Red, 2) + IntToHex(Color.Green, 2) + IntToHex(Color.Blue, 2);
 end;
 
-function FabricTint(const Color: TFabricColor): TFabricColor;
+function MaterialTint(const Color: TMaterialColor): TMaterialColor;
 
   function Mixed(Channel: byte): byte;
   begin
-    Result := Round(Channel * FabricTintShare + 255 * (1 - FabricTintShare));
+    Result := Round(Channel * MaterialTintShare + 255 * (1 - MaterialTintShare));
   end;
 
 begin
@@ -130,7 +130,7 @@ begin
   Result.Blue := Mixed(Color.Blue);
 end;
 
-function FabricHatchAngle(Index: integer): double;
+function MaterialHatchAngle(Index: integer): double;
 begin
   Result := HatchAngles[Abs(Index) mod Length(HatchAngles)];
 end;

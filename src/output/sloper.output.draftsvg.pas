@@ -58,7 +58,7 @@ function EscapeXML(const Text: string): string;
 implementation
 
 uses
-  Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Fabrics, Sloper.Core.Piece,
+  Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Materials, Sloper.Core.Piece,
   Sloper.Core.Note, Sloper.Core.TextFields;
 
 const
@@ -232,7 +232,7 @@ begin
     Look.Filled := False;
   FillText := 'none';
   if Look.Filled and (Look.Fill = ffTint) then
-    FillText := LowerCase(FabricColorText(FabricTint(Look.Color)));
+    FillText := LowerCase(MaterialColorText(MaterialTint(Look.Color)));
   PathText := '';
   for Index := 0 to High(Piece.CutLine) do
     if Index = 0 then
@@ -248,7 +248,7 @@ begin
     HatchText := HatchText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
   if HatchText <> '' then
     Result := Result + Format('<path data-id="%s" data-hatch="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
-      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(HatchText), LowerCase(FabricColorText(Look.Color)), Num(Extent * LineShare)]) + #10;
+      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(HatchText), LowerCase(MaterialColorText(Look.Color)), Num(Extent * LineShare)]) + #10;
 end;
 
 // The grainline and notches, over the edges

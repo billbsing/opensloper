@@ -27,7 +27,7 @@ unit Sloper.Core.PatternFile;
 interface
 
 uses
-  SysUtils, Generics.Collections, fpjson, Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Pattern, Sloper.Core.Variables;
+  SysUtils, Generics.Collections, fpjson, Sloper.Core.Draft, Sloper.Core.Materials, Sloper.Core.Pattern, Sloper.Core.Variables;
 
 const
   PatternFormat = 'pattern';
@@ -82,7 +82,7 @@ resourcestring
   rsPatternObjectUnknownType = 'Object %s has an unknown type "%s"';
   rsPatternObjectNotBefore = 'Object %s uses object %s, which is not defined before it';
   rsPatternObjectProblem = 'Object %s: %s';
-  rsPatternFabricProblem = 'Fabric %s: %s';
+  rsPatternMaterialProblem = 'Material %s: %s';
 
 implementation
 
@@ -173,9 +173,9 @@ type
     function ReadMarkings(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadCut(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadFold(Item: TJSONObject; Piece: TPieceObject): boolean;
-    function ReadFabric(Item: TJSONObject; Piece: TPieceObject): boolean;
+    function ReadMaterial(Item: TJSONObject; Piece: TPieceObject): boolean;
     function ReadFill(Item: TJSONObject; Piece: TPieceObject): boolean;
-    function LoadFabrics(Data: TJSONData): boolean;
+    function LoadMaterials(Data: TJSONData): boolean;
     procedure RetireDraftIds(Data: TJSONData);
     function LoadObject(Item: TJSONObject): boolean;
   public
@@ -401,7 +401,7 @@ begin
   try
     if Piece.FillColor <> '' then
       Result.Add('color', Piece.FillColor);
-    if Piece.FillStyle <> pfFabric then
+    if Piece.FillStyle <> pfMaterial then
       Result.Add('style', PieceFillNames[Ord(Piece.FillStyle)]);
   except
     FreeAndNil(Result);
@@ -685,9 +685,9 @@ begin
       Result.Add('cut', SaveCut(TPieceObject(DraftObject)));
       if TPieceObject(DraftObject).OnFold then
         Result.Add('foldEdge', JSONId(TPieceObject(DraftObject).FoldEdgeKey));
-      if TPieceObject(DraftObject).FabricKey <> '' then
-        Result.Add('fabric', JSONId(TPieceObject(DraftObject).FabricKey));
-      if (TPieceObject(DraftObject).FillColor <> '') or (TPieceObject(DraftObject).FillStyle <> pfFabric) then
+      if TPieceObject(DraftObject).MaterialKey <> '' then
+        Result.Add('material', JSONId(TPieceObject(DraftObject).MaterialKey));
+      if (TPieceObject(DraftObject).FillColor <> '') or (TPieceObject(DraftObject).FillStyle <> pfMaterial) then
         Result.Add('fill', SavePieceFill(TPieceObject(DraftObject)));
     end
     else if DraftObject is TNoteObject then
@@ -706,23 +706,23 @@ begin
   end;
 end;
 
-function SaveFabrics(Pattern: TPattern): TJSONArray;
+function SaveMaterials(Pattern: TPattern): TJSONArray;
 var
   Index: integer;
   Item: TJSONObject;
 begin
   Result := TJSONArray.Create;
   try
-    for Index := 0 to Pattern.FabricCount - 1 do
+    for Index := 0 to Pattern.MaterialCount - 1 do
     begin
       Item := TJSONObject.Create;
       Result.Add(Item);
-      Item.Add('id', JSONId(Pattern.Fabrics[Index].Key));
-      Item.Add('name', Pattern.Fabrics[Index].Name);
-      Item.Add('color', Pattern.Fabrics[Index].Color);
-      Item.Add('fill', FabricFillNames[Ord(Pattern.Fabrics[Index].Fill)]);
-      if Pattern.Fabrics[Index].HasAllowance then
-        Item.Add('allowance', JSONFloat(Pattern.Fabrics[Index].Allowance));
+      Item.Add('id', JSONId(Pattern.Materials[Index].Key));
+      Item.Add('name', Pattern.Materials[Index].Name);
+      Item.Add('color', Pattern.Materials[Index].Color);
+      Item.Add('fill', MaterialFillNames[Ord(Pattern.Materials[Index].Fill)]);
+      if Pattern.Materials[Index].HasAllowance then
+        Item.Add('allowance', JSONFloat(Pattern.Materials[Index].Allowance));
     end;
   except
     FreeAndNil(Result);
@@ -847,8 +847,8 @@ begin
     for Index := 0 to Pattern.ObjectCount - 1 do
       List.Add(SaveObject(Pattern.Objects[Index]));
     // The untouched Main writes nothing, so simple files stay simple
-    if Pattern.Fabrics[0].Key <> '' then
-      Root.Add('fabrics', SaveFabrics(Pattern));
+    if Pattern.Materials[0].Key <> '' then
+      Root.Add('materials', SaveMaterials(Pattern));
     if WithNextId and (Pattern.View.HasView or (Pattern.View.HiddenRoles <> []) or Pattern.View.HideAnnotations) then
       Root.Add('view', SaveView(Pattern));
     Result := JSONToText(Root);
@@ -1095,7 +1095,7 @@ begin
   if not GetJSONInteger(Item, 'id', Value) or (Value < 1) then
     Exit(False);
   Id := MapKey(Value);
-  Result := not Assigned(FPattern.FindNode(Id)) and not Assigned(FPattern.FindFabric(Id));
+  Result := not Assigned(FPattern.FindNode(Id)) and not Assigned(FPattern.FindMaterial(Id));
 end;
 
 function TPatternLoader.LoadVariables(Data: TJSONData): boolean;
@@ -1335,15 +1335,15 @@ begin
 end;
 
 // Optional
-function TPatternLoader.ReadFabric(Item: TJSONObject; Piece: TPieceObject): boolean;
+function TPatternLoader.ReadMaterial(Item: TJSONObject; Piece: TPieceObject): boolean;
 var
   Id: integer;
 begin
-  if not Assigned(Item.Find('fabric')) then
+  if not Assigned(Item.Find('material')) then
     Exit(True);
-  if not GetJSONInteger(Item, 'fabric', Id) or not Assigned(FPattern.FindFabric(IntToStr(Id))) then
-    Exit(Missing('fabric'));
-  Piece.FabricKey := IntToStr(Id);
+  if not GetJSONInteger(Item, 'material', Id) or not Assigned(FPattern.FindMaterial(IntToStr(Id))) then
+    Exit(Missing('material'));
+  Piece.MaterialKey := IntToStr(Id);
   Result := True;
 end;
 
@@ -1362,7 +1362,7 @@ begin
   Fill := TJSONObject(Data);
   if Assigned(Fill.Find('color')) then
   begin
-    if not GetJSONString(Fill, 'color', Text) or not IsFabricColor(Text) then
+    if not GetJSONString(Fill, 'color', Text) or not IsMaterialColor(Text) then
       Exit(Missing('color'));
     Piece.FillColor := UpperCase(Text);
   end;
@@ -1450,7 +1450,7 @@ begin
     end;
   end;
   if not ReadGrainline(Item, Piece) or not ReadNotches(Item, Piece) or not ReadMarkings(Item, Piece) or not ReadCut(Item, Piece) or
-    not ReadFold(Item, Piece) or not ReadFabric(Item, Piece) or not ReadFill(Item, Piece) then
+    not ReadFold(Item, Piece) or not ReadMaterial(Item, Piece) or not ReadFill(Item, Piece) then
     FreeAndNil(Result);
 end;
 
@@ -1883,45 +1883,45 @@ begin
 end;
 
 // Read before the objects wherever they are in the file, as pieces refer to them
-function TPatternLoader.LoadFabrics(Data: TJSONData): boolean;
+function TPatternLoader.LoadMaterials(Data: TJSONData): boolean;
 var
   Index, Choice: integer;
   Item: TJSONObject;
   Id, AName, Color, Reason: string;
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
   if not Assigned(Data) then
     Exit(True);
   if (Data.JSONType <> jtArray) or (Data.Count = 0) then
-    Exit(Fail(Format(rsPatternFileList, ['fabrics'])));
+    Exit(Fail(Format(rsPatternFileList, ['materials'])));
   for Index := 0 to Data.Count - 1 do
   begin
     if Data.Items[Index].JSONType <> jtObject then
-      Exit(Fail(Format(rsPatternFileList, ['fabrics'])));
+      Exit(Fail(Format(rsPatternFileList, ['materials'])));
     Item := TJSONObject(Data.Items[Index]);
     if not ReadFreeId(Item, Id) or not GetJSONString(Item, 'name', AName) then
-      Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'fabrics'])));
+      Exit(Fail(Format(rsPatternFileBadId, [Index + 1, 'materials'])));
     if not CheckName(AName, Reason) then
-      Exit(Fail(Format(rsPatternFabricProblem, [Id, Reason])));
-    if (FPattern.FabricCount > 0) and (FPattern.Fabrics[0].Key <> '') and Assigned(FPattern.FindFabricNamed(AName)) then
-      Exit(Fail(Format(rsPatternFabricProblem, [Id, Format(rsPatternFabricTaken, [AName])])));
-    if not GetJSONString(Item, 'color', Color) or not IsFabricColor(Color) then
-      Exit(Fail(Format(rsPatternFabricProblem, [Id, Format(rsPatternFabricBadColor, [Color])])));
+      Exit(Fail(Format(rsPatternMaterialProblem, [Id, Reason])));
+    if (FPattern.MaterialCount > 0) and (FPattern.Materials[0].Key <> '') and Assigned(FPattern.FindMaterialNamed(AName)) then
+      Exit(Fail(Format(rsPatternMaterialProblem, [Id, Format(rsPatternMaterialTaken, [AName])])));
+    if not GetJSONString(Item, 'color', Color) or not IsMaterialColor(Color) then
+      Exit(Fail(Format(rsPatternMaterialProblem, [Id, Format(rsPatternMaterialBadColor, [Color])])));
     FId := Id;
     Choice := 0;
-    if Assigned(Item.Find('fill')) and not ReadChoice(Item, 'fill', FabricFillNames, Choice) then
+    if Assigned(Item.Find('fill')) and not ReadChoice(Item, 'fill', MaterialFillNames, Choice) then
       Exit(False);
-    Fabric := TPatternFabric.Create;
-    Fabric.Key := Id;
-    Fabric.Name := AName;
-    Fabric.Color := UpperCase(Color);
-    Fabric.Fill := TFabricFill(Choice);
-    FPattern.InsertFabric(Fabric);
+    Material := TPatternMaterial.Create;
+    Material.Key := Id;
+    Material.Name := AName;
+    Material.Color := UpperCase(Color);
+    Material.Fill := TMaterialFill(Choice);
+    FPattern.InsertMaterial(Material);
     if Assigned(Item.Find('allowance')) then
     begin
-      if not GetJSONNumber(Item, 'allowance', Fabric.Allowance) or (Fabric.Allowance < 0) then
+      if not GetJSONNumber(Item, 'allowance', Material.Allowance) or (Material.Allowance < 0) then
         Exit(Missing('allowance'));
-      Fabric.HasAllowance := True;
+      Material.HasAllowance := True;
     end;
   end;
   Result := True;
@@ -2059,7 +2059,7 @@ begin
       FPattern.Units := Units;
     end;
     RetireDraftIds(Root.Find('drafts'));
-    if not LoadFabrics(Root.Find('fabrics')) or not LoadVariables(Root.Find('variables')) or not LoadObjects(Root.Find('objects')) then
+    if not LoadMaterials(Root.Find('materials')) or not LoadVariables(Root.Find('variables')) or not LoadObjects(Root.Find('objects')) then
       Exit(False);
     // Loading has put NextId above every ID; a saved counter may be higher,
     // because deleted IDs stay retired. Hand-written files may leave it out.

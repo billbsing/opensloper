@@ -60,7 +60,7 @@ type
     procedure TestConvertRewritesLengthsOnly;
     procedure TestConvertRefusesUndecided;
     procedure TestConvertRefusesSameUnit;
-    procedure TestFabricAllowanceConverted;
+    procedure TestMaterialAllowanceConverted;
     procedure TestGeometryDoesNotMove;
     procedure TestRoundTrip;
     procedure TestRegressionPatterns;
@@ -282,12 +282,12 @@ begin
   AssertEquals(Format(rsConvertSameUnit, ['mm']), Err);
 end;
 
-procedure TTestUnitConvert.TestFabricAllowanceConverted;
+procedure TTestUnitConvert.TestMaterialAllowanceConverted;
 begin
-  FPattern.Fabrics[0].HasAllowance := True;
-  FPattern.Fabrics[0].Allowance := 15;
+  FPattern.Materials[0].HasAllowance := True;
+  FPattern.Materials[0].Allowance := 15;
   Convert(Ord(muCentimetre));
-  AssertNear('1.5 cm', 1.5, FPattern.Fabrics[0].Allowance);
+  AssertNear('1.5 cm', 1.5, FPattern.Materials[0].Allowance);
 end;
 
 // Something of every kind, in whole millimetres, so a conversion to cm

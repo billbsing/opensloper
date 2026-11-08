@@ -28,7 +28,7 @@ unit Sloper.API.Methods;
 interface
 
 type
-  TApiMethodGroup = (agFiles, agMeasurements, agObjects, agDrafting, agPieces, agFabrics, agSeams, agNotes, agChecking);
+  TApiMethodGroup = (agFiles, agMeasurements, agObjects, agDrafting, agPieces, agMaterials, agSeams, agNotes, agChecking);
 
   TApiParamKind = (
     apTarget,     // the object it acts on: "id" (a number) or "name"
@@ -39,7 +39,7 @@ type
     apFormula,    // formula text, or a plain number
     apReference,  // an object's ID, or its name
     apReferences, // a list of IDs or names
-    apFabric,     // a fabric's ID or name
+    apMaterial,     // a material's ID or name
     apChoice,     // one of the words in Choices
     apNames,      // a list of words from Choices
     apList,       // a list of objects, whose members follow as list[].member
@@ -74,7 +74,7 @@ resourcestring
   rsApiReturnsObject = 'The object, as `get_object` gives it';
   rsApiReturnsPiece = 'The piece, as `get_object` gives it';
   rsApiReturnsDocument = 'The pattern''s file, measurement file, unit, object and variable counts, and whether it is modified';
-  rsApiReturnsFabrics = 'The fabrics and the cut list, as `list_fabrics` gives them';
+  rsApiReturnsMaterials = 'The materials and the cut list, as `list_materials` gives them';
 
   rsApiOpen = 'Opens a pattern, optionally with another measurement file and a size.';
   rsApiOpenPath = 'The pattern file (.sloper)';
@@ -197,7 +197,7 @@ resourcestring
   rsApiPieceX = 'Across, in mm, inside the outline';
   rsApiPieceY = 'Down, in mm';
   rsApiPieceName = 'Its name';
-  rsApiPieceAllowance = 'Its seam allowance; by default the first fabric''s, or a round value for the pattern''s unit';
+  rsApiPieceAllowance = 'Its seam allowance; by default the first material''s, or a round value for the pattern''s unit';
   rsApiSetEdgeAllowance = 'Gives one edge of a piece its own seam allowance, or clears it.';
   rsApiEdgeAllowanceEdge = 'The edge';
   rsApiEdgeAllowance = 'The allowance; left out, the edge goes back to the piece''s';
@@ -226,26 +226,26 @@ resourcestring
   rsApiSetFold = 'Puts a piece on the fold of one of its straight edges, or takes it off.';
   rsApiFoldEdge = 'The edge';
   rsApiFoldNone = 'Off the fold';
-  rsApiSetPieceFabric = 'Sets the fabric a piece is cut from.';
-  rsApiPieceFabric = 'The fabric';
-  rsApiPieceFabricNone = 'No fabric';
+  rsApiSetPieceMaterial = 'Sets the material a piece is cut from.';
+  rsApiPieceMaterial = 'The material';
+  rsApiPieceMaterialNone = 'No material';
   rsApiSetPieceFill = 'Sets how a piece is filled on screen.';
-  rsApiFillColor = 'Its own colour, as #rrggbb, or empty for its fabric''s';
+  rsApiFillColor = 'Its own colour, as #rrggbb, or empty for its material''s';
   rsApiFillStyle = 'How it is filled';
 
-  rsApiListFabrics = 'Lists the fabrics and the cut list.';
-  rsApiListFabricsReturns = '`fabrics`, each with `id`, `name`, `color`, `fill` and `allowance`, and the `cutList`';
-  rsApiAddFabric = 'Adds a fabric.';
-  rsApiFabricName = 'Its name; by default the next free one';
-  rsApiFabricColor = 'Its colour, as #rrggbb';
-  rsApiFabricFill = 'How pieces of it are filled';
-  rsApiRenameFabric = 'Renames a fabric.';
-  rsApiFabric = 'The fabric, by ID or name';
-  rsApiFabricNewName = 'The new name';
-  rsApiSetFabric = 'Changes a fabric''s colour, fill or seam allowance.';
-  rsApiFabricAllowance = 'A seam allowance for pieces of it, in the pattern''s unit';
-  rsApiFabricNoAllowance = 'Takes its seam allowance away';
-  rsApiDeleteFabric = 'Deletes a fabric; its pieces are left with none.';
+  rsApiListMaterials = 'Lists the materials and the cut list.';
+  rsApiListMaterialsReturns = '`materials`, each with `id`, `name`, `color`, `fill` and `allowance`, and the `cutList`';
+  rsApiAddMaterial = 'Adds a material.';
+  rsApiMaterialName = 'Its name; by default the next free one';
+  rsApiMaterialColor = 'Its colour, as #rrggbb';
+  rsApiMaterialFill = 'How pieces of it are filled';
+  rsApiRenameMaterial = 'Renames a material.';
+  rsApiMaterial = 'The material, by ID or name';
+  rsApiMaterialNewName = 'The new name';
+  rsApiSetMaterial = 'Changes a material''s colour, fill or seam allowance.';
+  rsApiMaterialAllowance = 'A seam allowance for pieces of it, in the pattern''s unit';
+  rsApiMaterialNoAllowance = 'Takes its seam allowance away';
+  rsApiDeleteMaterial = 'Deletes a material; its pieces are left with none.';
 
   rsApiAddSeam = 'Adds a seam: two runs of piece edges sewn together, whose lengths are checked.';
   rsApiSideA = 'Side A, in order along the seam';
@@ -302,7 +302,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.Fabrics, Sloper.Core.Units;
+  SysUtils, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.Materials, Sloper.Core.Units;
 
 var
   Table: TApiMethodArray;
@@ -515,31 +515,31 @@ begin
   PieceTarget;
   P('edge', apReference, False, rsApiFoldEdge);
   P('none', apFlag, False, rsApiFoldNone);
-  Method('set_piece_fabric', agPieces, rsApiSetPieceFabric, rsApiReturnsPiece);
+  Method('set_piece_material', agPieces, rsApiSetPieceMaterial, rsApiReturnsPiece);
   PieceTarget;
-  P('fabric', apFabric, False, rsApiPieceFabric);
-  P('none', apFlag, False, rsApiPieceFabricNone);
+  P('material', apMaterial, False, rsApiPieceMaterial);
+  P('none', apFlag, False, rsApiPieceMaterialNone);
   Method('set_piece_fill', agPieces, rsApiSetPieceFill, rsApiReturnsPiece);
   PieceTarget;
   P('color', apText, False, rsApiFillColor);
   P('style', apChoice, False, rsApiFillStyle, Joined(PieceFillNames));
-  // Fabrics
-  Method('list_fabrics', agFabrics, rsApiListFabrics, rsApiListFabricsReturns);
-  Method('add_fabric', agFabrics, rsApiAddFabric, rsApiReturnsFabrics);
-  P('name', apText, False, rsApiFabricName);
-  P('color', apText, False, rsApiFabricColor);
-  P('fill', apChoice, False, rsApiFabricFill, Joined(FabricFillNames));
-  Method('rename_fabric', agFabrics, rsApiRenameFabric, rsApiReturnsFabrics);
-  P('fabric', apFabric, True, rsApiFabric);
-  P('name', apText, True, rsApiFabricNewName);
-  Method('set_fabric', agFabrics, rsApiSetFabric, rsApiReturnsFabrics);
-  P('fabric', apFabric, True, rsApiFabric);
-  P('color', apText, False, rsApiFabricColor);
-  P('fill', apChoice, False, rsApiFabricFill, Joined(FabricFillNames));
-  P('allowance', apNumber, False, rsApiFabricAllowance);
-  P('noAllowance', apFlag, False, rsApiFabricNoAllowance);
-  Method('delete_fabric', agFabrics, rsApiDeleteFabric, rsApiReturnsFabrics);
-  P('fabric', apFabric, True, rsApiFabric);
+  // Materials
+  Method('list_materials', agMaterials, rsApiListMaterials, rsApiListMaterialsReturns);
+  Method('add_material', agMaterials, rsApiAddMaterial, rsApiReturnsMaterials);
+  P('name', apText, False, rsApiMaterialName);
+  P('color', apText, False, rsApiMaterialColor);
+  P('fill', apChoice, False, rsApiMaterialFill, Joined(MaterialFillNames));
+  Method('rename_material', agMaterials, rsApiRenameMaterial, rsApiReturnsMaterials);
+  P('material', apMaterial, True, rsApiMaterial);
+  P('name', apText, True, rsApiMaterialNewName);
+  Method('set_material', agMaterials, rsApiSetMaterial, rsApiReturnsMaterials);
+  P('material', apMaterial, True, rsApiMaterial);
+  P('color', apText, False, rsApiMaterialColor);
+  P('fill', apChoice, False, rsApiMaterialFill, Joined(MaterialFillNames));
+  P('allowance', apNumber, False, rsApiMaterialAllowance);
+  P('noAllowance', apFlag, False, rsApiMaterialNoAllowance);
+  Method('delete_material', agMaterials, rsApiDeleteMaterial, rsApiReturnsMaterials);
+  P('material', apMaterial, True, rsApiMaterial);
   // Seams
   Method('add_seam', agSeams, rsApiAddSeam, rsApiReturnsObject);
   P('sideA', apList, True, rsApiSideA);

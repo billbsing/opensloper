@@ -29,7 +29,7 @@ unit Sloper.Output.Layout;
 interface
 
 uses
-  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Fabrics, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles,
+  SysUtils, Generics.Collections, Sloper.Core.Geometry, Sloper.Core.Materials, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles,
   Sloper.Core.Measurements,
   Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.TextFields, Sloper.Core.Note,
   Sloper.Output.Tiling;
@@ -48,8 +48,8 @@ type
   // is dark, it does nothing
   TLayoutFill = (lfNone, lfTint, lfHatch);
   // okTiled prints on pages of paper; okLarge on one sheet off a roll;
-  // okProjector is one dark sheet with thick light lines, shown on the fabric;
-  // okMaterial is the fabric or board itself, cut as the pieces lie
+  // okProjector is one dark sheet with thick light lines, shown on the material;
+  // okMaterial is the material or board itself, cut as the pieces lie
   TOutputKind = (okTiled, okLarge, okProjector, okMaterial);
 
   TLayoutOutput = record
@@ -70,8 +70,8 @@ type
     MaterialWidth, MaterialLength: double;
     // Whether packing may turn pieces across a material with no grain
     AllowTurns: boolean;
-    // Limits the layout to this fabric, by name; empty for all
-    Fabric: string;
+    // Limits the layout to this material, by name; empty for all
+    Material: string;
   end;
 
   // A pattern file with its measurement set. The stored paths are as written
@@ -274,8 +274,8 @@ type
     function OpensFolds: boolean;
     // The chosen output profile, or everything when it has none or is unknown
     function ActiveOutputProfile: TOutputProfile;
-    // Whether the piece is on the fabric the layout is limited to, if any
-    function InFabric(Source: TLayoutSource; Piece: TPieceObject): boolean;
+    // Whether the piece is on the material the layout is limited to, if any
+    function InMaterial(Source: TLayoutSource; Piece: TPieceObject): boolean;
     // How wide a sheet pieces can be laid across; large format and material only
     function UsableWidth: double;
     // For a material sheet, how much of it the pieces take; '' for other kinds
@@ -332,18 +332,18 @@ resourcestring
   rsTitleLayout = 'Layout: %s';
   rsTitleDate = 'Date: %s';
   rsTitleCutList = 'Cut list: %s';
-  rsTitleFabrics = 'Fabrics: %s';
+  rsTitleMaterials = 'Materials: %s';
   rsLayoutOffSheet = '%s runs off the sheet';
   rsLayoutPastSheet = '%s runs past the %s by %s mm sheet';
   rsLayoutPastWidth = '%s is wider than the %s mm material';
-  rsLayoutNoFabric = 'No pattern here has a fabric named %s';
+  rsLayoutNoMaterial = 'No pattern here has a material named %s';
   rsLayoutBadMaterial = 'A material sheet needs a width above 0 and a length of 0 or more';
   rsLayoutRollUsed = 'Uses %s mm of the %s mm wide material';
   rsLayoutSheetUsed = 'Pieces take %s%% of the %s by %s mm sheet';
   rsLayoutUnknownProfile = 'The machine profile %s is not in the settings';
   rsLayoutUnknownOutputProfile = 'The output profile %s is not in the settings, so nothing can be exported';
-  rsLayoutCutAcross = '%s: %s lies across the fabric''s grain here, and a machine would cut it that way';
-  rsLayoutProjectedAcross = '%s: %s lies across the fabric''s grain here. Projected as it is, it would be cut that way';
+  rsLayoutCutAcross = '%s: %s lies across the material''s grain here, and a machine would cut it that way';
+  rsLayoutProjectedAcross = '%s: %s lies across the material''s grain here. Projected as it is, it would be cut that way';
   rsLayoutWiderThanRoll = '%s runs past the %s mm roll';
   rsLayoutBadRoll = 'The roll is too narrow for its margins';
 
@@ -559,11 +559,11 @@ begin
     if (Result.CutList <> '') and (Source.Pattern.CutList <> '') then
       Result.CutList := Result.CutList + ' · ';
     Result.CutList := Result.CutList + Source.Pattern.CutList;
-    if Pos(Source.Pattern.FabricNames, Result.Fabrics) = 0 then
+    if Pos(Source.Pattern.MaterialNames, Result.Materials) = 0 then
     begin
-      if Result.Fabrics <> '' then
-        Result.Fabrics := Result.Fabrics + ', ';
-      Result.Fabrics := Result.Fabrics + Source.Pattern.FabricNames;
+      if Result.Materials <> '' then
+        Result.Materials := Result.Materials + ', ';
+      Result.Materials := Result.Materials + Source.Pattern.MaterialNames;
     end;
   end;
 end;
@@ -581,7 +581,7 @@ begin
       FieldLayoutName: Line := Format(rsTitleLayout, [Values.LayoutName]);
       FieldDate: Line := Format(rsTitleDate, [Values.Date]);
       FieldCutList: Line := Format(rsTitleCutList, [Values.CutList]);
-      FieldFabrics: Line := Format(rsTitleFabrics, [Values.Fabrics]);
+      FieldMaterials: Line := Format(rsTitleMaterials, [Values.Materials]);
       else
         Continue;
     end;
@@ -733,8 +733,8 @@ begin
       Result.Add('materialLength', JSONFloat(Output.MaterialLength));
     if Output.AllowTurns then
       Result.Add('allowTurns', True);
-    if Output.Fabric <> '' then
-      Result.Add('fabric', Output.Fabric);
+    if Output.Material <> '' then
+      Result.Add('material', Output.Material);
     if Length(Output.ExcludedPages) > 0 then
     begin
       Excluded := TJSONArray.Create;
@@ -914,8 +914,8 @@ begin
     Output.Profile := '';
   if not GetJSONString(Item, 'outputProfile', Output.OutputProfile) then
     Output.OutputProfile := '';
-  if not GetJSONString(Item, 'fabric', Output.Fabric) then
-    Output.Fabric := '';
+  if not GetJSONString(Item, 'material', Output.Material) then
+    Output.Material := '';
   ReadOptionalNumber(Item, 'materialWidth', Output.MaterialWidth);
   ReadOptionalNumber(Item, 'materialLength', Output.MaterialLength);
   if not GetJSONBoolean(Item, 'allowTurns', Output.AllowTurns) then
@@ -1111,7 +1111,7 @@ begin
         if Source.Pattern.Objects[Index] is TPieceObject then
         begin
           Piece := TPieceObject(Source.Pattern.Objects[Index]);
-          if not InFabric(Source, Piece) then
+          if not InMaterial(Source, Piece) then
             Continue;
           for Copy := 1 to Piece.CutCount do
             if not IsPlaced(Source.Id, Piece.Key, Copy) then
@@ -1507,7 +1507,7 @@ begin
   SetLength(Result, Length(Placements));
   Count := 0;
   for Index := 0 to High(Placements) do
-    if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Length(Piece.CutLine) > 0) and InFabric(Source, Piece) then
+    if FindPiece(Placements[Index], Source, Piece) and Piece.HasResult and (Length(Piece.CutLine) > 0) and InMaterial(Source, Piece) then
     begin
       Result[Count] := PlaceShape(Piece, Placements[Index], OpensFolds, Profile, Source.Pattern.PieceNotes(Piece));
       Result[Count].Placement := Index;
@@ -1528,14 +1528,14 @@ begin
   Result := (Output.Kind = okMaterial) or (Output.Profile <> '');
 end;
 
-function TLayout.InFabric(Source: TLayoutSource; Piece: TPieceObject): boolean;
+function TLayout.InMaterial(Source: TLayoutSource; Piece: TPieceObject): boolean;
 var
-  Fabric: TPatternFabric;
+  Material: TPatternMaterial;
 begin
-  if Output.Fabric = '' then
+  if Output.Material = '' then
     Exit(True);
-  Fabric := Source.Pattern.FabricOf(Piece);
-  Result := Assigned(Fabric) and SameName(Fabric.Name, Output.Fabric);
+  Material := Source.Pattern.MaterialOf(Piece);
+  Result := Assigned(Material) and SameName(Material.Name, Output.Material);
 end;
 
 function TLayout.UsableWidth: double;
@@ -1772,12 +1772,12 @@ var
     Result[High(Result)].Unplaced := False;
   end;
 
-  function FabricExists: boolean;
+  function MaterialExists: boolean;
   var
     Named: TLayoutSource;
   begin
     for Named in FSources do
-      if Assigned(Named.Pattern) and Assigned(Named.Pattern.FindFabricNamed(Output.Fabric)) then
+      if Assigned(Named.Pattern) and Assigned(Named.Pattern.FindMaterialNamed(Output.Material)) then
         Exit(True);
     Result := False;
   end;
@@ -1811,7 +1811,7 @@ begin
       Add(Format(rsLayoutPieceFailing, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Piece.Message]), True);
     if (Placement.Rotation mod 90) <> 0 then
       Add(Format(rsLayoutOffGrain, [ExtractFileName(Source.PatternFile), Piece.DisplayName, Placement.Rotation]), False);
-    if not InFabric(Source, Piece) then
+    if not InMaterial(Source, Piece) then
       Continue;
     if (Output.Kind = okProjector) and ((Placement.Rotation mod 180) <> 0) then
       Add(Format(rsLayoutProjectedAcross, [ExtractFileName(Source.PatternFile), Piece.DisplayName]), False)
@@ -1833,10 +1833,10 @@ begin
     if Assigned(Source.Pattern) and (Source.LoadError = '') and not HasPieces(Source) then
       Add(Format(rsLayoutNoPieces, [ExtractFileName(Source.PatternFile)]), False);
   // A source that failed already says why; this is for a sheet that would print blank
-  if AllRead and ((Length(Placements) = 0) or ((Output.Fabric <> '') and (Length(PlacedPieces) = 0))) then
+  if AllRead and ((Length(Placements) = 0) or ((Output.Material <> '') and (Length(PlacedPieces) = 0))) then
     Add(rsLayoutNothingPlaced, True);
-  if AllRead and (Output.Fabric <> '') and not FabricExists then
-    Add(Format(rsLayoutNoFabric, [Output.Fabric]), False);
+  if AllRead and (Output.Material <> '') and not MaterialExists then
+    Add(Format(rsLayoutNoMaterial, [Output.Material]), False);
   AddOverlapProblems(Result);
 end;
 

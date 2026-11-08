@@ -65,7 +65,7 @@ type
 implementation
 
 uses
-  Sloper.Core.Draft, Sloper.Core.Fabrics, Sloper.Core.Geometry, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
+  Sloper.Core.Draft, Sloper.Core.Materials, Sloper.Core.Geometry, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Output.DraftSVG;
 
 procedure TTestDraftSVG.SetUp;
 begin
@@ -344,7 +344,7 @@ var
   Options: TDraftSVGOptions;
 begin
   BuildPiece;
-  FPattern.SetFabricFill(FPattern.Fabrics[0], ffHatch);
+  FPattern.SetMaterialFill(FPattern.Materials[0], ffHatch);
   Options := DefaultDraftSVGOptions;
   AssertHas('hatched', 'data-hatch', DraftToSVG(FPattern, Options));
   Options.NoFills := True;

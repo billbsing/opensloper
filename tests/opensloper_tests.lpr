@@ -62,7 +62,7 @@ uses
   Sloper.Tests.ConvertEdge,
   Sloper.Tests.MergePoints,
   Sloper.Tests.Fragment,
-  Sloper.Tests.Fabrics,
+  Sloper.Tests.Materials,
   Sloper.Tests.Circles,
   Sloper.Tests.Accessories,
   Sloper.Tests.Markers,

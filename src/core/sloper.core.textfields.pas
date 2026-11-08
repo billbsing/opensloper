@@ -37,13 +37,13 @@ const
   FieldPage = 'page';
   FieldPages = 'pages';
   FieldCutList = 'cutlist';
-  FieldFabrics = 'fabrics';
+  FieldMaterials = 'materials';
   PointsToMM = 25.4 / 72;
 
 type
   // What fields stand for in text; an empty value leaves the field as typed
   TFieldValues = record
-    PatternName, MeasurementsName, LayoutName, Date, Page, Pages, CutList, Fabrics: string;
+    PatternName, MeasurementsName, LayoutName, Date, Page, Pages, CutList, Materials: string;
   end;
 
 // Text with its known {fields} filled in
@@ -58,7 +58,7 @@ function LineHeight(Size: double): double;
 function FieldDateText: string;
 // The fields a pattern's notes can show: the pattern's name from its file
 // (empty when it has none), its measurement set and size, today's date, its
-// cut list and fabrics. Page and pages are left as typed.
+// cut list and materials. Page and pages are left as typed.
 function PatternFieldValues(Pattern: TPattern; const PatternFileName: string): TFieldValues;
 // The rough area a note's text covers, in mm, from its top left down
 function NoteBox(Note: TNoteObject; const Values: TFieldValues): TRect2;
@@ -90,7 +90,7 @@ begin
   Fill(FieldPage, Values.Page);
   Fill(FieldPages, Values.Pages);
   Fill(FieldCutList, Values.CutList);
-  Fill(FieldFabrics, Values.Fabrics);
+  Fill(FieldMaterials, Values.Materials);
 end;
 
 function TextLines(const Text: string): TStringArray;
@@ -137,7 +137,7 @@ begin
   end;
   Result.Date := FieldDateText;
   Result.CutList := Pattern.CutList;
-  Result.Fabrics := Pattern.FabricNames;
+  Result.Materials := Pattern.MaterialNames;
 end;
 
 function NoteBox(Note: TNoteObject; const Values: TFieldValues): TRect2;

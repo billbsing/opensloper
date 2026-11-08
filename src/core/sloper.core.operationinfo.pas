@@ -38,7 +38,7 @@ type
     mkEdge,            // an edge's ID
     mkPiece,           // a piece's ID
     mkObject,          // the ID of any object
-    mkFabric,          // a fabric's ID
+    mkMaterial,          // a material's ID
     mkChoice,          // one of the words in Choices
     mkFlag,            // true or false
     mkWhole,           // a whole number
@@ -235,7 +235,7 @@ resourcestring
   rsMemberMoveRotate = 'With pivot: how far the copies turn';
 
   rsOpPiece = 'Piece';
-  rsOpPieceSummary = 'A closed outline of edges, with its seam allowance, grainline, notches, markings, cut and fabric.';
+  rsOpPieceSummary = 'A closed outline of edges, with its seam allowance, grainline, notches, markings, cut and material.';
   rsMemberPath = 'The edges around the piece, clockwise';
   rsMemberPathEdge = 'An edge of the outline';
   rsMemberPathReversed = 'Whether the path follows it from its end to its start';
@@ -259,10 +259,10 @@ resourcestring
   rsMemberCutCount = 'How many';
   rsMemberCutMirrored = 'Whether every other one is mirrored';
   rsMemberFoldEdge = 'The edge the piece is cut on the fold of, when it is';
-  rsMemberFabric = 'The fabric it is cut from';
-  rsMemberFill = 'How it is filled on screen, when not as its fabric';
+  rsMemberMaterial = 'The material it is cut from';
+  rsMemberFill = 'How it is filled on screen, when not as its material';
   rsMemberFillColor = 'Its own colour, as #rrggbb';
-  rsMemberFillStyle = 'How it is filled: as its fabric, a tint or a hatch';
+  rsMemberFillStyle = 'How it is filled: as its material, a tint or a hatch';
   rsOpSeam = 'Seam';
   rsOpSeamSummary = 'Two runs of piece edges that are sewn together, so their lengths can be checked.';
   rsMemberSideA = 'The edges of side A, in order along the seam';
@@ -295,7 +295,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Sloper.Core.Draft, Sloper.Core.Note, Sloper.Core.Fabrics, Sloper.Core.Piece;
+  SysUtils, Sloper.Core.Draft, Sloper.Core.Note, Sloper.Core.Materials, Sloper.Core.Piece;
 
 var
   Table: TOperationInfoArray;
@@ -503,7 +503,7 @@ begin
   M('cut.count', mkWhole, rsMemberCutCount);
   M('cut.mirrored', mkFlag, rsMemberCutMirrored);
   M('foldEdge', mkEdge, rsMemberFoldEdge);
-  M('fabric', mkFabric, rsMemberFabric);
+  M('material', mkMaterial, rsMemberMaterial);
   M('fill', mkGroup, rsMemberFill);
   M('fill.color', mkText, rsMemberFillColor);
   M('fill.style', mkChoice, rsMemberFillStyle, Joined(PieceFillNames));

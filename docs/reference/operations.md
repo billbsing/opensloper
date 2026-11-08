@@ -342,7 +342,7 @@ Copies of points and edges moved aside, and turned if wanted: developing facings
 
 ### Piece (`piece`)
 
-A closed outline of edges, with its seam allowance, grainline, notches, markings, cut and fabric.
+A closed outline of edges, with its seam allowance, grainline, notches, markings, cut and material.
 
 Formulas can read: `.holes`.
 
@@ -371,10 +371,10 @@ Formulas can read: `.holes`.
 | `cut.count` | whole number | How many |
 | `cut.mirrored` | true or false | Whether every other one is mirrored |
 | `foldEdge` | edge ID | The edge the piece is cut on the fold of, when it is |
-| `fabric` | fabric ID | The fabric it is cut from |
-| `fill` | group | How it is filled on screen, when not as its fabric |
+| `material` | material ID | The material it is cut from |
+| `fill` | group | How it is filled on screen, when not as its material |
 | `fill.color` | text | Its own colour, as #rrggbb |
-| `fill.style` | one of: `fabric`, `tint`, `hatch` | How it is filled: as its fabric, a tint or a hatch |
+| `fill.style` | one of: `material`, `tint`, `hatch` | How it is filled: as its material, a tint or a hatch |
 
 ### Seam (`seam`)
 

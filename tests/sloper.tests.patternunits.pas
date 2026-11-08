@@ -52,7 +52,7 @@ type
     procedure TestDragInPatternUnit;
     procedure TestDragKeepsSuffixInOtherUnit;
     procedure TestStartingValuesPerUnit;
-    procedure TestFabricAllowanceStandsIn;
+    procedure TestMaterialAllowanceStandsIn;
     procedure TestNotesPlacedInPatternUnit;
     procedure TestConvertToCurveHandlesInPatternUnit;
     procedure TestLengthText;
@@ -327,15 +327,15 @@ begin
   AssertTrue('allowance in mm', Piece.State = esValid);
 end;
 
-procedure TTestPatternUnits.TestFabricAllowanceStandsIn;
+procedure TTestPatternUnits.TestMaterialAllowanceStandsIn;
 var
   Piece: TPieceObject;
 begin
   FPattern.Units := muCentimetre;
-  FPattern.Fabrics[0].HasAllowance := True;
-  FPattern.Fabrics[0].Allowance := 1.5;
+  FPattern.Materials[0].HasAllowance := True;
+  FPattern.Materials[0].Allowance := 1.5;
   Piece := TPieceObject(Check(SquarePiece(FPattern, '10')));
-  AssertEquals('the fabric''s, in the pattern unit', '1.5', FPattern.FormulaText(Piece, PieceAllowanceField));
+  AssertEquals('the material''s, in the pattern unit', '1.5', FPattern.FormulaText(Piece, PieceAllowanceField));
 end;
 
 procedure TTestPatternUnits.TestNotesPlacedInPatternUnit;

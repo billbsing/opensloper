@@ -93,7 +93,7 @@ resourcestring
   rsDocKindEdge = 'edge ID';
   rsDocKindPiece = 'piece ID';
   rsDocKindObject = 'object ID';
-  rsDocKindFabric = 'fabric ID';
+  rsDocKindMaterial = 'material ID';
   rsDocKindChoice = 'one of: %s';
   rsDocKindFlag = 'true or false';
   rsDocKindWhole = 'whole number';
@@ -120,7 +120,7 @@ resourcestring
   rsDocApiGroupObjects = 'Objects and variables';
   rsDocApiGroupDrafting = 'Drafting';
   rsDocApiGroupPieces = 'Pieces';
-  rsDocApiGroupFabrics = 'Fabrics';
+  rsDocApiGroupMaterials = 'Materials';
   rsDocApiGroupSeams = 'Seams';
   rsDocApiGroupNotes = 'Notes';
   rsDocApiGroupChecking = 'Checking and output';
@@ -135,7 +135,7 @@ resourcestring
   rsDocApiKindFormula = 'formula';
   rsDocApiKindReference = 'ID or name';
   rsDocApiKindReferences = 'list of IDs or names';
-  rsDocApiKindFabric = 'fabric ID or name';
+  rsDocApiKindMaterial = 'material ID or name';
   rsDocApiKindNames = 'list of: %s';
   rsDocApiKindMembers = 'see the type';
 
@@ -232,7 +232,7 @@ end;
 function KindText(const Member: TOperationMember): string;
 const
   Kinds: array[TMemberKind] of string = (rsDocKindLength, rsDocKindAngle, rsDocKindNumber, rsDocKindLengthOrRatio,
-    rsDocKindPoint, rsDocKindEdge, rsDocKindPiece, rsDocKindObject, rsDocKindFabric, rsDocKindChoice, rsDocKindFlag,
+    rsDocKindPoint, rsDocKindEdge, rsDocKindPiece, rsDocKindObject, rsDocKindMaterial, rsDocKindChoice, rsDocKindFlag,
     rsDocKindWhole, rsDocKindText, rsDocKindSize, rsDocKindList, rsDocKindGroup);
 begin
   if Member.Kind <> mkChoice then
@@ -301,7 +301,7 @@ begin
     apFormula: Result := rsDocApiKindFormula;
     apReference: Result := rsDocApiKindReference;
     apReferences: Result := rsDocApiKindReferences;
-    apFabric: Result := rsDocApiKindFabric;
+    apMaterial: Result := rsDocApiKindMaterial;
     apChoice: Result := Format(rsDocKindChoice, [CodedList(Param.Choices)]);
     apNames: Result := Format(rsDocApiKindNames, [CodedList(Param.Choices)]);
     apList: Result := rsDocKindList;
@@ -327,7 +327,7 @@ end;
 function ApiPage: string;
 const
   GroupTitles: array[TApiMethodGroup] of string = (rsDocApiGroupFiles, rsDocApiGroupMeasurements, rsDocApiGroupObjects,
-    rsDocApiGroupDrafting, rsDocApiGroupPieces, rsDocApiGroupFabrics, rsDocApiGroupSeams, rsDocApiGroupNotes,
+    rsDocApiGroupDrafting, rsDocApiGroupPieces, rsDocApiGroupMaterials, rsDocApiGroupSeams, rsDocApiGroupNotes,
     rsDocApiGroupChecking);
 var
   Group: TApiMethodGroup;

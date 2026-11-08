@@ -38,7 +38,7 @@ type
     // A 100 mm square, 10 mm allowance, with one marking of each kind: a 4 mm
     // hole at (30, 40), a placement line, a fold line and stitch holes
     procedure AddMarkedPattern(const AFile: string; Fold: boolean = False);
-    // Puts the first piece of the first source on a new fabric, Lining
+    // Puts the first piece of the first source on a new material, Lining
     procedure LineFirstPiece;
     procedure UseMaterial(Width: double; ALength: double = 0);
     procedure UseA4;
@@ -59,7 +59,7 @@ type
     procedure TestDXFUsesPieceCoordinates;
     procedure TestDXFIsR12;
     procedure TestDXFQuantityIsCutCount;
-    procedure TestDXFNamesFabric;
+    procedure TestDXFNamesMaterial;
     procedure TestDXFFoldIsMirrorLine;
     procedure TestDXFNotch;
     procedure TestDXFOnlyPlacedPieces;
@@ -102,14 +102,14 @@ type
     procedure TestMaterialUseOnARoll;
     procedure TestMaterialUseOnASheet;
     procedure TestMaterialExportsPDF;
-    procedure TestFabricLimitsTray;
-    procedure TestFabricLimitsPlaced;
-    procedure TestFabricLimitsPacking;
-    procedure TestFabricLimitsDXF;
-    procedure TestFabricIgnoresCase;
-    procedure TestFabricClearedBringsPiecesBack;
-    procedure TestFabricUnknownWarns;
-    procedure TestFabricWithNothingBlocks;
+    procedure TestMaterialLimitsTray;
+    procedure TestMaterialLimitsPlaced;
+    procedure TestMaterialLimitsPacking;
+    procedure TestMaterialLimitsDXF;
+    procedure TestMaterialIgnoresCase;
+    procedure TestMaterialClearedBringsPiecesBack;
+    procedure TestMaterialUnknownWarns;
+    procedure TestMaterialWithNothingBlocks;
     procedure TestProfilesRoundTrip;
     procedure TestProfileBadValuesKeepStandard;
     procedure TestStandardProfileAlwaysThere;
@@ -239,11 +239,11 @@ var
   Index: integer;
 begin
   Pattern := FLayout.Sources[0].Pattern;
-  Pattern.AddFabric('Lining');
+  Pattern.AddMaterial('Lining');
   for Index := 0 to Pattern.ObjectCount - 1 do
     if Pattern.Objects[Index] is TPieceObject then
     begin
-      Pattern.SetPieceFabric(TPieceObject(Pattern.Objects[Index]), Pattern.FindFabricNamed('Lining'));
+      Pattern.SetPieceMaterial(TPieceObject(Pattern.Objects[Index]), Pattern.FindMaterialNamed('Lining'));
       Exit;
     end;
 end;
@@ -439,16 +439,16 @@ begin
   AssertTrue('date', Pos(Format(rsDXFCreationDate, ['2026-11-01']), Text) > 0);
 end;
 
-procedure TTestLayoutExports.TestDXFNamesFabric;
+procedure TTestLayoutExports.TestDXFNamesMaterial;
 var
   Pattern: TPattern;
 begin
   UseA4;
-  AddPattern('fabric.sloper', [100], [100], 1, False);
+  AddPattern('material.sloper', [100], [100], 1, False);
   FLayout.PlaceNewPieces;
   AssertEquals('none while Main is implicit', 0, Pos('Material', LayoutToDXF(FLayout)));
   Pattern := FLayout.Sources[0].Pattern;
-  AssertTrue(Pattern.RenameFabric(Pattern.Fabrics[0], 'Denim'));
+  AssertTrue(Pattern.RenameMaterial(Pattern.Materials[0], 'Denim'));
   AssertTrue(Pos(Format(rsDXFMaterial, ['Denim']), LayoutToDXF(FLayout)) > 0);
 end;
 
@@ -891,14 +891,14 @@ var
 begin
   UseMaterial(1400, 3000);
   FLayout.Output.AllowTurns := True;
-  FLayout.Output.Fabric := 'Lining';
+  FLayout.Output.Material := 'Lining';
   Text := FLayout.SaveToText;
   AssertTrue(Reason, FLayout.LoadFromText(Text, Reason));
   AssertTrue(FLayout.Output.Kind = okMaterial);
   AssertEquals(1400, FLayout.Output.MaterialWidth, 1e-9);
   AssertEquals(3000, FLayout.Output.MaterialLength, 1e-9);
   AssertTrue(FLayout.Output.AllowTurns);
-  AssertEquals('Lining', FLayout.Output.Fabric);
+  AssertEquals('Lining', FLayout.Output.Material);
 end;
 
 procedure TTestLayoutExports.TestMaterialDefaultsNotSaved;
@@ -908,7 +908,7 @@ begin
   Text := FLayout.SaveToText;
   AssertEquals(0, Pos('material', Text));
   AssertEquals(0, Pos('allowTurns', Text));
-  AssertEquals(0, Pos('"fabric"', Text));
+  AssertEquals(0, Pos('"material"', Text));
 end;
 
 procedure TTestLayoutExports.TestBadMaterialRefused;
@@ -933,7 +933,7 @@ begin
   AssertNoOverlap;
 end;
 
-// Turning would fit it; a woven fabric would then be cut across the grain
+// Turning would fit it; a woven material would then be cut across the grain
 procedure TTestLayoutExports.TestMaterialDoesNotTurn;
 var
   Outcome: TPackResult;
@@ -1022,84 +1022,84 @@ begin
   AssertTrue(FileExists(ConcatPaths([FFolder, 'a.pdf'])));
 end;
 
-procedure TTestLayoutExports.TestFabricLimitsTray;
+procedure TTestLayoutExports.TestMaterialLimitsTray;
 begin
   AddPattern('a.sloper', [100, 100], [100, 100]);
   LineFirstPiece;
-  FLayout.Output.Fabric := 'Lining';
+  FLayout.Output.Material := 'Lining';
   AssertEquals(1, Length(FLayout.Unplaced));
 end;
 
-procedure TTestLayoutExports.TestFabricLimitsPlaced;
+procedure TTestLayoutExports.TestMaterialLimitsPlaced;
 begin
   AddPattern('a.sloper', [100, 100], [100, 100]);
   LineFirstPiece;
   FLayout.PlaceNewPieces;
-  FLayout.Output.Fabric := 'Lining';
+  FLayout.Output.Material := 'Lining';
   AssertEquals(1, Length(FLayout.PlacedPieces));
   AssertEquals('the other stays in the file', 2, Length(FLayout.Placements));
 end;
 
-procedure TTestLayoutExports.TestFabricLimitsPacking;
+procedure TTestLayoutExports.TestMaterialLimitsPacking;
 begin
   AddPattern('a.sloper', [100, 100], [100, 100]);
   LineFirstPiece;
   UseMaterial(200);
-  FLayout.Output.Fabric := 'Lining';
+  FLayout.Output.Material := 'Lining';
   AssertTrue(PackLayout(FLayout).Done or (Length(FLayout.Placements) = 1));
   AssertEquals('only the one placed', 1, Length(FLayout.Placements));
 end;
 
-procedure TTestLayoutExports.TestFabricLimitsDXF;
+procedure TTestLayoutExports.TestMaterialLimitsDXF;
 var
   Text: string;
 begin
   AddPattern('a.sloper', [100, 100], [100, 100]);
   LineFirstPiece;
   FLayout.PlaceNewPieces;
-  FLayout.Output.Fabric := 'Lining';
+  FLayout.Output.Material := 'Lining';
   Text := LayoutToDXF(FLayout);
   AssertEquals(1, Count('INSERT', Text));
 end;
 
-procedure TTestLayoutExports.TestFabricIgnoresCase;
+procedure TTestLayoutExports.TestMaterialIgnoresCase;
 begin
   AddPattern('a.sloper', [100, 100], [100, 100]);
   LineFirstPiece;
   FLayout.PlaceNewPieces;
-  FLayout.Output.Fabric := 'LINING';
+  FLayout.Output.Material := 'LINING';
   AssertEquals(1, Length(FLayout.PlacedPieces));
 end;
 
-procedure TTestLayoutExports.TestFabricClearedBringsPiecesBack;
+procedure TTestLayoutExports.TestMaterialClearedBringsPiecesBack;
 begin
   AddPattern('a.sloper', [100, 100], [100, 100]);
   LineFirstPiece;
   FLayout.PlaceNewPieces;
-  FLayout.Output.Fabric := 'Lining';
-  FLayout.Output.Fabric := '';
+  FLayout.Output.Material := 'Lining';
+  FLayout.Output.Material := '';
   AssertEquals(2, Length(FLayout.PlacedPieces));
 end;
 
-procedure TTestLayoutExports.TestFabricUnknownWarns;
+procedure TTestLayoutExports.TestMaterialUnknownWarns;
 var
   Problem: TLayoutProblem;
   Found: boolean;
 begin
   AddPattern('a.sloper', [100], [100]);
   FLayout.PlaceNewPieces;
-  FLayout.Output.Fabric := 'Denim';
+  FLayout.Output.Material := 'Denim';
   Found := False;
   for Problem in FLayout.Problems do
     Found := Found or (Pos('Denim', Problem.Text) > 0);
   AssertTrue(Found);
 end;
 
-procedure TTestLayoutExports.TestFabricWithNothingBlocks;
+procedure TTestLayoutExports.TestMaterialWithNothingBlocks;
 begin
   AddPattern('a.sloper', [100], [100]);
   FLayout.PlaceNewPieces;
-  FLayout.Output.Fabric := 'Denim';
+  FLayout.Output.Material := 'Denim';
   AssertTrue('a blank file is never written', FLayout.Refusal <> '');
 end;
 

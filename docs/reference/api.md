@@ -377,7 +377,7 @@ Makes a piece from the closed outline around a place.
 | `x` | number | yes | Across, in mm, inside the outline |
 | `y` | number | yes | Down, in mm |
 | `name` | text |  | Its name |
-| `allowance` | formula |  | Its seam allowance; by default the first fabric's, or a round value for the pattern's unit |
+| `allowance` | formula |  | Its seam allowance; by default the first material's, or a round value for the pattern's unit |
 
 Returns: The piece, as `get_object` gives it.
 
@@ -481,15 +481,15 @@ Puts a piece on the fold of one of its straight edges, or takes it off.
 
 Returns: The piece, as `get_object` gives it.
 
-### `set_piece_fabric`
+### `set_piece_material`
 
-Sets the fabric a piece is cut from.
+Sets the material a piece is cut from.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
 | `id` or `name` | number or text | yes | The piece, by its ID or its name |
-| `fabric` | fabric ID or name |  | The fabric |
-| `none` | true or false |  | No fabric |
+| `material` | material ID or name |  | The material |
+| `none` | true or false |  | No material |
 
 Returns: The piece, as `get_object` gives it.
 
@@ -500,24 +500,24 @@ Sets how a piece is filled on screen.
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
 | `id` or `name` | number or text | yes | The piece, by its ID or its name |
-| `color` | text |  | Its own colour, as #rrggbb, or empty for its fabric's |
-| `style` | one of: `fabric`, `tint`, `hatch` |  | How it is filled |
+| `color` | text |  | Its own colour, as #rrggbb, or empty for its material's |
+| `style` | one of: `material`, `tint`, `hatch` |  | How it is filled |
 
 Returns: The piece, as `get_object` gives it.
 
-## Fabrics
+## Materials
 
-### `list_fabrics`
+### `list_materials`
 
-Lists the fabrics and the cut list.
+Lists the materials and the cut list.
 
 No parameters.
 
-Returns: `fabrics`, each with `id`, `name`, `color`, `fill` and `allowance`, and the `cutList`.
+Returns: `materials`, each with `id`, `name`, `color`, `fill` and `allowance`, and the `cutList`.
 
-### `add_fabric`
+### `add_material`
 
-Adds a fabric.
+Adds a material.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
@@ -525,42 +525,42 @@ Adds a fabric.
 | `color` | text |  | Its colour, as #rrggbb |
 | `fill` | one of: `tint`, `hatch` |  | How pieces of it are filled |
 
-Returns: The fabrics and the cut list, as `list_fabrics` gives them.
+Returns: The materials and the cut list, as `list_materials` gives them.
 
-### `rename_fabric`
+### `rename_material`
 
-Renames a fabric.
+Renames a material.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
-| `fabric` | fabric ID or name | yes | The fabric, by ID or name |
+| `material` | material ID or name | yes | The material, by ID or name |
 | `name` | text | yes | The new name |
 
-Returns: The fabrics and the cut list, as `list_fabrics` gives them.
+Returns: The materials and the cut list, as `list_materials` gives them.
 
-### `set_fabric`
+### `set_material`
 
-Changes a fabric's colour, fill or seam allowance.
+Changes a material's colour, fill or seam allowance.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
-| `fabric` | fabric ID or name | yes | The fabric, by ID or name |
+| `material` | material ID or name | yes | The material, by ID or name |
 | `color` | text |  | Its colour, as #rrggbb |
 | `fill` | one of: `tint`, `hatch` |  | How pieces of it are filled |
 | `allowance` | number |  | A seam allowance for pieces of it, in the pattern's unit |
 | `noAllowance` | true or false |  | Takes its seam allowance away |
 
-Returns: The fabrics and the cut list, as `list_fabrics` gives them.
+Returns: The materials and the cut list, as `list_materials` gives them.
 
-### `delete_fabric`
+### `delete_material`
 
-Deletes a fabric; its pieces are left with none.
+Deletes a material; its pieces are left with none.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
-| `fabric` | fabric ID or name | yes | The fabric, by ID or name |
+| `material` | material ID or name | yes | The material, by ID or name |
 
-Returns: The fabrics and the cut list, as `list_fabrics` gives them.
+Returns: The materials and the cut list, as `list_materials` gives them.
 
 ## Seams
 

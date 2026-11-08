@@ -297,9 +297,9 @@
         <UnitName Value="Sloper.Tests.DraftSVG"/>
       </Unit>
       <Unit>
-        <Filename Value="sloper.tests.fabrics.pas"/>
+        <Filename Value="sloper.tests.materials.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="Sloper.Tests.Fabrics"/>
+        <UnitName Value="Sloper.Tests.Materials"/>
       </Unit>
       <Unit>
         <Filename Value="sloper.tests.circles.pas"/>
