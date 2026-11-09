@@ -778,7 +778,7 @@ OpenSloper drafts accessories in fabric and leather (bags, pouches, wallets, hat
 
 **Rectangle tool** (R): two clicks make three offset points and four lines from `width` and `height` formulas, in one undo step, since most bag pieces start as rectangles.
 
-**Rounded corners** (Tools → Edge → Round Corner) replace the corner between two straight edges that share a point with an arc of a formula radius (`cornerArc`), trimming both edges at its tangent points (`cornerPoint`) with ordinary split parts. The part at the corner and the original edge become construction, so the sharp corner stays as a guide. Rounding curves needs a tangent found numerically and is left for later.
+**Rounded corners** (Tools → Edge → Round Corner) replace the corner between two straight edges that share a point with an arc of a formula radius (`cornerArc`), trimming both edges at its tangent points (`cornerPoint`) with ordinary split parts. The part at the corner and the original edge become construction, so the sharp corner stays as a guide. A piece on the edges is rounded too (changed 2026-11-09 from refusing until the piece was deleted, which predated `FollowSplit`): it takes the parts as for any split, then the arc in place of the two parts at the corner (`TPattern.FollowCorner`), reversed when its path runs from the second edge to the first; notches on those parts go to the arc's end beside them, and seams take the arc. A piece folded on either edge is refused, since a fold stays one straight edge. Rounding curves needs a tangent found numerically and is left for later.
 
 **Offset edges** (see Markings): stitch lines, facings, linings and turn-backs as ordinary parametric edges, unlike seam allowance, which only applies to a finished outline.
 

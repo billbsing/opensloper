@@ -155,6 +155,9 @@ type
     // The edge at PathIndex becomes two, in the order the path runs: an
     // override it had goes to both, and later overrides move up one
     procedure SplitPathEdge(PathIndex: integer; const FirstKey, SecondKey: string);
+    // The edge at PathIndex and the next one round the path become one: an
+    // override either had goes to it, and later overrides move down one
+    procedure JoinPathEdges(PathIndex: integer; const EdgeKey: string; Reversed: boolean);
     procedure SetNotchEdge(Index: integer; const AEdgeKey: string);
     // Clears the old grainline's field, if any. gkAngle adds its field;
     // gkPoints takes the two point keys.
@@ -939,6 +942,39 @@ begin
     OverrideText := Field(OverrideField(PathIndex)).StoredText;
     AddOverride(PathIndex + 1);
     Field(OverrideField(PathIndex + 1)).ParseStored(OverrideText);
+  end;
+end;
+
+procedure TPieceObject.JoinPathEdges(PathIndex: integer; const EdgeKey: string; Reversed: boolean);
+var
+  Index, Next, Joined: integer;
+  OverrideText: string;
+begin
+  Next := (PathIndex + 1) mod Length(FPath);
+  OverrideText := '';
+  if HasOverride(PathIndex) then
+    OverrideText := Field(OverrideField(PathIndex)).StoredText
+  else if HasOverride(Next) then
+    OverrideText := Field(OverrideField(Next)).StoredText;
+  if HasOverride(PathIndex) then
+    RemoveOverride(PathIndex);
+  if HasOverride(Next) then
+    RemoveOverride(Next);
+  FPath[PathIndex].EdgeKey := EdgeKey;
+  FPath[PathIndex].Reversed := Reversed;
+  Delete(FPath, Next, 1);
+  // Later overrides move down one, from the start so none is renamed onto one still to move
+  for Index := Next to High(FPath) do
+    if HasOverride(Index + 1) then
+      RenameField(OverrideField(Index + 1), OverrideField(Index));
+  if Next > PathIndex then
+    Joined := PathIndex
+  else
+    Joined := PathIndex - 1;
+  if OverrideText <> '' then
+  begin
+    AddOverride(Joined);
+    Field(OverrideField(Joined)).ParseStored(OverrideText);
   end;
 end;
 

@@ -24,7 +24,7 @@ interface
 
 uses
   SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Pattern, Sloper.Core.Draft,
-  Sloper.Core.Materials, Sloper.Core.Piece;
+  Sloper.Core.Materials, Sloper.Core.Piece, Sloper.Core.Seam;
 
 type
   TTestAccessories = class(TOSTestCase)
@@ -63,7 +63,13 @@ type
     procedure TestCornerRadiusTooBigIsInvalid;
     procedure TestCornerRefusesCurve;
     procedure TestCornerRefusesEdgesNotMeeting;
-    procedure TestCornerRefusesEdgeInAPiece;
+    procedure TestCornerOnAPiece;
+    procedure TestCornerOnAPieceEitherOrder;
+    procedure TestAllFourCornersOfAPiece;
+    procedure TestCornerOnAPieceMovesNotches;
+    procedure TestCornerOnAPieceKeepsAllowance;
+    procedure TestCornerOnAPieceFollowsSeam;
+    procedure TestCornerRefusesFold;
     procedure TestCornerLeavesConstruction;
     procedure TestAllFourCornersMakeAPiece;
     procedure TestCornerRoundTrip;
@@ -441,14 +447,162 @@ begin
   AssertEquals(Format(rsPatternCornerNotMeeting, [First.Name, Second.Name]), FPattern.LastError);
 end;
 
-procedure TTestAccessories.TestCornerRefusesEdgeInAPiece;
+// The cut-away corner lost from a rectangle piece rounded with this radius
+function CornerLoss(Radius: double): double;
+begin
+  Result := (1 - Pi / 4) * Sqr(Radius);
+end;
+
+// Rounding a corner of a piece rounds the piece: it takes the arc and what is
+// left of the edges, as it takes the parts of a split edge
+procedure TTestAccessories.TestCornerOnAPiece;
 var
   Edges: TRectangleEdges;
+  Piece: TPieceObject;
+  Arc: TCornerArc;
 begin
   Edges := Rectangle;
-  PieceAt(50, 50);
+  Piece := PieceAt(50, 50);
+  Arc := FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20');
+  AssertNotNull(FPattern.LastError, Arc);
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertEquals('four lines and the arc', 5, Length(Piece.Path));
+  AssertTrue('the arc is in the path', Piece.PathIndexOf(Arc.Key) >= 0);
+  AssertTrue('so is what is left of the first edge', Piece.PathIndexOf(Arc.TrimmedA.Key) >= 0);
+  AssertTrue('and of the second', Piece.PathIndexOf(Arc.TrimmedB.Key) >= 0);
+  AssertEquals(20000 - CornerLoss(20), Piece.Area, 2);
+end;
+
+procedure TTestAccessories.TestCornerOnAPieceEitherOrder;
+var
+  Edges: TRectangleEdges;
+  Piece: TPieceObject;
+begin
+  Edges := Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertNotNull(FPattern.LastError, FPattern.AddRoundCorner(Edges[1].Key, Edges[0].Key, '20'));
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertEquals(20000 - CornerLoss(20), Piece.Area, 2);
+end;
+
+// One of the corners joins the end of the path to its start
+procedure TTestAccessories.TestAllFourCornersOfAPiece;
+const
+  Radius = 20;
+var
+  Edges: TRectangleEdges;
+  Index: integer;
+  Current: array[0..3] of TEdgeObject;
+  Arc: TCornerArc;
+  Piece: TPieceObject;
+begin
+  Edges := Rectangle;
+  Piece := PieceAt(100, 50);
+  for Index := 0 to 3 do
+    Current[Index] := Edges[Index];
+  for Index := 0 to 3 do
+  begin
+    Arc := FPattern.AddRoundCorner(Current[Index].Key, Current[(Index + 1) mod 4].Key, IntToStr(Radius));
+    AssertNotNull(FPattern.LastError, Arc);
+    Current[Index] := Arc.TrimmedA;
+    Current[(Index + 1) mod 4] := Arc.TrimmedB;
+  end;
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertEquals('four lines and four arcs', 8, Length(Piece.Path));
+  AssertEquals(20000 - 4 * CornerLoss(Radius), Piece.Area, 6);
+  Reloaded;
+  AssertTrue(TPieceObject(FLoaded.FindObject('Panel')).State = esValid);
+end;
+
+// A notch on the part cut away goes to the arc's end nearest it; one on the
+// part kept stays where it is
+procedure TTestAccessories.TestCornerOnAPieceMovesNotches;
+var
+  Edges: TRectangleEdges;
+  Piece: TPieceObject;
+  Arc: TCornerArc;
+  Index: integer;
+begin
+  Edges := Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.LastError, FPattern.AddEdgeNotch(Piece, Edges[0].Key, '50'));
+  AssertTrue(FPattern.LastError, FPattern.AddEdgeNotch(Piece, Edges[0].Key, '195'));
+  AssertTrue(FPattern.LastError, FPattern.AddEdgeNotch(Piece, Edges[1].Key, '5'));
+  Arc := FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20');
+  AssertNotNull(FPattern.LastError, Arc);
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertEquals(3, Length(Piece.Notches));
+  for Index := 0 to 2 do
+    AssertTrue('no notch on a part cut away', (Piece.Notches[Index].EdgeKey = Arc.Key) or
+      (Piece.Notches[Index].EdgeKey = Arc.TrimmedA.Key) or (Piece.Notches[Index].EdgeKey = Arc.TrimmedB.Key));
+  AssertPointsNear('the notch on the part kept', Vec2(50, 0), Piece.NotchMarks[0].Seam);
+  AssertPointsNear('at the start of the arc', Vec2(180, 0), Piece.NotchMarks[1].Seam);
+  AssertPointsNear('at the end of the arc', Vec2(200, 20), Piece.NotchMarks[2].Seam);
+end;
+
+procedure TTestAccessories.TestCornerOnAPieceKeepsAllowance;
+var
+  Edges: TRectangleEdges;
+  Piece: TPieceObject;
+  Arc: TCornerArc;
+begin
+  Edges := Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.LastError, FPattern.SetEdgeAllowance(Piece, Piece.PathIndexOf(Edges[3].Key), '25'));
+  Arc := FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20');
+  AssertNotNull(FPattern.LastError, Arc);
+  FPattern.Evaluate;
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertTrue('the left edge keeps its own allowance', Piece.HasOverride(Piece.PathIndexOf(Edges[3].Key)));
+  AssertEquals('25', Piece.Field(Piece.OverrideField(Piece.PathIndexOf(Edges[3].Key))).StoredText);
+  AssertFalse('the arc has none of its own', Piece.HasOverride(Piece.PathIndexOf(Arc.Key)));
+end;
+
+// A seam that used the edges takes what is left of them and the arc
+procedure TTestAccessories.TestCornerOnAPieceFollowsSeam;
+var
+  Edges: TRectangleEdges;
+  Piece: TPieceObject;
+  Seam: TSeamObject;
+  Arc: TCornerArc;
+  SideA, SideB: TSeamSide;
+begin
+  Edges := Rectangle;
+  Piece := PieceAt(50, 50);
+  SetLength(SideA, 2);
+  SideA[0].PieceKey := Piece.Key;
+  SideA[0].EdgeKey := Edges[0].Key;
+  SideA[1].PieceKey := Piece.Key;
+  SideA[1].EdgeKey := Edges[1].Key;
+  SetLength(SideB, 1);
+  SideB[0].PieceKey := Piece.Key;
+  SideB[0].EdgeKey := Edges[2].Key;
+  Seam := FPattern.AddSeam('Top', SideA, SideB);
+  AssertNotNull(FPattern.LastError, Seam);
+  Arc := FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20');
+  AssertNotNull(FPattern.LastError, Arc);
+  FPattern.Evaluate;
+  AssertTrue(Seam.Message, Seam.State = esValid);
+  AssertEquals('the kept parts and the arc', 3, Length(Seam.SideA));
+  AssertTrue(Seam.UsesEdge(Piece.Key, Arc.Key));
+  AssertEquals(300 - 40 + Pi * 10, Seam.LengthA, 0.1);
+end;
+
+// A fold has to stay one straight edge
+procedure TTestAccessories.TestCornerRefusesFold;
+var
+  Edges: TRectangleEdges;
+  Piece: TPieceObject;
+begin
+  Edges := Rectangle;
+  Piece := PieceAt(50, 50);
+  AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, Edges[1].Key));
   AssertTrue(not Assigned(FPattern.AddRoundCorner(Edges[0].Key, Edges[1].Key, '20')));
-  AssertEquals(Format(rsPatternCornerInPiece, [Edges[0].Name, 'Panel']), FPattern.LastError);
+  AssertEquals(Format(rsPatternCornerOnFold, [Edges[1].Name, 'Panel']), FPattern.LastError);
 end;
 
 procedure TTestAccessories.TestCornerLeavesConstruction;

@@ -132,6 +132,7 @@ type
     function CheckNoteAnchor(Anchor: TNoteAnchor; const AnchorKey: string; out Key: string): boolean;
     function NoteAnchorPlace(Anchor: TNoteAnchor; const Key: string; Ratio: double): TVec2;
     procedure FollowSplit(Source: TEdgeObject; First, Second: TSplitPart);
+    procedure FollowCorner(Arc: TCornerArc; NearA, NearB: TSplitPart);
     function GetVariableCount: integer;
     function GetVariable(Index: integer): TVariable;
     function GetObjectCount: integer;
@@ -494,7 +495,7 @@ resourcestring
   rsPatternPieceTooShort = 'A piece needs at least two edges, or one that closes on itself';
   rsPatternCornerNotStraight = 'Only corners between straight edges can be rounded, and %s is not straight';
   rsPatternCornerNotMeeting = '%s and %s do not meet at a point';
-  rsPatternCornerInPiece = '%s is part of %s; delete the piece first, then make it again after rounding the corner';
+  rsPatternCornerOnFold = '%s is the fold of %s, and a fold has to stay one straight edge';
   rsPatternPieceRepeats = 'A piece cannot use %s twice';
   rsPatternNotInPiece = '%s is not part of %s';
   rsPatternObjectsInUse = '%s cannot be deleted: %s uses %s';
@@ -1876,9 +1877,10 @@ function TPattern.AddRoundCorner(const EdgeAId, EdgeBId, Radius: string): TCorne
 var
   First, Second: TEdgeObject;
   Vertex: string;
-  Starts, Ends: TSplitPart;
+  Starts, Ends, NearA, NearB: TSplitPart;
   TangentA, TangentB: TCornerPoint;
 
+// A fold has to stay one straight edge, so a piece folded on it is refused
   function CheckEdge(Edge: TEdgeObject): boolean;
   var
     User: TEvalNode;
@@ -1886,18 +1888,18 @@ var
     if not Edge.IsStraight then
       Exit(SetError(Format(rsPatternCornerNotStraight, [Edge.DisplayName])));
     for User in UsersOf(Edge) do
-      if User is TPieceObject then
-        Exit(SetError(Format(rsPatternCornerInPiece, [Edge.DisplayName, User.DisplayName])));
+      if (User is TPieceObject) and (TPieceObject(User).FoldEdgeKey = Edge.Key) then
+        Exit(SetError(Format(rsPatternCornerOnFold, [Edge.DisplayName, User.DisplayName])));
     Result := True;
   end;
 
-  // Splits the edge and returns the part away from the corner; the sharp end
-  // and the whole edge become construction
-  function Trim(Edge: TEdgeObject; const PointKey: string): TEdgeObject;
-  var
-    Near: TSplitPart;
+  // Splits the edge and returns the part away from the corner, and in Near
+  // the part at it; the sharp end and the whole edge become construction.
+  // Pieces and seams on the edge take both parts, as for any split.
+  function Trim(Edge: TEdgeObject; const PointKey: string; out Near: TSplitPart): TEdgeObject;
   begin
     Result := nil;
+    Near := nil;
     if not SplitEdge(Edge.Key, PointKey, Starts, Ends) then
       Exit;
     if Edge.StartKey = Vertex then
@@ -1943,8 +1945,59 @@ begin
   TangentB := TCornerPoint.Create(TakeId, Result.Key, 2);
   if not AddPointObject(TangentB, '', [], []) then
     Exit(nil);
-  Result.TrimmedA := Trim(First, TangentA.Key);
-  Result.TrimmedB := Trim(Second, TangentB.Key);
+  Result.TrimmedA := Trim(First, TangentA.Key, NearA);
+  Result.TrimmedB := Trim(Second, TangentB.Key, NearB);
+  if Assigned(NearA) and Assigned(NearB) then
+    FollowCorner(Result, NearA, NearB);
+end;
+
+// Pieces that took both parts at the corner, one after the other round the
+// path, take the arc in their place, so the piece is rounded too. The arc runs
+// from the first edge to the second, and is reversed when the path runs the
+// other way. Notches on the parts cut away go to the arc's end beside them,
+// and seams take the arc where they had the parts.
+procedure TPattern.FollowCorner(Arc: TCornerArc; NearA, NearB: TSplitPart);
+var
+  Index, IndexA, IndexB, Count, Notch, SeamIndex: integer;
+  Piece: TPieceObject;
+  Moved: boolean;
+begin
+  Moved := False;
+  for Index := 0 to FObjects.Count - 1 do
+  begin
+    if not (FObjects[Index] is TPieceObject) then
+      Continue;
+    Piece := TPieceObject(FObjects[Index]);
+    IndexA := Piece.PathIndexOf(NearA.Key);
+    IndexB := Piece.PathIndexOf(NearB.Key);
+    Count := Length(Piece.Path);
+    if (IndexA < 0) or (IndexB < 0) then
+      Continue;
+    if (IndexA + 1) mod Count = IndexB then
+      Piece.JoinPathEdges(IndexA, Arc.Key, False)
+    else if (IndexB + 1) mod Count = IndexA then
+      Piece.JoinPathEdges(IndexB, Arc.Key, True)
+    else
+      Continue;
+    for Notch := 0 to High(Piece.Notches) do
+      if Piece.Notches[Notch].EdgeKey = NearA.Key then
+      begin
+        Piece.SetNotchEdge(Notch, Arc.Key);
+        SetStoredFormula(Piece, Piece.NotchField(Notch), '0');
+      end
+      else if Piece.Notches[Notch].EdgeKey = NearB.Key then
+      begin
+        Piece.SetNotchEdge(Notch, Arc.Key);
+        SetStoredFormula(Piece, Piece.NotchField(Notch), '{' + Arc.Key + '}.length');
+      end;
+    for SeamIndex := 0 to FObjects.Count - 1 do
+      if FObjects[SeamIndex] is TSeamObject then
+        TSeamObject(FObjects[SeamIndex]).JoinEntries(Piece.Key, NearA.Key, NearB.Key, Arc.Key);
+    Moved := True;
+  end;
+  // A piece now reads the arc, which may come after it
+  if Moved then
+    OrderObjectsByInputs;
 end;
 
 function TPattern.AddCurvePath(const NodeIds, Angles, LengthsIn, LengthsOut: array of string;

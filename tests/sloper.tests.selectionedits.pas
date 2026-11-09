@@ -74,6 +74,7 @@ type
     procedure TestBreakNeedsOnePoint;
     procedure TestRoundCorner;
     procedure TestRoundCornerRefusedSaysWhy;
+    procedure TestRoundCornerOfPieceIsOneStep;
     procedure TestRoundCornerNeedsTwoEdges;
     procedure TestMarkPoint;
     procedure TestMarkNeedsPieceAndTarget;
@@ -88,7 +89,7 @@ type
 implementation
 
 uses
-  Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.Core.Transform;
+  Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.PieceDetect, Sloper.Core.Transform;
 
 procedure TTestSelectionEdits.SetUp;
 var
@@ -415,15 +416,34 @@ begin
 end;
 
 // The pattern's own refusal comes back as the message
+// A piece's fold has to stay one straight edge
 procedure TTestSelectionEdits.TestRoundCornerRefusedSaysWhy;
 var
   Edit: TSelectionEdit;
 begin
+  AssertTrue(Pattern.LastError, Pattern.SetFoldEdge(Piece, FBC));
   Edit := RoundSelectedCorner(FDocument, [FAB, FBC]);
   AssertFalse(Edit.Done);
   AssertTrue('names the piece', Pos('Front', Edit.Message) > 0);
   AssertFalse(FDocument.ChangeOpen);
   AssertFalse(FDocument.CanUndo);
+end;
+
+// Rounding a piece's corner rounds the piece, in one step that undoes whole
+procedure TTestSelectionEdits.TestRoundCornerOfPieceIsOneStep;
+var
+  Edit: TSelectionEdit;
+begin
+  Edit := RoundSelectedCorner(FDocument, [FAB, FBC]);
+  AssertTrue(Edit.Message, Edit.Done);
+  Pattern.Evaluate;
+  AssertEquals('four lines and the arc', 5, Length(Piece.Path));
+  AssertTrue(Piece.Message, Piece.State = esValid);
+  AssertTrue(FDocument.CanUndo);
+  FDocument.Undo;
+  Pattern.Evaluate;
+  AssertEquals('back to the sharp corner', 4, Length(Piece.Path));
+  AssertEquals(10000, Piece.Area, 1e-6);
 end;
 
 procedure TTestSelectionEdits.TestRoundCornerNeedsTwoEdges;

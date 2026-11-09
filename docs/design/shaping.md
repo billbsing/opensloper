@@ -50,8 +50,12 @@ Select two straight edges that meet at a point and choose Tools → Edge → Rou
 Corner. An arc replaces the corner, 10 mm in radius (1 cm, ½ in) to start, and
 both edges are cut back where it meets them. The radius is a formula in the
 arc's properties. The sharp corner stays behind as construction, as a guide.
-Round corners before making the piece: a piece made earlier keeps the sharp
-corner, so delete it and click inside the outline again.
+
+A piece already made from the edges is rounded too, in the same step: it takes
+the arc and what is left of the edges, and keeps its notches, seams, cut,
+grainline and material. A notch on the part cut away moves to the end of the
+arc beside it. A corner on the edge a piece is folded on cannot be rounded,
+since a fold has to stay one straight edge.
 
 Only corners between straight edges can be rounded so far. To round a second
 corner on the same edge, select the part of the edge that is left.
