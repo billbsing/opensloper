@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a new feature or a change to how OpenSloper works.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the idea. Please search the [open issues](https://github.com/billbsing/opensloper/issues) first, in case it has already been suggested.
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      description: Which program is it for?
+      options:
+        - opensloper-design
+        - opensloper-measurements
+        - opensloper-publish
+        - opensloper-cli
+        - Automation API
+        - File formats
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you want to do
+      description: The drafting or pattern-making task you're trying to do, and what makes it hard today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: How it could work
+      description: How you imagine the feature working. Mention how Valentina, Seamly2D or another program does it, if that helps.
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else
+      description: Sketches, example patterns, screenshots or links.

@@ -28,7 +28,7 @@ git submodule update --init --recursive
 ./build.sh         # build the three GUI apps and the CLI into release/
 ```
 
-To contribute, see `CONTRIBUTING.md`.
+To contribute, see `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`. To report a security problem, see `SECURITY.md`.
 
 To use a Lazarus/FPC that is not on `PATH` (for example an fpcupdeluxe install), copy `build.local.sh.example` to `build.local.sh` and edit the paths.
 

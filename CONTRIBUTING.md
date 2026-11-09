@@ -2,6 +2,8 @@
 
 Thank you for helping. This page covers what a pull request needs before it can be merged. Read `CLAUDE.md` for the project's layout and rules, and `documents/coding-standards.md` for how the code is written.
 
+Everyone taking part in the project is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security problems privately, as described in [SECURITY.md](SECURITY.md), not in a public issue.
+
 ## Toolchain
 
 Use the release toolchain that CI uses: **Lazarus 4.8 with FPC 3.2.2**. The formatter is built from your Lazarus's own source, so a different Lazarus version may format code differently and fail the CI formatting check. On Linux, the GUI apps also need the Qt5 or Qt6 Pascal bindings (`libQt5Pas` or `libQt6Pas`).
