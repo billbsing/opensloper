@@ -36,8 +36,8 @@ points and edges placed by formulas, then closed outlines become pieces.
 | Rectangle | ++r++ | Draw a rectangle from one corner to the opposite one |
 | Piece | ++k++ | Make a piece from the closed outline around the click |
 | Notch | ++t++ | Add a notch on a piece's edge, or remove one |
-| Seam | ++e++ | Pick the edges of two pieces that are sewn together |
-| Text | ++x++ | Add a note |
+| Seam | ++e++ | Pick the edges of two pieces that are sewn together ([Seams](pieces.md#seams)) |
+| Text | ++x++ | Add a note ([Notes and callouts](notes.md)) |
 | Callout | ++a++ | Add a note with a line to what it is about |
 
 ++escape++ stops what a tool is doing, and pressed again returns to Select.

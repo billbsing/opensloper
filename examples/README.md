@@ -18,4 +18,4 @@ opensloper-cli export-draft tote-bag/tote-bag.sloper --labels -o tote-bag.svg
 
 The sizes are round figures for trying the patterns, not a published sizing standard, and the bodice is a starting point for learning rather than a tested fit.
 
-The tutorial patterns are in [`docs/examples`](../docs/examples), beside the tutorials that build them step by step.
+The tutorial patterns are in [`docs/examples`](../docs/examples), beside the tutorials that build them step by step. The user documentation describes these examples on its [Example patterns](https://billbsing.github.io/opensloper/getting-started/examples/) page.

@@ -17,6 +17,7 @@ nav = [
   { "Getting started" = [
     "getting-started/index.md",
     "getting-started/files.md",
+    "getting-started/examples.md",
   ] },
   { "Tutorials" = [
     "tutorials/index.md",
@@ -34,6 +35,7 @@ nav = [
     "design/drawing.md",
     "design/formulas.md",
     "design/pieces.md",
+    "design/notes.md",
   ] },
   { "Publish" = [
     "publish/index.md",

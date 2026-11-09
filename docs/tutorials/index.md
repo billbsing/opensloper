@@ -5,3 +5,6 @@ can open it and compare.
 
 - [A straight skirt block](skirt-block.md): the basics of drafting by formula,
   from measurements to two pieces ready to print.
+
+For finished patterns without the steps, see
+[Example patterns](../getting-started/examples.md).
