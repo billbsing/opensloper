@@ -1,0 +1,64 @@
+{
+  "format": "measurements",
+  "version": 1,
+  "units": "mm",
+  "name": "Sam",
+  "notes": "One person's measurements, an example of a set with no sizes. Open the example patterns with it in place of the size table.",
+  "measurements": [
+    {
+      "key": "bust_circumference",
+      "value": 905,
+      "description": "Around the fullest part of the bust"
+    },
+    {
+      "key": "waist_circumference",
+      "value": 712,
+      "description": "Around the natural waist"
+    },
+    {
+      "key": "hip_circumference",
+      "value": 990,
+      "description": "Around the fullest part of the hips"
+    },
+    {
+      "key": "neck_circumference",
+      "value": 362,
+      "description": "Around the base of the neck"
+    },
+    {
+      "key": "shoulder_length",
+      "value": 121,
+      "description": "Neck side point to shoulder point"
+    },
+    {
+      "key": "across_back",
+      "value": 338,
+      "description": "Across the back between the arm creases"
+    },
+    {
+      "key": "across_chest",
+      "value": 322,
+      "description": "Across the chest between the arm creases"
+    },
+    {
+      "key": "bust_point_separation",
+      "value": 182,
+      "description": "Between the bust points"
+    },
+    {
+      "key": "neck_back_to_waist",
+      "value": 398,
+      "description": "Back neck to waist, at the centre back"
+    },
+    {
+      "key": "waist_to_hip_side",
+      "value": 206,
+      "description": "Waist to hip line, at the side"
+    },
+    {
+      "key": "waist_to_knee",
+      "value": 575,
+      "description": "Waist to knee, at the side"
+    }
+  ]
+}

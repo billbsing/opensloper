@@ -55,16 +55,19 @@ begin
   Result := ConcatPaths([DocsFolder, 'reference']);
 end;
 
-// Loads a pattern from docs/ with the measurement file it names, and evaluates it
+// Loads an example pattern with the measurement file it names, if any, and evaluates it
 procedure LoadExample(const FileName: string; Pattern: TPattern; Measurements: TMeasurementSet);
 var
   Err: string;
 begin
   if not LoadPatternFromFile(Pattern, FileName, Err) then
     raise EAssertionFailedError.Create(FileName + ': ' + Err);
-  if not Measurements.LoadFromFile(MeasurementFilePath(Pattern, FileName), Err) then
-    raise EAssertionFailedError.Create(FileName + ': ' + Err);
-  Pattern.Measurements := Measurements;
+  if Pattern.MeasurementFile <> '' then
+  begin
+    if not Measurements.LoadFromFile(MeasurementFilePath(Pattern, FileName), Err) then
+      raise EAssertionFailedError.Create(FileName + ': ' + Err);
+    Pattern.Measurements := Measurements;
+  end;
   Pattern.Evaluate;
 end;
 
@@ -145,7 +148,8 @@ begin
   end;
 end;
 
-// Every tutorial pattern opens with its measurements and works out cleanly
+// Every tutorial pattern in docs/examples and example pattern in examples opens with its measurements
+// and works out cleanly
 procedure TTestDocs.TestExamplePatternsHaveNoProblems;
 var
   Files: TStringList;
@@ -157,7 +161,8 @@ begin
   Files := TStringList.Create;
   try
     FindFiles(ConcatPaths([DocsFolder, 'examples']), '.sloper', Files);
-    AssertTrue('there are examples', Files.Count > 0);
+    AssertTrue('there are tutorial examples', Files.Count > 0);
+    FindFiles(ConcatPaths([ExtractFileDir(DocsFolder), 'examples']), '.sloper', Files);
     for FileName in Files do
     begin
       Measurements := TMeasurementSet.Create;

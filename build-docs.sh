@@ -52,7 +52,7 @@ else
 fi
 
 # The examples and regression files against the file format schemas
-./venv/bin/python -I check-schemas.py docs tests
+./venv/bin/python -I check-schemas.py docs examples tests
 
 if echo "$*" | grep -q -- "--serve"; then
   ./venv/bin/zensical serve

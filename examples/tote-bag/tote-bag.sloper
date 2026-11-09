@@ -1,0 +1,1026 @@
+{
+  "format": "pattern",
+  "version": 1,
+  "units": "cm",
+  "notes": "A lined tote bag with boxed corners, a patch pocket and two straps. Change the variables to resize it; it needs no measurements. Example pattern: variables, materials, a moved copy for the lining, rounded corners, placement lines, notches, a seam check and notes.",
+  "measurementFile": "",
+  "identity": "fbd14888-b68f-47fa-8b92-a9512418ca88",
+  "nextId": 99,
+  "variables": [
+    {
+      "id": 1,
+      "name": "width",
+      "formula": "40",
+      "description": "Width of the bag at the top"
+    },
+    {
+      "id": 2,
+      "name": "height",
+      "formula": "38",
+      "description": "Height of a body piece, before the corners are boxed"
+    },
+    {
+      "id": 3,
+      "name": "gusset",
+      "formula": "12",
+      "description": "Depth of the boxed base; each corner cut-out is half of it square"
+    },
+    {
+      "id": 4,
+      "name": "pocket_width",
+      "formula": "18",
+      "description": "Width of the patch pocket"
+    },
+    {
+      "id": 5,
+      "name": "pocket_height",
+      "formula": "16",
+      "description": "Height of the finished pocket"
+    },
+    {
+      "id": 6,
+      "name": "strap_length",
+      "formula": "65",
+      "description": "Length of each strap"
+    },
+    {
+      "id": 7,
+      "name": "strap_width",
+      "formula": "3",
+      "description": "Finished width of each strap, cut four times as wide"
+    },
+    {
+      "id": 8,
+      "name": "handle_gap",
+      "formula": "12",
+      "description": "Distance between the ends of a strap on the bag"
+    }
+  ],
+  "objects": [
+    {
+      "id": 9,
+      "type": "freePoint",
+      "name": "A",
+      "x": "0",
+      "y": "0"
+    },
+    {
+      "id": 10,
+      "type": "offsetPoint",
+      "name": "B",
+      "base": 9,
+      "mode": "cartesian",
+      "dx": "{1}",
+      "dy": "0"
+    },
+    {
+      "id": 11,
+      "type": "offsetPoint",
+      "name": "C",
+      "base": 9,
+      "mode": "cartesian",
+      "dx": "{1}",
+      "dy": "{2} - {3} / 2"
+    },
+    {
+      "id": 12,
+      "type": "offsetPoint",
+      "name": "D",
+      "base": 11,
+      "mode": "cartesian",
+      "dx": "-{3} / 2",
+      "dy": "0"
+    },
+    {
+      "id": 13,
+      "type": "offsetPoint",
+      "name": "E",
+      "base": 12,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{3} / 2"
+    },
+    {
+      "id": 14,
+      "type": "offsetPoint",
+      "name": "H",
+      "base": 9,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{2} - {3} / 2"
+    },
+    {
+      "id": 15,
+      "type": "offsetPoint",
+      "name": "G",
+      "base": 14,
+      "mode": "cartesian",
+      "dx": "{3} / 2",
+      "dy": "0"
+    },
+    {
+      "id": 16,
+      "type": "offsetPoint",
+      "name": "F",
+      "base": 15,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{3} / 2"
+    },
+    {
+      "id": 17,
+      "type": "line",
+      "name": "Top",
+      "start": 9,
+      "end": 10,
+      "role": "outline"
+    },
+    {
+      "id": 18,
+      "type": "line",
+      "name": "Side_right",
+      "start": 10,
+      "end": 11,
+      "role": "outline"
+    },
+    {
+      "id": 19,
+      "type": "line",
+      "start": 11,
+      "end": 12,
+      "role": "outline"
+    },
+    {
+      "id": 20,
+      "type": "line",
+      "start": 12,
+      "end": 13,
+      "role": "outline"
+    },
+    {
+      "id": 21,
+      "type": "line",
+      "name": "Base",
+      "start": 13,
+      "end": 16,
+      "role": "outline"
+    },
+    {
+      "id": 22,
+      "type": "line",
+      "start": 16,
+      "end": 15,
+      "role": "outline"
+    },
+    {
+      "id": 23,
+      "type": "line",
+      "start": 15,
+      "end": 14,
+      "role": "outline"
+    },
+    {
+      "id": 24,
+      "type": "line",
+      "name": "Side_left",
+      "start": 14,
+      "end": 9,
+      "role": "outline"
+    },
+    {
+      "id": 25,
+      "type": "alongEdgePoint",
+      "name": "S1",
+      "edge": 17,
+      "from": "start",
+      "mode": "length",
+      "value": "({1} - {8}) / 2"
+    },
+    {
+      "id": 26,
+      "type": "alongEdgePoint",
+      "name": "S2",
+      "edge": 17,
+      "from": "end",
+      "mode": "length",
+      "value": "({1} - {8}) / 2"
+    },
+    {
+      "id": 27,
+      "type": "alongEdgePoint",
+      "name": "M",
+      "edge": 17,
+      "from": "start",
+      "mode": "ratio",
+      "value": "0.5"
+    },
+    {
+      "id": 28,
+      "type": "offsetPoint",
+      "name": "Snap",
+      "base": 27,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "4"
+    },
+    {
+      "id": 29,
+      "type": "offsetPoint",
+      "name": "PP",
+      "base": 9,
+      "mode": "cartesian",
+      "dx": "({1} - {4}) / 2",
+      "dy": "10"
+    },
+    {
+      "id": 30,
+      "type": "offsetPoint",
+      "name": "I",
+      "base": 29,
+      "mode": "cartesian",
+      "dx": "{4}",
+      "dy": "0"
+    },
+    {
+      "id": 31,
+      "type": "offsetPoint",
+      "name": "J",
+      "base": 29,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{5}"
+    },
+    {
+      "id": 32,
+      "type": "offsetPoint",
+      "name": "K",
+      "base": 30,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{31}.y - {29}.y"
+    },
+    {
+      "id": 33,
+      "type": "line",
+      "start": 29,
+      "end": 30,
+      "role": "placement"
+    },
+    {
+      "id": 34,
+      "type": "line",
+      "start": 30,
+      "end": 32,
+      "role": "placement"
+    },
+    {
+      "id": 35,
+      "type": "line",
+      "start": 32,
+      "end": 31,
+      "role": "placement"
+    },
+    {
+      "id": 36,
+      "type": "line",
+      "start": 31,
+      "end": 29,
+      "role": "placement"
+    },
+    {
+      "id": 37,
+      "type": "move",
+      "name": "Lining_copy",
+      "sources": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        16,
+        15,
+        14,
+        28,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "suffix": "_L",
+      "mode": "cartesian",
+      "dx": "{1} + 8",
+      "dy": "0"
+    },
+    {
+      "id": 38,
+      "type": "pointCopy",
+      "name": "A_L",
+      "transform": 37,
+      "source": 9
+    },
+    {
+      "id": 39,
+      "type": "pointCopy",
+      "name": "B_L",
+      "transform": 37,
+      "source": 10
+    },
+    {
+      "id": 40,
+      "type": "pointCopy",
+      "name": "C_L",
+      "transform": 37,
+      "source": 11
+    },
+    {
+      "id": 41,
+      "type": "pointCopy",
+      "name": "D_L",
+      "transform": 37,
+      "source": 12
+    },
+    {
+      "id": 42,
+      "type": "pointCopy",
+      "name": "E_L",
+      "transform": 37,
+      "source": 13
+    },
+    {
+      "id": 43,
+      "type": "pointCopy",
+      "name": "F_L",
+      "transform": 37,
+      "source": 16
+    },
+    {
+      "id": 44,
+      "type": "pointCopy",
+      "name": "G_L",
+      "transform": 37,
+      "source": 15
+    },
+    {
+      "id": 45,
+      "type": "pointCopy",
+      "name": "H_L",
+      "transform": 37,
+      "source": 14
+    },
+    {
+      "id": 46,
+      "type": "pointCopy",
+      "name": "Snap_L",
+      "transform": 37,
+      "source": 28,
+      "markerSize": "1.5",
+      "marker": "hole"
+    },
+    {
+      "id": 47,
+      "type": "edgeCopy",
+      "name": "Top_L",
+      "transform": 37,
+      "source": 17,
+      "start": 38,
+      "end": 39,
+      "role": "outline"
+    },
+    {
+      "id": 48,
+      "type": "edgeCopy",
+      "name": "Side_right_L",
+      "transform": 37,
+      "source": 18,
+      "start": 39,
+      "end": 40,
+      "role": "outline"
+    },
+    {
+      "id": 49,
+      "type": "edgeCopy",
+      "name": "Line_C_D_L",
+      "transform": 37,
+      "source": 19,
+      "start": 40,
+      "end": 41,
+      "role": "outline"
+    },
+    {
+      "id": 50,
+      "type": "edgeCopy",
+      "name": "Line_D_E_L",
+      "transform": 37,
+      "source": 20,
+      "start": 41,
+      "end": 42,
+      "role": "outline"
+    },
+    {
+      "id": 51,
+      "type": "edgeCopy",
+      "name": "Base_L",
+      "transform": 37,
+      "source": 21,
+      "start": 42,
+      "end": 43,
+      "role": "outline"
+    },
+    {
+      "id": 52,
+      "type": "edgeCopy",
+      "name": "Line_F_G_L",
+      "transform": 37,
+      "source": 22,
+      "start": 43,
+      "end": 44,
+      "role": "outline"
+    },
+    {
+      "id": 53,
+      "type": "edgeCopy",
+      "name": "Line_G_H_L",
+      "transform": 37,
+      "source": 23,
+      "start": 44,
+      "end": 45,
+      "role": "outline"
+    },
+    {
+      "id": 54,
+      "type": "edgeCopy",
+      "name": "Side_left_L",
+      "transform": 37,
+      "source": 24,
+      "start": 45,
+      "end": 38,
+      "role": "outline"
+    },
+    {
+      "id": 55,
+      "type": "offsetPoint",
+      "name": "PK",
+      "base": 9,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{2} + 8"
+    },
+    {
+      "id": 56,
+      "type": "offsetPoint",
+      "name": "L",
+      "base": 55,
+      "mode": "cartesian",
+      "dx": "{4}",
+      "dy": "0"
+    },
+    {
+      "id": 57,
+      "type": "offsetPoint",
+      "name": "N",
+      "base": 55,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{5}"
+    },
+    {
+      "id": 58,
+      "type": "offsetPoint",
+      "name": "O",
+      "base": 56,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{57}.y - {55}.y"
+    },
+    {
+      "id": 59,
+      "type": "line",
+      "name": "Pocket_fold",
+      "start": 55,
+      "end": 56,
+      "role": "outline"
+    },
+    {
+      "id": 60,
+      "type": "line",
+      "start": 56,
+      "end": 58,
+      "role": "construction"
+    },
+    {
+      "id": 61,
+      "type": "line",
+      "start": 58,
+      "end": 57,
+      "role": "construction"
+    },
+    {
+      "id": 62,
+      "type": "line",
+      "start": 57,
+      "end": 55,
+      "role": "construction"
+    },
+    {
+      "id": 63,
+      "type": "cornerArc",
+      "vertex": 58,
+      "edgeA": 60,
+      "edgeB": 61,
+      "radius": "3",
+      "role": "outline"
+    },
+    {
+      "id": 64,
+      "type": "cornerPoint",
+      "name": "P",
+      "arc": 63,
+      "end": 1
+    },
+    {
+      "id": 65,
+      "type": "cornerPoint",
+      "name": "Q",
+      "arc": 63,
+      "end": 2
+    },
+    {
+      "id": 66,
+      "type": "splitPart",
+      "edge": 60,
+      "point": 64,
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": 67,
+      "type": "splitPart",
+      "edge": 60,
+      "point": 64,
+      "part": 2,
+      "role": "construction"
+    },
+    {
+      "id": 68,
+      "type": "splitPart",
+      "edge": 61,
+      "point": 65,
+      "part": 1,
+      "role": "construction"
+    },
+    {
+      "id": 69,
+      "type": "splitPart",
+      "edge": 61,
+      "point": 65,
+      "part": 2,
+      "role": "construction"
+    },
+    {
+      "id": 70,
+      "type": "cornerArc",
+      "vertex": 57,
+      "edgeA": 69,
+      "edgeB": 62,
+      "radius": "3",
+      "role": "outline"
+    },
+    {
+      "id": 71,
+      "type": "cornerPoint",
+      "name": "R",
+      "arc": 70,
+      "end": 1
+    },
+    {
+      "id": 72,
+      "type": "cornerPoint",
+      "name": "S",
+      "arc": 70,
+      "end": 2
+    },
+    {
+      "id": 73,
+      "type": "splitPart",
+      "edge": 69,
+      "point": 71,
+      "part": 1,
+      "role": "outline"
+    },
+    {
+      "id": 74,
+      "type": "splitPart",
+      "edge": 69,
+      "point": 71,
+      "part": 2,
+      "role": "construction"
+    },
+    {
+      "id": 75,
+      "type": "splitPart",
+      "edge": 62,
+      "point": 72,
+      "part": 1,
+      "role": "construction"
+    },
+    {
+      "id": 76,
+      "type": "splitPart",
+      "edge": 62,
+      "point": 72,
+      "part": 2,
+      "role": "outline"
+    },
+    {
+      "id": 77,
+      "type": "offsetPoint",
+      "name": "ST",
+      "base": 55,
+      "mode": "cartesian",
+      "dx": "{4} + 8",
+      "dy": "0"
+    },
+    {
+      "id": 78,
+      "type": "offsetPoint",
+      "name": "T",
+      "base": 77,
+      "mode": "cartesian",
+      "dx": "{6}",
+      "dy": "0"
+    },
+    {
+      "id": 79,
+      "type": "offsetPoint",
+      "name": "U",
+      "base": 77,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{7} * 4"
+    },
+    {
+      "id": 80,
+      "type": "offsetPoint",
+      "name": "V",
+      "base": 78,
+      "mode": "cartesian",
+      "dx": "0",
+      "dy": "{79}.y - {77}.y"
+    },
+    {
+      "id": 81,
+      "type": "line",
+      "start": 77,
+      "end": 78,
+      "role": "outline"
+    },
+    {
+      "id": 82,
+      "type": "line",
+      "start": 78,
+      "end": 80,
+      "role": "outline"
+    },
+    {
+      "id": 83,
+      "type": "line",
+      "start": 80,
+      "end": 79,
+      "role": "outline"
+    },
+    {
+      "id": 84,
+      "type": "line",
+      "start": 79,
+      "end": 77,
+      "role": "outline"
+    },
+    {
+      "id": 85,
+      "type": "alongEdgePoint",
+      "name": "T1",
+      "edge": 84,
+      "from": "end",
+      "mode": "ratio",
+      "value": "0.5"
+    },
+    {
+      "id": 86,
+      "type": "alongEdgePoint",
+      "name": "T2",
+      "edge": 82,
+      "from": "start",
+      "mode": "ratio",
+      "value": "0.5"
+    },
+    {
+      "id": 87,
+      "type": "line",
+      "name": "Strap_fold",
+      "start": 85,
+      "end": 86,
+      "role": "fold"
+    },
+    {
+      "id": 91,
+      "type": "piece",
+      "name": "Lining",
+      "path": [
+        {
+          "edge": 48,
+          "reversed": false
+        },
+        {
+          "edge": 49,
+          "reversed": false
+        },
+        {
+          "edge": 50,
+          "reversed": false
+        },
+        {
+          "edge": 51,
+          "reversed": false
+        },
+        {
+          "edge": 52,
+          "reversed": false
+        },
+        {
+          "edge": 53,
+          "reversed": false
+        },
+        {
+          "edge": 54,
+          "reversed": false
+        },
+        {
+          "edge": 47,
+          "reversed": false
+        }
+      ],
+      "allowance": "1",
+      "grainline": {
+        "angle": "90"
+      },
+      "markings": [
+        {
+          "kind": "point",
+          "point": 46
+        }
+      ],
+      "cut": {
+        "count": 2,
+        "mirrored": false
+      },
+      "material": 89
+    },
+    {
+      "id": 92,
+      "type": "piece",
+      "name": "Pocket",
+      "path": [
+        {
+          "edge": 66,
+          "reversed": false
+        },
+        {
+          "edge": 63,
+          "reversed": false
+        },
+        {
+          "edge": 73,
+          "reversed": false
+        },
+        {
+          "edge": 70,
+          "reversed": false
+        },
+        {
+          "edge": 76,
+          "reversed": false
+        },
+        {
+          "edge": 59,
+          "reversed": false
+        }
+      ],
+      "allowance": "1",
+      "grainline": {
+        "angle": "90"
+      },
+      "cut": {
+        "count": 1,
+        "mirrored": false
+      },
+      "foldEdge": 59,
+      "material": 88
+    },
+    {
+      "id": 93,
+      "type": "piece",
+      "name": "Strap",
+      "path": [
+        {
+          "edge": 82,
+          "reversed": false
+        },
+        {
+          "edge": 83,
+          "reversed": false
+        },
+        {
+          "edge": 84,
+          "reversed": false
+        },
+        {
+          "edge": 81,
+          "reversed": false
+        }
+      ],
+      "allowance": "0",
+      "grainline": {
+        "angle": "0"
+      },
+      "markings": [
+        {
+          "kind": "line",
+          "edge": 87
+        }
+      ],
+      "cut": {
+        "count": 2,
+        "mirrored": false
+      },
+      "material": 88
+    },
+    {
+      "id": 90,
+      "type": "piece",
+      "name": "Body",
+      "path": [
+        {
+          "edge": 18,
+          "reversed": false
+        },
+        {
+          "edge": 19,
+          "reversed": false
+        },
+        {
+          "edge": 20,
+          "reversed": false
+        },
+        {
+          "edge": 21,
+          "reversed": false
+        },
+        {
+          "edge": 22,
+          "reversed": false
+        },
+        {
+          "edge": 23,
+          "reversed": false
+        },
+        {
+          "edge": 24,
+          "reversed": false
+        },
+        {
+          "edge": 17,
+          "reversed": false
+        }
+      ],
+      "allowance": "1",
+      "grainline": {
+        "angle": "90"
+      },
+      "notches": [
+        {
+          "point": 25
+        },
+        {
+          "point": 26
+        }
+      ],
+      "markings": [
+        {
+          "kind": "line",
+          "edge": 33
+        },
+        {
+          "kind": "line",
+          "edge": 34
+        },
+        {
+          "kind": "line",
+          "edge": 35
+        },
+        {
+          "kind": "line",
+          "edge": 36
+        }
+      ],
+      "cut": {
+        "count": 2,
+        "mirrored": false
+      },
+      "material": 88
+    },
+    {
+      "id": 94,
+      "type": "seam",
+      "name": "Top_seam",
+      "sideA": [
+        {
+          "piece": 90,
+          "edge": 17
+        }
+      ],
+      "sideB": [
+        {
+          "piece": 91,
+          "edge": 47
+        }
+      ],
+      "reversed": false,
+      "ease": "0",
+      "tolerance": "0.1"
+    },
+    {
+      "id": 95,
+      "type": "note",
+      "name": "Note",
+      "anchor": {
+        "piece": 90
+      },
+      "dx": "0",
+      "dy": "4",
+      "text": "Finished size\n{={1}} × {={2} - {3} / 2} × {={3}} cm",
+      "size": 12,
+      "print": true,
+      "align": "centre"
+    },
+    {
+      "id": 96,
+      "type": "note",
+      "name": "Note2",
+      "anchor": {
+        "piece": 91
+      },
+      "dx": "0",
+      "dy": "4",
+      "text": "Magnetic snap at the hole",
+      "size": 12,
+      "print": true,
+      "align": "centre"
+    },
+    {
+      "id": 97,
+      "type": "note",
+      "name": "Note3",
+      "anchor": {
+        "piece": 92
+      },
+      "dx": "0",
+      "dy": "4",
+      "text": "Turn in the sides and base,\nfold at the top and topstitch\nto the bag at the placement lines",
+      "size": 12,
+      "print": true,
+      "align": "centre"
+    },
+    {
+      "id": 98,
+      "type": "note",
+      "name": "Note4",
+      "anchor": {
+        "piece": 93
+      },
+      "dx": "0",
+      "dy": "4",
+      "text": "Fold the long edges to the centre line, then in half, and topstitch",
+      "size": 12,
+      "print": true,
+      "align": "centre"
+    }
+  ],
+  "materials": [
+    {
+      "id": 88,
+      "name": "Main",
+      "color": "#5B8DB8",
+      "fill": "tint"
+    },
+    {
+      "id": 89,
+      "name": "Lining",
+      "color": "#C9A66B",
+      "fill": "hatch"
+    }
+  ]
+}

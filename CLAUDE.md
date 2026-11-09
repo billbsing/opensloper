@@ -20,6 +20,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources; `make-icons.sh` regenerates the apps' `.ico` files after an SVG changes, and `linux/` holds the `.desktop` entries.
 - `data/` — files the apps read at run time: the measurement catalogue and its body figures, and the Tabler toolbar icons (`data/icons`, MIT).
 - `tests/` — FPCUnit test project and regression patterns.
+- `examples/` — finished example patterns with a size table and a person's measurements; a test checks each works out with no problems.
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
 - `documents/` — internal development notes, the design document, `coding-standards.md`, `known-issues.md` and the GPL unit header (`gpl-header.txt`).
 - `docs/` — user documentation (Markdown, built with Zensical from `zensical.toml`, licensed CC BY-SA 4.0). `docs/reference/` holds generated pages and `docs/reference/schemas/` the generated JSON Schemas of the user files: never edit them by hand; run `./build.sh` then `./build-docs.sh`, and a test fails while a committed page is out of date.
