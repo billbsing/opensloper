@@ -6,3 +6,9 @@ skirt-1-frame.svg examples/skirt-block/skirt-block.sloper Hem
 skirt-2-side.svg examples/skirt-block/skirt-block.sloper Side_seam
 skirt-3-darts.svg examples/skirt-block/skirt-block.sloper Front_waist_centre
 skirt-4-pieces.svg examples/skirt-block/skirt-block.sloper -
+bodice-1-frame.svg examples/bodice-block/bodice-block.sloper Back_waist_line
+bodice-2-shoulder.svg examples/bodice-block/bodice-block.sloper Back_neck
+bodice-3-armhole.svg examples/bodice-block/bodice-block.sloper Back_side
+bodice-4-dart.svg examples/bodice-block/bodice-block.sloper Back_waist_side
+bodice-5-front.svg examples/bodice-block/bodice-block.sloper Front_waist_side
+bodice-6-pieces.svg examples/bodice-block/bodice-block.sloper -

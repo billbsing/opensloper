@@ -1,0 +1,49 @@
+{
+  "format": "measurements",
+  "version": 1,
+  "units": "mm",
+  "name": "Tutorial",
+  "notes": "Measurements for the bodice block tutorial",
+  "measurements": [
+    {
+      "key": "bust_circumference",
+      "value": 920,
+      "description": "Around the fullest part of the bust"
+    },
+    {
+      "key": "waist_circumference",
+      "value": 740,
+      "description": "Around the natural waist"
+    },
+    {
+      "key": "neck_circumference",
+      "value": 370,
+      "description": "Around the base of the neck"
+    },
+    {
+      "key": "shoulder_length",
+      "value": 124,
+      "description": "Neck side point to shoulder point"
+    },
+    {
+      "key": "across_back",
+      "value": 350,
+      "description": "Across the back between the arm creases"
+    },
+    {
+      "key": "across_chest",
+      "value": 330,
+      "description": "Across the chest between the arm creases"
+    },
+    {
+      "key": "bust_point_separation",
+      "value": 190,
+      "description": "Between the bust points"
+    },
+    {
+      "key": "neck_back_to_waist",
+      "value": 410,
+      "description": "Back neck to waist, at the centre back"
+    }
+  ]
+}

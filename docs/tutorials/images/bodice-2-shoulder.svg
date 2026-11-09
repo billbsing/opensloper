@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="293mm" height="473mm" viewBox="-21.5 -41.5 293 473">
+<rect x="-21.5" y="-41.5" width="293" height="473" fill="#ffffff"/>
+<path data-id="16" data-name="Back_chest_line" d="M 0 205 L 250 205" fill="none" stroke="#808080" stroke-width="0.344" stroke-dasharray="1.376 1.032"/>
+<text x="126.935" y="203.065" font-family="sans-serif" font-size="6.02" fill="#202020">Back_chest_line</text>
+<path data-id="17" data-name="Back_waist_line" d="M 0 410 L 228 410" fill="none" stroke="#808080" stroke-width="0.344" stroke-dasharray="1.376 1.032"/>
+<text x="115.935" y="408.065" font-family="sans-serif" font-size="6.02" fill="#202020">Back_waist_line</text>
+<path data-id="15" data-name="Centre_back" d="M 0 0 L 0 410" fill="none" stroke="#202020" stroke-width="0.645"/>
+<text x="1.935" y="203.065" font-family="sans-serif" font-size="6.02" fill="#202020">Centre_back</text>
+<path data-id="21" data-name="Back_shoulder" d="M 72 -20 L 199.442 21.408" fill="none" stroke="#202020" stroke-width="0.645"/>
+<text x="137.656" y="-1.231" font-family="sans-serif" font-size="6.02" fill="#202020">Back_shoulder</text>
+<path data-id="22" data-name="Back_neck" d="M 0 0 C 36 0 67.365 -5.734 72 -20" fill="none" stroke="#202020" stroke-width="0.645"/>
+<text x="40.749" y="-4.738" font-family="sans-serif" font-size="6.02" fill="#202020">Back_neck</text>
+<circle data-id="10" data-name="A" cx="0" cy="0" r="1.29" fill="#202020"/>
+<text x="1.935" y="-1.935" font-family="sans-serif" font-size="6.02" fill="#202020">A</text>
+<circle data-id="11" data-name="B" cx="0" cy="205" r="1.29" fill="#202020"/>
+<text x="1.935" y="203.065" font-family="sans-serif" font-size="6.02" fill="#202020">B</text>
+<circle data-id="12" data-name="C" cx="0" cy="410" r="1.29" fill="#202020"/>
+<text x="1.935" y="408.065" font-family="sans-serif" font-size="6.02" fill="#202020">C</text>
+<circle data-id="13" data-name="UB" cx="250" cy="205" r="1.29" fill="#202020"/>
+<text x="251.935" y="203.065" font-family="sans-serif" font-size="6.02" fill="#202020">UB</text>
+<circle data-id="14" data-name="WB" cx="228" cy="410" r="1.29" fill="#202020"/>
+<text x="229.935" y="408.065" font-family="sans-serif" font-size="6.02" fill="#202020">WB</text>
+<circle data-id="18" data-name="D" cx="72" cy="0" r="1.29" fill="#202020"/>
+<text x="73.935" y="-1.935" font-family="sans-serif" font-size="6.02" fill="#202020">D</text>
+<circle data-id="19" data-name="NB" cx="72" cy="-20" r="1.29" fill="#202020"/>
+<text x="73.935" y="-21.935" font-family="sans-serif" font-size="6.02" fill="#202020">NB</text>
+<circle data-id="20" data-name="SB" cx="199.442" cy="21.408" r="1.29" fill="#202020"/>
+<text x="201.377" y="19.473" font-family="sans-serif" font-size="6.02" fill="#202020">SB</text>
+</svg>

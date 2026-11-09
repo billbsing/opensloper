@@ -1,0 +1,728 @@
+{
+  "format": "pattern",
+  "version": 1,
+  "units": "cm",
+  "notes": "A close-fitting bodice block: half back and half front, each cut on the fold, with a waist dart in each. The pattern of the bodice block tutorial.",
+  "measurementFile": "bodice.slm",
+  "identity": "a9d27dd4-466a-4988-a917-5754d4ea4b19",
+  "nextId": 69,
+  "variables": [
+    {
+      "id": 1,
+      "name": "bust_ease",
+      "formula": "8",
+      "description": "Ease added round the bust"
+    },
+    {
+      "id": 2,
+      "name": "waist_ease",
+      "formula": "4",
+      "description": "Ease added round the waist"
+    },
+    {
+      "id": 3,
+      "name": "half_width",
+      "formula": "@bust_circumference / 4 + {1} / 4",
+      "description": "Width of each half piece at the bust"
+    },
+    {
+      "id": 4,
+      "name": "scye_depth",
+      "formula": "@bust_circumference / 8 + 9",
+      "description": "From the back neck down to the underarm"
+    },
+    {
+      "id": 5,
+      "name": "neck_width",
+      "formula": "@neck_circumference / 5 - 0.2",
+      "description": "From the centre to the neck point"
+    },
+    {
+      "id": 6,
+      "name": "shaping",
+      "formula": "{3} - (@waist_circumference / 4 + {2} / 4)",
+      "description": "Taken out at the waist on each half, at the side and in the dart"
+    },
+    {
+      "id": 7,
+      "name": "side_shaping",
+      "formula": "{6} * 0.4",
+      "description": "Taken in at each side seam"
+    },
+    {
+      "id": 8,
+      "name": "dart",
+      "formula": "{6} * 0.6",
+      "description": "Width of each waist dart"
+    },
+    {
+      "id": 9,
+      "name": "shoulder_ease",
+      "formula": "1",
+      "description": "How much longer the back shoulder is than the front, eased in"
+    }
+  ],
+  "objects": [
+    {
+      "id": 10,
+      "type": "freePoint",
+      "name": "A",
+      "x": "0",
+      "y": "0"
+    },
+    {
+      "id": 11,
+      "type": "offsetPoint",
+      "name": "B",
+      "base": 10,
+      "mode": "polar",
+      "length": "{4}",
+      "angle": "270"
+    },
+    {
+      "id": 12,
+      "type": "offsetPoint",
+      "name": "C",
+      "base": 10,
+      "mode": "polar",
+      "length": "@neck_back_to_waist",
+      "angle": "270"
+    },
+    {
+      "id": 13,
+      "type": "offsetPoint",
+      "name": "UB",
+      "base": 11,
+      "mode": "polar",
+      "length": "{3}",
+      "angle": "0"
+    },
+    {
+      "id": 14,
+      "type": "offsetPoint",
+      "name": "WB",
+      "base": 12,
+      "mode": "polar",
+      "length": "{3} - {7}",
+      "angle": "0"
+    },
+    {
+      "id": 15,
+      "type": "line",
+      "name": "Centre_back",
+      "start": 10,
+      "end": 12,
+      "role": "outline"
+    },
+    {
+      "id": 16,
+      "type": "line",
+      "name": "Back_chest_line",
+      "start": 11,
+      "end": 13,
+      "role": "construction"
+    },
+    {
+      "id": 17,
+      "type": "line",
+      "name": "Back_waist_line",
+      "start": 12,
+      "end": 14,
+      "role": "construction"
+    },
+    {
+      "id": 18,
+      "type": "offsetPoint",
+      "name": "D",
+      "base": 10,
+      "mode": "polar",
+      "length": "{5}",
+      "angle": "0"
+    },
+    {
+      "id": 19,
+      "type": "offsetPoint",
+      "name": "NB",
+      "base": 18,
+      "mode": "polar",
+      "length": "2",
+      "angle": "90"
+    },
+    {
+      "id": 20,
+      "type": "offsetPoint",
+      "name": "SB",
+      "base": 19,
+      "mode": "polar",
+      "length": "@shoulder_length + {9}",
+      "angle": "342"
+    },
+    {
+      "id": 21,
+      "type": "line",
+      "name": "Back_shoulder",
+      "start": 19,
+      "end": 20,
+      "role": "outline"
+    },
+    {
+      "id": 22,
+      "type": "curve",
+      "name": "Back_neck",
+      "start": 10,
+      "end": 19,
+      "angle1": "0",
+      "length1": "{5} / 2",
+      "angle2": "{21}.angle + 270",
+      "length2": "1.5",
+      "role": "outline"
+    },
+    {
+      "id": 23,
+      "type": "alongEdgePoint",
+      "name": "E",
+      "edge": 15,
+      "from": "start",
+      "mode": "length",
+      "value": "{4} * 0.55"
+    },
+    {
+      "id": 24,
+      "type": "offsetPoint",
+      "name": "XB",
+      "base": 23,
+      "mode": "polar",
+      "length": "@across_back / 2",
+      "angle": "0"
+    },
+    {
+      "id": 25,
+      "type": "curve",
+      "name": "Back_armhole_top",
+      "start": 20,
+      "end": 24,
+      "angle1": "{21}.angle - 90",
+      "length1": "3",
+      "angle2": "90",
+      "length2": "3",
+      "role": "outline"
+    },
+    {
+      "id": 26,
+      "type": "curve",
+      "name": "Back_armhole_bottom",
+      "start": 24,
+      "end": 13,
+      "angle1": "270",
+      "length1": "{4} / 4",
+      "angle2": "180",
+      "length2": "({3} - @across_back / 2) * 0.6",
+      "role": "outline"
+    },
+    {
+      "id": 27,
+      "type": "line",
+      "name": "Back_side",
+      "start": 13,
+      "end": 14,
+      "role": "outline"
+    },
+    {
+      "id": 28,
+      "type": "alongEdgePoint",
+      "name": "DB",
+      "edge": 17,
+      "from": "start",
+      "mode": "length",
+      "value": "{3} / 2"
+    },
+    {
+      "id": 29,
+      "type": "alongEdgePoint",
+      "name": "DB1",
+      "edge": 17,
+      "from": "start",
+      "mode": "length",
+      "value": "({3} - {8}) / 2"
+    },
+    {
+      "id": 30,
+      "type": "alongEdgePoint",
+      "name": "DB2",
+      "edge": 17,
+      "from": "start",
+      "mode": "length",
+      "value": "({3} + {8}) / 2"
+    },
+    {
+      "id": 31,
+      "type": "offsetPoint",
+      "name": "PB",
+      "base": 28,
+      "mode": "polar",
+      "length": "@neck_back_to_waist - {4} - 2",
+      "angle": "90"
+    },
+    {
+      "id": 32,
+      "type": "line",
+      "name": "Back_waist_centre",
+      "start": 12,
+      "end": 29,
+      "role": "outline"
+    },
+    {
+      "id": 33,
+      "type": "line",
+      "start": 29,
+      "end": 31,
+      "role": "outline"
+    },
+    {
+      "id": 34,
+      "type": "line",
+      "start": 31,
+      "end": 30,
+      "role": "outline"
+    },
+    {
+      "id": 35,
+      "type": "line",
+      "name": "Back_waist_side",
+      "start": 30,
+      "end": 14,
+      "role": "outline"
+    },
+    {
+      "id": 36,
+      "type": "offsetPoint",
+      "name": "F",
+      "base": 10,
+      "mode": "polar",
+      "length": "{3} * 2 + 10",
+      "angle": "0"
+    },
+    {
+      "id": 37,
+      "type": "offsetPoint",
+      "name": "FN",
+      "base": 36,
+      "mode": "polar",
+      "length": "{5} + 1",
+      "angle": "270"
+    },
+    {
+      "id": 38,
+      "type": "offsetPoint",
+      "name": "FC",
+      "base": 36,
+      "mode": "polar",
+      "length": "@neck_back_to_waist",
+      "angle": "270"
+    },
+    {
+      "id": 39,
+      "type": "offsetPoint",
+      "name": "I",
+      "base": 36,
+      "mode": "polar",
+      "length": "{4} * 0.6",
+      "angle": "270"
+    },
+    {
+      "id": 40,
+      "type": "offsetPoint",
+      "name": "G",
+      "base": 36,
+      "mode": "polar",
+      "length": "{4}",
+      "angle": "270"
+    },
+    {
+      "id": 41,
+      "type": "offsetPoint",
+      "name": "UF",
+      "base": 40,
+      "mode": "polar",
+      "length": "{3}",
+      "angle": "180"
+    },
+    {
+      "id": 42,
+      "type": "offsetPoint",
+      "name": "WF",
+      "base": 38,
+      "mode": "polar",
+      "length": "{3} - {7}",
+      "angle": "180"
+    },
+    {
+      "id": 43,
+      "type": "line",
+      "name": "Centre_front",
+      "start": 37,
+      "end": 38,
+      "role": "outline"
+    },
+    {
+      "id": 44,
+      "type": "line",
+      "name": "Front_chest_line",
+      "start": 40,
+      "end": 41,
+      "role": "construction"
+    },
+    {
+      "id": 45,
+      "type": "line",
+      "name": "Front_waist_line",
+      "start": 38,
+      "end": 42,
+      "role": "construction"
+    },
+    {
+      "id": 46,
+      "type": "offsetPoint",
+      "name": "H",
+      "base": 36,
+      "mode": "polar",
+      "length": "{5}",
+      "angle": "180"
+    },
+    {
+      "id": 47,
+      "type": "offsetPoint",
+      "name": "NF",
+      "base": 46,
+      "mode": "polar",
+      "length": "2",
+      "angle": "90"
+    },
+    {
+      "id": 48,
+      "type": "offsetPoint",
+      "name": "SF",
+      "base": 47,
+      "mode": "polar",
+      "length": "@shoulder_length",
+      "angle": "202"
+    },
+    {
+      "id": 49,
+      "type": "line",
+      "name": "Front_shoulder",
+      "start": 47,
+      "end": 48,
+      "role": "outline"
+    },
+    {
+      "id": 50,
+      "type": "curve",
+      "name": "Front_neck",
+      "start": 47,
+      "end": 37,
+      "angle1": "{49}.angle + 90",
+      "length1": "{5} / 2",
+      "angle2": "180",
+      "length2": "{5} / 2",
+      "role": "outline"
+    },
+    {
+      "id": 51,
+      "type": "offsetPoint",
+      "name": "XF",
+      "base": 39,
+      "mode": "polar",
+      "length": "@across_chest / 2",
+      "angle": "180"
+    },
+    {
+      "id": 52,
+      "type": "curve",
+      "name": "Front_armhole_top",
+      "start": 48,
+      "end": 51,
+      "angle1": "{49}.angle + 90",
+      "length1": "3",
+      "angle2": "90",
+      "length2": "3",
+      "role": "outline"
+    },
+    {
+      "id": 53,
+      "type": "curve",
+      "name": "Front_armhole_bottom",
+      "start": 51,
+      "end": 41,
+      "angle1": "270",
+      "length1": "{4} / 4",
+      "angle2": "0",
+      "length2": "({3} - @across_chest / 2) * 0.6",
+      "role": "outline"
+    },
+    {
+      "id": 54,
+      "type": "line",
+      "name": "Front_side",
+      "start": 41,
+      "end": 42,
+      "role": "outline"
+    },
+    {
+      "id": 55,
+      "type": "alongEdgePoint",
+      "name": "DF",
+      "edge": 45,
+      "from": "start",
+      "mode": "length",
+      "value": "@bust_point_separation / 2"
+    },
+    {
+      "id": 56,
+      "type": "alongEdgePoint",
+      "name": "DF1",
+      "edge": 45,
+      "from": "start",
+      "mode": "length",
+      "value": "(@bust_point_separation - {8}) / 2"
+    },
+    {
+      "id": 57,
+      "type": "alongEdgePoint",
+      "name": "DF2",
+      "edge": 45,
+      "from": "start",
+      "mode": "length",
+      "value": "(@bust_point_separation + {8}) / 2"
+    },
+    {
+      "id": 58,
+      "type": "offsetPoint",
+      "name": "BP",
+      "base": 55,
+      "mode": "polar",
+      "length": "@neck_back_to_waist - {4} - 3",
+      "angle": "90"
+    },
+    {
+      "id": 59,
+      "type": "line",
+      "name": "Front_waist_centre",
+      "start": 38,
+      "end": 56,
+      "role": "outline"
+    },
+    {
+      "id": 60,
+      "type": "line",
+      "start": 56,
+      "end": 58,
+      "role": "outline"
+    },
+    {
+      "id": 61,
+      "type": "line",
+      "start": 58,
+      "end": 57,
+      "role": "outline"
+    },
+    {
+      "id": 62,
+      "type": "line",
+      "name": "Front_waist_side",
+      "start": 57,
+      "end": 42,
+      "role": "outline"
+    },
+    {
+      "id": 63,
+      "type": "piece",
+      "name": "Back",
+      "path": [
+        {
+          "edge": 22,
+          "reversed": false
+        },
+        {
+          "edge": 21,
+          "reversed": false
+        },
+        {
+          "edge": 25,
+          "reversed": false
+        },
+        {
+          "edge": 26,
+          "reversed": false
+        },
+        {
+          "edge": 27,
+          "reversed": false
+        },
+        {
+          "edge": 35,
+          "reversed": true
+        },
+        {
+          "edge": 34,
+          "reversed": true
+        },
+        {
+          "edge": 33,
+          "reversed": true
+        },
+        {
+          "edge": 32,
+          "reversed": true
+        },
+        {
+          "edge": 15,
+          "reversed": true
+        }
+      ],
+      "allowance": "1.5",
+      "grainline": {
+        "angle": "90"
+      },
+      "notches": [
+        {
+          "point": 24
+        }
+      ],
+      "cut": {
+        "count": 1,
+        "mirrored": false
+      },
+      "foldEdge": 15
+    },
+    {
+      "id": 64,
+      "type": "piece",
+      "name": "Front",
+      "path": [
+        {
+          "edge": 59,
+          "reversed": false
+        },
+        {
+          "edge": 60,
+          "reversed": false
+        },
+        {
+          "edge": 61,
+          "reversed": false
+        },
+        {
+          "edge": 62,
+          "reversed": false
+        },
+        {
+          "edge": 54,
+          "reversed": true
+        },
+        {
+          "edge": 53,
+          "reversed": true
+        },
+        {
+          "edge": 52,
+          "reversed": true
+        },
+        {
+          "edge": 49,
+          "reversed": true
+        },
+        {
+          "edge": 50,
+          "reversed": false
+        },
+        {
+          "edge": 43,
+          "reversed": false
+        }
+      ],
+      "allowance": "1.5",
+      "grainline": {
+        "angle": "90"
+      },
+      "notches": [
+        {
+          "point": 51
+        }
+      ],
+      "cut": {
+        "count": 1,
+        "mirrored": false
+      },
+      "foldEdge": 43
+    },
+    {
+      "id": 65,
+      "type": "seam",
+      "name": "Shoulder_seam",
+      "sideA": [
+        {
+          "piece": 64,
+          "edge": 49
+        }
+      ],
+      "sideB": [
+        {
+          "piece": 63,
+          "edge": 21
+        }
+      ],
+      "reversed": false,
+      "ease": "{9}",
+      "tolerance": "0.1"
+    },
+    {
+      "id": 66,
+      "type": "seam",
+      "name": "Side_seam",
+      "sideA": [
+        {
+          "piece": 64,
+          "edge": 54
+        }
+      ],
+      "sideB": [
+        {
+          "piece": 63,
+          "edge": 27
+        }
+      ],
+      "reversed": false,
+      "ease": "0",
+      "tolerance": "0.1"
+    },
+    {
+      "id": 67,
+      "type": "note",
+      "name": "Note",
+      "anchor": {
+        "point": 20
+      },
+      "dx": "-4",
+      "dy": "4",
+      "text": "Ease the back shoulder\nby {={9}} cm",
+      "size": 10,
+      "print": true,
+      "align": "centre"
+    },
+    {
+      "id": 68,
+      "type": "note",
+      "name": "Note2",
+      "anchor": {
+        "point": 58
+      },
+      "dx": "2",
+      "dy": "-4",
+      "text": "Bust point",
+      "size": 10,
+      "print": true,
+      "leader": "arrow"
+    }
+  ]
+}

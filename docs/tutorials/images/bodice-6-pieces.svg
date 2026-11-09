@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660mm" height="524.58mm" viewBox="-30 -69.58 660 524.58">
+<rect x="-30" y="-69.58" width="660" height="524.58" fill="#ffffff"/>
+<path data-id="63" data-name="Back" d="M 218.458 11.815 L 211.837 31.646 L 209.873 37.291 L 205.84 48.534 L 205.841 48.535 L 201.798 59.873 L 199.883 65.453 L 198.035 71.086 L 196.34 76.581 L 194.766 82.117 L 193.396 87.49 L 192.224 92.784 L 191.274 98.005 L 190.568 103.142 L 190.326 105.561 L 190.147 107.988 L 190.038 110.375 L 190.001 112.737 L 190.079 116.961 L 190.309 121.114 L 190.687 125.195 L 191.209 129.172 L 191.877 133.093 L 192.681 136.91 L 193.614 140.608 L 194.688 144.24 L 195.88 147.735 L 197.2 151.131 L 198.634 154.402 L 200.179 157.543 L 201.833 160.557 L 203.592 163.442 L 205.465 166.211 L 207.409 168.806 L 209.454 171.272 L 211.592 173.6 L 213.813 175.78 L 216.106 177.802 L 218.487 179.682 L 220.949 181.414 L 223.479 182.988 L 226.084 184.409 L 228.776 185.68 L 231.554 186.796 L 234.392 187.746 L 237.338 188.541 L 240.355 189.165 L 243.481 189.621 L 246.685 189.899 L 266.646 190.469 L 241.476 425 L 127.778 425 L 125 393.852 L 122.222 425 L 0 425 L 0 -15.001 L 6.393 -15.065 L 12.594 -15.261 L 18.612 -15.59 L 24.368 -16.053 L 29.861 -16.651 L 35.027 -17.383 L 39.792 -18.238 L 44.128 -19.208 L 48.094 -20.308 L 49.721 -20.837 L 51.312 -21.414 L 52.742 -21.993 L 54 -22.563 L 55.092 -23.119 L 56.014 -23.65 L 56.75 -24.13 L 57.298 -24.541 L 57.674 -24.867 L 57.878 -25.075 L 63.172 -38.64 Z" fill="#ceddea" stroke="#202020" stroke-width="0.9"/>
+<path data-id="64" data-name="Front" d="M 547.451 -11.518 L 550.5 -3.746 L 553.748 4.31 L 557.205 12.523 L 560.85 20.686 L 562.715 24.648 L 564.653 28.597 L 566.655 32.498 L 568.667 36.227 L 570.733 39.853 L 572.849 43.355 L 574.974 46.649 L 577.121 49.75 L 579.291 52.648 L 581.461 55.306 L 583.612 57.698 L 585.736 59.82 L 587.81 61.654 L 589.82 63.197 L 591.875 64.535 L 592.663 64.98 L 593.55 65.428 L 594.43 65.82 L 595.26 66.14 L 596.075 66.407 L 596.876 66.621 L 597.669 66.786 L 598.448 66.902 L 599.205 66.969 L 600 66.993 L 600 425 L 507.848 425 L 505 394.794 L 502.152 425 L 358.524 425 L 333.338 190.313 L 354.145 189.918 L 358.196 189.684 L 362.095 189.301 L 365.889 188.769 L 369.544 188.096 L 373.09 187.281 L 376.476 186.34 L 379.777 185.254 L 382.9 184.058 L 385.915 182.731 L 388.8 181.283 L 391.546 179.724 L 394.175 178.044 L 396.676 176.25 L 399.06 174.337 L 401.307 172.322 L 403.429 170.198 L 405.444 167.943 L 407.329 165.582 L 409.091 163.108 L 410.738 160.501 L 412.268 157.759 L 413.659 154.918 L 414.933 151.924 L 416.08 148.784 L 417.078 145.549 L 417.95 142.128 L 418.673 138.574 L 419.24 134.915 L 419.657 131.077 L 419.91 127.104 L 419.996 123 L 419.885 117.879 L 419.561 112.557 L 419.024 106.981 L 418.298 101.301 L 417.381 95.448 L 416.288 89.477 L 415.043 83.481 L 413.652 77.448 L 412.125 71.4 L 410.489 65.412 L 408.737 59.44 L 406.922 53.644 L 405.024 47.939 L 403.112 42.509 L 401.11 37.13 L 393.633 18.11 L 536.421 -39.58 Z" fill="#ceddea" stroke="#202020" stroke-width="0.9"/>
+<path data-id="16" data-name="Back_chest_line" d="M 0 205 L 250 205" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="127.7" y="202.3" font-family="sans-serif" font-size="8.4" fill="#202020">Back_chest_line</text>
+<path data-id="17" data-name="Back_waist_line" d="M 0 410 L 228 410" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="116.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">Back_waist_line</text>
+<path data-id="44" data-name="Front_chest_line" d="M 600 205 L 350 205" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="477.7" y="202.3" font-family="sans-serif" font-size="8.4" fill="#202020">Front_chest_line</text>
+<path data-id="45" data-name="Front_waist_line" d="M 600 410 L 372 410" fill="none" stroke="#808080" stroke-width="0.48" stroke-dasharray="1.92 1.44"/>
+<text x="488.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">Front_waist_line</text>
+<path data-id="15" data-name="Centre_back" d="M 0 0 L 0 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="2.7" y="202.3" font-family="sans-serif" font-size="8.4" fill="#202020">Centre_back</text>
+<path data-id="21" data-name="Back_shoulder" d="M 72 -20 L 199.442 21.408" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="138.421" y="-1.996" font-family="sans-serif" font-size="8.4" fill="#202020">Back_shoulder</text>
+<path data-id="22" data-name="Back_neck" d="M 0 0 C 36 0 67.365 -5.734 72 -20" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="41.514" y="-5.503" font-family="sans-serif" font-size="8.4" fill="#202020">Back_neck</text>
+<path data-id="25" data-name="Back_armhole_top" d="M 199.442 21.408 C 190.171 49.94 175 82.75 175 112.75" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="186.528" y="63.568" font-family="sans-serif" font-size="8.4" fill="#202020">Back_armhole_top</text>
+<path data-id="26" data-name="Back_armhole_bottom" d="M 175 112.75 C 175 164 205 205 250 205" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="196.243" y="172.633" font-family="sans-serif" font-size="8.4" fill="#202020">Back_armhole_bottom</text>
+<path data-id="27" data-name="Back_side" d="M 250 205 L 228 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="241.7" y="304.8" font-family="sans-serif" font-size="8.4" fill="#202020">Back_side</text>
+<path data-id="32" data-name="Back_waist_centre" d="M 0 410 L 108.5 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="56.95" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">Back_waist_centre</text>
+<path data-id="33" data-name="Line_DB1_PB" d="M 108.5 410 L 125 225" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="119.45" y="314.8" font-family="sans-serif" font-size="8.4" fill="#202020">Line_DB1_PB</text>
+<path data-id="34" data-name="Line_PB_DB2" d="M 125 225 L 141.5 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="135.95" y="314.8" font-family="sans-serif" font-size="8.4" fill="#202020">Line_PB_DB2</text>
+<path data-id="35" data-name="Back_waist_side" d="M 141.5 410 L 228 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="187.45" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">Back_waist_side</text>
+<path data-id="43" data-name="Centre_front" d="M 600 82 L 600 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="602.7" y="243.3" font-family="sans-serif" font-size="8.4" fill="#202020">Centre_front</text>
+<path data-id="49" data-name="Front_shoulder" d="M 528 -20 L 413.029 26.451" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="473.215" y="0.526" font-family="sans-serif" font-size="8.4" fill="#202020">Front_shoulder</text>
+<path data-id="50" data-name="Front_neck" d="M 528 -20 C 541.486 13.379 564 82 600 82" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="556.41" y="37.407" font-family="sans-serif" font-size="8.4" fill="#202020">Front_neck</text>
+<path data-id="52" data-name="Front_armhole_top" d="M 413.029 26.451 C 424.267 54.267 435 93 435 123" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="430.905" y="71.107" font-family="sans-serif" font-size="8.4" fill="#202020">Front_armhole_top</text>
+<path data-id="53" data-name="Front_armhole_bottom" d="M 435 123 C 435 174.25 401 205 350 205" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="414.138" y="180.695" font-family="sans-serif" font-size="8.4" fill="#202020">Front_armhole_bottom</text>
+<path data-id="54" data-name="Front_side" d="M 350 205 L 372 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="363.7" y="304.8" font-family="sans-serif" font-size="8.4" fill="#202020">Front_side</text>
+<path data-id="59" data-name="Front_waist_centre" d="M 600 410 L 521.5 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="563.45" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">Front_waist_centre</text>
+<path data-id="60" data-name="Line_DF1_BP" d="M 521.5 410 L 505 235" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="515.95" y="319.8" font-family="sans-serif" font-size="8.4" fill="#202020">Line_DF1_BP</text>
+<path data-id="61" data-name="Line_BP_DF2" d="M 505 235 L 488.5 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="499.45" y="319.8" font-family="sans-serif" font-size="8.4" fill="#202020">Line_BP_DF2</text>
+<path data-id="62" data-name="Front_waist_side" d="M 488.5 410 L 372 410" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="432.95" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">Front_waist_side</text>
+<path data-id="63" data-marks="Back" d="M 125 324 L 125 66 M 125 66 L 120.774 75.063 M 125 66 L 129.226 75.063 M 125 324 L 129.226 314.937 M 125 324 L 120.774 314.937 M 20 61.5 L 20 348.5 M 20 61.5 L 0 61.5 M 20 348.5 L 0 348.5 M 0 61.5 L 7.25 58.119 M 0 61.5 L 7.25 64.881 M 0 348.5 L 7.25 345.119 M 0 348.5 L 7.25 351.881 M 190 112.736 L 184 112.741" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="125" y="195" font-family="sans-serif" font-size="8.4" fill="#202020">Back, cut 1 on fold</text>
+<path data-id="64" data-marks="Front" d="M 475 324 L 475 66 M 475 66 L 470.774 75.063 M 475 66 L 479.226 75.063 M 475 324 L 479.226 314.937 M 475 324 L 470.774 314.937 M 580 131.2 L 580 360.8 M 580 131.2 L 600 131.2 M 580 360.8 L 600 360.8 M 600 131.2 L 592.75 134.581 M 600 131.2 L 592.75 127.819 M 600 360.8 L 592.75 364.181 M 600 360.8 L 592.75 357.419 M 420 123.015 L 426 123.009" fill="none" stroke="#202020" stroke-width="0.9"/>
+<text x="475" y="195" font-family="sans-serif" font-size="8.4" fill="#202020">Front, cut 1 on fold</text>
+<circle data-id="10" data-name="A" cx="0" cy="0" r="1.8" fill="#202020"/>
+<text x="2.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">A</text>
+<circle data-id="11" data-name="B" cx="0" cy="205" r="1.8" fill="#202020"/>
+<text x="2.7" y="202.3" font-family="sans-serif" font-size="8.4" fill="#202020">B</text>
+<circle data-id="12" data-name="C" cx="0" cy="410" r="1.8" fill="#202020"/>
+<text x="2.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">C</text>
+<circle data-id="13" data-name="UB" cx="250" cy="205" r="1.8" fill="#202020"/>
+<text x="252.7" y="202.3" font-family="sans-serif" font-size="8.4" fill="#202020">UB</text>
+<circle data-id="14" data-name="WB" cx="228" cy="410" r="1.8" fill="#202020"/>
+<text x="230.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">WB</text>
+<circle data-id="18" data-name="D" cx="72" cy="0" r="1.8" fill="#202020"/>
+<text x="74.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">D</text>
+<circle data-id="19" data-name="NB" cx="72" cy="-20" r="1.8" fill="#202020"/>
+<text x="74.7" y="-22.7" font-family="sans-serif" font-size="8.4" fill="#202020">NB</text>
+<circle data-id="20" data-name="SB" cx="199.442" cy="21.408" r="1.8" fill="#202020"/>
+<text x="202.142" y="18.708" font-family="sans-serif" font-size="8.4" fill="#202020">SB</text>
+<circle data-id="23" data-name="E" cx="0" cy="112.75" r="1.8" fill="#202020"/>
+<text x="2.7" y="110.05" font-family="sans-serif" font-size="8.4" fill="#202020">E</text>
+<circle data-id="24" data-name="XB" cx="175" cy="112.75" r="1.8" fill="#202020"/>
+<text x="177.7" y="110.05" font-family="sans-serif" font-size="8.4" fill="#202020">XB</text>
+<circle data-id="28" data-name="DB" cx="125" cy="410" r="1.8" fill="#202020"/>
+<text x="127.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">DB</text>
+<circle data-id="29" data-name="DB1" cx="108.5" cy="410" r="1.8" fill="#202020"/>
+<text x="111.2" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">DB1</text>
+<circle data-id="30" data-name="DB2" cx="141.5" cy="410" r="1.8" fill="#202020"/>
+<text x="144.2" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">DB2</text>
+<circle data-id="31" data-name="PB" cx="125" cy="225" r="1.8" fill="#202020"/>
+<text x="127.7" y="222.3" font-family="sans-serif" font-size="8.4" fill="#202020">PB</text>
+<circle data-id="36" data-name="F" cx="600" cy="0" r="1.8" fill="#202020"/>
+<text x="602.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">F</text>
+<circle data-id="37" data-name="FN" cx="600" cy="82" r="1.8" fill="#202020"/>
+<text x="602.7" y="79.3" font-family="sans-serif" font-size="8.4" fill="#202020">FN</text>
+<circle data-id="38" data-name="FC" cx="600" cy="410" r="1.8" fill="#202020"/>
+<text x="602.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">FC</text>
+<circle data-id="39" data-name="I" cx="600" cy="123" r="1.8" fill="#202020"/>
+<text x="602.7" y="120.3" font-family="sans-serif" font-size="8.4" fill="#202020">I</text>
+<circle data-id="40" data-name="G" cx="600" cy="205" r="1.8" fill="#202020"/>
+<text x="602.7" y="202.3" font-family="sans-serif" font-size="8.4" fill="#202020">G</text>
+<circle data-id="41" data-name="UF" cx="350" cy="205" r="1.8" fill="#202020"/>
+<text x="352.7" y="202.3" font-family="sans-serif" font-size="8.4" fill="#202020">UF</text>
+<circle data-id="42" data-name="WF" cx="372" cy="410" r="1.8" fill="#202020"/>
+<text x="374.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">WF</text>
+<circle data-id="46" data-name="H" cx="528" cy="0" r="1.8" fill="#202020"/>
+<text x="530.7" y="-2.7" font-family="sans-serif" font-size="8.4" fill="#202020">H</text>
+<circle data-id="47" data-name="NF" cx="528" cy="-20" r="1.8" fill="#202020"/>
+<text x="530.7" y="-22.7" font-family="sans-serif" font-size="8.4" fill="#202020">NF</text>
+<circle data-id="48" data-name="SF" cx="413.029" cy="26.451" r="1.8" fill="#202020"/>
+<text x="415.729" y="23.751" font-family="sans-serif" font-size="8.4" fill="#202020">SF</text>
+<circle data-id="51" data-name="XF" cx="435" cy="123" r="1.8" fill="#202020"/>
+<text x="437.7" y="120.3" font-family="sans-serif" font-size="8.4" fill="#202020">XF</text>
+<circle data-id="55" data-name="DF" cx="505" cy="410" r="1.8" fill="#202020"/>
+<text x="507.7" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">DF</text>
+<circle data-id="56" data-name="DF1" cx="521.5" cy="410" r="1.8" fill="#202020"/>
+<text x="524.2" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">DF1</text>
+<circle data-id="57" data-name="DF2" cx="488.5" cy="410" r="1.8" fill="#202020"/>
+<text x="491.2" y="407.3" font-family="sans-serif" font-size="8.4" fill="#202020">DF2</text>
+<circle data-id="58" data-name="BP" cx="505" cy="235" r="1.8" fill="#202020"/>
+<text x="507.7" y="232.3" font-family="sans-serif" font-size="8.4" fill="#202020">BP</text>
+<text data-id="67" x="159.442" y="65.818" font-family="Helvetica, Arial, sans-serif" font-size="3.528" fill="#202020">Ease the back shoulder</text>
+<text data-id="67" x="173.2" y="70.228" font-family="Helvetica, Arial, sans-serif" font-size="3.528" fill="#202020">by 1 cm</text>
+<path data-id="68" d="M 525 199.41 L 505 235 M 505 235 L 505.227 232.009 M 505 235 L 507.437 233.251" fill="none" stroke="#202020" stroke-width="0.25"/>
+<text data-id="68" x="525" y="199.41" font-family="Helvetica, Arial, sans-serif" font-size="3.528" fill="#202020">Bust point</text>
+</svg>
