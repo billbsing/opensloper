@@ -46,7 +46,7 @@ type
     kcCancel, kcDelete, kcNudge, kcNudgeFar, kcShowLabels, kcSeamNextSide, kcSeamPreviousSide, kcMakeSeam,
     kcRemovePiece, kcClearSelection,
     kcEditCell, kcCommitCell, kcRevertCell,
-    kcScroll, kcScrollSideways, kcWheelZoom, kcPublishWheelZoom, kcPanMiddle, kcPanSpace, kcCycle, kcPickList,
+    kcScroll, kcScrollSideways, kcWheelZoom, kcPublishWheelZoom, kcPanMiddle, kcPanSpace, kcCycle, kcExtendCurve, kcPickList,
     kcExcludePage);
 
   TShortcutModifier = (smMod, smShift, smAlt);
@@ -127,6 +127,7 @@ resourcestring
   rsKeyPanMiddle = 'Pan';
   rsKeyPanSpace = 'Pan';
   rsKeyCycle = 'Select the next of several lines in the same place; clicking again at the same spot does the same';
+  rsKeyExtendCurve = 'With the Curve tool, carry the last curve on through the point, as one curve path';
   rsKeyPickList = 'With the Select tool, list everything under the pointer, to pick one; with a drawing tool, stop the ' +
     'line or curve';
   rsKeyExcludePage = 'Leave a page out of the print, or put it back';
@@ -204,6 +205,7 @@ begin
     kcPanMiddle: Result := Info('Middle-drag', skMouse, sgMouse, [saDesign, saPublish], rsKeyPanMiddle);
     kcPanSpace: Result := Info('Space+Drag', skMouse, sgMouse, [saDesign, saPublish], rsKeyPanSpace);
     kcCycle: Result := Info('Alt+Click', skMouse, sgMouse, [saDesign], rsKeyCycle);
+    kcExtendCurve: Result := Info('Shift+Click', skMouse, sgMouse, [saDesign], rsKeyExtendCurve);
     kcPickList: Result := Info('Right-click', skMouse, sgMouse, [saDesign], rsKeyPickList);
     kcExcludePage: Result := Info('Right-click', skMouse, sgMouse, [saPublish], rsKeyExcludePage);
   end;

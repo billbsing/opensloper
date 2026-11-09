@@ -1082,7 +1082,7 @@ begin
   end;
   if FTool <> ctSelect then
   begin
-    ActiveTool.Press(Pressed, X, Y);
+    ActiveTool.Press(Pressed, Shift, X, Y);
     Exit;
   end;
   if Button = mbRight then

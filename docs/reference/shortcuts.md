@@ -88,6 +88,7 @@ On macOS, Cmd takes the place of Ctrl. Keys on the canvas work while the canvas 
 | Drag with the middle button | Pan |
 | ++space++ and drag | Pan |
 | ++alt++ and click | Select the next of several lines in the same place; clicking again at the same spot does the same |
+| ++shift++ and click | With the Curve tool, carry the last curve on through the point, as one curve path |
 | Right-click | With the Select tool, list everything under the pointer, to pick one; with a drawing tool, stop the line or curve |
 
 ## Measurements app

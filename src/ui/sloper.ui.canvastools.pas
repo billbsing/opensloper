@@ -78,8 +78,9 @@ type
     function Hint: string; virtual; abstract;
     // Drops what the tool is part way through, as when another is chosen
     procedure Reset; virtual;
-    // A press that starts no gesture of the canvas's own
-    procedure Press(Button: TCanvasButton; X, Y: integer); virtual;
+    // A press that starts no gesture of the canvas's own; Shift holds the
+    // modifier keys
+    procedure Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer); virtual;
     // The pointer moving with no button held
     procedure Move(X, Y: integer); virtual;
     // Escape: True when it dropped something the tool was part way through
@@ -121,7 +122,7 @@ resourcestring
   rsToolSelectHint = 'Select: click to select, drag a point to move it';
   rsToolPointHint = 'Point: click to add a point where it snaps';
   rsToolLineHint = 'Line: click the start, then the end; Escape stops';
-  rsToolCurveHint = 'Curve: click the start, then the end; Escape stops';
+  rsToolCurveHint = 'Curve: click the start, then the end; Shift+click carries it on as one path; Escape stops';
   rsToolCircleHint = 'Circle: click the centre, then a point on the rim; Escape stops';
   rsToolRectangleHint = 'Rectangle: click one corner, then the opposite one; Escape stops';
   rsToolPieceHint = 'Piece: click inside a closed outline';
@@ -132,6 +133,7 @@ resourcestring
   rsToolAddPoint = 'Add point';
   rsToolAddLine = 'Add line';
   rsToolAddCurve = 'Add curve';
+  rsToolExtendCurve = 'Carry curve on';
   rsToolAddRound = 'Add circle or arc';
   rsToolAddRectangle = 'Add rectangle';
   rsToolCircleRim = 'Click a point on the rim';
@@ -158,7 +160,7 @@ const
 implementation
 
 uses
-  LCLType, Sloper.Core.Pattern, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.Drag, Sloper.Core.PieceDetect, Sloper.UI.Scene;
+  LCLType, Sloper.Core.Evaluator, Sloper.Core.Pattern, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.Drag, Sloper.Core.PieceDetect, Sloper.UI.Scene;
 
 const
   // A line or curve shorter than this (mm) is ignored
@@ -184,6 +186,8 @@ type
     // The first click
     FStart: TSnap;
     FHasStart: boolean;
+    // Shift was held for the click being handled
+    FShiftClick: boolean;
     procedure UpdateSnap(X, Y: integer);
     // What the status bar says about the snap
     function SnapMessage: string; virtual;
@@ -192,7 +196,7 @@ type
     procedure Click; virtual; abstract;
   public
     procedure Reset; override;
-    procedure Press(Button: TCanvasButton; X, Y: integer); override;
+    procedure Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer); override;
     procedure Move(X, Y: integer); override;
     function Cancel: boolean; override;
     procedure ObjectsReplaced; override;
@@ -208,11 +212,16 @@ type
     function Hint: string; override;
   end;
 
-  // Lines and curves carry on from the end of the last, as a chain
+  // Lines and curves carry on from the end of the last, as a chain. A
+  // Shift+click carries the last curve on through the point instead, as one
+  // curve path.
   TEdgeTool = class(TSnapTool)
   private
     FCurve: boolean;
+    // The curve or curve path the last click made, which ends at FStart
+    FLastEdge: string;
     procedure AddEdge;
+    procedure ExtendLastEdge;
   protected
     procedure Click; override;
   public
@@ -261,7 +270,7 @@ type
   TPieceTool = class(TCanvasToolHandler)
   public
     function Hint: string; override;
-    procedure Press(Button: TCanvasButton; X, Y: integer); override;
+    procedure Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer); override;
   end;
 
   // A click on a notch removes it; one on a piece's edge adds one
@@ -271,7 +280,7 @@ type
     function AddNotchesAt(const At: TVec2; Radius: double): boolean;
   public
     function Hint: string; override;
-    procedure Press(Button: TCanvasButton; X, Y: integer); override;
+    procedure Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer); override;
   end;
 
   // Clicks pick the edges of side A, Tab moves to side B, Enter makes the seam
@@ -285,7 +294,7 @@ type
   public
     function Hint: string; override;
     procedure Reset; override;
-    procedure Press(Button: TCanvasButton; X, Y: integer); override;
+    procedure Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer); override;
     function Cancel: boolean; override;
     function HandlesKey(Key: word): boolean; override;
     procedure KeyDown(Key: word; Shift: TShiftState); override;
@@ -364,7 +373,7 @@ procedure TCanvasToolHandler.Reset;
 begin
 end;
 
-procedure TCanvasToolHandler.Press(Button: TCanvasButton; X, Y: integer);
+procedure TCanvasToolHandler.Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer);
 begin
 end;
 
@@ -452,13 +461,14 @@ begin
 end;
 
 // Right click stops a line or curve
-procedure TSnapTool.Press(Button: TCanvasButton; X, Y: integer);
+procedure TSnapTool.Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer);
 begin
   if Button = cbRight then
     Cancel
   else if Button = cbLeft then
   begin
     UpdateSnap(X, Y);
+    FShiftClick := ssShift in Shift;
     Click;
     Host.Refresh;
   end;
@@ -549,13 +559,16 @@ end;
 
 procedure TEdgeTool.Click;
 begin
-  if FHasStart then
-    AddEdge
-  else
+  if not FHasStart then
   begin
     FStart := FSnap;
     FHasStart := True;
-  end;
+    FLastEdge := '';
+  end
+  else if FCurve and FShiftClick and (FLastEdge <> '') then
+    ExtendLastEdge
+  else
+    AddEdge;
 end;
 
 // The second click: both ends and the edge are one change
@@ -605,6 +618,48 @@ begin
   FStart.PointKey := EndKey;
   FStart.Position := TPointObject(Document.Pattern.FindNode(EndKey)).Position;
   FHasStart := True;
+  FLastEdge := '';
+  if FCurve then
+    FLastEdge := Edge.Key;
+end;
+
+// The point, made if need be, and the longer path are one change; the edge
+// keeps its key, so the next Shift+click carries it on again
+procedure TEdgeTool.ExtendLastEdge;
+var
+  Document: TPatternDocument;
+  Pattern: TPattern;
+  Node: TEvalNode;
+  EndKey, Reason: string;
+  Path: TCurvePathObject;
+begin
+  Document := Host.Document;
+  Pattern := Document.Pattern;
+  if Distance(FStart.Position, FSnap.Position) < MinEdgeLength then
+    Exit;
+  Node := Pattern.FindNode(FLastEdge);
+  if not (Node is TEdgeObject) then
+  begin
+    FLastEdge := '';
+    AddEdge;
+    Exit;
+  end;
+  Document.BeginChange(rsToolExtendCurve);
+  Path := nil;
+  EndKey := PointFromSnap(Pattern, FSnap);
+  if EndKey <> '' then
+    Path := Pattern.ExtendCurve(TEdgeObject(Node), EndKey);
+  Reason := Pattern.LastError;
+  if not Document.Commit(Assigned(Path)) then
+  begin
+    Host.ShowMessage(Reason);
+    Exit;
+  end;
+  Host.Select([FLastEdge]);
+  FStart := Default(TSnap);
+  FStart.Kind := snPoint;
+  FStart.PointKey := EndKey;
+  FStart.Position := TPointObject(Document.Pattern.FindNode(EndKey)).Position;
 end;
 
 { TShapeTool }
@@ -810,7 +865,7 @@ begin
   Result := rsToolPieceHint;
 end;
 
-procedure TPieceTool.Press(Button: TCanvasButton; X, Y: integer);
+procedure TPieceTool.Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer);
 var
   Document: TPatternDocument;
   Path: TPiecePath;
@@ -895,7 +950,7 @@ begin
     end;
 end;
 
-procedure TNotchTool.Press(Button: TCanvasButton; X, Y: integer);
+procedure TNotchTool.Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer);
 var
   Document: TPatternDocument;
   At: TVec2;
@@ -948,7 +1003,7 @@ begin
 end;
 
 // A click on a piece's edge adds it to the side being picked, or takes it off
-procedure TSeamTool.Press(Button: TCanvasButton; X, Y: integer);
+procedure TSeamTool.Press(Button: TCanvasButton; Shift: TShiftState; X, Y: integer);
 var
   Pattern: TPattern;
   Entry: TSeamEntry;

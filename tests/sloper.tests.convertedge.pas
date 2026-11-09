@@ -54,12 +54,25 @@ type
     procedure TestLineToCurveRefusedForAFoldOnAPart;
     procedure TestPartsAndCopiesFollowTheCurve;
     procedure TestConvertedPatternReloads;
+    procedure TestExtendCurveKeepsIdAndHandles;
+    procedure TestExtendPathAgainKeepsTurnedEnd;
+    procedure TestExtendKeepsUserNameAndRole;
+    procedure TestExtendRefused;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.PieceDetect, Sloper.Core.Transform, Sloper.Core.Variables, Sloper.Core.PatternFile;
+  SysUtils, Math, Sloper.Core.EvalTypes, Sloper.Core.TypeChange, Sloper.Core.PieceDetect, Sloper.Core.Transform, Sloper.Core.Variables, Sloper.Core.PatternFile;
+
+function FieldNumber(Edge: TEdgeObject; const AField: string): double;
+var
+  Code: integer;
+begin
+  Val(Edge.Field(AField).StoredText, Result, Code);
+  if Code <> 0 then
+    Result := NaN;
+end;
 
 procedure TTestConvertEdge.SetUp;
 begin
@@ -320,6 +333,91 @@ begin
   finally
     FreeAndNil(Reloaded);
   end;
+end;
+
+// The curve's own handles stay; the point it ended at turns towards the new
+// one, and the new stretch's handles are a third of its length
+procedure TTestConvertEdge.TestExtendCurveKeepsIdAndHandles;
+var
+  Curve: TCurveObject;
+  Path: TCurvePathObject;
+  A, B, C, Key: string;
+begin
+  A := Pt('A', 0, 0);
+  B := Pt('B', 100, 0);
+  C := Pt('C', 100, 90);
+  Curve := FPattern.AddCurve(A, B, '30', '20', '200', '25');
+  Key := Curve.Key;
+  FPattern.Evaluate;
+  Path := FPattern.ExtendCurve(Curve, C);
+  AssertNotNull(FPattern.LastError, Path);
+  AssertEquals('same ID', Key, Path.Key);
+  AssertTrue('in the pattern', FPattern.FindNode(Key) = Path);
+  AssertEquals(3, Length(Path.NodeKeys));
+  AssertEquals(C, Path.NodeKeys[2]);
+  AssertEquals('ends at C', C, Path.EndKey);
+  AssertEquals('start angle kept', '30', Path.Field('node1.angle').StoredText);
+  AssertEquals('start handle kept', '20', Path.Field('node1.lengthOut').StoredText);
+  AssertEquals('handle into B kept', '25', Path.Field('node2.lengthIn').StoredText);
+  // From A towards C: 90 mm down over 100 across, 42° below level
+  AssertNear('B turns from A towards C', 318, FieldNumber(Path, 'node2.angle'), 0.1);
+  AssertNear('B handle out', 30, FieldNumber(Path, 'node2.lengthOut'));
+  AssertNear('C handle in', 30, FieldNumber(Path, 'node3.lengthIn'));
+  AssertNear('C arrives from B, going down', 270, FieldNumber(Path, 'node3.angle'));
+  FPattern.Evaluate;
+  AssertTrue(Path.Message, Path.State = esValid);
+end;
+
+procedure TTestConvertEdge.TestExtendPathAgainKeepsTurnedEnd;
+var
+  Path: TCurvePathObject;
+  BAngle: string;
+begin
+  Path := FPattern.ExtendCurve(FPattern.AddCurve(Pt('A', 0, 0), Pt('B', 100, 0), '0', '30', '180', '30'), Pt('C', 200, 50));
+  AssertNotNull(FPattern.LastError, Path);
+  BAngle := Path.Field('node2.angle').StoredText;
+  FPattern.Evaluate;
+  Path := FPattern.ExtendCurve(Path, Pt('D', 300, 0));
+  AssertNotNull(FPattern.LastError, Path);
+  AssertEquals(4, Length(Path.NodeKeys));
+  AssertEquals('B stays as it was turned', BAngle, Path.Field('node2.angle').StoredText);
+  AssertNear('C turns from B towards D', 0, FieldNumber(Path, 'node3.angle'));
+  FPattern.Evaluate;
+  AssertTrue(Path.Message, Path.State = esValid);
+end;
+
+procedure TTestConvertEdge.TestExtendKeepsUserNameAndRole;
+var
+  Curve: TCurveObject;
+  Path: TCurvePathObject;
+begin
+  Curve := FPattern.AddCurve(Pt('A', 0, 0), Pt('B', 100, 0), '0', '30', '180', '30', erStitch);
+  AssertTrue(FPattern.LastError, FPattern.Rename(Curve, 'Armhole'));
+  Path := FPattern.ExtendCurve(Curve, Pt('C', 200, 0));
+  AssertNotNull(FPattern.LastError, Path);
+  AssertEquals('Armhole', Path.Name);
+  AssertTrue(Path.Role = erStitch);
+end;
+
+procedure TTestConvertEdge.TestExtendRefused;
+var
+  Line: TLineObject;
+  Curve: TCurveObject;
+  A, B, C: string;
+begin
+  A := Pt('A', 0, 0);
+  B := Pt('B', 100, 0);
+  C := Pt('C', 200, 0);
+  Line := FPattern.AddLine(A, B);
+  AssertNull('a line', FPattern.ExtendCurve(Line, C));
+  AssertEquals(Format(rsPatternNotExtendable, [Line.Name]), FPattern.LastError);
+  Curve := FPattern.AddCurve(A, B, '0', '30', '180', '30');
+  AssertNull('its own end', FPattern.ExtendCurve(Curve, B));
+  AssertEquals(Format(rsPatternExtendSamePoint, [Curve.Name, 'B']), FPattern.LastError);
+  AssertNotNull(FPattern.LastError, FPattern.AddAlongEdgePoint('R', Curve.Key, False, amLength, '10'));
+  AssertNull('in use', FPattern.ExtendCurve(Curve, C));
+  AssertEquals(Format(rsPatternExtendInUse, [Curve.Name, 'R']), FPattern.LastError);
+  AssertTrue('left as it was', FPattern.FindNode(Curve.Key) = Curve);
 end;
 
 initialization

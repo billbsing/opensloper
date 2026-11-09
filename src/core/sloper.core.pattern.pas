@@ -340,6 +340,9 @@ type
     // LastError set when refused.
     function ConvertToLine(Edge: TEdgeObject): TLineObject;
     function ConvertToCurve(Edge: TEdgeObject): TCurveObject;
+    // Carries a curve or curve path on through PointId, in place, as a curve
+    // path (see Sloper.Core.TypeChange.ExtendCurve)
+    function ExtendCurve(Edge: TEdgeObject; const PointId: string): TCurvePathObject;
     // Joins two or more points into one, as Inkscape joins nodes: one point's
     // definition is kept, and whatever used the others uses it instead, then
     // they are deleted, with any line or curve that ran between two of them.
@@ -3107,6 +3110,11 @@ end;
 function TPattern.ConvertToCurve(Edge: TEdgeObject): TCurveObject;
 begin
   Result := Sloper.Core.TypeChange.ConvertToCurve(Self, Edge);
+end;
+
+function TPattern.ExtendCurve(Edge: TEdgeObject; const PointId: string): TCurvePathObject;
+begin
+  Result := Sloper.Core.TypeChange.ExtendCurve(Self, Edge, PointId);
 end;
 
 function TPattern.ConvertToFree(Point: TPointObject; const XText, YText: string): TFreePoint;

@@ -26,7 +26,9 @@ units), ready to be replaced by a formula in the Properties tab.
 
 ## Lines and curves
 
-Lines and curves take two clicks, and drawing carries on from the end. New
+Lines and curves take two clicks, and drawing carries on from the end. With
+the Curve tool, hold ++shift++ as you click to carry the last curve on through
+the point instead, as one smooth [curve path](shaping.md#curve-paths). New
 edges are outlines; choose another kind first in Tools → Draw As, or change an
 edge's role in its properties. Outlines are what pieces are made of;
 construction lines are thin, grey and dashed, and are only guides.

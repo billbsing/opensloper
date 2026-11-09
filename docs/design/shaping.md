@@ -22,10 +22,19 @@ numbered from the start. Like any field they take formulas, such as
 formula its handle is changed only in the properties. In formulas elsewhere the
 same values are `node2.angle`, `node2.lengthIn` and `node2.lengthOut`.
 
-There is no tool for making a curve path in the design window yet. They come
-from patterns made with the [Automation API](../scripting/index.md) or written
-as files, and copy and paste copies them; the
-[bodice block with curve paths](../getting-started/examples.md) example has two.
+To draw one, use the Curve tool (++c++): click the start and the second point
+as for a curve, then hold ++shift++ and click each further point. Each
+Shift+click carries the curve on through the point, so the curve becomes one
+curve path; a plain click starts a separate curve from the end instead, and
+++escape++ stops. The point the path ended at turns to run smoothly on to the
+new one, and the handles you had already set stay. Each Shift+click is its own
+undo step. A curve that something already uses, such as a piece, cannot be
+carried on, because its end would move.
+
+The [Automation API](../scripting/index.md) makes curve paths too, and copy
+and paste copies them; the
+[bodice block with curve paths](../getting-started/examples.md) example has
+two.
 
 ## Offset edges
 

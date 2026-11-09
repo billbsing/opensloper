@@ -41,6 +41,12 @@ function ConvertToAlongEdge(Pattern: TPattern; Point: TPointObject; const EdgeId
 // angle a formula reads, and a line a fold follows.
 function ConvertToLine(Pattern: TPattern; Edge: TEdgeObject): TLineObject;
 function ConvertToCurve(Pattern: TPattern; Edge: TEdgeObject): TCurveObject;
+// Carries a curve or curve path on through PointId, as one curve path that
+// keeps the edge's ID, name and role. The handles it had stay, but the point
+// it ended at turns to run smoothly on to PointId, and the new stretch's
+// handles are a third of its length. Refused for any other kind of edge, a
+// copy, an edge something uses (its end moves), and the point it ends at.
+function ExtendCurve(Pattern: TPattern; Edge: TEdgeObject; const PointId: string): TCurvePathObject;
 
 resourcestring
   rsPatternNotConvertible = '%s cannot be changed: only lines, curves and arcs can become a line or a curve';
@@ -50,11 +56,14 @@ resourcestring
   rsPatternOnlyLineToCurve = 'Only a line can become a curve, and %s is an arc';
   rsPatternAngleInUse = '%s reads %s.angle, which only a line has, so it cannot become a curve';
   rsPatternFoldFollows = '%s is the fold of %s, so %s cannot become a curve';
+  rsPatternNotExtendable = '%s cannot be carried on: only a curve or a curve path can';
+  rsPatternExtendInUse = '%s is used by %s, so it cannot be carried on';
+  rsPatternExtendSamePoint = '%s already ends at %s';
 
 implementation
 
 uses
-  SysUtils, StrUtils, Math, Sloper.Core.Formula, Sloper.Core.Evaluator, Sloper.Core.Piece,
+  SysUtils, StrUtils, Math, Sloper.Core.Geometry, Sloper.Core.Formula, Sloper.Core.Evaluator, Sloper.Core.Piece,
   Sloper.Core.Transform, Sloper.Core.Units;
 
 // Lines, curves and arcs the user drew; copies and parts follow other edges
@@ -216,6 +225,106 @@ begin
     Exit;
   Result := TAlongEdgePoint.Create(Point.Key, EdgeId, FromEnd, Mode);
   if not Pattern.ReplacePoint(Point, Result, ['value'], [Value]) then
+    Result := nil;
+end;
+
+function ExtendCurve(Pattern: TPattern; Edge: TEdgeObject; const PointId: string): TCurvePathObject;
+var
+  Users: TEvalNodeArray;
+  Nodes, Names, Texts: TStringArray;
+  Count, Index: integer;
+  Before, Last, Next: TVec2;
+  Handle: double;
+  Formats: TFormatSettings;
+
+  function Text(Value: double): string;
+  begin
+    Result := FloatToStr(RoundTo(Value, -1), Formats);
+  end;
+
+  procedure Keep(const NewName, OldName: string);
+  begin
+    Insert(NewName, Names, Length(Names));
+    Insert(Edge.Field(OldName).StoredText, Texts, Length(Texts));
+  end;
+
+  procedure Put(const NewName, AText: string);
+  begin
+    Insert(NewName, Names, Length(Names));
+    Insert(AText, Texts, Length(Texts));
+  end;
+
+  function PositionOf(const Key: string): TVec2;
+  begin
+    Result := TPointObject(Pattern.FindNode(Key)).Position;
+  end;
+
+begin
+  Result := nil;
+  if Edge is TEdgeCopy then
+  begin
+    Pattern.SetError(Format(rsPatternCopyOfTransform, [Edge.DisplayName, Pattern.FindNode(TEdgeCopy(Edge).TransformKey).DisplayName]));
+    Exit;
+  end;
+  if (Edge.ClassType <> TCurveObject) and (Edge.ClassType <> TCurvePathObject) then
+  begin
+    Pattern.SetError(Format(rsPatternNotExtendable, [Edge.DisplayName]));
+    Exit;
+  end;
+  Users := Pattern.UsersOf(Edge);
+  if Length(Users) > 0 then
+  begin
+    Pattern.SetError(Format(rsPatternExtendInUse, [Edge.DisplayName, Users[0].DisplayName]));
+    Exit;
+  end;
+  if not Pattern.CheckPoint(PointId) then
+    Exit;
+  if PointId = Edge.EndKey then
+  begin
+    Pattern.SetError(Format(rsPatternExtendSamePoint, [Edge.DisplayName, Pattern.FindNode(PointId).DisplayName]));
+    Exit;
+  end;
+  if Edge is TCurvePathObject then
+    Nodes := Copy(TCurvePathObject(Edge).NodeKeys)
+  else
+    Nodes := [Edge.StartKey, Edge.EndKey];
+  Count := Length(Nodes);
+  // The new handles are placed from where the points are now
+  if not Edge.HasResult or not Pattern.FindNode(PointId).HasResult then
+    Pattern.Evaluate;
+  Before := PositionOf(Nodes[Count - 2]);
+  Last := PositionOf(Nodes[Count - 1]);
+  Next := PositionOf(PointId);
+  Handle := Distance(Last, Next) / 3;
+  Formats := DefaultFormatSettings;
+  Formats.DecimalSeparator := '.';
+  Names := nil;
+  Texts := nil;
+  if Edge is TCurveObject then
+  begin
+    Keep('node1.angle', 'angle1');
+    Keep('node1.lengthOut', 'length1');
+    Keep('node2.lengthIn', 'length2');
+  end
+  else
+    for Index := 1 to Count do
+    begin
+      if Index > 1 then
+        Keep(Format('node%d.lengthIn', [Index]), Format('node%d.lengthIn', [Index]));
+      if Index < Count then
+      begin
+        Keep(Format('node%d.angle', [Index]), Format('node%d.angle', [Index]));
+        Keep(Format('node%d.lengthOut', [Index]), Format('node%d.lengthOut', [Index]));
+      end;
+    end;
+  // The old end runs on from the point before it towards the new one
+  Put(Format('node%d.angle', [Count]), Text(AngleBetween(Before, Next)));
+  Put(Format('node%d.lengthOut', [Count]), RoundLengthFormulaText(Handle, Pattern.Units));
+  Put(Format('node%d.lengthIn', [Count + 1]), RoundLengthFormulaText(Handle, Pattern.Units));
+  Put(Format('node%d.angle', [Count + 1]), Text(AngleBetween(Last, Next)));
+  Insert(PointId, Nodes, Length(Nodes));
+  Result := TCurvePathObject.Create(Edge.Key, Nodes);
+  if not Pattern.ReplaceEdge(Edge, Result, Names, Texts) then
     Result := nil;
 end;
 
