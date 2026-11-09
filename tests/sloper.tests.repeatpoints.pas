@@ -24,7 +24,7 @@ unit Sloper.Tests.RepeatPoints;
 interface
 
 uses
-  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Draft, Sloper.Core.Note, Sloper.Core.Pattern;
 
 type
   TTestRepeat = class(TOSTestCase)
@@ -58,6 +58,9 @@ type
     procedure TestVirtualKeyCannotBeStored;
     procedure TestFormulaUsesAPoint;
     procedure TestFormulaGivesAnId;
+    procedure TestNoteTextGivesAnotherId;
+    procedure TestRefusedAddTakesNoId;
+    procedure TestRefusedAddKeepsTheUsedPoint;
     procedure TestFormulaPastTheCountRefused;
     procedure TestFormulaIndexZeroRefused;
     procedure TestPointNeedsAProperty;
@@ -343,6 +346,46 @@ begin
   Point := FPattern.AddFreePoint('P', 'Btn[3].x', '0');
   AssertEquals('stored by ID', '{' + Done.Item(3).Key + '}.x', Point.Field('x').StoredText);
   AssertEquals('shown by name', 'Btn[3].x', FPattern.FormulaText(Point, 'x'));
+end;
+
+// The note takes its own ID, not the one its text gives the point
+procedure TTestRepeat.TestNoteTextGivesAnotherId;
+var
+  Done: TRepeatObject;
+  Note: TNoteObject;
+begin
+  Done := Between(4);
+  Note := FPattern.AddNote('', 'At {=Btn[3].x}', naFree, '', '', '10', '10');
+  AssertNotNull(FPattern.LastError, Note);
+  AssertNotNull('the point is used', Done.Item(3));
+  AssertFalse('two IDs', Note.Key = Done.Item(3).Key);
+  AssertSame('the note by its ID', Note, FPattern.FindNode(Note.Key));
+  AssertTrue('the point by its ID', FPattern.FindNode(Done.Item(3).Key) is TRepeatPoint);
+end;
+
+procedure TTestRepeat.TestRefusedAddTakesNoId;
+var
+  Next: integer;
+begin
+  Between(4);
+  Next := FPattern.NextId;
+  AssertNull('refused', FPattern.AddFreePoint('P', '1 +', '0'));
+  AssertEquals('no ID used', Next, FPattern.NextId);
+  AssertEquals('the next one takes it', IntToStr(Next), FPattern.AddFreePoint('Q', '0', '0').Key);
+end;
+
+// A formula that named the point gave it an ID, which it keeps
+procedure TTestRepeat.TestRefusedAddKeepsTheUsedPoint;
+var
+  Done: TRepeatObject;
+  Added: TFreePoint;
+begin
+  Done := Between(4);
+  AssertNull('refused', FPattern.AddFreePoint('P', 'Btn[3].x', '1 +'));
+  Added := FPattern.AddFreePoint('Q', 'Btn[3].x', '0');
+  AssertNotNull(FPattern.LastError, Added);
+  AssertFalse('two IDs', Added.Key = Done.Item(3).Key);
+  AssertEquals('stored by the point''s ID', '{' + Done.Item(3).Key + '}.x', Added.Field('x').StoredText);
 end;
 
 procedure TTestRepeat.TestFormulaPastTheCountRefused;

@@ -94,7 +94,6 @@ type
     FVariableResolver: TNameResolver;  // variables and measurements only
     FContext: TEvalContext;
     FLastError: string;
-    FParsingNewObject: boolean;
     FLastErrorField: string;
     FLastErrorPos: integer;
     FMaterialSet: TPatternMaterials;
@@ -109,8 +108,11 @@ type
     function AssignPendingMarkings: boolean;
     // Takes the object's marking lines or marked points off every piece
     procedure DetachMarking(const Key: string);
-    // The next ID, counted past: for the materials
+    // The next ID, counted past. A new object takes its ID before its
+    // formulas are parsed, so a repeat's point they name takes a later one.
     function TakeId: string;
+    // A refused new object's ID goes back, unless something took one since
+    procedure GiveBackId(const Key: string);
     // Every piece, in pattern order
     function PieceList: TPieceObjectArray;
     function GetMaterialCount: integer;
@@ -789,6 +791,12 @@ begin
   Inc(FNextId);
 end;
 
+procedure TPattern.GiveBackId(const Key: string);
+begin
+  if StrToIntDef(Key, 0) = FNextId - 1 then
+    Dec(FNextId);
+end;
+
 function TPattern.PieceList: TPieceObjectArray;
 var
   DraftObject: TDraftObject;
@@ -991,7 +999,7 @@ begin
   end;
   Names := nil;
   Texts := nil;
-  Result := TTransformObject.Create(IntToStr(FNextId), Spec.Kind, Sources, Suffix);
+  Result := TTransformObject.Create(TakeId, Spec.Kind, Sources, Suffix);
   case Spec.Kind of
     tkRotate:
     begin
@@ -1027,10 +1035,10 @@ begin
   end;
   if not ParseFields(Result, Names, Texts) then
   begin
+    GiveBackId(Result.Key);
     FreeAndNil(Result);
     Exit;
   end;
-  Inc(FNextId);
   Result.Name := TransformName;
 end;
 
@@ -1048,8 +1056,7 @@ begin
     for Key in Sources do
     begin
       Node := FindNode(Key);
-      CopyKey := IntToStr(FNextId);
-      Inc(FNextId);
+      CopyKey := TakeId;
       if Node is TPointObject then
       begin
         Point := TPointCopy.Create(CopyKey, Transform.Key, Key);
@@ -1293,18 +1300,13 @@ var
   Index: integer;
   FieldFormula: TFormula;
 begin
-  FParsingNewObject := True;
-  try
-    for Index := 0 to High(Names) do
-    begin
-      FieldFormula := Node.Field(Names[Index]);
-      if not FieldFormula.Parse(Texts[Index], ResolverFor(Node)) then
-        Exit(SetError(FieldFormula.ErrorMessage, Names[Index], FieldFormula.ErrorPos));
-    end;
-    Result := True;
-  finally
-    FParsingNewObject := False;
+  for Index := 0 to High(Names) do
+  begin
+    FieldFormula := Node.Field(Names[Index]);
+    if not FieldFormula.Parse(Texts[Index], ResolverFor(Node)) then
+      Exit(SetError(FieldFormula.ErrorMessage, Names[Index], FieldFormula.ErrorPos));
   end;
+  Result := True;
 end;
 
 function TPattern.CheckPoint(const Id: string): boolean;
@@ -1355,14 +1357,14 @@ begin
     SetError(Msg);
     Exit;
   end;
-  Result := TVariable.Create(IntToStr(FNextId));
+  Result := TVariable.Create(TakeId);
   if not ParseFields(Result, ['formula'], [FormulaText]) then
   begin
+    GiveBackId(Result.Key);
     FreeAndNil(Result);
     Exit;
   end;
   // A new node cannot close a cycle: nothing refers to it yet
-  Inc(FNextId);
   Result.Name := AName;
   Result.Description := Description;
   AddVariableNode(Result);
@@ -1380,15 +1382,16 @@ begin
   end
   else if not CheckObjectName(PointName, nil, Msg) then
   begin
+    GiveBackId(APoint.Key);
     FreeAndNil(APoint);
     Exit(SetError(Msg));
   end;
   if not ParseFields(APoint, Names, Texts) then
   begin
+    GiveBackId(APoint.Key);
     FreeAndNil(APoint);
     Exit(False);
   end;
-  Inc(FNextId);
   APoint.Name := PointName;
   AddObjectNode(APoint);
   Result := True;
@@ -1396,7 +1399,7 @@ end;
 
 function TPattern.AddFreePoint(const AName, XText, YText: string): TFreePoint;
 begin
-  Result := TFreePoint.Create(IntToStr(FNextId));
+  Result := TFreePoint.Create(TakeId);
   if not AddPointObject(Result, AName, ['x', 'y'], [XText, YText]) then
     Result := nil;
 end;
@@ -1407,7 +1410,7 @@ begin
   Result := nil;
   if not CheckPoint(BaseId) then
     Exit;
-  Result := TOffsetPoint.Create(IntToStr(FNextId), BaseId, Mode);
+  Result := TOffsetPoint.Create(TakeId, BaseId, Mode);
   if Mode = omPolar then
   begin
     if not AddPointObject(Result, AName, ['length', 'angle'], [LengthOrDx, AngleOrDy]) then
@@ -1423,7 +1426,7 @@ begin
   Result := nil;
   if not CheckEdgeTarget(EdgeId) then
     Exit;
-  Result := TAlongEdgePoint.Create(IntToStr(FNextId), EdgeId, FromEnd, Mode);
+  Result := TAlongEdgePoint.Create(TakeId, EdgeId, FromEnd, Mode);
   if not AddPointObject(Result, AName, ['value'], [Value]) then
     Result := nil;
 end;
@@ -1433,7 +1436,7 @@ begin
   Result := nil;
   if not CheckPoint(FirstId) or not CheckPoint(LastId) then
     Exit;
-  Result := TBetweenPoint.Create(IntToStr(FNextId), FirstId, LastId, Mode);
+  Result := TBetweenPoint.Create(TakeId, FirstId, LastId, Mode);
   if not AddPointObject(Result, AName, ['value'], [Value]) then
     Result := nil;
 end;
@@ -1448,7 +1451,7 @@ begin
     SetError(rsPatternRepeatSamePoint);
     Exit;
   end;
-  Result := TRepeatObject.CreateBetween(IntToStr(FNextId), FirstId, LastId, IncludeEnds);
+  Result := TRepeatObject.CreateBetween(TakeId, FirstId, LastId, IncludeEnds);
   if not AddPointObject(Result, AName, ['count'], [CountText]) then
     Result := nil;
 end;
@@ -1458,7 +1461,7 @@ begin
   Result := nil;
   if not CheckEdgeTarget(EdgeId) then
     Exit;
-  Result := TRepeatObject.CreateOnEdge(IntToStr(FNextId), EdgeId, IncludeEnds);
+  Result := TRepeatObject.CreateOnEdge(TakeId, EdgeId, IncludeEnds);
   if not AddPointObject(Result, AName, ['count'], [CountText]) then
     Result := nil;
 end;
@@ -1475,11 +1478,7 @@ begin
   Result := Node.Key;
   if not TRepeatPoint(Node).IsVirtual then
     Exit;
-  // An object being added has its formulas parsed once it holds the next ID
-  if FParsingNewObject then
-    Inc(FNextId);
-  Used := TRepeatPoint(Node).Source.UseItem(TRepeatPoint(Node).Index, IntToStr(FNextId));
-  Inc(FNextId);
+  Used := TRepeatPoint(Node).Source.UseItem(TRepeatPoint(Node).Index, TakeId);
   FNodes.Add(Used.Key, Used);
   Result := Used.Key;
 end;
@@ -1518,7 +1517,7 @@ begin
     SetError(rsPatternBadPick);
     Exit;
   end;
-  Result := TIntersectPoint.Create(IntToStr(FNextId), EdgeAId, EdgeBId,
+  Result := TIntersectPoint.Create(TakeId, EdgeAId, EdgeBId,
     ExtendA, ExtendB, Pick);
   if not AddPointObject(Result, AName, [], []) then
     Result := nil;
@@ -1534,7 +1533,7 @@ begin
     SetError(rsPatternBadPick);
     Exit;
   end;
-  Result := TCircleCirclePoint.Create(IntToStr(FNextId), CentreAId, CentreBId, Pick);
+  Result := TCircleCirclePoint.Create(TakeId, CentreAId, CentreBId, Pick);
   if not AddPointObject(Result, AName, ['radiusA', 'radiusB'], [RadiusA, RadiusB]) then
     Result := nil;
 end;
@@ -1550,7 +1549,7 @@ begin
     SetError(rsPatternBadPick);
     Exit;
   end;
-  Result := TCircleEdgePoint.Create(IntToStr(FNextId), CentreId, EdgeId, Extend, Pick);
+  Result := TCircleEdgePoint.Create(TakeId, CentreId, EdgeId, Extend, Pick);
   if not AddPointObject(Result, AName, ['radius'], [Radius]) then
     Result := nil;
 end;
@@ -1561,7 +1560,7 @@ begin
   Result := nil;
   if not CheckPoint(SourceId) or not CheckEdgeTarget(EdgeId) then
     Exit;
-  Result := TProjectPoint.Create(IntToStr(FNextId), SourceId, EdgeId, Direction, Extend);
+  Result := TProjectPoint.Create(TakeId, SourceId, EdgeId, Direction, Extend);
   if Direction = pdAngle then
   begin
     if not AddPointObject(Result, AName, ['angle'], [Angle]) then
@@ -1601,6 +1600,7 @@ var
 begin
   if not CheckPoint(AEdge.StartKey) or not CheckPoint(AEdge.EndKey) then
   begin
+    GiveBackId(AEdge.Key);
     FreeAndNil(AEdge);
     Exit(False);
   end;
@@ -1608,6 +1608,7 @@ begin
   begin
     if not CheckObjectName(AName, nil, Msg) then
     begin
+      GiveBackId(AEdge.Key);
       FreeAndNil(AEdge);
       Exit(SetError(Msg));
     end;
@@ -1618,11 +1619,11 @@ begin
     AEdge.Name := DerivedEdgeName(AEdge);
   if not ParseFields(AEdge, Names, Texts) then
   begin
+    GiveBackId(AEdge.Key);
     FreeAndNil(AEdge);
     Exit(False);
   end;
   AEdge.Role := ARole;
-  Inc(FNextId);
   AddObjectNode(AEdge);
   QueueMarking(AEdge);
   Result := True;
@@ -1631,7 +1632,7 @@ end;
 function TPattern.AddLine(const StartId, EndId: string; Role: TEdgeRole;
   const AName: string): TLineObject;
 begin
-  Result := TLineObject.Create(IntToStr(FNextId), StartId, EndId);
+  Result := TLineObject.Create(TakeId, StartId, EndId);
   if not AddEdgeObject(Result, AName, Role, [], []) then
     Result := nil;
 end;
@@ -1639,7 +1640,7 @@ end;
 function TPattern.AddCurve(const StartId, EndId, Angle1, Length1, Angle2, Length2: string;
   Role: TEdgeRole; const AName: string): TCurveObject;
 begin
-  Result := TCurveObject.Create(IntToStr(FNextId), StartId, EndId);
+  Result := TCurveObject.Create(TakeId, StartId, EndId);
   if not AddEdgeObject(Result, AName, Role, ['angle1', 'length1', 'angle2', 'length2'],
     [Angle1, Length1, Angle2, Length2]) then
     Result := nil;
@@ -1647,14 +1648,14 @@ end;
 
 function TPattern.AddCircle(const CentreId, Radius: string; Role: TEdgeRole; const AName: string): TCircleObject;
 begin
-  Result := TCircleObject.Create(IntToStr(FNextId), CentreId);
+  Result := TCircleObject.Create(TakeId, CentreId);
   if not AddEdgeObject(Result, AName, Role, ['radius'], [Radius]) then
     Result := nil;
 end;
 
 function TPattern.AddArc(const CentreId, Radius, Angle1, Angle2: string; Role: TEdgeRole; const AName: string): TArcObject;
 begin
-  Result := TArcObject.Create(IntToStr(FNextId), CentreId);
+  Result := TArcObject.Create(TakeId, CentreId);
   if not AddEdgeObject(Result, AName, Role, ['radius', 'angle1', 'angle2'], [Radius, Angle1, Angle2]) then
     Result := nil;
 end;
@@ -1722,7 +1723,7 @@ begin
   EndKey := Last.EndKey;
   if Run[High(Run)].Reversed then
     EndKey := Last.StartKey;
-  Result := TOffsetEdge.Create(IntToStr(FNextId), Run, StartKey, EndKey, Side);
+  Result := TOffsetEdge.Create(TakeId, Run, StartKey, EndKey, Side);
   if not AddEdgeObject(Result, AName, Role, ['distance'], [Distance]) then
     Result := nil;
 end;
@@ -1930,16 +1931,16 @@ begin
     SetError(Format(rsPatternCornerNotMeeting, [First.DisplayName, Second.DisplayName]));
     Exit;
   end;
-  Result := TCornerArc.Create(IntToStr(FNextId), Vertex, EdgeAId, EdgeBId);
+  Result := TCornerArc.Create(TakeId, Vertex, EdgeAId, EdgeBId);
   if not AddEdgeObject(Result, '', First.Role, ['radius'], [Radius]) then
   begin
     Result := nil;
     Exit;
   end;
-  TangentA := TCornerPoint.Create(IntToStr(FNextId), Result.Key, 1);
+  TangentA := TCornerPoint.Create(TakeId, Result.Key, 1);
   if not AddPointObject(TangentA, '', [], []) then
     Exit(nil);
-  TangentB := TCornerPoint.Create(IntToStr(FNextId), Result.Key, 2);
+  TangentB := TCornerPoint.Create(TakeId, Result.Key, 2);
   if not AddPointObject(TangentB, '', [], []) then
     Exit(nil);
   Result.TrimmedA := Trim(First, TangentA.Key);
@@ -1995,7 +1996,7 @@ begin
     if Index < Count - 1 then
       AddText(NodeName + '.lengthOut', LengthsOut[Index]);
   end;
-  Result := TCurvePathObject.Create(IntToStr(FNextId), NodeIds);
+  Result := TCurvePathObject.Create(TakeId, NodeIds);
   if not AddEdgeObject(Result, AName, Role, Names, Texts) then
     Result := nil;
 end;
@@ -2006,8 +2007,7 @@ var
 
   function NewPart(APart: integer): TSplitPart;
   begin
-    Result := NewSplitPart(IntToStr(FNextId), Source, PointId, APart);
-    Inc(FNextId);
+    Result := NewSplitPart(TakeId, Source, PointId, APart);
     // Each part is its own edge: it gets a derived name and joins the pattern
     Result.Name := DerivedEdgeName(Result);
     Result.Role := Source.Role;
@@ -2110,7 +2110,7 @@ begin
     SetError(Msg);
     Exit;
   end;
-  Result := TPieceObject.Create(IntToStr(FNextId), Path);
+  Result := TPieceObject.Create(TakeId, Path);
   // The first material's allowance stands in for the general default
   PieceAllowance := Allowance;
   if (Allowance = DefaultPieceAllowance) and FMaterialSet[0].HasAllowance then
@@ -2119,10 +2119,10 @@ begin
     PieceAllowance := StartingLengths[slPieceAllowance, FUnits];
   if not ParseFields(Result, [PieceAllowanceField], [PieceAllowance]) then
   begin
+    GiveBackId(Result.Key);
     FreeAndNil(Result);
     Exit;
   end;
-  Inc(FNextId);
   Result.Name := PieceName;
   Result.MaterialKey := FMaterialSet[0].Key;
   AddObjectNode(Result);
@@ -2613,16 +2613,16 @@ begin
     SetError(Msg);
     Exit;
   end;
-  Result := TSeamObject.Create(IntToStr(FNextId), SideA, SideB);
+  Result := TSeamObject.Create(TakeId, SideA, SideB);
   SeamTolerance := Tolerance;
   if SeamTolerance = DefaultSeamTolerance then
     SeamTolerance := StartingLengths[slSeamTolerance, FUnits];
   if not ParseFields(Result, [SeamEaseField, SeamToleranceField], [Ease, SeamTolerance]) then
   begin
+    GiveBackId(Result.Key);
     FreeAndNil(Result);
     Exit;
   end;
-  Inc(FNextId);
   Result.Name := SeamName;
   AddObjectNode(Result);
 end;
@@ -2693,15 +2693,15 @@ begin
     SetError(Msg);
     Exit;
   end;
-  Result := TNoteObject.Create(IntToStr(FNextId), Anchor, Key);
+  Result := TNoteObject.Create(TakeId, Anchor, Key);
   if ((Anchor = naFree) and not ParseFields(Result, [NoteXField, NoteYField], [DxOrX, DyOrY])) or
     ((Anchor = naEdge) and not ParseFields(Result, [NotePositionField], [Position])) or
     ((Anchor <> naFree) and not ParseFields(Result, [NoteDxField, NoteDyField], [DxOrX, DyOrY])) or not SetNoteText(Result, AText) then
   begin
+    GiveBackId(Result.Key);
     FreeAndNil(Result);
     Exit;
   end;
-  Inc(FNextId);
   Result.Name := NoteName;
   Result.Size := ASize;
   Result.Print := APrint;
