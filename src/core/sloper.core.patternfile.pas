@@ -770,8 +770,9 @@ var
   Zoom: double;
   Index: integer;
   Role: TEdgeRole;
+  Hide: boolean;
 begin
-  Pattern.View := Default(TPatternView);
+  Pattern.View.Reset;
   if not Assigned(Data) or (Data.JSONType <> jtObject) then
     Exit;
   Root := TJSONObject(Data);
@@ -791,8 +792,9 @@ begin
       if List.Items[Index].JSONType = jtString then
         for Role := Low(TEdgeRole) to High(TEdgeRole) do
           if (EdgeRoleNames[Role] = List.Items[Index].AsString) and (Role in HideableRoles) then
-            Include(Pattern.View.HiddenRoles, Role);
-  GetJSONBoolean(Root, 'hideAnnotations', Pattern.View.HideAnnotations);
+            Pattern.View.HiddenRoles := Pattern.View.HiddenRoles + [Role];
+  if GetJSONBoolean(Root, 'hideAnnotations', Hide) then
+    Pattern.View.HideAnnotations := Hide;
 end;
 
 function PatternViewToText(Pattern: TPattern): string;
@@ -2069,9 +2071,13 @@ begin
         Exit(Fail(rsPatternFileBadNextId));
       FPattern.NextId := NextId;
     end;
-    GetJSONString(Root, 'notes', FPattern.Notes);
-    GetJSONString(Root, 'measurementFile', FPattern.MeasurementFile);
-    GetJSONString(Root, 'identity', FPattern.Identity);
+    // A member left out reads as empty
+    GetJSONString(Root, 'notes', TextValue);
+    FPattern.Notes := TextValue;
+    GetJSONString(Root, 'measurementFile', TextValue);
+    FPattern.MeasurementFile := TextValue;
+    GetJSONString(Root, 'identity', TextValue);
+    FPattern.Identity := TextValue;
     FPattern.UpdateDerivedNames;
     ReadPatternViewData(FPattern, Root.Find('view'));
     Result := True;

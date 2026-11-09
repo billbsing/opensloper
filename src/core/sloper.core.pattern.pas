@@ -33,10 +33,10 @@ uses
   Sloper.Core.Transform, Sloper.Core.Note, Sloper.Core.Geometry, Sloper.Core.Units;
 
 type
-  // What AddTransform needs. Sources are expanded: an edge brings its ends.
   // In order around: from the corner along the width, then up, back and down
   TRectangleEdges = array[0..3] of TLineObject;
 
+  // What AddTransform needs. Sources are expanded: an edge brings its ends.
   TTransformSpec = record
     Kind: TTransformKind;
     Name, Suffix: string;
@@ -51,15 +51,25 @@ type
   end;
 
   // Where the canvas was left, saved with the pattern but outside undo
-  TPatternView = record
+  TPatternView = class
+  private
+    FHasView: boolean;
+    FZoom, FCentreX, FCentreY: double;
+    FHiddenRoles: TEdgeRoles;
+    FHideAnnotations: boolean;
+  public
+    // Back to a pattern never shown, with every role and the notes showing
+    procedure Reset;
     // Set once the canvas has shown the pattern
-    HasView: boolean;
-    Zoom, CentreX, CentreY: double;
+    property HasView: boolean read FHasView write FHasView;
+    property Zoom: double read FZoom write FZoom;
+    property CentreX: double read FCentreX write FCentreX;
+    property CentreY: double read FCentreY write FCentreY;
     // Roles the drafting app does not show (see Visibility, styles and
     // output in the design); never Outline
-    HiddenRoles: TEdgeRoles;
+    property HiddenRoles: TEdgeRoles read FHiddenRoles write FHiddenRoles;
     // Notes are not drawn on the canvas or in draft export
-    HideAnnotations: boolean;
+    property HideAnnotations: boolean read FHideAnnotations write FHideAnnotations;
   end;
 
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
@@ -87,8 +97,9 @@ type
     FParsingNewObject: boolean;
     FLastErrorField: string;
     FLastErrorPos: integer;
-    FNameExclude: TDraftObject;
     FMaterials: TPatternMaterialList;
+    FNotes, FMeasurementFile, FIdentity: string;
+    FView: TPatternView;
     // Marking lines and marked points to give a piece after the next
     // evaluation, which works out where they lie; FAssignLoose adds every one
     // without a piece
@@ -162,15 +173,6 @@ type
     function DerivedEdgeName(AEdge: TEdgeObject): string;
     procedure RebuildMeasurementNodes;
   public
-    Notes: string;
-    // The measurement file last used with the pattern, as the user chose it;
-    // the document resolves it. Not loaded here.
-    MeasurementFile: string;
-    // Tells this pattern from others when objects are pasted (see
-    // Sloper.Core.Fragment); made by NewPatternIdentity and kept by Save As.
-    // Empty, as after Clear, matches no pattern.
-    Identity: string;
-    View: TPatternView;
     constructor Create;
     destructor Destroy; override;
     procedure Clear;
@@ -194,7 +196,6 @@ type
     function AddOffsetPoint(const AName, BaseId: string; Mode: TOffsetMode; const LengthOrDx, AngleOrDy: string): TOffsetPoint;
     function AddAlongEdgePoint(const AName, EdgeId: string; FromEnd: boolean;
       Mode: TAlongMode; const Value: string): TAlongEdgePoint;
-    // Where two edges cross; Pick numbers the crossings from 1 along EdgeA
     function AddBetweenPoint(const AName, FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
     // Count points between two points, or along an edge by arc length
     function AddRepeatBetween(const AName, FirstId, LastId, CountText: string; IncludeEnds: boolean): TRepeatObject;
@@ -204,26 +205,23 @@ type
     function UsePoint(const Key: string): string;
     // Every point there is, a repeat's included, in order
     function AllPoints: TPointObjectArray;
+    // Where two edges cross; Pick numbers the crossings from 1 along EdgeA
     function AddIntersectPoint(const AName, EdgeAId, EdgeBId: string;
       ExtendA, ExtendB: boolean; Pick: integer): TIntersectPoint;
     // Where a circle around CentreId crosses an edge (a compass step)
     function AddCircleEdgePoint(const AName, CentreId, Radius, EdgeId: string;
       Extend: boolean; Pick: integer): TCircleEdgePoint;
+    // Where two circles cross. Pick 1 is to the left going from A to B, and 2
+    // to the right.
+    function AddCircleCirclePoint(const AName, CentreAId, RadiusA, CentreBId, RadiusB: string; Pick: integer): TCircleCirclePoint;
     // From SourceId onto an edge, square to it or at the Angle formula
     // (Angle is ignored for pdPerpendicular)
-    // Pick 1 is to the left going from A to B, and 2 to the right
-    function AddCircleCirclePoint(const AName, CentreAId, RadiusA, CentreBId, RadiusB: string; Pick: integer): TCircleCirclePoint;
     function AddProjectPoint(const AName, SourceId, EdgeId: string;
       Direction: TProjectDirection; const Angle: string; Extend: boolean): TProjectPoint;
     function AddLine(const StartId, EndId: string; Role: TEdgeRole = erConstruction;
       const AName: string = ''): TLineObject;
     function AddCurve(const StartId, EndId, Angle1, Length1, Angle2, Length2: string;
       Role: TEdgeRole = erConstruction; const AName: string = ''): TCurveObject;
-
-    // A smooth curve through NodeIds. Angles are the tangent at each node
-    // (direction of travel); LengthsIn and LengthsOut the handle lengths before
-    // and after it. All arrays have one entry per node; LengthsIn[0] and the
-    // last LengthsOut are ignored.
     function AddCircle(const CentreId, Radius: string; Role: TEdgeRole = erConstruction; const AName: string = ''): TCircleObject;
     function AddArc(const CentreId, Radius, Angle1, Angle2: string; Role: TEdgeRole = erConstruction; const AName: string = ''): TArcObject;
     // Points and lines from CornerId, with Width and Height as formulas: the
@@ -247,6 +245,10 @@ type
     // arc's tangent point; the part beyond the corner stays, and the rest
     // becomes construction, as the sharp corner's guide.
     function AddRoundCorner(const EdgeAId, EdgeBId, Radius: string): TCornerArc;
+    // A smooth curve through NodeIds. Angles are the tangent at each node
+    // (direction of travel); LengthsIn and LengthsOut the handle lengths before
+    // and after it. All arrays have one entry per node; LengthsIn[0] and the
+    // last LengthsOut are ignored.
     function AddCurvePath(const NodeIds, Angles, LengthsIn, LengthsOut: array of string;
       Role: TEdgeRole = erConstruction; const AName: string = ''): TCurvePathObject;
     // Splits an edge at a point on it into two new edges, which follow the
@@ -449,6 +451,16 @@ type
     property Objects[Index: integer]: TDraftObject read GetObject;
     // The next ID to hand out. Loaders and undo may raise it; IDs are never reused.
     property NextId: integer read FNextId write FNextId;
+    property Notes: string read FNotes write FNotes;
+    // The measurement file last used with the pattern, as the user chose it;
+    // the document resolves it. Not loaded here.
+    property MeasurementFile: string read FMeasurementFile write FMeasurementFile;
+    // Tells this pattern from others when objects are pasted (see
+    // Sloper.Core.Fragment); made by NewPatternIdentity and kept by Save As.
+    // Empty, as after Clear, matches no pattern.
+    property Identity: string read FIdentity write FIdentity;
+    // Owned; Clear resets it
+    property View: TPatternView read FView;
     property LastError: string read FLastError;
     property LastErrorField: string read FLastErrorField;
     property LastErrorPos: integer read FLastErrorPos;
@@ -540,6 +552,16 @@ var
 begin
   CreateGUID(Guid);
   Result := LowerCase(Copy(GUIDToString(Guid), 2, 36));
+end;
+
+procedure TPatternView.Reset;
+begin
+  FHasView := False;
+  FZoom := 0;
+  FCentreX := 0;
+  FCentreY := 0;
+  FHiddenRoles := [];
+  FHideAnnotations := False;
 end;
 
 const
@@ -734,6 +756,7 @@ begin
   FVariableResolver := TPatternResolver.Create(Self, False);
   FContext := TPatternContext.Create(Self);
   FMaterials := TPatternMaterialList.Create;
+  FView := TPatternView.Create;
   FMeasurementScale := 1;
   Clear;
 end;
@@ -750,6 +773,7 @@ begin
   FreeAndNil(FVariableResolver);
   FreeAndNil(FContext);
   FreeAndNil(FMaterials);
+  FreeAndNil(FView);
   inherited Destroy;
 end;
 
@@ -765,10 +789,10 @@ begin
   FUnits := muMillimetre;
   FPendingMarkings := nil;
   FAssignLoose := False;
-  Notes := '';
-  MeasurementFile := '';
-  Identity := '';
-  View := Default(TPatternView);
+  FNotes := '';
+  FMeasurementFile := '';
+  FIdentity := '';
+  FView.Reset;
   ResetMaterials;
 end;
 
@@ -1144,7 +1168,6 @@ end;
 // A name cannot hold a repeat point's brackets
 function TPattern.FreeCopyName(const SourceName, Suffix: string): string;
 begin
-  FNameExclude := nil;
   Result := NextFreeName(StringReplace(StringReplace(SourceName, '[', '_', []), ']', '', []) + Suffix, @ObjectNameTaken);
 end;
 
@@ -1167,7 +1190,6 @@ begin
   TransformName := Spec.Name;
   if TransformName = '' then
   begin
-    FNameExclude := nil;
     TransformName := NextFreeName(TransformBaseNames[Spec.Kind], @ObjectNameTaken);
   end
   else if not CheckObjectName(TransformName, nil, Msg) then
@@ -1402,11 +1424,35 @@ begin
 end;
 
 function TPattern.ObjectNameTaken(const AName: string): boolean;
+begin
+  Result := Assigned(FindObject(AName));
+end;
+
+type
+  // Whether a name is taken by an object other than Own, so that an edge's
+  // derived name can stay its own
+  TOtherObjectName = class
+  private
+    FPattern: TPattern;
+    FOwn: TDraftObject;
+  public
+    constructor Create(APattern: TPattern; AOwn: TDraftObject);
+    function Taken(const AName: string): boolean;
+  end;
+
+constructor TOtherObjectName.Create(APattern: TPattern; AOwn: TDraftObject);
+begin
+  inherited Create;
+  FPattern := APattern;
+  FOwn := AOwn;
+end;
+
+function TOtherObjectName.Taken(const AName: string): boolean;
 var
   Existing: TDraftObject;
 begin
-  Existing := FindObject(AName);
-  Result := Assigned(Existing) and (Existing <> FNameExclude);
+  Existing := FPattern.FindObject(AName);
+  Result := Assigned(Existing) and (Existing <> FOwn);
 end;
 
 function TPattern.CheckObjectName(const AName: string; Exclude: TDraftObject;
@@ -1538,7 +1584,6 @@ begin
   PointName := AName;
   if PointName = '' then
   begin
-    FNameExclude := nil;
     PointName := NextAutoName(@ObjectNameTaken);
   end
   else if not CheckObjectName(PointName, nil, Msg) then
@@ -1735,21 +1780,26 @@ begin
 end;
 
 function TPattern.DerivedEdgeName(AEdge: TEdgeObject): string;
+var
+  Others: TOtherObjectName;
 
-  // A repeat's point has brackets, which a name cannot: Btn[2] gives Btn_2
+// A repeat's point has brackets, which a name cannot: Btn[2] gives Btn_2
   function EndName(Node: TEvalNode): string;
   begin
     Result := StringReplace(StringReplace(Node.DisplayName, '[', '_', []), ']', '', []);
   end;
 
 begin
-  FNameExclude := AEdge;
   if AEdge.StartKey = AEdge.EndKey then
     Result := AEdge.NamePrefix + '_' + EndName(FindNode(AEdge.StartKey))
   else
     Result := AEdge.NamePrefix + '_' + EndName(FindNode(AEdge.StartKey)) + '_' + EndName(FindNode(AEdge.EndKey));
-  Result := NextFreeName(Result, @ObjectNameTaken);
-  FNameExclude := nil;
+  Others := TOtherObjectName.Create(Self, AEdge);
+  try
+    Result := NextFreeName(Result, @Others.Taken);
+  finally
+    FreeAndNil(Others);
+  end;
 end;
 
 function TPattern.AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
@@ -2261,7 +2311,6 @@ begin
   PieceName := AName;
   if PieceName = '' then
   begin
-    FNameExclude := nil;
     PieceName := NextFreeName(NewPieceBaseName, @ObjectNameTaken);
   end
   else if not CheckObjectName(PieceName, nil, Msg) then
@@ -2765,7 +2814,6 @@ begin
   SeamName := AName;
   if SeamName = '' then
   begin
-    FNameExclude := nil;
     SeamName := NextFreeName(NewSeamBaseName, @ObjectNameTaken);
   end
   else if not CheckObjectName(SeamName, nil, Msg) then
@@ -2846,7 +2894,6 @@ begin
   NoteName := AName;
   if NoteName = '' then
   begin
-    FNameExclude := nil;
     NoteName := NextFreeName(NewNoteBaseName, @ObjectNameTaken);
   end
   else if not CheckObjectName(NoteName, nil, Msg) then
