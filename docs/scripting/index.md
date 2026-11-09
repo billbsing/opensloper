@@ -29,7 +29,8 @@ It stops at the end of its input (++ctrl+d++ when typing). A request with no
 
 This Python script drafts half a gathered skirt from the example
 [size table](../getting-started/examples.md), checks it, draws it and saves it.
-Run it in a copy of the `examples` folder, with `opensloper-cli` on your `PATH`.
+Run it in a folder holding a copy of the example `measurements` folder, with
+`opensloper-cli` on your `PATH`.
 
 ```python
 import json

@@ -25,7 +25,7 @@ same values are `node2.angle`, `node2.lengthIn` and `node2.lengthOut`.
 There is no tool for making a curve path in the design window yet. They come
 from patterns made with the [Automation API](../scripting/index.md) or written
 as files, and copy and paste copies them; the
-[bodice block example](../getting-started/examples.md) has two.
+[bodice block with curve paths](../getting-started/examples.md) example has two.
 
 ## Offset edges
 

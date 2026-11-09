@@ -148,8 +148,8 @@ begin
   end;
 end;
 
-// Every tutorial pattern in docs/examples and example pattern in examples opens with its measurements
-// and works out cleanly
+// Every tutorial and example pattern in docs/examples opens with its measurements, if it has any, and
+// works out cleanly
 procedure TTestDocs.TestExamplePatternsHaveNoProblems;
 var
   Files: TStringList;
@@ -161,8 +161,7 @@ begin
   Files := TStringList.Create;
   try
     FindFiles(ConcatPaths([DocsFolder, 'examples']), '.sloper', Files);
-    AssertTrue('there are tutorial examples', Files.Count > 0);
-    FindFiles(ConcatPaths([ExtractFileDir(DocsFolder), 'examples']), '.sloper', Files);
+    AssertTrue('there are examples', Files.Count > 0);
     for FileName in Files do
     begin
       Measurements := TMeasurementSet.Create;
