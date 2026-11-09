@@ -574,6 +574,7 @@ begin
   FRoleBox := nil;
   FMarkerBox := nil;
   FMarkedOnText := nil;
+  FEndsBox := nil;
   FCutEdit := nil;
   FMirrorBox := nil;
   FFoldBox := nil;
