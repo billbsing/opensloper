@@ -33,6 +33,7 @@ nav = [
   { "Design" = [
     "design/index.md",
     "design/drawing.md",
+    "design/shaping.md",
     "design/formulas.md",
     "design/pieces.md",
     "design/notes.md",

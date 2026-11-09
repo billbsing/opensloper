@@ -62,6 +62,29 @@ selection. Drag on empty canvas to select everything inside a box. The
 Properties tab shows the selected object, and a change there is made when you
 press ++enter++ or leave the field.
 
+## Copy and paste
+
+Edit → Copy, Cut and Paste copy how objects are made, not where they are, so a
+pasted object is placed by formulas like its original. Points, repeats and
+edges are copied; anything else selected is left out, and the status bar says
+so. Pasting is one undo step, and the copies are selected.
+
+- **In the same pattern**, only the selected objects are added, and they use
+  the same points and measurements as the originals. The main use is a second
+  line on the same points, ready to be made a stitch or fold line. The copy is
+  then independent; for a line that must keep following its source, use an
+  [offset edge](shaping.md#offset-edges).
+- **Into another pattern**, the copy brings everything it depends on, so a
+  collar can be taken from one pattern into another. Variables come with the
+  formulas that use them: one with the same name and formula is shared, and a
+  different one is added as a copy, such as `ease2`. Measurements are matched
+  by key.
+
+Copies take the next free name when theirs is taken (`A` becomes `A2`), and the
+status bar lists the renames. Patterns in different units cannot be pasted
+into each other. While a text field has the focus, Cut, Copy and Paste work on
+its text instead.
+
 ## Editing in the lists
 
 The Variables and Measurements tabs are edited in their lists. Click a cell and

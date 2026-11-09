@@ -56,5 +56,7 @@ why. Change its formulas in the Properties tab instead.
 | Tools → Points → Break Point | One point for each edge that meets at a point |
 | Tools → Transform | Rotated, mirrored or moved copies, which follow their sources |
 
-Every operation and its settings are listed in
+[Curves, copies and repeats](shaping.md) explains curve paths, offsets,
+rounded corners, transforms and repeats. Every operation and its settings are
+listed in
 [Operations and objects](../reference/operations.md).
