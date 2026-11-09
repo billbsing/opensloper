@@ -358,7 +358,7 @@ A seam is a node whose inputs are its pieces, so it is blocked while one fails, 
 
 A pattern is one drafting area: every object is on the same canvas, drawn in pattern order with pieces under edges and edges under points.
 
-**Drafts and layers were taken out** (2026-11-03), with the draft tabs, the Layers panel and the Garment view, to reduce clutter. They added rules (inputs on the same draft, moving between layers, what shows versus what prints) for little use. Locking may come back per object (see Planned).
+**Drafts and layers were taken out** (2026-11-03), with the draft tabs, the Layers panel and the Garment view, to reduce clutter; the Garment view is planned to come back as a side panel tab (see Garment view). They added rules (inputs on the same draft, moving between layers, what shows versus what prints) for little use. Locking may come back per object (see Planned).
 
 **One garment or product per file.** Garments that share no geometry (a skirt and a top) are separate files, brought together in the publish app. Pieces whose geometry depends on each other (a sleeve cap from the armhole, a collar from the neckline, a gusset from the panel edge it is sewn to) stay in one file. References between files would need a dependency graph across files and IDs unique beyond one file, so they are not planned.
 
@@ -767,7 +767,52 @@ Reviewed 2026-11-08.
 
 ## Garment view
 
-Taken out on 2026-11-03, with drafts and layers, to reduce clutter (see One canvas). It showed the finished garment flat, front and back, with pieces joined along their seams; the code is in the git history before that date. A file that still gives a piece a `view` loads, and the member is dropped on saving. Seeing the finished garment is left to the Blender export.
+**History.** A Garment window (step 13) showed the finished garment flat, front and back, with pieces joined along their seams. It was taken out on 2026-11-03 with drafts and layers (see One canvas); the code is in the git history before that date (`Sloper.Core.Garment`, `Sloper.Output.GarmentSVG`, commit `b920e6c` removed them). It looked unfinished: darts stayed open, curved seams that differ left gaps, a sleeve sewn to a front and a back armhole did not join, and the flat outlines gave no sense of a body inside.
+
+**Bringing it back** (designed 2026-11-09, not built) as a **Garment tab** on the side panel, beside Properties and Objects, rather than a window of its own: it stays out of the way, needs no window management, and is there to glance at while drafting. It is read-only and shows the finished garment, darts closed and seams joined, with shading that gives a rounded, semi-3D look. It still shows proportions and how pieces go together, not fit or drape, which stays with the Blender export (see 3D preview).
+
+### The tab
+
+- **Front, Back and Both** buttons at the top; Both stacks front over back, which suits a narrow panel. The drawing fits the panel and follows its width; the wheel zooms and a drag pans, and a double-click fits again. Zoom is view state, not saved.
+- **Live.** The garment is recomputed after each evaluation while the tab is showing, and not at all while it is hidden. If building it takes longer than a frame, a drag updates it on release only.
+- **Linked to the canvas.** Hovering a piece in the garment highlights it on the canvas, and clicking selects it there; a piece selected on the canvas is outlined in the garment. Nothing in the tab edits the pattern.
+- **Notes** under the drawing say what was left out: pieces with no side, pieces that join nothing, a seam too far out to close.
+- **Export** (a button in the tab, and the API's `render` with `garment`) writes SVG; PNG at a chosen size from the tab, since the CLI has no LCL to draw it.
+
+### Which side
+
+The app cannot tell a front from a back, so each piece has `garment`: `none` (the default), `front`, `back` or `both`, set in the properties, through the API (`set_garment`), or from the tab, which lists pieces with no side with a quick Front / Back / Both choice. A file from before 2026-11-03 that gives a piece `view` loads it as `garment`. Guessing from piece names was rejected: names are for display only.
+
+### Building a view
+
+Everything is computed from the evaluated pattern in the core (`Sloper.Core.Garment`, no LCL dependency, reading computed geometry); only `garment` on a piece is stored.
+
+1. **Start.** The largest piece in the view stays where it was drafted, turned so its grainline is upright.
+2. **Join.** Seams are followed outwards from it, longest first, as before: each new piece is moved and rotated so the ends of its side of the seam meet the side already placed, and flipped across the seam if it would lie over the piece it joins. A piece reached by two seams keeps the first.
+3. **Seams across views.** A seam joins when the pieces it places are in this view. A side that spans pieces in both views (a sleeve cap sewn to a front and a back armhole) joins by its part in this view: the cap is matched to the front armhole by length from the end at the underarm, so the sleeve shows in both views without splitting the seam. Seams between a front and a back piece (shoulders, side seams) do not place pieces, but register the views (step 6).
+4. **Close the darts.** A dart is a seam whose two sides are two edges of one piece meeting at a point, the apex (see Seams). Each is closed by turning the piece about its apex: with θ the dart angle and φ a point's angle measured from one leg round the piece to the other leg (0° to 360° − θ), the point moves to angle φ × 360° / (360° − θ), so the two legs land on one line and the rest of the piece opens slightly to take it up, most near the dart and not at all opposite it. Where the legs differ in length, their ends meet halfway. The closed dart is drawn as one stitch line from the apex to the outline. Darts close before pieces are joined, so seams meet the closed outline. A dart wider than 90° or a dart with an edge that is not straight is left open and noted. A dart drawn as a marking line inside a piece is drawn as a stitch line, as it is.
+5. **Weld the seams.** After joining, the two sides of each joined seam are sampled at matching fractions of their length and drawn on the line halfway between them; each piece is warped towards that line, with the warp fading to nothing a short way in (a tenth of the piece's size). So a princess seam or an eased sleeve cap reads as one seam, not a gap or overlap. A seam whose sides lie further apart than the fade distance is not welded, and noted, since bending the piece that far would hide a drafting mistake.
+6. **Complete and register.** The half garment is mirrored across its centre line (a piece's fold, or an edge seamed to itself), opening fold pieces and showing left and right, and turned so the line is upright; only pieces on a fold or cut more than once are mirrored. The back view is then fitted to the front through the seams joining them, least squares on their ends, and seen from the front it is mirrored, so the two views line up and each can show the other through openings (Drawing).
+
+The closing and welding warps are shared code (`Sloper.Core.Warp`): a map from piece coordinates to garment coordinates that the outline, stitch lines, markings and grainline all go through, so everything on a piece follows its darts and seams.
+
+### Drawing
+
+The painter in the UI draws what the core hands it, and decides nothing; the same scene goes to the SVG export.
+
+- **Outlines** are the seam lines, not the cutting lines. Each joined seam is drawn once, as a stitch: a fine dashed line just inside a solid edge, so the garment reads as sewn. A fold has no line. Notches, the seam allowance and construction are left out; buttons and other point markers, stitch lines and topstitching (offset edges with a stitch role) are drawn.
+- **Fill** is the piece's material colour, or hatching, at full strength rather than the canvas's light tint.
+- **Shading (semi-3D).** The garment is lit as if it were wrapped round a body: across each row, the shade follows a half-cylinder between the garment's left and right edges at that height, brighter in the middle and darker towards the sides, lit a little from the upper left, with a soft shadow along each seam on the side away from the light and a faint highlight on the other, so seams look slightly raised. Sleeves are shaded as their own cylinders, along their length. The light, strength and an off switch are in Preferences, not the pattern. Shading is computed per row of the drawing in the core (`GarmentShade`, a pure function of position and the view's row widths), so it is tested without the LCL.
+- **Inside showing.** Where the other view shows through an opening (the back neckline above a front neckline, the inside of a sleeve hem), it is drawn behind, in a darker shade of its material, as the inside of the garment. This is why the views are registered.
+- **Shadow.** A soft drop shadow under the garment separates it from the panel background, in both light and dark themes.
+
+The SVG export draws the shading as gradients (one horizontal gradient per row band, clipped to the garment), which is close but not exact; PNG is drawn as on screen.
+
+### Limits
+
+Pieces still never bend beyond the dart and seam warps, so a flared skirt fans out, gathers and pleats do not show (a gathered seam welds flat; pleats could be drawn as lines later), and fit and drape are not shown. A garment with no seams shows its pieces apart, shaded. Accessories (bags, hats) are drawn the same way, front and back; a three-dimensional product reads less well flat, and is left to Blender.
+
+**Open questions:** whether Both should place front and back side by side when the panel is wide; whether the seam-weld fade distance should be a preference; whether a selected seam on the canvas should also show in the garment.
 
 ## Accessories
 
@@ -819,7 +864,7 @@ Writing a cloth simulator (triangulation, sewing constraints, body and self-coll
 - A JSON or Python file with seam pairs, piece placement around the body and fabric hints
 - A Blender Python script that places pieces, creates sewing springs and runs the simulation in one step
 
-The only requirement now is the **seam** concept in the core model, which also drives 2D seam-length checks. Any 3D module stays separate and reads computed geometry only.
+The Garment tab is the quick, flat look at the finished garment; Blender is for fit and drape. The only requirement now is the **seam** concept in the core model, which also drives 2D seam-length checks. Any 3D module stays separate and reads computed geometry only.
 
 ## Future ideas
 
@@ -851,7 +896,7 @@ Save, load and undo came before the canvas, so the canvas was built on document 
 10. Measurements app with the catalogue, body figure and Valentina and Seamly2D files (done)
 11. Seams and seam-length checks (done; the Check pattern overlay is not built)
 12. SVG and DXF-AAMA export and packing (done; DXF untried on a real cutting system)
-13. Garment view (done, then taken out; see Garment view)
+13. Garment view (done, then taken out; coming back as the Garment tab with closed darts and shading, see Garment view)
 14. Layers and draft tabs (done, then taken out; see One canvas)
 15. Transforms (done; the ghost preview is left for later)
 16. Accessories: circles and arcs, rectangles, rounded corners, offset edges, internal markings, material allowances (done; rounding curved corners is left)
