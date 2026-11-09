@@ -182,6 +182,7 @@ type
     procedure ConvertSelection(ToCurve: boolean);
     // Merges the selected points into one, as one undo step, and selects it
     procedure MergeSelection;
+    procedure AddRepeatAtSelection;
     // Breaks the selected point into one for each edge meeting there, as one
     // undo step, and selects them
     procedure BreakSelection;
@@ -802,6 +803,12 @@ procedure TPatternCanvas.MergeSelection;
 begin
   if Assigned(FDocument) then
     ApplyEdit(Sloper.UI.SelectionEdits.MergeSelection(FDocument, FSelection));
+end;
+
+procedure TPatternCanvas.AddRepeatAtSelection;
+begin
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.AddRepeatAtSelection(FDocument, FSelection));
 end;
 
 procedure TPatternCanvas.BreakSelection;

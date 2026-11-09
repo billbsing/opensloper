@@ -105,6 +105,8 @@ moving to another point; when the count rises again, the point comes back.
 Select the first point of a repeat to edit the repeat. Give it a marker, such
 as Button, and every point in the row gets it and is marked on the piece.
 
-There is no tool for making a repeat in the design window yet: like curve
-paths, repeats come from the [Automation API](../scripting/index.md)
-(`add_repeat`) or a pattern file, and copy and paste copies them.
+To make one, select two points, or one line or curve, and choose Tools →
+Points → Repeat Points. The new repeat has three points, the first and last on
+the ends, and its first point is selected so you can set **Count** and **Ends**
+in the Properties tab. The [Automation API](../scripting/index.md) makes them
+with `add_repeat`, and copy and paste copies them.

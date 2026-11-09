@@ -30,7 +30,7 @@ type
     aiZoomIn, aiZoomOut, aiFit, aiTrueSize, aiSidePanel, aiLabels, aiPieceFills, aiAbout,
     aiSelect, aiPoint, aiLine, aiCurve, aiPiece, aiNotch, aiSeam,
     aiSplit, aiCircle, aiArc, aiRectangle, aiRoundCorner, aiOffsetLeft, aiOffsetRight, aiToLine, aiToCurve,
-    aiMergePoints, aiBreakPoint,
+    aiMergePoints, aiBreakPoint, aiRepeat,
     aiHole, aiPlacement, aiStitchHoles, aiRemoveMarking,
     aiRotate, aiMirror, aiMove, aiSuggestSeams,
     // The measurements and publish apps
@@ -47,7 +47,7 @@ const
     'zoom-in', 'zoom-out', 'zoom-scan', 'zoom-reset', 'layout-sidebar-right', 'tag', 'bucket', 'info-circle',
     'pointer', 'point', 'line', 'vector-bezier', 'polygon', 'triangle-inverted', 'needle-thread',
     'scissors', 'circle', 'rainbow', 'rectangle', 'border-corner-rounded', 'arrow-bar-left', 'arrow-bar-right', 'line', 'vector-bezier',
-    'arrows-join', 'arrows-split',
+    'arrows-join', 'arrows-split', 'dots',
     'circle-dot', 'line-dashed', 'line-dotted', 'eraser',
     'rotate', 'flip-vertical', 'arrows-move', 'sparkles',
     'file-import', 'file-export', 'file-search', 'player-stop',

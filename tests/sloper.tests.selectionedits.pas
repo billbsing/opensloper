@@ -76,6 +76,10 @@ type
     procedure TestRoundCornerRefusedSaysWhy;
     procedure TestRoundCornerOfPieceIsOneStep;
     procedure TestRoundCornerNeedsTwoEdges;
+    procedure TestRepeatBetweenPoints;
+    procedure TestRepeatAlongEdge;
+    procedure TestRepeatFromRepeatPoint;
+    procedure TestRepeatNeedsTwoPointsOrOneEdge;
     procedure TestMarkPoint;
     procedure TestMarkNeedsPieceAndTarget;
     procedure TestMarkHoles;
@@ -450,6 +454,64 @@ procedure TTestSelectionEdits.TestRoundCornerNeedsTwoEdges;
 begin
   AssertRefused('one edge', RoundSelectedCorner(FDocument, [FAB]), rsSelectionPickCornerEdges);
   AssertRefused('edge and point', RoundSelectedCorner(FDocument, [FAB, FB]), rsSelectionPickCornerEdges);
+end;
+
+// The repeat's first point is selected, where its count is edited
+procedure TTestSelectionEdits.TestRepeatBetweenPoints;
+var
+  Edit: TSelectionEdit;
+  Item: TRepeatPoint;
+  Added: TRepeatObject;
+begin
+  Edit := AddRepeatAtSelection(FDocument, [FA, FPiece, FC]);
+  AssertTrue(Edit.Message, Edit.Done);
+  AssertTrue('reselects', Edit.Reselect);
+  AssertEquals(1, Length(Edit.Selection));
+  Item := Pattern.FindNode(Edit.Selection[0]) as TRepeatPoint;
+  Added := Item.Source;
+  AssertEquals('first point', 1, Item.Index);
+  AssertEquals('between A and C', FA, Added.FirstPoint);
+  AssertEquals(FC, Added.LastPoint);
+  AssertEquals('three points to start with', 3, Added.Count);
+  AssertTrue('ends have their own points', Added.IncludeEnds);
+  AssertEquals(Format(rsSelectionRepeatAdded, [Added.DisplayName]), Edit.Message);
+  AssertOneStep('repeat', Edit, rsSelectionAddRepeat);
+end;
+
+procedure TTestSelectionEdits.TestRepeatAlongEdge;
+var
+  Edit: TSelectionEdit;
+begin
+  Edit := AddRepeatAtSelection(FDocument, [FAB]);
+  AssertTrue(Edit.Message, Edit.Done);
+  AssertEquals('along AB', FAB, (Pattern.FindNode(Edit.Selection[0]) as TRepeatPoint).Source.Edge);
+  AssertOneStep('repeat', Edit, rsSelectionAddRepeat);
+end;
+
+// A repeat's own point can be an end, and is given an ID for it
+procedure TTestSelectionEdits.TestRepeatFromRepeatPoint;
+var
+  First, Second: TSelectionEdit;
+  Middle: string;
+begin
+  First := AddRepeatAtSelection(FDocument, [FA, FB]);
+  AssertTrue(First.Message, First.Done);
+  Middle := TRepeatPoint(Pattern.FindNode(First.Selection[0])).Source.Item(2).Key;
+  Second := AddRepeatAtSelection(FDocument, [Middle, FE]);
+  AssertTrue(Second.Message, Second.Done);
+  AssertTrue('the middle point is used', not TRepeatPoint(Pattern.FindNode(TRepeatPoint(Pattern.FindNode(First.Selection[0])).Source.Item(2).Key)).IsVirtual);
+  AssertNear('starts at the middle of AB', 50, TRepeatPoint(Pattern.FindNode(Second.Selection[0])).Position.X);
+  FDocument.Undo;
+  AssertTrue('undo frees the ID again', TRepeatPoint(Pattern.FindNode(First.Selection[0])).Source.Item(2).IsVirtual);
+end;
+
+procedure TTestSelectionEdits.TestRepeatNeedsTwoPointsOrOneEdge;
+begin
+  AssertRefused('one point', AddRepeatAtSelection(FDocument, [FA]), rsSelectionPickRepeat);
+  AssertRefused('three points', AddRepeatAtSelection(FDocument, [FA, FB, FC]), rsSelectionPickRepeat);
+  AssertRefused('two edges', AddRepeatAtSelection(FDocument, [FAB, FBC]), rsSelectionPickRepeat);
+  AssertRefused('points and an edge', AddRepeatAtSelection(FDocument, [FA, FC, FAB]), rsSelectionPickRepeat);
+  AssertRefused('only a piece', AddRepeatAtSelection(FDocument, [FPiece]), rsSelectionPickRepeat);
 end;
 
 procedure TTestSelectionEdits.TestMarkPoint;

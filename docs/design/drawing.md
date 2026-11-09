@@ -54,6 +54,7 @@ why. Change its formulas in the Properties tab instead.
 | Tools → Offset | A line following an edge, or a run of edges, at a distance: stitch lines, facings |
 | Tools → Points → Merge Points | One point from several, which everything that used them then uses |
 | Tools → Points → Break Point | One point for each edge that meets at a point |
+| Tools → Points → Repeat Points | A row of evenly spaced points between two selected points or along a selected edge |
 | Tools → Transform | Rotated, mirrored or moved copies, which follow their sources |
 
 [Curves, copies and repeats](shaping.md) explains curve paths, offsets,

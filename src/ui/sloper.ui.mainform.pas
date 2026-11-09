@@ -170,6 +170,7 @@ type
     procedure ToolClick(Sender: TObject);
     procedure SplitClick(Sender: TObject);
     procedure MergeClick(Sender: TObject);
+    procedure RepeatClick(Sender: TObject);
     procedure BreakClick(Sender: TObject);
     procedure TransformClick(Sender: TObject);
     procedure ArcClick(Sender: TObject);
@@ -300,6 +301,7 @@ resourcestring
   rsMenuToolsToCurve = 'Change to Curv&e';
   rsMenuToolsMerge = 'Merge &Points';
   rsMenuToolsBreak = '&Break Point';
+  rsMenuToolsRepeat = '&Repeat Points';
   rsMenuToolsHole = 'Mark &Hole';
   rsMenuToolsAttachLine = 'Attach Marking to &Piece';
   rsMenuToolsDrawAs = 'Draw &As';
@@ -977,6 +979,7 @@ begin
   SubMenu := AddSubmenu(rsMenuToolsPoints);
   AddCommand(SubMenu, NewAction(rsMenuToolsMerge, aiMergePoints, @MergeClick));
   AddCommand(SubMenu, NewAction(rsMenuToolsBreak, aiBreakPoint, @BreakClick));
+  AddCommand(SubMenu, NewAction(rsMenuToolsRepeat, aiRepeat, @RepeatClick));
   AddBreak;
   SubMenu := AddSubmenu(rsMenuToolsMarkings);
   for Marking := Low(TMarkingKind) to High(TMarkingKind) do
@@ -1038,6 +1041,12 @@ end;
 procedure TMainForm.MergeClick(Sender: TObject);
 begin
   FCanvas.MergeSelection;
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.RepeatClick(Sender: TObject);
+begin
+  FCanvas.AddRepeatAtSelection;
   FCanvas.SetFocus;
 end;
 

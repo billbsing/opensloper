@@ -67,6 +67,10 @@ function MergeSelection(Document: TPatternDocument; const Selection: TStringArra
 function BreakSelection(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
 // The two straight edges that meet at the corner
 function RoundSelectedCorner(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
+// A repeat between the two selected points or along the one selected edge;
+// other selected objects are left out. Its first point is selected, as that
+// is where the repeat's count is edited
+function AddRepeatAtSelection(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
 // A marking of the selected piece on the selected edge or point; for mkPoint,
 // every selected point or repeat becomes a hole instead
 function MarkSelection(Document: TPatternDocument; const Selection: TStringArray; Kind: TMarkingKind): TSelectionEdit;
@@ -106,6 +110,9 @@ resourcestring
   rsSelectionBroken = 'Broke %s into %d points';
   rsSelectionRoundCorner = 'Round corner';
   rsSelectionPickCornerEdges = 'Select the two straight edges that meet at the corner';
+  rsSelectionAddRepeat = 'Add repeat';
+  rsSelectionPickRepeat = 'Select two points, or one line or curve, to repeat along';
+  rsSelectionRepeatAdded = 'Added %s; set its count in the properties';
   rsSelectionAddMarking = 'Add marking';
   rsSelectionPickHole = 'Select the points to mark as holes';
   rsSelectionPickMarkingEdge = 'Select the piece and the edge for the marking';
@@ -123,6 +130,8 @@ const
   // A new arc's sweep, as a starting point for typing the real values; its
   // radius and other starting lengths are per unit (StartingLengths)
   NewArcSweep = '90';
+  // A new repeat's count, to be changed in the properties
+  NewRepeatCount = '3';
 
 function Refused(const Reason: string): TSelectionEdit;
 begin
@@ -474,6 +483,43 @@ begin
   Document.BeginChange(rsSelectionRoundCorner);
   Added := Document.Pattern.AddRoundCorner(Selection[0], Selection[1], StartingLengths[slCornerRadius, Document.Pattern.Units]);
   Result := CommitSelecting(Document, Assigned(Added), KeyOf(Added));
+end;
+
+function AddRepeatAtSelection(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
+var
+  Key, AddedKey: string;
+  Node: TEvalNode;
+  Points, Edges: TStringArray;
+  Pattern: TPattern;
+  Added: TRepeatObject;
+begin
+  Pattern := Document.Pattern;
+  Points := nil;
+  for Key in Selection do
+    if Pattern.FindNode(Key) is TPointObject then
+      Insert(Key, Points, Length(Points));
+  Edges := EdgeKeys(Pattern, Selection);
+  if not ((Length(Points) = 2) and (Length(Edges) = 0) or (Length(Points) = 0) and (Length(Edges) = 1)) then
+    Exit(Refused(rsSelectionPickRepeat));
+  Document.BeginChange(rsSelectionAddRepeat);
+  // A repeat's own point between them is given an ID, as anything using it is
+  if Length(Edges) = 1 then
+    Added := Pattern.AddRepeatOnEdge('', Edges[0], NewRepeatCount, True)
+  else
+    Added := Pattern.AddRepeatBetween('', Pattern.UsePoint(Points[0]), Pattern.UsePoint(Points[1]), NewRepeatCount, True);
+  AddedKey := '';
+  if Assigned(Added) then
+    AddedKey := Added.Key;
+  Result := Commit(Document, Assigned(Added));
+  if not Result.Done then
+    Exit;
+  Node := Pattern.FindNode(AddedKey);
+  Result.Message := Format(rsSelectionRepeatAdded, [Node.DisplayName]);
+  if (Node is TRepeatObject) and Assigned(TRepeatObject(Node).Item(1)) then
+  begin
+    Result.Reselect := True;
+    Result.Selection := [TRepeatObject(Node).Item(1).Key];
+  end;
 end;
 
 // Every selected point or repeat becomes a hole, joining the pieces it lies in
