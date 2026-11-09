@@ -140,7 +140,7 @@ implementation
 uses
   Sloper.Output.Layout,
   Sloper.Core.Arrange, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables,
-  Sloper.Core.Draft, Sloper.Core.PieceDetect, Sloper.Core.Units;
+  Sloper.Core.Draft, Sloper.Core.PieceDetect, Sloper.Core.Units, Sloper.Core.PatternMaterials;
 
 function PathParams(const Path: string): string;
 var

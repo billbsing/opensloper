@@ -105,7 +105,7 @@ The evaluator (`Sloper.Core.Evaluator`) turns definitions into coordinates in de
 
 Each node keeps its last good value, drawn ghosted while it fails, so the drawing has no sudden holes. A key missing from the measurement set is one error on its `@` node, and everything reading it is blocked. A reference to an ID that no longer exists is an error on the reader.
 
-**Editing API.** `TPattern` (`Add…`, `SetFormula`, `Rename`, `Delete`) reports refusals in `LastError`, `LastErrorField` and `LastErrorPos`; `Delete` is refused while other nodes use the object. Undo wraps these calls (see Key design decisions).
+**Editing API.** `TPattern` (`Add…`, `SetFormula`, `Rename`, `Delete`) reports refusals in `LastError`, `LastErrorField` and `LastErrorPos`; `Delete` is refused while other nodes use the object. Undo wraps these calls (see Key design decisions). `TPattern` stays the one entry point, but operations that only rework objects already there live in their own units behind its methods: changing type in `Sloper.Core.TypeChange` and merging and breaking points in `Sloper.Core.PointMerge`, which work through a small public editing kernel at the end of the class (`SetError`, `ForgetGraph`, `DeleteNode`, `OrderObjectsByInputs`, `ReplacePoint`, `ReplaceEdge`, `CheckPoint`, `CheckEdgeTarget`); the materials are a `TPatternMaterials` the pattern owns (`Sloper.Core.PatternMaterials`). Operations that make new objects (transforms, offset runs, round corners, notes) stay in `TPattern`, since moving them would open its object-creation internals.
 
 **Edges as segments.** Every edge keeps its computed geometry as straight or cubic segments, so length, positions along it, splitting and crossings work the same for every kind of edge. For crossings an extended edge adds a ray off each end along its tangent, so an extended line is its infinite line.
 
@@ -547,7 +547,7 @@ Pieces are coloured by the material they are cut from, so colour carries meaning
 
 **Cut list.** Grouped by material from each piece's cut settings ("Main: Front ×1 on fold, Back ×2 · Lining: …"), as the `{cutlist}` field for title blocks and notes. A layout with several patterns joins their lists.
 
-**Code.** `Sloper.Core.Materials`, with `TPattern` answering `MaterialOf`, `PieceLook`, `PieceCaption` and `CutList`, so the canvas and every export ask the same place. The Materials tab is a read-only list with the cut list (`Sloper.UI.MaterialPanel`); editing is in `Sloper.UI.MaterialDialog`, each field commit one undo step applied at once so the canvas follows, with only Close. The dialog is modal, so it handles undo and redo keys itself, except while a field holds uncommitted typing. The list and swatches are `Sloper.UI.MaterialGrid`, shared by panel and dialog.
+**Code.** `Sloper.Core.Materials`, and the pattern's list in `Sloper.Core.PatternMaterials`, with `TPattern` answering `MaterialOf`, `PieceLook`, `PieceCaption` and `CutList`, so the canvas and every export ask the same place. The Materials tab is a read-only list with the cut list (`Sloper.UI.MaterialPanel`); editing is in `Sloper.UI.MaterialDialog`, each field commit one undo step applied at once so the canvas follows, with only Close. The dialog is modal, so it handles undo and redo keys itself, except while a field holds uncommitted typing. The list and swatches are `Sloper.UI.MaterialGrid`, shared by panel and dialog.
 
 ## Printing
 

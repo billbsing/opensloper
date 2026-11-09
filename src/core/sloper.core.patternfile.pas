@@ -88,7 +88,7 @@ implementation
 
 uses
   Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.Names, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
-  Sloper.Core.Note, Sloper.Core.Units;
+  Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.PatternMaterials;
 
 const
   TypeFreePoint = 'freePoint';

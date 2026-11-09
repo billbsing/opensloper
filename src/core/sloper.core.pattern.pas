@@ -30,7 +30,7 @@ interface
 uses
   Classes, SysUtils, Generics.Collections, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Formula,
   Sloper.Core.Measurements, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Materials, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Transform, Sloper.Core.Note, Sloper.Core.Geometry, Sloper.Core.Units;
+  Sloper.Core.Transform, Sloper.Core.Note, Sloper.Core.Geometry, Sloper.Core.Units, Sloper.Core.PatternMaterials;
 
 type
   // In order around: from the corner along the width, then up, back and down
@@ -97,7 +97,7 @@ type
     FParsingNewObject: boolean;
     FLastErrorField: string;
     FLastErrorPos: integer;
-    FMaterials: TPatternMaterialList;
+    FMaterialSet: TPatternMaterials;
     FNotes, FMeasurementFile, FIdentity: string;
     FView: TPatternView;
     // Marking lines and marked points to give a piece after the next
@@ -109,16 +109,12 @@ type
     function AssignPendingMarkings: boolean;
     // Takes the object's marking lines or marked points off every piece
     procedure DetachMarking(const Key: string);
-    procedure ResetMaterials;
-    // Gives the first material an ID and puts every piece on it, ready to be
-    // written to the file
-    procedure MakeMaterialsExplicit;
-    function MaterialNameTaken(const AName: string; Exclude: TPatternMaterial = nil): boolean;
-    function CheckMaterialName(const AName: string; Exclude: TPatternMaterial): boolean;
-    function FreeMaterialColor: string;
+    // The next ID, counted past: for the materials
+    function TakeId: string;
+    // Every piece, in pattern order
+    function PieceList: TPieceObjectArray;
     function GetMaterialCount: integer;
     function GetMaterial(Index: integer): TPatternMaterial;
-    function DeleteNode(Node: TEvalNode): boolean;
     function DeleteTransform(Transform: TTransformObject): boolean;
     function CopiesOf(Transform: TTransformObject): TDraftObjectArray;
     function ExpandedSources(const Sources: TStringArray; out Expanded: TStringArray): boolean;
@@ -133,22 +129,16 @@ type
     function CheckSeamEntry(const Entry: TSeamEntry): boolean;
     function CheckNoteAnchor(Anchor: TNoteAnchor; const AnchorKey: string; out Key: string): boolean;
     function NoteAnchorPlace(Anchor: TNoteAnchor; const Key: string; Ratio: double): TVec2;
-    // Files list each object after its inputs. A changed point may now read
-    // objects further down, so they move up; the rest stay in their order.
-    procedure OrderObjectsByInputs;
     procedure FollowSplit(Source: TEdgeObject; First, Second: TSplitPart);
     function GetVariableCount: integer;
     function GetVariable(Index: integer): TVariable;
     function GetObjectCount: integer;
     function GetObject(Index: integer): TDraftObject;
-    function SetError(const Msg: string; const AField: string = ''; Pos: integer = 0): boolean;
     function FindRepeatItem(const Key: string): TEvalNode;
     function ObjectNameTaken(const AName: string): boolean;
     function VariableNameTaken(const AName: string): boolean;
     function ResolverFor(Node: TEvalNode): TNameResolver;
     function ParseFields(Node: TEvalNode; const Names, Texts: array of string): boolean;
-    function CheckPoint(const Id: string): boolean;
-    function CheckEdgeTarget(const Id: string): boolean;
     // A point or repeat that can take a marker
     function CheckMarkerTarget(const Id: string): boolean;
     function AddPointObject(APoint: TDraftObject; const AName: string;
@@ -157,17 +147,6 @@ type
     // Takes NewFormula once it is parsed, refusing anything that would make
     // Node read itself; frees it either way
     function InstallFormula(Node: TEvalNode; const AField: string; NewFormula: TFormula): boolean;
-    function ReplacePoint(Point, NewPoint: TPointObject; const Names, Texts: array of string): boolean;
-    function CheckConvertible(Edge: TEdgeObject): boolean;
-    // False, with the reason, when a piece's fold is Edge or an edge that is
-    // straight only while Edge is: its parts, copies and offsets
-    function CheckNoFoldFollows(Edge: TEdgeObject): boolean;
-    function ChooseKeptPoint(const Points: TPointObjectArray; const AName: string): TPointObject;
-    function CheckMergeAway(const Points: TPointObjectArray; Kept: TPointObject; out Doomed: TDraftObjectArray): boolean;
-    function ConnectingEdges(Point: TPointObject): TDraftObjectArray;
-    function NextBrokenName(const Base: string; var Number: integer; Own: TDraftObject): string;
-    procedure RedirectUsers(Point: TPointObject; const KeptKey: string; const Doomed: TDraftObjectArray);
-    function ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
     function AddEdgeObject(AEdge: TEdgeObject; const AName: string; ARole: TEdgeRole;
       const Names, Texts: array of string): boolean;
     function DerivedEdgeName(AEdge: TEdgeObject): string;
@@ -464,6 +443,32 @@ type
     property LastError: string read FLastError;
     property LastErrorField: string read FLastErrorField;
     property LastErrorPos: integer read FLastErrorPos;
+
+    // The editing kernel, for the core units that edit the pattern through
+    // it (Sloper.Core.TypeChange, Sloper.Core.PointMerge). The apps use the
+    // methods above, which keep the pattern whole; these leave that to the
+    // caller.
+    // Sets LastError, LastErrorField and LastErrorPos; always False
+    function SetError(const Msg: string; const AField: string = ''; Pos: integer = 0): boolean;
+    // Drops the evaluator's graph, which may hold nodes about to be freed or
+    // replaced; the next Evaluate builds it again
+    procedure ForgetGraph;
+    // Frees Node, which nothing may use, and takes it off every list
+    function DeleteNode(Node: TEvalNode): boolean;
+    // Files list each object after its inputs. A changed point may now read
+    // objects further down, so they move up; the rest stay in their order.
+    procedure OrderObjectsByInputs;
+    // NewPoint takes Point's ID, place and name, with Names parsed from Texts
+    // in stored form; Point is freed. Refused, with NewPoint freed and Point
+    // left as it was, for a repeat's point or a copy, a formula that does not
+    // parse, or an input that reads Point.
+    function ReplacePoint(Point, NewPoint: TPointObject; const Names, Texts: array of string): boolean;
+    // As ReplacePoint, for an edge: NewEdge also takes Edge's role, and a
+    // fresh derived name when Edge's was derived
+    function ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
+    // That Id is a point, or an edge, with the reason when not
+    function CheckPoint(const Id: string): boolean;
+    function CheckEdgeTarget(const Id: string): boolean;
   end;
 
 // A new random identity for a pattern
@@ -474,20 +479,6 @@ resourcestring
   rsPatternUsesItself = '%s cannot use itself';
   rsPatternRepeatSamePoint = 'A repeat needs two different points';
   rsPatternRepeatItem = '%s is part of a repeat, so it cannot be changed on its own';
-  rsPatternNotConvertible = '%s cannot be changed: only lines, curves and arcs can become a line or a curve';
-  rsPatternAlreadyLine = '%s is already a line';
-  rsPatternAlreadyCurve = '%s is already a curve';
-  rsPatternCircleNoEnds = '%s is a whole circle, so it has no ends to join with a line';
-  rsPatternOnlyLineToCurve = 'Only a line can become a curve, and %s is an arc';
-  rsPatternAngleInUse = '%s reads %s.angle, which only a line has, so it cannot become a curve';
-  rsPatternFoldFollows = '%s is the fold of %s, so %s cannot become a curve';
-  rsPatternMergeTooFew = 'Select two or more points to merge';
-  rsPatternMergeNotPoint = '%s is not a point, so it cannot be merged';
-  rsPatternMergeTwoFixed = '%s and %s are copies or a repeat''s points, and only one point can be kept';
-  rsPatternMergeKeptReads = '%s is placed from %s, so %s cannot be merged into it';
-  rsPatternMergeCopied = '%s is copied by %s, so it cannot be merged away';
-  rsPatternMergeEdgeInUse = '%s runs between points being merged and is used by %s';
-  rsPatternBreakTooFew = '%s joins fewer than two lines or curves, so there is nothing to break';
   rsPatternCycle = '%s cannot use %s, because %s already uses %s';
   rsPatternInUse = '%s is used by %s';
   rsPatternNoField = '%s has no formula "%s"';
@@ -504,16 +495,6 @@ resourcestring
   rsPatternCornerInPiece = '%s is part of %s; delete the piece first, then make it again after rounding the corner';
   rsPatternPieceRepeats = 'A piece cannot use %s twice';
   rsPatternNotInPiece = '%s is not part of %s';
-  rsPatternMaterialTaken = 'There is already a material called %s';
-  rsPatternMaterialBadColor = '%s is not a colour; use the form #5B8DB8';
-  rsPatternLastMaterial = 'A pattern needs at least one material';
-  rsPatternMaterialInUse = '%s cannot be deleted: %s is cut from it';
-  rsPatternPieceCaptionMaterial = '%s, %s';
-  rsPatternCutEntry = '%s ×%d';
-  rsPatternCutEntryFold = '%s ×%d on fold';
-  rsPatternCutEntryMirrored = '%s ×%d mirrored';
-  rsPatternCutGroup = '%s: %s';
-  rsPatternNoMaterial = 'No material';
   rsPatternObjectsInUse = '%s cannot be deleted: %s uses %s';
   rsPatternCopyOfTransform = '%s is a copy made by %s, so it changes with it';
   rsPatternTransformNothing = 'Select the points and edges to copy';
@@ -544,7 +525,7 @@ resourcestring
 implementation
 
 uses
-  Math, StrUtils, Sloper.Core.Names, Sloper.Core.JSON;
+  Math, StrUtils, Sloper.Core.Names, Sloper.Core.TypeChange, Sloper.Core.PointMerge;
 
 function NewPatternIdentity: string;
 var
@@ -746,6 +727,8 @@ end;
 { TPattern }
 
 constructor TPattern.Create;
+var
+  Host: TMaterialsHost;
 begin
   FMeasurementNodes := TMeasurementNodeList.Create;
   FVariables := TVariableList.Create;
@@ -755,7 +738,11 @@ begin
   FResolver := TPatternResolver.Create(Self, True);
   FVariableResolver := TPatternResolver.Create(Self, False);
   FContext := TPatternContext.Create(Self);
-  FMaterials := TPatternMaterialList.Create;
+  Host.NewId := @TakeId;
+  Host.KeepIdAbove := @KeepIdsAbove;
+  Host.Pieces := @PieceList;
+  Host.Refuse := @Refuse;
+  FMaterialSet := TPatternMaterials.Create(Host);
   FView := TPatternView.Create;
   FMeasurementScale := 1;
   Clear;
@@ -772,7 +759,7 @@ begin
   FreeAndNil(FResolver);
   FreeAndNil(FVariableResolver);
   FreeAndNil(FContext);
-  FreeAndNil(FMaterials);
+  FreeAndNil(FMaterialSet);
   FreeAndNil(FView);
   inherited Destroy;
 end;
@@ -793,312 +780,117 @@ begin
   FMeasurementFile := '';
   FIdentity := '';
   FView.Reset;
-  ResetMaterials;
+  FMaterialSet.Reset;
 end;
 
-// As formula text, always with a decimal point
-function AllowanceText(Material: TPatternMaterial): string;
-var
-  Formats: TFormatSettings;
+function TPattern.TakeId: string;
 begin
-  Formats := DefaultFormatSettings;
-  Formats.DecimalSeparator := '.';
-  Result := FloatToStr(Material.Allowance, Formats);
-end;
-
-procedure TPattern.ResetMaterials;
-var
-  Material: TPatternMaterial;
-begin
-  FMaterials.Clear;
-  Material := TPatternMaterial.Create;
-  FMaterials.Add(Material);
-  Material.Name := DefaultMaterialName;
-  Material.Color := MaterialPalette[0];
-end;
-
-procedure TPattern.MakeMaterialsExplicit;
-var
-  Index: integer;
-begin
-  if FMaterials[0].Key <> '' then
-    Exit;
-  FMaterials[0].Key := IntToStr(FNextId);
+  Result := IntToStr(FNextId);
   Inc(FNextId);
-  for Index := 0 to FObjects.Count - 1 do
-    if Objects[Index] is TPieceObject then
-      TPieceObject(Objects[Index]).MaterialKey := FMaterials[0].Key;
 end;
+
+function TPattern.PieceList: TPieceObjectArray;
+var
+  DraftObject: TDraftObject;
+begin
+  Result := nil;
+  for DraftObject in FObjects do
+    if DraftObject is TPieceObject then
+      Insert(TPieceObject(DraftObject), Result, Length(Result));
+end;
+
+// The materials are in Sloper.Core.PatternMaterials
 
 function TPattern.GetMaterialCount: integer;
 begin
-  Result := FMaterials.Count;
+  Result := FMaterialSet.Count;
 end;
 
 function TPattern.GetMaterial(Index: integer): TPatternMaterial;
 begin
-  Result := FMaterials[Index];
-end;
-
-function TPattern.MaterialNameTaken(const AName: string; Exclude: TPatternMaterial): boolean;
-var
-  Material: TPatternMaterial;
-begin
-  Result := False;
-  for Material in FMaterials do
-    if (Material <> Exclude) and SameName(Material.Name, AName) then
-      Exit(True);
-end;
-
-function TPattern.CheckMaterialName(const AName: string; Exclude: TPatternMaterial): boolean;
-var
-  Reason: string;
-begin
-  if not CheckName(AName, Reason) then
-    Exit(SetError(Reason));
-  if MaterialNameTaken(AName, Exclude) then
-    Exit(SetError(Format(rsPatternMaterialTaken, [AName])));
-  Result := True;
-end;
-
-// The first colour of the palette no material has; they repeat once all are used
-function TPattern.FreeMaterialColor: string;
-var
-  Material: TPatternMaterial;
-  Taken: boolean;
-begin
-  for Result in MaterialPalette do
-  begin
-    Taken := False;
-    for Material in FMaterials do
-      Taken := Taken or SameText(Material.Color, Result);
-    if not Taken then
-      Exit;
-  end;
-  Result := MaterialPalette[FMaterials.Count mod Length(MaterialPalette)];
+  Result := FMaterialSet[Index];
 end;
 
 function TPattern.AddMaterial(const AName, AColor: string; AFill: TMaterialFill): TPatternMaterial;
-var
-  MaterialName, MaterialColor: string;
-  Number: integer;
 begin
-  Result := nil;
-  MaterialName := Trim(AName);
-  if MaterialName = '' then
-  begin
-    Number := 1;
-    MaterialName := NewMaterialBaseName;
-    while MaterialNameTaken(MaterialName) do
-    begin
-      Inc(Number);
-      MaterialName := NewMaterialBaseName + IntToStr(Number);
-    end;
-  end
-  else if not CheckMaterialName(MaterialName, nil) then
-    Exit;
-  MaterialColor := AColor;
-  if MaterialColor = '' then
-    MaterialColor := FreeMaterialColor
-  else if not IsMaterialColor(MaterialColor) then
-  begin
-    SetError(Format(rsPatternMaterialBadColor, [MaterialColor]));
-    Exit;
-  end;
-  MakeMaterialsExplicit;
-  Result := TPatternMaterial.Create;
-  FMaterials.Add(Result);
-  Result.Key := IntToStr(FNextId);
-  Inc(FNextId);
-  Result.Name := MaterialName;
-  Result.Color := UpperCase(MaterialColor);
-  Result.Fill := AFill;
+  Result := FMaterialSet.Add(AName, AColor, AFill);
 end;
 
 function TPattern.RenameMaterial(Material: TPatternMaterial; const NewName: string): boolean;
 begin
-  if not CheckMaterialName(Trim(NewName), Material) then
-    Exit(False);
-  MakeMaterialsExplicit;
-  Material.Name := Trim(NewName);
-  Result := True;
+  Result := FMaterialSet.Rename(Material, NewName);
 end;
 
 function TPattern.SetMaterialAllowance(Material: TPatternMaterial; HasAllowance: boolean; Allowance: double): boolean;
 begin
-  if HasAllowance and (Allowance < 0) then
-    Exit(SetError(rsPieceNegativeAllowance));
-  MakeMaterialsExplicit;
-  Material.HasAllowance := HasAllowance;
-  Material.Allowance := Allowance;
-  Result := True;
+  Result := FMaterialSet.SetAllowance(Material, HasAllowance, Allowance);
 end;
 
 function TPattern.SetMaterialColor(Material: TPatternMaterial; const AColor: string): boolean;
 begin
-  if not IsMaterialColor(AColor) then
-    Exit(SetError(Format(rsPatternMaterialBadColor, [AColor])));
-  MakeMaterialsExplicit;
-  Material.Color := UpperCase(AColor);
-  Result := True;
+  Result := FMaterialSet.SetColor(Material, AColor);
 end;
 
 procedure TPattern.SetMaterialFill(Material: TPatternMaterial; AFill: TMaterialFill);
 begin
-  MakeMaterialsExplicit;
-  Material.Fill := AFill;
+  FMaterialSet.SetFill(Material, AFill);
 end;
 
 function TPattern.DeleteMaterial(Material: TPatternMaterial): boolean;
-var
-  Index: integer;
 begin
-  if FMaterials.Count = 1 then
-    Exit(SetError(rsPatternLastMaterial));
-  for Index := 0 to FObjects.Count - 1 do
-    if (Objects[Index] is TPieceObject) and (MaterialOf(TPieceObject(Objects[Index])) = Material) then
-      Exit(SetError(Format(rsPatternMaterialInUse, [Material.Name, Objects[Index].DisplayName])));
-  FMaterials.Remove(Material);
-  Result := True;
+  Result := FMaterialSet.Delete(Material);
 end;
 
 function TPattern.FindMaterial(const Key: string): TPatternMaterial;
 begin
-  for Result in FMaterials do
-    if Result.Key = Key then
-      Exit;
-  Result := nil;
+  Result := FMaterialSet.Find(Key);
 end;
 
 function TPattern.FindMaterialNamed(const AName: string): TPatternMaterial;
 begin
-  for Result in FMaterials do
-    if SameName(Result.Name, AName) then
-      Exit;
-  Result := nil;
+  Result := FMaterialSet.FindNamed(AName);
 end;
 
 function TPattern.MaterialOf(Piece: TPieceObject): TPatternMaterial;
 begin
-  Result := FindMaterial(Piece.MaterialKey);
+  Result := FMaterialSet.MaterialOf(Piece);
 end;
 
 procedure TPattern.SetPieceMaterial(Piece: TPieceObject; Material: TPatternMaterial);
 begin
-  // The first material has a key to tell it from none only once it is explicit
-  if not Assigned(Material) then
-    MakeMaterialsExplicit;
-  if Assigned(Material) then
-    Piece.MaterialKey := Material.Key
-  else
-    Piece.MaterialKey := '';
+  FMaterialSet.SetPieceMaterial(Piece, Material);
   if Assigned(Material) and Material.HasAllowance then
-    SetFormula(Piece, PieceAllowanceField, AllowanceText(Material));
+    SetFormula(Piece, PieceAllowanceField, MaterialAllowanceText(Material));
 end;
 
 function TPattern.SetPieceFill(Piece: TPieceObject; const AColor: string; Style: TPieceFillStyle): boolean;
 begin
-  if (AColor <> '') and not IsMaterialColor(AColor) then
-    Exit(SetError(Format(rsPatternMaterialBadColor, [AColor])));
-  Piece.FillColor := UpperCase(AColor);
-  Piece.FillStyle := Style;
-  Result := True;
+  Result := FMaterialSet.SetPieceFill(Piece, AColor, Style);
 end;
 
 function TPattern.PieceLook(Piece: TPieceObject): TPieceLook;
-var
-  Material: TPatternMaterial;
 begin
-  Result := Default(TPieceLook);
-  Material := MaterialOf(Piece);
-  if not Assigned(Material) then
-    Exit;
-  Result.Filled := True;
-  Result.HatchAngle := MaterialHatchAngle(FMaterials.IndexOf(Material));
-  if Piece.FillColor <> '' then
-    Result.Color := ParseMaterialColor(Piece.FillColor)
-  else
-    Result.Color := ParseMaterialColor(Material.Color);
-  case Piece.FillStyle of
-    pfMaterial: Result.Fill := Material.Fill;
-    pfTint: Result.Fill := ffTint;
-    pfHatch: Result.Fill := ffHatch;
-  end;
+  Result := FMaterialSet.PieceLook(Piece);
 end;
 
 function TPattern.PieceCaption(Piece: TPieceObject; Whole: boolean): string;
-var
-  Material: TPatternMaterial;
 begin
-  Result := Piece.CutCaption(Whole);
-  Material := MaterialOf(Piece);
-  if Assigned(Material) and (Material.Key <> '') then
-    Result := Format(rsPatternPieceCaptionMaterial, [Result, Material.Name]);
+  Result := FMaterialSet.PieceCaption(Piece, Whole);
 end;
 
 function TPattern.CutList: string;
-const
-  EntryGap = ', ';
-  GroupGap = ' · ';
-var
-  Index: integer;
-
-  function Entry(Piece: TPieceObject): string;
-  begin
-    if Piece.OnFold then
-      Result := Format(rsPatternCutEntryFold, [Piece.DisplayName, Piece.CutCount])
-    else if Piece.Mirrored and (Piece.CutCount > 1) then
-      Result := Format(rsPatternCutEntryMirrored, [Piece.DisplayName, Piece.CutCount])
-    else
-      Result := Format(rsPatternCutEntry, [Piece.DisplayName, Piece.CutCount]);
-  end;
-
-  procedure AddGroup(Material: TPatternMaterial; const Caption: string);
-  var
-    Entries: string;
-    Place: integer;
-  begin
-    Entries := '';
-    for Place := 0 to FObjects.Count - 1 do
-      if (Objects[Place] is TPieceObject) and (MaterialOf(TPieceObject(Objects[Place])) = Material) then
-      begin
-        if Entries <> '' then
-          Entries := Entries + EntryGap;
-        Entries := Entries + Entry(TPieceObject(Objects[Place]));
-      end;
-    if Entries = '' then
-      Exit;
-    if Result <> '' then
-      Result := Result + GroupGap;
-    Result := Result + Format(rsPatternCutGroup, [Caption, Entries]);
-  end;
-
 begin
-  Result := '';
-  for Index := 0 to FMaterials.Count - 1 do
-    AddGroup(FMaterials[Index], FMaterials[Index].Name);
-  AddGroup(nil, rsPatternNoMaterial);
+  Result := FMaterialSet.CutList;
 end;
 
 function TPattern.MaterialNames: string;
-var
-  Material: TPatternMaterial;
 begin
-  Result := '';
-  for Material in FMaterials do
-  begin
-    if Result <> '' then
-      Result := Result + ', ';
-    Result := Result + Material.Name;
-  end;
+  Result := FMaterialSet.Names;
 end;
 
 procedure TPattern.InsertMaterial(Material: TPatternMaterial);
 begin
-  if FMaterials[0].Key = '' then
-    FMaterials.Clear;
-  FMaterials.Add(Material);
-  KeepIdsAbove(Material.Key);
+  FMaterialSet.Insert(Material);
 end;
 
 // Every source once, points first, an edge bringing its ends. Virtual repeat
@@ -2321,8 +2113,8 @@ begin
   Result := TPieceObject.Create(IntToStr(FNextId), Path);
   // The first material's allowance stands in for the general default
   PieceAllowance := Allowance;
-  if (Allowance = DefaultPieceAllowance) and FMaterials[0].HasAllowance then
-    PieceAllowance := AllowanceText(FMaterials[0])
+  if (Allowance = DefaultPieceAllowance) and FMaterialSet[0].HasAllowance then
+    PieceAllowance := MaterialAllowanceText(FMaterialSet[0])
   else if Allowance = DefaultPieceAllowance then
     PieceAllowance := StartingLengths[slPieceAllowance, FUnits];
   if not ParseFields(Result, [PieceAllowanceField], [PieceAllowance]) then
@@ -2332,7 +2124,7 @@ begin
   end;
   Inc(FNextId);
   Result.Name := PieceName;
-  Result.MaterialKey := FMaterials[0].Key;
+  Result.MaterialKey := FMaterialSet[0].Key;
   AddObjectNode(Result);
   SetGrainAngle(Result, DefaultGrainAngle);
   // Lines drawn before the piece was made join it now
@@ -3214,49 +3006,6 @@ begin
   end;
 end;
 
-// Lines, curves and arcs the user drew; copies and parts follow other edges
-function TPattern.CheckConvertible(Edge: TEdgeObject): boolean;
-begin
-  if Edge is TEdgeCopy then
-    Exit(SetError(Format(rsPatternCopyOfTransform, [Edge.DisplayName, FindNode(TEdgeCopy(Edge).TransformKey).DisplayName])));
-  if Edge.ClassType = TCircleObject then
-    Exit(SetError(Format(rsPatternCircleNoEnds, [Edge.DisplayName])));
-  if (Edge.ClassType <> TLineObject) and (Edge.ClassType <> TCurveObject) and (Edge.ClassType <> TArcObject) then
-    Exit(SetError(Format(rsPatternNotConvertible, [Edge.DisplayName])));
-  Result := True;
-end;
-
-function TPattern.CheckNoFoldFollows(Edge: TEdgeObject): boolean;
-var
-  Following: TStringArray;
-  DraftObject: TDraftObject;
-  Source: string;
-  Piece: TPieceObject;
-begin
-  Following := [Edge.Key];
-  // The objects are in input order, so a part of a part is found after its source
-  for DraftObject in FObjects do
-  begin
-    Source := '';
-    if DraftObject is TSplitPart then
-      Source := TSplitPart(DraftObject).Source
-    else if DraftObject is TEdgeCopy then
-      Source := TEdgeCopy(DraftObject).Source
-    else if (DraftObject is TOffsetEdge) and (Length(TOffsetEdge(DraftObject).Run) = 1) then
-      Source := TOffsetEdge(DraftObject).Run[0].EdgeKey;
-    if (Source <> '') and (IndexStr(Source, Following) >= 0) then
-      Insert(DraftObject.Key, Following, Length(Following));
-  end;
-  for DraftObject in FObjects do
-    if DraftObject is TPieceObject then
-    begin
-      Piece := TPieceObject(DraftObject);
-      if (Piece.FoldEdgeKey <> '') and (IndexStr(Piece.FoldEdgeKey, Following) >= 0) then
-        Exit(SetError(Format(rsPatternFoldFollows, [FindNode(Piece.FoldEdgeKey).DisplayName, Piece.DisplayName, Edge.DisplayName])));
-    end;
-  Result := True;
-end;
-
 // As ReplacePoint, for an edge: NewEdge takes Edge's ID, place, role and name,
 // or a fresh derived name when Edge's was derived
 function TPattern.ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
@@ -3294,420 +3043,47 @@ begin
   end;
 end;
 
+// Changing type is in Sloper.Core.TypeChange, merging and breaking points in
+// Sloper.Core.PointMerge
+
 function TPattern.ConvertToLine(Edge: TEdgeObject): TLineObject;
-var
-  StartPoint, EndPoint: TOffsetPoint;
-  Radius: string;
 begin
-  Result := nil;
-  if not CheckConvertible(Edge) then
-    Exit;
-  if Edge is TLineObject then
-  begin
-    SetError(Format(rsPatternAlreadyLine, [Edge.DisplayName]));
-    Exit;
-  end;
-  if Edge is TArcObject then
-  begin
-    Radius := FormulaText(Edge, 'radius');
-    StartPoint := AddOffsetPoint('', TArcObject(Edge).Centre, omPolar, Radius, FormulaText(Edge, 'angle1'));
-    if not Assigned(StartPoint) then
-      Exit;
-    EndPoint := AddOffsetPoint('', TArcObject(Edge).Centre, omPolar, Radius, FormulaText(Edge, 'angle2'));
-    if not Assigned(EndPoint) then
-      Exit;
-    Result := TLineObject.Create(Edge.Key, StartPoint.Key, EndPoint.Key);
-  end
-  else
-    Result := TLineObject.Create(Edge.Key, Edge.StartKey, Edge.EndKey);
-  if not ReplaceEdge(Edge, Result, [], []) then
-    Result := nil;
+  Result := Sloper.Core.TypeChange.ConvertToLine(Self, Edge);
 end;
 
 function TPattern.ConvertToCurve(Edge: TEdgeObject): TCurveObject;
-var
-  User: TEvalNode;
-  FieldIndex: integer;
-  Ref: TFormulaReference;
-  Direction, BackAngle, Handle: double;
-  Formats: TFormatSettings;
-
-  function Text(Value: double): string;
-  begin
-    Result := FloatToStr(RoundTo(Value, -1), Formats);
-  end;
-
 begin
-  Result := nil;
-  if not CheckConvertible(Edge) then
-    Exit;
-  if Edge is TCurveObject then
-  begin
-    SetError(Format(rsPatternAlreadyCurve, [Edge.DisplayName]));
-    Exit;
-  end;
-  if Edge is TArcObject then
-  begin
-    SetError(Format(rsPatternOnlyLineToCurve, [Edge.DisplayName]));
-    Exit;
-  end;
-  for User in UsersOf(Edge) do
-    for FieldIndex := 0 to User.FieldCount - 1 do
-      for Ref in User.Fields[FieldIndex].Formula.References do
-        if (ReferenceKey(Ref) = Edge.Key) and SameText(Ref.Prop, 'angle') then
-        begin
-          SetError(Format(rsPatternAngleInUse, [User.DisplayName, Edge.DisplayName]));
-          Exit;
-        end;
-  if not CheckNoFoldFollows(Edge) then
-    Exit;
-  Formats := DefaultFormatSettings;
-  Formats.DecimalSeparator := '.';
-  // The handles are placed from where the line is now
-  if not Edge.HasResult then
-    Evaluate;
-  Direction := 0;
-  Handle := 0;
-  if Edge.HasResult then
-  begin
-    Direction := Edge.StartDirection;
-    Handle := Edge.Length / 3;
-  end;
-  // The end handle points back along the edge
-  BackAngle := FMod(Direction + 180, 360);
-  Result := TCurveObject.Create(Edge.Key, Edge.StartKey, Edge.EndKey);
-  if not ReplaceEdge(Edge, Result, ['angle1', 'length1', 'angle2', 'length2'],
-    [Text(Direction), RoundLengthFormulaText(Handle, FUnits), Text(BackAngle), RoundLengthFormulaText(Handle, FUnits)]) then
-    Result := nil;
+  Result := Sloper.Core.TypeChange.ConvertToCurve(Self, Edge);
 end;
 
 function TPattern.ConvertToFree(Point: TPointObject; const XText, YText: string): TFreePoint;
 begin
-  Result := TFreePoint.Create(Point.Key);
-  if not ReplacePoint(Point, Result, ['x', 'y'], [XText, YText]) then
-    Result := nil;
+  Result := Sloper.Core.TypeChange.ConvertToFree(Self, Point, XText, YText);
 end;
 
 function TPattern.ConvertToBetween(Point: TPointObject; const FirstId, LastId: string; Mode: TAlongMode; const Value: string): TBetweenPoint;
 begin
-  Result := nil;
-  if not CheckPoint(FirstId) or not CheckPoint(LastId) then
-    Exit;
-  Result := TBetweenPoint.Create(Point.Key, FirstId, LastId, Mode);
-  if not ReplacePoint(Point, Result, ['value'], [Value]) then
-    Result := nil;
+  Result := Sloper.Core.TypeChange.ConvertToBetween(Self, Point, FirstId, LastId, Mode, Value);
 end;
 
 function TPattern.ConvertToAlongEdge(Point: TPointObject; const EdgeId: string; FromEnd: boolean; Mode: TAlongMode; const Value: string): TAlongEdgePoint;
 begin
-  Result := nil;
-  if not CheckEdgeTarget(EdgeId) then
-    Exit;
-  Result := TAlongEdgePoint.Create(Point.Key, EdgeId, FromEnd, Mode);
-  if not ReplacePoint(Point, Result, ['value'], [Value]) then
-    Result := nil;
-end;
-
-function IndexOfObject(const Objects: TDraftObjectArray; DraftObject: TEvalNode): integer;
-var
-  Index: integer;
-begin
-  for Index := 0 to High(Objects) do
-    if Objects[Index] = DraftObject then
-      Exit(Index);
-  Result := -1;
-end;
-
-// A copy or a repeat's point follows something else, so it cannot be deleted
-function IsFixedPoint(Point: TPointObject): boolean;
-begin
-  Result := (Point is TPointCopy) or (Point is TRepeatPoint);
-end;
-
-// The point named AName when it reads none of the others, or else the first
-// that reads none of them; a fixed point has to be the one kept
-function TPattern.ChooseKeptPoint(const Points: TPointObjectArray; const AName: string): TPointObject;
-var
-  Point, Other, Fixed: TPointObject;
-
-  function ReadsAnother(Candidate: TPointObject): TPointObject;
-  var
-    Member: TPointObject;
-  begin
-    for Member in Points do
-      if (Member <> Candidate) and Reaches(Candidate, Member) then
-        Exit(Member);
-    Result := nil;
-  end;
-
-begin
-  Result := nil;
-  Fixed := nil;
-  for Point in Points do
-    if IsFixedPoint(Point) then
-    begin
-      if Assigned(Fixed) then
-      begin
-        SetError(Format(rsPatternMergeTwoFixed, [Fixed.DisplayName, Point.DisplayName]));
-        Exit;
-      end;
-      Fixed := Point;
-    end;
-  if Assigned(Fixed) then
-  begin
-    Other := ReadsAnother(Fixed);
-    if Assigned(Other) then
-      SetError(Format(rsPatternMergeKeptReads, [Fixed.DisplayName, Other.DisplayName, Other.DisplayName]))
-    else
-      Result := Fixed;
-    Exit;
-  end;
-  for Point in Points do
-    if SameName(Point.Name, AName) and not Assigned(ReadsAnother(Point)) then
-      Exit(Point);
-  for Point in Points do
-    if not Assigned(ReadsAnother(Point)) then
-      Exit(Point);
-end;
-
-// Doomed: the points to merge away, and lines and curves between two of the
-// points, which nothing else may use
-function TPattern.CheckMergeAway(const Points: TPointObjectArray; Kept: TPointObject; out Doomed: TDraftObjectArray): boolean;
-var
-  Point: TPointObject;
-  User: TEvalNode;
-  Index, NodeIndex: integer;
-  Edge: TEdgeObject;
-  Path: TCurvePathObject;
-
-  function InGroup(const Key: string): boolean;
-  var
-    Member: TPointObject;
-  begin
-    for Member in Points do
-      if Member.Key = Key then
-        Exit(True);
-    Result := False;
-  end;
-
-begin
-  Result := False;
-  Doomed := nil;
-  for Point in Points do
-    if Point <> Kept then
-    begin
-      for User in UsersOf(Point) do
-        if User is TPointCopy then
-          Exit(SetError(Format(rsPatternMergeCopied, [Point.DisplayName, FindNode(TPointCopy(User).TransformKey).DisplayName])));
-      Insert(Point, Doomed, Length(Doomed));
-    end;
-  for Index := 0 to FObjects.Count - 1 do
-  begin
-    if Objects[Index] is TCurvePathObject then
-    begin
-      Path := TCurvePathObject(Objects[Index]);
-      for NodeIndex := 1 to High(Path.NodeKeys) do
-        if InGroup(Path.NodeKeys[NodeIndex - 1]) and InGroup(Path.NodeKeys[NodeIndex]) then
-          Exit(SetError(rsPatternPathRepeats));
-    end;
-    if not ((Objects[Index].ClassType = TLineObject) or (Objects[Index].ClassType = TCurveObject)) then
-      Continue;
-    Edge := TEdgeObject(Objects[Index]);
-    if InGroup(Edge.StartKey) and InGroup(Edge.EndKey) then
-      Insert(Edge, Doomed, Length(Doomed));
-  end;
-  for Index := 0 to High(Doomed) do
-    if Doomed[Index] is TEdgeObject then
-      for User in UsersOf(Doomed[Index]) do
-        if IndexOfObject(Doomed, User) < 0 then
-          Exit(SetError(Format(rsPatternMergeEdgeInUse, [Doomed[Index].DisplayName, User.DisplayName])));
-  Result := True;
-end;
-
-// Every object but the doomed reads KeptKey instead of Point, in its inputs
-// and its formulas
-procedure TPattern.RedirectUsers(Point: TPointObject; const KeptKey: string; const Doomed: TDraftObjectArray);
-var
-  Node: TEvalNode;
-  Ref: TFormulaReference;
-  Index: integer;
-  Formula: TFormula;
-begin
-  for Node in AllNodes do
-  begin
-    if not (Node is TDraftObject) or (IndexOfObject(Doomed, Node) >= 0) then
-      Continue;
-    TDraftObject(Node).RedirectPoint(Point.Key, KeptKey);
-    for Index := 0 to Node.FieldCount - 1 do
-    begin
-      Formula := Node.Fields[Index].Formula;
-      for Ref in Formula.References do
-        if Ref.Id = Point.Key then
-        begin
-          // In stored form braces hold only IDs
-          Formula.ParseStored(StringReplace(Formula.StoredText, '{' + Point.Key + '}', '{' + KeptKey + '}', [rfReplaceAll]));
-          Break;
-        end;
-    end;
-  end;
+  Result := Sloper.Core.TypeChange.ConvertToAlongEdge(Self, Point, EdgeId, FromEnd, Mode, Value);
 end;
 
 function TPattern.MergePoints(const Keys: array of string): TPointObject;
-var
-  Points: TPointObjectArray;
-  Names: TStringArray;
-  Doomed: TDraftObjectArray;
-  Key, KeptKey, NewName: string;
-  Node: TEvalNode;
-  Item: TDraftObject;
-  Deleted: boolean;
-  Index: integer;
-
-  function HasPoint(Candidate: TEvalNode): boolean;
-  var
-    Member: TPointObject;
-  begin
-    for Member in Points do
-      if Member = Candidate then
-        Exit(True);
-    Result := False;
-  end;
-
 begin
-  Result := nil;
-  Points := nil;
-  Names := nil;
-  for Key in Keys do
-  begin
-    Node := FindNode(Key);
-    if not Assigned(Node) then
-    begin
-      SetError(Format(rsPatternUnknownObject, [Key]));
-      Exit;
-    end;
-    if not (Node is TPointObject) then
-    begin
-      SetError(Format(rsPatternMergeNotPoint, [Node.DisplayName]));
-      Exit;
-    end;
-    if not HasPoint(Node) then
-    begin
-      Insert(TPointObject(Node), Points, Length(Points));
-      Insert(TPointObject(Node).Name, Names, Length(Names));
-    end;
-  end;
-  if Length(Points) < 2 then
-  begin
-    SetError(rsPatternMergeTooFew);
-    Exit;
-  end;
-  NewName := MergedName(Names);
-  Result := ChooseKeptPoint(Points, NewName);
-  if not Assigned(Result) or not CheckMergeAway(Points, Result, Doomed) then
-    Exit(nil);
-  // A repeat's point that nothing uses yet needs an ID before anything can
-  KeptKey := UsePoint(Result.Key);
-  // The evaluator may hold the nodes; forget the old graph
-  FEvaluator.Rebuild(nil, FContext);
-  for Item in Doomed do
-    if Item is TPointObject then
-      RedirectUsers(TPointObject(Item), KeptKey, Doomed);
-  // Doomed objects may read each other, so each goes once nothing does
-  repeat
-    Deleted := False;
-    for Index := High(Doomed) downto 0 do
-      if Length(UsersOf(Doomed[Index])) = 0 then
-      begin
-        DeleteNode(Doomed[Index]);
-        System.Delete(Doomed, Index, 1);
-        Deleted := True;
-      end;
-  until not Deleted;
-  Result := TPointObject(FindNode(KeptKey));
-  if not IsFixedPoint(Result) then
-    Result.Name := NewName;
-  UpdateDerivedNames;
-  OrderObjectsByInputs;
-end;
-
-// Lines, curves and curve paths that pass through or end at Point, in list
-// order; derived edges follow their sources and are left out
-function TPattern.ConnectingEdges(Point: TPointObject): TDraftObjectArray;
-var
-  Index: integer;
-  Candidate: TDraftObject;
-  Key: string;
-begin
-  Result := nil;
-  for Index := 0 to FObjects.Count - 1 do
-  begin
-    Candidate := Objects[Index];
-    if (Candidate.ClassType <> TLineObject) and (Candidate.ClassType <> TCurveObject) and (Candidate.ClassType <> TCurvePathObject) then
-      Continue;
-    for Key in Candidate.InputKeys do
-      if Key = Point.Key then
-      begin
-        Insert(Candidate, Result, Length(Result));
-        Break;
-      end;
-  end;
-end;
-
-// Base followed by the next number from Number that no other object has
-function TPattern.NextBrokenName(const Base: string; var Number: integer; Own: TDraftObject): string;
-var
-  Taken: TDraftObject;
-begin
-  repeat
-    Result := Base + IntToStr(Number);
-    Inc(Number);
-    Taken := FindObject(Result);
-  until not Assigned(Taken) or (Taken = Own);
+  Result := Sloper.Core.PointMerge.MergePoints(Self, Keys);
 end;
 
 function TPattern.BreakPoint(Point: TPointObject): TPointObjectArray;
-var
-  Edges: TDraftObjectArray;
-  Base: string;
-  Number, Index: integer;
-  Added: TOffsetPoint;
 begin
-  Result := nil;
-  if Point is TRepeatPoint then
-  begin
-    SetError(Format(rsPatternRepeatItem, [Point.DisplayName]));
-    Exit;
-  end;
-  if Point is TPointCopy then
-  begin
-    SetError(Format(rsPatternCopyOfTransform, [Point.DisplayName, FindNode(TPointCopy(Point).TransformKey).DisplayName]));
-    Exit;
-  end;
-  Edges := ConnectingEdges(Point);
-  if Length(Edges) < 2 then
-  begin
-    SetError(Format(rsPatternBreakTooFew, [Point.DisplayName]));
-    Exit;
-  end;
-  // A copy's number is replaced, as when copying: M2 breaks into M3, M4
-  Base := Point.Name;
-  while (Length(Base) > 1) and (Base[Length(Base)] in ['0'..'9']) do
-    System.Delete(Base, Length(Base), 1);
-  Number := 1;
-  Point.Name := NextBrokenName(Base, Number, Point);
-  Insert(Point, Result, 0);
-  for Index := 1 to High(Edges) do
-  begin
-    Added := AddOffsetPoint(NextBrokenName(Base, Number, nil), Point.Key, omCartesian, '0', '0');
-    if not Assigned(Added) then
-      Exit(nil);
-    Edges[Index].RedirectPoint(Point.Key, Added.Key);
-    Insert(TPointObject(Added), Result, Length(Result));
-  end;
-  // The evaluator may hold the old graph
+  Result := Sloper.Core.PointMerge.BreakPoint(Self, Point);
+end;
+
+procedure TPattern.ForgetGraph;
+begin
   FEvaluator.Rebuild(nil, FContext);
-  UpdateDerivedNames;
-  OrderObjectsByInputs;
 end;
 
 procedure TPattern.QueueMarkings(const Keys: array of string);
