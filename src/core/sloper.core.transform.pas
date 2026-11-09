@@ -405,6 +405,8 @@ begin
   Mover := Context.FindNode(FTransformKey);
   if not (Mover is TTransformObject) then
     Exit(Fail(esError, Format(rsTransformNotATransform, [FTransformKey])));
+  // The source can change between a line and a curve
+  FStraight := TEdgeObject(Node).IsStraight;
   Map := TTransformObject(Mover).Map;
   Moved := Copy(TEdgeObject(Node).Segments);
   for Index := 0 to High(Moved) do

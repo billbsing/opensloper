@@ -148,6 +148,9 @@ type
     function InstallFormula(Node: TEvalNode; const AField: string; NewFormula: TFormula): boolean;
     function ReplacePoint(Point, NewPoint: TPointObject; const Names, Texts: array of string): boolean;
     function CheckConvertible(Edge: TEdgeObject): boolean;
+    // False, with the reason, when a piece's fold is Edge or an edge that is
+    // straight only while Edge is: its parts, copies and offsets
+    function CheckNoFoldFollows(Edge: TEdgeObject): boolean;
     function ChooseKeptPoint(const Points: TPointObjectArray; const AName: string): TPointObject;
     function CheckMergeAway(const Points: TPointObjectArray; Kept: TPointObject; out Doomed: TDraftObjectArray): boolean;
     function ConnectingEdges(Point: TPointObject): TDraftObjectArray;
@@ -465,6 +468,7 @@ resourcestring
   rsPatternCircleNoEnds = '%s is a whole circle, so it has no ends to join with a line';
   rsPatternOnlyLineToCurve = 'Only a line can become a curve, and %s is an arc';
   rsPatternAngleInUse = '%s reads %s.angle, which only a line has, so it cannot become a curve';
+  rsPatternFoldFollows = '%s is the fold of %s, so %s cannot become a curve';
   rsPatternMergeTooFew = 'Select two or more points to merge';
   rsPatternMergeNotPoint = '%s is not a point, so it cannot be merged';
   rsPatternMergeTwoFixed = '%s and %s are copies or a repeat''s points, and only one point can be kept';
@@ -528,7 +532,7 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.Names, Sloper.Core.JSON;
+  Math, StrUtils, Sloper.Core.Names, Sloper.Core.JSON;
 
 function NewPatternIdentity: string;
 var
@@ -3175,6 +3179,37 @@ begin
   Result := True;
 end;
 
+function TPattern.CheckNoFoldFollows(Edge: TEdgeObject): boolean;
+var
+  Following: TStringArray;
+  DraftObject: TDraftObject;
+  Source: string;
+  Piece: TPieceObject;
+begin
+  Following := [Edge.Key];
+  // The objects are in input order, so a part of a part is found after its source
+  for DraftObject in FObjects do
+  begin
+    Source := '';
+    if DraftObject is TSplitPart then
+      Source := TSplitPart(DraftObject).Source
+    else if DraftObject is TEdgeCopy then
+      Source := TEdgeCopy(DraftObject).Source
+    else if (DraftObject is TOffsetEdge) and (Length(TOffsetEdge(DraftObject).Run) = 1) then
+      Source := TOffsetEdge(DraftObject).Run[0].EdgeKey;
+    if (Source <> '') and (IndexStr(Source, Following) >= 0) then
+      Insert(DraftObject.Key, Following, Length(Following));
+  end;
+  for DraftObject in FObjects do
+    if DraftObject is TPieceObject then
+    begin
+      Piece := TPieceObject(DraftObject);
+      if (Piece.FoldEdgeKey <> '') and (IndexStr(Piece.FoldEdgeKey, Following) >= 0) then
+        Exit(SetError(Format(rsPatternFoldFollows, [FindNode(Piece.FoldEdgeKey).DisplayName, Piece.DisplayName, Edge.DisplayName])));
+    end;
+  Result := True;
+end;
+
 // As ReplacePoint, for an edge: NewEdge takes Edge's ID, place, role and name,
 // or a fresh derived name when Edge's was derived
 function TPattern.ReplaceEdge(Edge, NewEdge: TEdgeObject; const Names, Texts: array of string): boolean;
@@ -3277,6 +3312,8 @@ begin
           SetError(Format(rsPatternAngleInUse, [User.DisplayName, Edge.DisplayName]));
           Exit;
         end;
+  if not CheckNoFoldFollows(Edge) then
+    Exit;
   Formats := DefaultFormatSettings;
   Formats.DecimalSeparator := '.';
   // The handles are placed from where the line is now

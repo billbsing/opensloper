@@ -2496,6 +2496,8 @@ begin
   if not (Node is TEdgeObject) then
     Exit(Fail(esError, Format(rsDraftNotAnEdge, [FSource])));
   SourceEdge := TEdgeObject(Node);
+  // The source can change between a line and a curve
+  FStraight := IsStraightEdge(SourceEdge);
   if not PointPosition(Context, FPoint, SplitPos) then
     Exit(Fail(esError, Format(rsDraftNotAPoint, [FPoint])));
   SourceEdge.Locate(SplitPos, Position, Offset);

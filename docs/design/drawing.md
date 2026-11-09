@@ -34,6 +34,8 @@ construction lines are thin, grey and dashed, and are only guides.
 A new curve starts straight. Select it to see its handles, and drag a handle's
 end to shape it, or type its angles and lengths in the properties. Tools →
 Edge → Change to Curve and Change to Line turn one into the other in place.
+A line that is a piece's fold, or whose part is, stays a line: a fold has to
+be straight.
 
 ## Moving points
 

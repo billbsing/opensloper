@@ -25,13 +25,15 @@ unit Sloper.Tests.ConvertEdge;
 interface
 
 uses
-  fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
+  fpcunit, testregistry, Sloper.Tests.TestCase, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Pattern;
 
 type
   TTestConvertEdge = class(TOSTestCase)
   private
     FPattern: TPattern;
     function Pt(const AName: string; X, Y: double): string;
+    // A square piece of four outline lines; TopKey is the line from (0, 0) to (100, 0)
+    function SquarePiece(out TopKey: string): TPieceObject;
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -48,12 +50,16 @@ type
     procedure TestArcToCurveRefused;
     procedure TestAlreadyThatTypeRefused;
     procedure TestTransformCopyRefused;
+    procedure TestLineToCurveRefusedForAFold;
+    procedure TestLineToCurveRefusedForAFoldOnAPart;
+    procedure TestPartsAndCopiesFollowTheCurve;
+    procedure TestConvertedPatternReloads;
   end;
 
 implementation
 
 uses
-  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Core.Transform, Sloper.Core.Variables;
+  SysUtils, Sloper.Core.EvalTypes, Sloper.Core.PieceDetect, Sloper.Core.Transform, Sloper.Core.Variables, Sloper.Core.PatternFile;
 
 procedure TTestConvertEdge.SetUp;
 begin
@@ -68,6 +74,25 @@ end;
 function TTestConvertEdge.Pt(const AName: string; X, Y: double): string;
 begin
   Result := FPattern.AddFreePoint(AName, FloatToStr(X), FloatToStr(Y)).Key;
+end;
+
+function TTestConvertEdge.SquarePiece(out TopKey: string): TPieceObject;
+var
+  A, B, C, D, Err: string;
+  Path: TPiecePath;
+begin
+  A := Pt('A', 0, 0);
+  B := Pt('B', 100, 0);
+  C := Pt('C', 100, 100);
+  D := Pt('D', 0, 100);
+  TopKey := FPattern.AddLine(A, B, erOutline).Key;
+  FPattern.AddLine(B, C, erOutline);
+  FPattern.AddLine(C, D, erOutline);
+  FPattern.AddLine(D, A, erOutline);
+  FPattern.Evaluate;
+  AssertTrue(Err, DetectPiecePath(FPattern, Vec2(50, 50), Path, Err));
+  Result := FPattern.AddPiece('Front', Path, '10');
+  AssertNotNull(FPattern.LastError, Result);
 end;
 
 procedure TTestConvertEdge.TestCurveToLineKeepsIdAndUsers;
@@ -216,6 +241,85 @@ begin
   Spec.DY := '0';
   AssertNotNull(FPattern.LastError, FPattern.AddTransform(Spec));
   AssertNull('it follows its transform', FPattern.ConvertToCurve(TEdgeObject(FPattern.FindObject(Line.Name + '_t1'))));
+end;
+
+// A fold has to be straight, and the file would not load with a curved one
+procedure TTestConvertEdge.TestLineToCurveRefusedForAFold;
+var
+  Piece: TPieceObject;
+  TopKey: string;
+begin
+  Piece := SquarePiece(TopKey);
+  AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, TopKey));
+  AssertNull('refused', FPattern.ConvertToCurve(TEdgeObject(FPattern.FindNode(TopKey))));
+  AssertTrue(FPattern.LastError, Pos('Front', FPattern.LastError) > 0);
+  AssertTrue('still a line', FPattern.FindNode(TopKey) is TLineObject);
+end;
+
+// A part of a line is straight only while the line is
+procedure TTestConvertEdge.TestLineToCurveRefusedForAFoldOnAPart;
+var
+  Piece: TPieceObject;
+  TopKey: string;
+  First, Second: TSplitPart;
+begin
+  Piece := SquarePiece(TopKey);
+  AssertTrue(FPattern.LastError, FPattern.SplitEdge(TopKey, FPattern.AddAlongEdgePoint('M', TopKey, False, amRatio, '0.5').Key, First, Second));
+  AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, First.Key));
+  AssertNull('refused', FPattern.ConvertToCurve(TEdgeObject(FPattern.FindNode(TopKey))));
+  AssertTrue(FPattern.LastError, Pos('Front', FPattern.LastError) > 0);
+  AssertTrue('still a line', FPattern.FindNode(TopKey) is TLineObject);
+end;
+
+// As they would be when the pattern is loaded again
+procedure TTestConvertEdge.TestPartsAndCopiesFollowTheCurve;
+var
+  Line: TLineObject;
+  First, Second: TSplitPart;
+  Spec: TTransformSpec;
+  LineKey, CopyName: string;
+begin
+  Line := FPattern.AddLine(Pt('A', 0, 0), Pt('B', 100, 0));
+  LineKey := Line.Key;
+  // Converting frees the line object
+  CopyName := Line.Name + '_t1';
+  AssertTrue(FPattern.LastError, FPattern.SplitEdge(LineKey, FPattern.AddAlongEdgePoint('M', LineKey, False, amRatio, '0.5').Key, First, Second));
+  Spec := Default(TTransformSpec);
+  Spec.Kind := tkMove;
+  Spec.Sources := [LineKey];
+  Spec.DX := '0';
+  Spec.DY := '50';
+  AssertNotNull(FPattern.LastError, FPattern.AddTransform(Spec));
+  FPattern.Evaluate;
+  AssertTrue('the part starts straight', First.IsStraight);
+  AssertNotNull(FPattern.LastError, FPattern.ConvertToCurve(TEdgeObject(FPattern.FindNode(LineKey))));
+  FPattern.Evaluate;
+  AssertFalse('the part follows the curve', TEdgeObject(FPattern.FindNode(First.Key)).IsStraight);
+  AssertFalse('the copy follows the curve', TEdgeObject(FPattern.FindObject(CopyName)).IsStraight);
+  AssertNotNull(FPattern.LastError, FPattern.ConvertToLine(TEdgeObject(FPattern.FindNode(LineKey))));
+  FPattern.Evaluate;
+  AssertTrue('and back to a line', TEdgeObject(FPattern.FindNode(First.Key)).IsStraight);
+end;
+
+// The fold could be set on a part of a converted line, which then failed to load
+procedure TTestConvertEdge.TestConvertedPatternReloads;
+var
+  Piece: TPieceObject;
+  TopKey, Err: string;
+  First, Second: TSplitPart;
+  Reloaded: TPattern;
+begin
+  Piece := SquarePiece(TopKey);
+  AssertTrue(FPattern.LastError, FPattern.SplitEdge(TopKey, FPattern.AddAlongEdgePoint('M', TopKey, False, amRatio, '0.5').Key, First, Second));
+  AssertNotNull(FPattern.LastError, FPattern.ConvertToCurve(TEdgeObject(FPattern.FindNode(TopKey))));
+  FPattern.Evaluate;
+  AssertFalse('a curved part is no fold', FPattern.SetFoldEdge(Piece, First.Key));
+  Reloaded := TPattern.Create;
+  try
+    AssertTrue(Err, LoadPatternFromText(Reloaded, SavePatternToText(FPattern), Err));
+  finally
+    FreeAndNil(Reloaded);
+  end;
 end;
 
 initialization
