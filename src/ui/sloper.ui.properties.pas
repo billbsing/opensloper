@@ -194,7 +194,7 @@ type
     procedure AddAllowanceQueued(Data: PtrInt);
     procedure RemoveAllowanceQueued(Data: PtrInt);
     function FieldRowCaption(Node: TEvalNode; const FieldName: string): string;
-    procedure AddGrainRows;
+    procedure AddGrainRows(Piece: TPieceObject);
     procedure RefreshGrainRows(Piece: TPieceObject);
     procedure GrainChange(Sender: TObject);
     procedure GrainQueued(Data: PtrInt);
@@ -812,9 +812,11 @@ begin
     if Node is TNoteObject then
       AddNoteTextRow;
     SetLength(FEdits, Node.FieldCount);
-    // A marker's size goes under the marker
+    // A marker's size goes under the marker, and a piece's grainline angle
+    // under the grainline
     for Index := 0 to Node.FieldCount - 1 do
-      if (Node.Fields[Index].Name <> MarkerSizeField) and not ((Node is TNoteObject) and IsNoteValue(Node.Fields[Index].Name)) then
+      if (Node.Fields[Index].Name <> MarkerSizeField) and not ((Node is TPieceObject) and (Node.Fields[Index].Name = GrainAngleField)) and
+        not ((Node is TNoteObject) and IsNoteValue(Node.Fields[Index].Name)) then
         FEdits[Index] := AddEditRow(FieldRowCaption(Node, Node.Fields[Index].Name), Index);
     if Node is TVariable then
       FDescriptionEdit := AddEditRow(rsPropDescription, DescriptionTag);
@@ -1480,7 +1482,7 @@ begin
   FAllowanceBox.Enabled := Length(FAllowanceIndexes) > 0;
   FAllowanceBox.OnChange := @AllowanceChange;
   AddRow(rsPropOwnAllowance, FAllowanceBox, RowGap);
-  AddGrainRows;
+  AddGrainRows(Piece);
   FMaterialBox := TComboBox.Create(Self);
   FMaterialBox.Style := csDropDownList;
   FMaterialBox.OnChange := @MaterialChange;
@@ -1856,9 +1858,10 @@ begin
   FDocument.Commit(FDocument.Pattern.SetEdgeAllowance(TPieceObject(Node), Data, ''));
 end;
 
-procedure TPropertiesPanel.AddGrainRows;
+procedure TPropertiesPanel.AddGrainRows(Piece: TPieceObject);
 var
   Point: TPointObject;
+  Index: integer;
 
   function NewBox: TComboBox;
   begin
@@ -1874,6 +1877,9 @@ begin
   FGrainBox.Items.Add(rsPropGrainAngle);
   FGrainBox.Items.Add(rsPropGrainPoints);
   AddRow(rsPropGrainline, FGrainBox, RowGap);
+  for Index := 0 to Piece.FieldCount - 1 do
+    if Piece.Fields[Index].Name = GrainAngleField then
+      FEdits[Index] := AddEditRow(FieldRowCaption(Piece, GrainAngleField), Index);
   FGrainStartBox := NewBox;
   FGrainEndBox := NewBox;
   FGrainStartBox.Items.Add(rsPropGrainChoose);
