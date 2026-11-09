@@ -17,9 +17,10 @@
 }
 
 // The drafting canvas: shows the pattern (drawn by Sloper.UI.PatternPainter), pans and zooms,
-// selects points and edges, and drags points. Objects are held by ID, since
-// undo and redo replace the pattern's objects. Every edit goes through the
-// document as a change; a drag is one change.
+// selects points and edges, and drags points; the other tools are objects in
+// Sloper.UI.CanvasTools, which the canvas hands its clicks, moves and keys.
+// Objects are held by ID, since undo and redo replace the pattern's objects.
+// Every edit goes through the document as a change; a drag is one change.
 unit Sloper.UI.Canvas;
 
 {$mode ObjFPC}{$H+}
@@ -28,18 +29,12 @@ interface
 
 uses
   Classes, SysUtils, Controls, StdCtrls, Menus, Graphics, LCLType, LMessages, Sloper.Core.Geometry,
-  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
-  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Core.Fragment, Sloper.Core.Shortcuts,
+  Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Pattern, Sloper.Core.Transform, Sloper.Core.Settings,
+  Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.Note, Sloper.Core.TextFields, Sloper.Core.Fragment,
   Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap,
-  Sloper.UI.Scene, Sloper.UI.CanvasInput, Sloper.UI.SelectionEdits, Sloper.UI.PatternPainter;
+  Sloper.UI.Scene, Sloper.UI.CanvasInput, Sloper.UI.SelectionEdits, Sloper.UI.PatternPainter, Sloper.UI.CanvasTools;
 
 type
-  // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
-  // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
-  // or removes a notch on a piece's seam line; ctSeam picks the edges of the
-  // two sides of a seam; ctText places a note, hung from what it snaps to;
-  // ctCallout takes what its tip points at, then where its text goes
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam, ctText, ctCallout);
   TCursorMoveEvent = procedure(Sender: TObject; const ModelPos: TVec2) of object;
   TCanvasMessageEvent = procedure(Sender: TObject; const Text: string) of object;
 
@@ -66,21 +61,17 @@ type
     // The field that identifies the handle under the cursor, and its curve
     FHoverHandleField, FHoverHandleEdge: string;
     FTool: TCanvasTool;
-    // Where a click would go, while a drawing tool is in use
-    FSnap: TSnap;
-    FSnapShown: boolean;
-    // Where the cursor was when the snap was found, for the Text tool
-    FSnapClick: TVec2;
-    // Where the Callout tool's first click was
-    FStartClick: TVec2;
+    // One of each tool, and what they ask of the canvas
+    FTools: TCanvasToolHandlers;
+    FToolHost: TCanvasToolHost;
+    // Each tool's key, worked out once
+    FToolKeys: array[TCanvasTool] of TShortCut;
     // A press on a selected callout's tip, and the tip being dragged
     FPressTip, FTipDragging: boolean;
-    // The first click of a line or curve
-    FStartSnap: TSnap;
-    FHasStart: boolean;
-    // The seam being picked, and whether clicks go to side B
-    FSeamA, FSeamB: TSeamSide;
-    FSeamOnB: boolean;
+    // Where a dragged tip snaps, and where the cursor was when it did
+    FTipSnap: TSnap;
+    FTipSnapShown: boolean;
+    FTipClick: TVec2;
     FLabelMode: TLabelMode;
     FDrawRole: TEdgeRole;
     FShowPieceFills: boolean;
@@ -109,9 +100,8 @@ type
     procedure TakeFocus;
     function NoteValues: TFieldValues;
     function NotesHere(X, Y: integer): TStringArray;
-    procedure AddNoteHere;
-    procedure StartCallout;
-    procedure AddCalloutHere;
+    function ActiveTool: TCanvasToolHandler;
+    procedure UpdateTipSnap(X, Y: integer);
     procedure FinishTipDrag;
     function ClickKey(X, Y: integer; Shift: TShiftState): string;
     procedure ShowPickMenu(X, Y: integer);
@@ -121,7 +111,6 @@ type
     procedure ShowMessageText(const AText: string);
     procedure ApplyEdit(const Edit: TSelectionEdit);
     function PaintState: TPaintState;
-    function SnapPreview: TSnapPreview;
     function ModelAt(X, Y: integer): TVec2;
     function ObjectKeyAt(X, Y: integer): string;
     function IsSelected(const Key: string): boolean;
@@ -140,29 +129,11 @@ type
     procedure CancelDrag;
     procedure Nudge(DX, DY: double);
     procedure SetTool(Value: TCanvasTool);
-    procedure UpdateSnap(X, Y: integer);
-    procedure ClickTool;
-    procedure AddPointHere;
-    procedure AddEdgeHere;
-    procedure AddShapeHere;
-    procedure AddPieceHere(X, Y: integer);
-    procedure ToggleNotchHere(X, Y: integer);
-    function RemoveNotchesAt(const At: TVec2; Radius: double): boolean;
-    function AddNotchesAt(const At: TVec2; Radius: double): boolean;
-    procedure ToggleSeamEdgeHere(X, Y: integer);
-    procedure ShowSeamProgress;
-    procedure ChangeSeamSide(ToSideB: boolean);
-    procedure MakeSeam;
-    function PickingSeam: boolean;
-    procedure ClearSeamSides;
     procedure CMWantSpecialKey(var Message: TCMWantSpecialKey); message CM_WANTSPECIALKEY;
-    function UsesSnap: boolean;
-    procedure CancelStart;
     procedure SetLabelMode(Value: TLabelMode);
     procedure SetShowPieceFills(Value: boolean);
     procedure SetLabelsHeld(Value: boolean);
     function ShownLabelMode: TLabelMode;
-    function ToolLabelKeys: TStringArray;
     procedure SetHorzBar(Value: TScrollBar);
     procedure SetVertBar(Value: TScrollBar);
     procedure BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: integer);
@@ -200,10 +171,8 @@ type
     // Copies the selection with a transform: Move at once, Rotate and Mirror
     // once a pivot or axis has been clicked
     procedure StartTransform(Kind: TTransformKind);
-    // A circle or arc around the selected point, ready for its radius to be typed
     // An arc about the selected point
     procedure AddArcHere;
-    // A rectangle from the selected point
     // A construction edge parallel to the selected edge, or to the run the
     // selected edges make
     procedure OffsetSelection(Side: TOffsetSide);
@@ -267,16 +236,8 @@ type
 resourcestring
   rsCanvasMovePoint = 'Move point';
   rsCanvasMoveNote = 'Move note';
-  rsCanvasAddNote = 'Add note';
-  rsCanvasNewNoteText = 'Text';
-  rsCanvasToolText = 'Text: click to place a note; it hangs from the point, edge or piece it snaps to';
-  rsCanvasToolCallout = 'Callout: click what it points at, then where its text goes; Escape stops';
-  rsCanvasCalloutBox = 'Click where the callout''s text goes';
-  rsCanvasAddCallout = 'Add callout';
   rsCanvasMoveTip = 'Move callout tip';
   rsCanvasMoveHandle = 'Move curve handle';
-  rsCanvasAddRound = 'Add circle or arc';
-  rsCanvasAddRectangle = 'Add rectangle';
   rsCanvasPickPivot = 'Rotate Copy: click the point to turn about; Escape cancels';
   rsCanvasPickAxis = 'Mirror Copy: click a straight edge, or the first of two points; Escape cancels';
   rsCanvasPickSecond = 'Mirror Copy: click the second point; Escape cancels';
@@ -286,41 +247,11 @@ resourcestring
   rsCanvasHover = '%s: %s';
   rsCanvasCycle = '%s (%d of %d here; click again for the next)';
   rsCanvasPickItem = '%s (%s)';
-  rsCanvasAddPoint = 'Add point';
-  rsCanvasAddLine = 'Add line';
-  rsCanvasAddCurve = 'Add curve';
-  rsCanvasAddPiece = 'Add piece';
-  rsCanvasAddNotch = 'Add notch';
-  rsCanvasRemoveNotch = 'Remove notch';
-  rsCanvasToolSelect = 'Select: click to select, drag a point to move it';
-  rsCanvasToolPoint = 'Point: click to add a point where it snaps';
-  rsCanvasToolLine = 'Line: click the start, then the end; Escape stops';
-  rsCanvasToolCurve = 'Curve: click the start, then the end; Escape stops';
-  rsCanvasToolPiece = 'Piece: click inside a closed outline';
-  rsCanvasPieceExists = '%s already covers this region';
-  rsCanvasToolNotch = 'Notch: click a piece''s edge to add a notch, or a notch to remove it';
-  rsCanvasNoSeam = 'There is no piece''s edge here';
-  rsCanvasToolCircle = 'Circle: click the centre, then a point on the rim; Escape stops';
-  rsCanvasToolRectangle = 'Rectangle: click one corner, then the opposite one; Escape stops';
-  rsCanvasCircleRim = 'Click a point on the rim';
-  rsCanvasRadius = 'Radius %s';
-  rsCanvasRectangleSize = '%s by %s';
-  rsCanvasRectangleCorner = 'Click the opposite corner';
-  rsCanvasToolSeam = 'Seam: click edges for side A, Tab moves to side B, Enter makes the seam';
-  rsCanvasSeamProgress = 'Side %s: A %s, B %s, difference %s. Tab changes side, Enter makes the seam';
-  rsCanvasSeamSides = 'Pick edges for both sides first';
-  rsCanvasAddSeam = 'Add seam';
-
-const
-  // Where each tool's key is, in Sloper.Core.Shortcuts
-  ToolCommands: array[TCanvasTool] of TKeyCommand = (kcToolSelect, kcToolPoint, kcToolLine, kcToolCurve, kcToolCircle,
-    kcToolRectangle, kcToolPiece, kcToolNotch, kcToolSeam, kcToolText, kcToolCallout);
 
 implementation
 
 uses
   Math, Forms, StrUtils, LCLIntf, Sloper.UI.Commands, Sloper.Core.Bounds, Sloper.Core.EvalTypes, Sloper.Core.Evaluator,
-  Sloper.Core.PieceDetect,
   Sloper.UI.ObjectList;
 
 const
@@ -330,20 +261,75 @@ const
   DragThreshold = 3;
   FitMargin = 40;
   WheelPanPixels = 60;
-  SnapRadius = 8;
-  // A line or curve shorter than this (mm) is ignored
-  MinEdgeLength = 0.05;
-  // Curve handles start this fraction of the way along the chord
-  HandleFraction = 1 / 3;
   // Arrow-key nudges in mm
   NudgeStep = 1;
   NudgeStepLarge = 10;
   // A click this many pixels around a note's text picks it
   NoteHitPixels = 2;
 
-  { TPatternCanvas }
+type
+  // How the tools reach the canvas
+  TCanvasHost = class(TCanvasToolHost)
+  private
+    FCanvas: TPatternCanvas;
+  public
+    constructor Create(ACanvas: TPatternCanvas);
+    function Document: TPatternDocument; override;
+    function View: TViewTransform; override;
+    function DrawRole: TEdgeRole; override;
+    procedure Select(const Keys: TStringArray); override;
+    procedure ShowMessage(const AText: string); override;
+    procedure Refresh; override;
+    procedure NoteAdded; override;
+  end;
+
+constructor TCanvasHost.Create(ACanvas: TPatternCanvas);
+begin
+  inherited Create;
+  FCanvas := ACanvas;
+end;
+
+function TCanvasHost.Document: TPatternDocument;
+begin
+  Result := FCanvas.FDocument;
+end;
+
+function TCanvasHost.View: TViewTransform;
+begin
+  Result := FCanvas.FView;
+end;
+
+function TCanvasHost.DrawRole: TEdgeRole;
+begin
+  Result := FCanvas.FDrawRole;
+end;
+
+procedure TCanvasHost.Select(const Keys: TStringArray);
+begin
+  FCanvas.SetSelection(Keys);
+end;
+
+procedure TCanvasHost.ShowMessage(const AText: string);
+begin
+  FCanvas.ShowMessageText(AText);
+end;
+
+procedure TCanvasHost.Refresh;
+begin
+  FCanvas.Invalidate;
+end;
+
+procedure TCanvasHost.NoteAdded;
+begin
+  if Assigned(FCanvas.FOnNoteAdded) then
+    FCanvas.FOnNoteAdded(FCanvas);
+end;
+
+{ TPatternCanvas }
 
 constructor TPatternCanvas.Create(AOwner: TComponent);
+var
+  KeyTool: TCanvasTool;
 begin
   inherited Create(AOwner);
   FView := DefaultView;
@@ -352,6 +338,10 @@ begin
   FGridUnit := muMillimetre;
   FGridStep := DefaultGridSteps[muMillimetre];
   FPainter := TPatternPainter.Create;
+  FToolHost := TCanvasHost.Create(Self);
+  FTools := CreateCanvasTools(FToolHost);
+  for KeyTool := Low(TCanvasTool) to High(TCanvasTool) do
+    FToolKeys[KeyTool] := CommandShortCut(CanvasToolInfo(KeyTool).Command);
   TabStop := True;
   DoubleBuffered := False;
   ControlStyle := ControlStyle + [csOpaque];
@@ -360,8 +350,15 @@ end;
 destructor TPatternCanvas.Destroy;
 begin
   SetDocument(nil);
+  FreeCanvasTools(FTools);
+  FreeAndNil(FToolHost);
   FreeAndNil(FPainter);
   inherited Destroy;
+end;
+
+function TPatternCanvas.ActiveTool: TCanvasToolHandler;
+begin
+  Result := FTools[FTool];
 end;
 
 procedure TPatternCanvas.SetDocument(ADocument: TPatternDocument);
@@ -383,9 +380,8 @@ begin
   if dcObjectsReplaced in Changes then
   begin
     DropMissingSelection;
-    // The first click may name objects that undo removed
-    FHasStart := False;
-    FSnapShown := False;
+    ActiveTool.ObjectsReplaced;
+    FTipSnapShown := False;
   end;
   Invalidate;
 end;
@@ -576,8 +572,6 @@ begin
     SetSelection(Kept);
   if (FHoverKey <> '') and not Assigned(FDocument.Pattern.FindNode(FHoverKey)) then
     FHoverKey := '';
-  FSeamA := ExistingSeamEntries(FDocument.Pattern, FSeamA);
-  FSeamB := ExistingSeamEntries(FDocument.Pattern, FSeamB);
 end;
 
 procedure TPatternCanvas.ZoomIn;
@@ -695,7 +689,7 @@ begin
   if FTipDragging then
   begin
     FTipDragging := False;
-    FSnapShown := False;
+    FTipSnapShown := False;
     Invalidate;
   end
   else if FInput.Mode = cmDragging then
@@ -784,43 +778,6 @@ procedure TPatternCanvas.AddArcHere;
 begin
   if Assigned(FDocument) then
     ApplyEdit(AddArcAtSelection(FDocument, FSelection, FDrawRole));
-end;
-
-// The second click of a circle or rectangle: its first point, made if need
-// be, and the shape are one change. The tool stays on for the next.
-procedure TPatternCanvas.AddShapeHere;
-var
-  Circle: TCircleObject;
-  Edges: TRectangleEdges;
-  Key, Reason: string;
-  Done: boolean;
-begin
-  FHasStart := False;
-  Key := '';
-  if FTool = ctCircle then
-  begin
-    FDocument.BeginChange(rsCanvasAddRound);
-    Circle := CircleFromSnap(FDocument.Pattern, FStartSnap, FSnap.Position, FDrawRole);
-    Done := Assigned(Circle);
-    if Done then
-      Key := Circle.Key;
-  end
-  else
-  begin
-    FDocument.BeginChange(rsCanvasAddRectangle);
-    Done := RectangleFromSnap(FDocument.Pattern, FStartSnap, FSnap.Position, FDrawRole, Edges);
-  end;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Done) then
-  begin
-    if Key <> '' then
-      SetSelection([Key])
-    else
-      SetSelection([Edges[0].Key, Edges[1].Key, Edges[2].Key, Edges[3].Key]);
-  end
-  else
-    ShowMessageText(Reason);
-  Invalidate;
 end;
 
 procedure TPatternCanvas.OffsetSelection(Side: TOffsetSide);
@@ -962,72 +919,31 @@ end;
 procedure TPatternCanvas.SetTool(Value: TCanvasTool);
 begin
   EndPicking;
-  ClearSeamSides;
-  FHasStart := False;
-  FSnapShown := False;
+  ActiveTool.Reset;
+  FTipSnapShown := False;
   if FInput.Mode = cmDragging then
     CancelDrag;
   FTool := Value;
+  ActiveTool.Reset;
   if FTool <> ctSelect then
     FHoverKey := '';
   if FTool = ctSelect then
     Cursor := crDefault
   else
     Cursor := crCross;
-  case FTool of
-    ctSelect: ShowMessageText(rsCanvasToolSelect);
-    ctPoint: ShowMessageText(rsCanvasToolPoint);
-    ctLine: ShowMessageText(rsCanvasToolLine);
-    ctCurve: ShowMessageText(rsCanvasToolCurve);
-    ctPiece: ShowMessageText(rsCanvasToolPiece);
-    ctNotch: ShowMessageText(rsCanvasToolNotch);
-    ctSeam: ShowMessageText(rsCanvasToolSeam);
-    ctCircle: ShowMessageText(rsCanvasToolCircle);
-    ctRectangle: ShowMessageText(rsCanvasToolRectangle);
-    ctText: ShowMessageText(rsCanvasToolText);
-    ctCallout: ShowMessageText(rsCanvasToolCallout);
-  end;
+  ShowMessageText(ActiveTool.Hint);
   Invalidate;
   if Assigned(FOnToolChange) then
     FOnToolChange(Self);
 end;
 
-function TPatternCanvas.UsesSnap: boolean;
+// Where a dragged callout tip would hang from
+procedure TPatternCanvas.UpdateTipSnap(X, Y: integer);
 begin
-  Result := FTool in [ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctText, ctCallout];
-end;
-
-procedure TPatternCanvas.UpdateSnap(X, Y: integer);
-var
-  AnchorKey: string;
-begin
-  AnchorKey := '';
-  // A line lines up with its start first, once that start is a point
-  if FHasStart and (FStartSnap.Kind = snPoint) then
-    AnchorKey := FStartSnap.PointKey;
-  FSnap := FindSnap(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius), AnchorKey);
-  FSnapClick := ModelAt(X, Y);
-  FSnapShown := True;
-  // The second click of a circle or rectangle makes no point, only its size
-  if FHasStart and (FTool = ctCircle) then
-    ShowMessageText(Format(rsCanvasRadius, [LengthWithUnit(Distance(FStartSnap.Position, FSnap.Position), FDocument.Pattern.Units)]))
-  else if FHasStart and (FTool = ctRectangle) then
-    ShowMessageText(Format(rsCanvasRectangleSize, [LengthWithUnit(Abs(FSnap.Position.X - FStartSnap.Position.X), FDocument.Pattern.Units),
-      LengthWithUnit(Abs(FSnap.Position.Y - FStartSnap.Position.Y), FDocument.Pattern.Units)]))
-  else if FTool = ctText then
-    ShowMessageText(NoteSnapDescription(FDocument.Pattern, FSnap, FSnapClick))
-  else if (FTool = ctCallout) and FHasStart then
-    ShowMessageText(rsCanvasCalloutBox)
-  else if (FTool = ctCallout) or FTipDragging then
-    ShowMessageText(CalloutSnapDescription(FDocument.Pattern, FSnap, FSnapClick))
-  else
-    ShowMessageText(SnapDescription(FDocument.Pattern, FSnap));
-  Invalidate;
-end;
-
-procedure TPatternCanvas.CancelStart;
-begin
-  FHasStart := False;
+  FTipSnap := FindSnap(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius));
+  FTipClick := ModelAt(X, Y);
+  FTipSnapShown := True;
+  ShowMessageText(CalloutSnapDescription(FDocument.Pattern, FTipSnap, FTipClick));
   Invalidate;
 end;
 
@@ -1072,82 +988,7 @@ function TPatternCanvas.ShownLabelKeys: TStringArray;
 begin
   Result := nil;
   if Assigned(FDocument) then
-    Result := LabelKeys(FDocument.Pattern, ShownLabelMode, FSelection, FHoverKey, ToolLabelKeys);
-end;
-
-// What a drawing tool is working with: the start of a line and the snap
-function TPatternCanvas.ToolLabelKeys: TStringArray;
-begin
-  Result := nil;
-  if FHasStart then
-    Result := SnapObjectKeys(FStartSnap);
-  if FSnapShown and (FTool <> ctSelect) then
-    Result := Concat(Result, SnapObjectKeys(FSnap));
-end;
-
-// The note is selected, ready for its text to be typed in the properties
-procedure TPatternCanvas.AddNoteHere;
-var
-  Note: TNoteObject;
-  Key, Reason: string;
-begin
-  FDocument.BeginChange(rsCanvasAddNote);
-  Note := NoteFromSnap(FDocument.Pattern, FSnap, FSnapClick, rsCanvasNewNoteText);
-  Reason := FDocument.Pattern.LastError;
-  Key := '';
-  if Assigned(Note) then
-    Key := Note.Key;
-  if not FDocument.Commit(Assigned(Note)) then
-  begin
-    ShowMessageText(Reason);
-    Exit;
-  end;
-  SetSelection([Key]);
-  if Assigned(FOnNoteAdded) then
-    FOnNoteAdded(Self);
-end;
-
-// The first click says what the tip points at, which cannot be nothing
-procedure TPatternCanvas.StartCallout;
-var
-  Anchor: TNoteAnchor;
-  AnchorKey: string;
-  Ratio: double;
-begin
-  NoteAnchorFromSnap(FDocument.Pattern, FSnap, FSnapClick, Anchor, AnchorKey, Ratio);
-  if Anchor = naFree then
-  begin
-    ShowMessageText(rsPatternCalloutFree);
-    Exit;
-  end;
-  FStartSnap := FSnap;
-  FStartClick := FSnapClick;
-  FHasStart := True;
-  ShowMessageText(rsCanvasCalloutBox);
-end;
-
-// The second click: the text goes where it was, and the tip where the first snapped
-procedure TPatternCanvas.AddCalloutHere;
-var
-  Note: TNoteObject;
-  Key, Reason: string;
-begin
-  FHasStart := False;
-  FDocument.BeginChange(rsCanvasAddCallout);
-  Note := CalloutFromSnap(FDocument.Pattern, FStartSnap, FStartClick, FSnapClick, rsCanvasNewNoteText, nlArrow);
-  Reason := FDocument.Pattern.LastError;
-  Key := '';
-  if Assigned(Note) then
-    Key := Note.Key;
-  if not FDocument.Commit(Assigned(Note)) then
-  begin
-    ShowMessageText(Reason);
-    Exit;
-  end;
-  ShowMessageText(rsCanvasToolCallout);
-  SetSelection([Key]);
-  if Assigned(FOnNoteAdded) then
-    FOnNoteAdded(Self);
+    Result := LabelKeys(FDocument.Pattern, ShownLabelMode, FSelection, FHoverKey, ActiveTool.LabelKeys);
 end;
 
 // The dropped tip hangs the callout from what it snaps to; its text stays put
@@ -1158,12 +999,12 @@ var
   Done: boolean;
 begin
   FTipDragging := False;
-  FSnapShown := False;
+  FTipSnapShown := False;
   Node := FDocument.Pattern.FindNode(FPressKey);
   if not (Node is TNoteObject) then
     Exit;
   FDocument.BeginChange(rsCanvasMoveTip);
-  Done := ReanchorFromSnap(FDocument.Pattern, TNoteObject(Node), FSnap, FSnapClick);
+  Done := ReanchorFromSnap(FDocument.Pattern, TNoteObject(Node), FTipSnap, FTipClick);
   Reason := FDocument.Pattern.LastError;
   FDocument.Commit(Done);
   if not Done then
@@ -1171,284 +1012,13 @@ begin
   Invalidate;
 end;
 
-procedure TPatternCanvas.AddPointHere;
-var
-  Key, Reason: string;
-begin
-  if FSnap.Kind = snPoint then
-  begin
-    SetSelection([FSnap.PointKey]);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddPoint);
-  Key := PointFromSnap(FDocument.Pattern, FSnap);
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Key <> '') then
-    SetSelection([Key])
-  else
-    ShowMessageText(Reason);
-end;
-
-// The second click of a line or curve: both ends and the edge are one change
-procedure TPatternCanvas.AddEdgeHere;
-var
-  StartKey, EndKey, Reason, Description: string;
-  StartPos, EndPos: TVec2;
-  Chord: double;
-  Edge: TEdgeObject;
-begin
-  StartPos := FStartSnap.Position;
-  EndPos := FSnap.Position;
-  Chord := Distance(StartPos, EndPos);
-  if Chord < MinEdgeLength then
-    Exit;
-  if FTool = ctLine then
-    Description := rsCanvasAddLine
-  else
-    Description := rsCanvasAddCurve;
-  FDocument.BeginChange(Description);
-  Edge := nil;
-  StartKey := PointFromSnap(FDocument.Pattern, FStartSnap);
-  EndKey := '';
-  if StartKey <> '' then
-    EndKey := PointFromSnap(FDocument.Pattern, FSnap);
-  if (EndKey <> '') and (EndKey <> StartKey) then
-    if FTool = ctLine then
-      Edge := FDocument.Pattern.AddLine(StartKey, EndKey, FDrawRole)
-    else
-      Edge := FDocument.Pattern.AddCurve(StartKey, EndKey, RoundedText(AngleBetween(StartPos, EndPos), DragAngleDecimals),
-        RoundLengthFormulaText(Chord * HandleFraction, FDocument.Pattern.Units), RoundedText(AngleBetween(EndPos, StartPos), DragAngleDecimals),
-        RoundLengthFormulaText(Chord * HandleFraction, FDocument.Pattern.Units), FDrawRole);
-  Reason := FDocument.Pattern.LastError;
-  if not FDocument.Commit(Assigned(Edge)) then
-  begin
-    ShowMessageText(Reason);
-    FHasStart := False;
-    Exit;
-  end;
-  SetSelection([Edge.Key]);
-  // Carry on from the end, as a chain
-  FStartSnap := Default(TSnap);
-  FStartSnap.Kind := snPoint;
-  FStartSnap.PointKey := EndKey;
-  FStartSnap.Position := TPointObject(FDocument.Pattern.FindNode(EndKey)).Position;
-  FHasStart := True;
-end;
-
-// One click makes one piece, with the default allowance to edit in the
-// properties; a region that already has a piece selects that piece
-procedure TPatternCanvas.AddPieceHere(X, Y: integer);
-var
-  Path: TPiecePath;
-  Reason, Key: string;
-  Existing, Piece: TPieceObject;
-begin
-  if not DetectPiecePath(FDocument.Pattern, ModelAt(X, Y), Path, Reason) then
-  begin
-    ShowMessageText(Reason);
-    Exit;
-  end;
-  Existing := PieceOnPath(FDocument.Pattern, Path);
-  if Assigned(Existing) then
-  begin
-    ShowMessageText(Format(rsCanvasPieceExists, [Existing.DisplayName]));
-    SetSelection([Existing.Key]);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddPiece);
-  Piece := FDocument.Pattern.AddPiece('', Path, DefaultPieceAllowance);
-  Key := '';
-  if Assigned(Piece) then
-    Key := Piece.Key;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Assigned(Piece)) then
-    SetSelection([Key])
-  else
-    ShowMessageText(Reason);
-end;
-
-// Every notch here goes, since a notch often sits on two pieces sewn together
-function TPatternCanvas.RemoveNotchesAt(const At: TVec2; Radius: double): boolean;
-var
-  Index, Notch: integer;
-  Piece: TPieceObject;
-begin
-  Result := False;
-  for Index := 0 to FDocument.Pattern.ObjectCount - 1 do
-    if (FDocument.Pattern.Objects[Index] is TPieceObject) then
-    begin
-      Piece := TPieceObject(FDocument.Pattern.Objects[Index]);
-      for Notch := High(Piece.NotchMarks) downto 0 do
-        if Distance(Piece.NotchMarks[Notch].Seam, At) <= Radius then
-          Result := FDocument.Pattern.RemoveNotch(Piece, Notch) or Result;
-    end;
-end;
-
-// On every piece that uses the edge, so two sides of a seam get matching notches
-function TPatternCanvas.AddNotchesAt(const At: TVec2; Radius: double): boolean;
-var
-  Index: integer;
-  Piece: TPieceObject;
-  Target: TNotchTarget;
-begin
-  Result := False;
-  if not NotchTargetAt(FDocument.Pattern, At, Radius, Target) then
-    Exit;
-  for Index := FDocument.Pattern.ObjectCount - 1 downto 0 do
-    if FDocument.Pattern.Objects[Index] is TPieceObject then
-    begin
-      Piece := TPieceObject(FDocument.Pattern.Objects[Index]);
-      if Piece.PathIndexOf(Target.EdgeKey) < 0 then
-        Continue;
-      if Target.PointKey <> '' then
-        Result := FDocument.Pattern.AddPointNotch(Piece, FDocument.Pattern.UsePoint(Target.PointKey)) or Result
-      else
-        Result := FDocument.Pattern.AddEdgeNotch(Piece, Target.EdgeKey, RoundLengthFormulaText(Target.Position, FDocument.Pattern.Units)) or Result;
-    end;
-end;
-
-// A click on a notch removes it; one on a piece's edge adds one
-procedure TPatternCanvas.ToggleNotchHere(X, Y: integer);
-var
-  At: TVec2;
-  Radius: double;
-begin
-  At := ModelAt(X, Y);
-  Radius := FView.PixelsToMM(SnapRadius);
-  FDocument.BeginChange(rsCanvasRemoveNotch);
-  if FDocument.Commit(RemoveNotchesAt(At, Radius)) then
-    Exit;
-  FDocument.BeginChange(rsCanvasAddNotch);
-  if not FDocument.Commit(AddNotchesAt(At, Radius)) then
-    ShowMessageText(rsCanvasNoSeam);
-end;
-
-function TPatternCanvas.PickingSeam: boolean;
-begin
-  Result := (Length(FSeamA) > 0) or (Length(FSeamB) > 0) or FSeamOnB;
-end;
-
-procedure TPatternCanvas.ClearSeamSides;
-begin
-  FSeamA := nil;
-  FSeamB := nil;
-  FSeamOnB := False;
-end;
-
-procedure TPatternCanvas.ShowSeamProgress;
-const
-  SideNames: array[boolean] of string = ('A', 'B');
-var
-  LengthA, LengthB: double;
-  AUnit: TMeasureUnit;
-begin
-  LengthA := SeamSideLength(FDocument.Pattern, FSeamA);
-  LengthB := SeamSideLength(FDocument.Pattern, FSeamB);
-  AUnit := FDocument.Pattern.Units;
-  ShowMessageText(Format(rsCanvasSeamProgress, [SideNames[FSeamOnB], LengthWithUnit(LengthA, AUnit), LengthWithUnit(LengthB, AUnit),
-    LengthWithUnit(LengthB - LengthA, AUnit)]));
-end;
-
-procedure TPatternCanvas.ToggleSeamEdgeHere(X, Y: integer);
-var
-  Entry: TSeamEntry;
-  Piece: TPieceObject;
-begin
-  if not SeamEntryAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius), Entry) then
-  begin
-    ShowMessageText(rsCanvasNoSeam);
-    Exit;
-  end;
-  Piece := TPieceObject(FDocument.Pattern.FindNode(Entry.PieceKey));
-  if Piece.FoldEdgeKey = Entry.EdgeKey then
-  begin
-    ShowMessageText(Format(rsSeamOnFold, [FDocument.Pattern.FindNode(Entry.EdgeKey).DisplayName, Piece.DisplayName]));
-    Exit;
-  end;
-  if FSeamOnB then
-    ToggleSeamEntry(FSeamB, Entry)
-  else
-    ToggleSeamEntry(FSeamA, Entry);
-  ShowSeamProgress;
-  Invalidate;
-end;
-
-procedure TPatternCanvas.ChangeSeamSide(ToSideB: boolean);
-begin
-  FSeamOnB := ToSideB;
-  ShowSeamProgress;
-end;
-
-procedure TPatternCanvas.MakeSeam;
-var
-  Seam: TSeamObject;
-  Key, Reason: string;
-begin
-  if (Length(FSeamA) = 0) or (Length(FSeamB) = 0) then
-  begin
-    ShowMessageText(rsCanvasSeamSides);
-    Exit;
-  end;
-  FDocument.BeginChange(rsCanvasAddSeam);
-  Seam := FDocument.Pattern.AddSeam('', FSeamA, FSeamB);
-  Key := '';
-  if Assigned(Seam) then
-    Key := Seam.Key;
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Assigned(Seam)) then
-  begin
-    ClearSeamSides;
-    SetSelection([Key]);
-    ShowMessageText(rsCanvasToolSeam);
-  end
-  else
-    ShowMessageText(Reason);
-  Invalidate;
-end;
-
 // Tab would otherwise move the focus to the next control
 procedure TPatternCanvas.CMWantSpecialKey(var Message: TCMWantSpecialKey);
 begin
-  if (Message.CharCode = VK_TAB) and (FTool = ctSeam) then
+  if (Message.CharCode = VK_TAB) and ActiveTool.HandlesKey(VK_TAB) then
     Message.Result := 1
   else
     inherited;
-end;
-
-procedure TPatternCanvas.ClickTool;
-begin
-  case FTool of
-    ctPoint:
-      AddPointHere;
-    ctText:
-      AddNoteHere;
-    ctCallout:
-      if FHasStart then
-        AddCalloutHere
-      else
-        StartCallout;
-    ctLine, ctCurve:
-      if not FHasStart then
-      begin
-        FStartSnap := FSnap;
-        FHasStart := True;
-      end
-      else
-        AddEdgeHere;
-    ctCircle, ctRectangle:
-      if not FHasStart then
-      begin
-        FStartSnap := FSnap;
-        FHasStart := True;
-        if FTool = ctCircle then
-          ShowMessageText(rsCanvasCircleRim)
-        else
-          ShowMessageText(rsCanvasRectangleCorner);
-      end
-      else
-        AddShapeHere;
-  end;
-  Invalidate;
 end;
 
 { Mouse and keys }
@@ -1503,34 +1073,9 @@ begin
       PickHere(X, Y);
     Exit;
   end;
-  if FTool = ctPiece then
-  begin
-    if Button = mbLeft then
-      AddPieceHere(X, Y);
-    Exit;
-  end;
-  if FTool = ctNotch then
-  begin
-    if Button = mbLeft then
-      ToggleNotchHere(X, Y);
-    Exit;
-  end;
-  if FTool = ctSeam then
-  begin
-    if Button = mbLeft then
-      ToggleSeamEdgeHere(X, Y);
-    Exit;
-  end;
   if FTool <> ctSelect then
   begin
-    // Right click stops a line or curve
-    if Button = mbRight then
-      CancelStart
-    else if Button = mbLeft then
-    begin
-      UpdateSnap(X, Y);
-      ClickTool;
-    end;
+    ActiveTool.Press(Pressed, X, Y);
     Exit;
   end;
   if Button = mbRight then
@@ -1571,7 +1116,7 @@ begin
         begin
           FTipDragging := True;
           FInput.Mode := cmDragging;
-          UpdateSnap(X, Y);
+          UpdateTipSnap(X, Y);
         end
         else if FPressHandle then
         begin
@@ -1592,15 +1137,15 @@ begin
         end;
     cmDragging:
       if FTipDragging then
-        UpdateSnap(X, Y)
+        UpdateTipSnap(X, Y)
       else
         DragTo(X, Y);
     cmBoxing:
       Invalidate;
     cmIdle:
-      if Assigned(FDocument) and UsesSnap then
-        UpdateSnap(X, Y)
-      else if Assigned(FDocument) and (FTool = ctSelect) then
+      if Assigned(FDocument) and (FTool <> ctSelect) then
+        ActiveTool.Move(X, Y)
+      else if Assigned(FDocument) then
       begin
         if UpdateHoverHandle(X, Y) then
           Invalidate;
@@ -1748,7 +1293,7 @@ begin
   // the tool or the pattern act mid-gesture: a drag holds an open change.
   if FInput.TakesKeys then
     for KeyTool := Low(TCanvasTool) to High(TCanvasTool) do
-      if (Key <> 0) and (CommandShortCut(ToolCommands[KeyTool]) = ShortCut(Key, Shift)) then
+      if (Key <> 0) and (FToolKeys[KeyTool] = ShortCut(Key, Shift)) then
       begin
         SetTool(KeyTool);
         Key := 0;
@@ -1774,18 +1319,14 @@ begin
         EndPicking;
         ShowMessageText('');
       end
-      else if FHasStart then
-        CancelStart
-      else if PickingSeam then
+      // First what the tool is part way through, then the tool, then the selection
+      else if not ActiveTool.Cancel then
       begin
-        ClearSeamSides;
-        ShowMessageText(rsCanvasToolSeam);
-        Invalidate;
-      end
-      else if FTool <> ctSelect then
-        SetTool(ctSelect)
-      else
-        SelectNone;
+        if FTool <> ctSelect then
+          SetTool(ctSelect)
+        else
+          SelectNone;
+      end;
     VK_DELETE, VK_BACK:
     begin
       // Shift+Delete means Cut elsewhere; deleting would lose what was meant to be kept
@@ -1794,19 +1335,12 @@ begin
       if FInput.TakesKeys then
         DeleteSelection;
     end;
-    VK_TAB:
+    VK_TAB, VK_RETURN:
     begin
-      if FTool <> ctSeam then
+      if not ActiveTool.HandlesKey(Key) then
         Exit;
       if FInput.TakesKeys then
-        ChangeSeamSide(not (ssShift in Shift));
-    end;
-    VK_RETURN:
-    begin
-      if FTool <> ctSeam then
-        Exit;
-      if FInput.TakesKeys then
-        MakeSeam;
+        ActiveTool.KeyDown(Key, Shift);
     end;
     VK_N:
     begin
@@ -1833,9 +1367,10 @@ begin
   inherited MouseLeave;
   if Assigned(FOnCursorLeave) then
     FOnCursorLeave(Self);
-  if FSnapShown then
+  // Both, so the snap goes whichever was shown
+  if ActiveTool.Leave or FTipSnapShown then
   begin
-    FSnapShown := False;
+    FTipSnapShown := False;
     Invalidate;
   end;
 end;
@@ -1938,27 +1473,13 @@ begin
   Result.HoverKey := FHoverKey;
   Result.ShowPieceFills := FShowPieceFills;
   Result.SmallPoints := ShownLabelMode = lmNone;
-  Result.SeamA := FSeamA;
-  Result.SeamB := FSeamB;
   if FTipDragging then
   begin
     Result.DraggedTipKey := FPressKey;
-    Result.DraggedTip := FSnap.Position;
+    Result.DraggedTip := FTipSnap.Position;
   end;
   Result.TipHandles := FTool = ctSelect;
-end;
-
-// What the second click of the tool in use would make
-function TPatternCanvas.SnapPreview: TSnapPreview;
-begin
-  if not FHasStart then
-    Exit(spNone);
-  case FTool of
-    ctCircle: Result := spCircle;
-    ctRectangle: Result := spRectangle;
-    else
-      Result := spLine;
-  end;
+  ActiveTool.AddToPaintState(Result);
 end;
 
 procedure TPatternCanvas.Paint;
@@ -1977,8 +1498,9 @@ begin
     if FTool = ctSelect then
       FPainter.DrawHandles(FHoverHandleField, FHoverHandleEdge);
     FPainter.DrawLabels(ShownLabelKeys);
-    if FSnapShown and ((FTool <> ctSelect) or FTipDragging) then
-      FPainter.DrawSnap(FSnap, SnapPreview, FStartSnap.Position);
+    ActiveTool.Paint(FPainter);
+    if FTipDragging and FTipSnapShown then
+      FPainter.DrawSnap(FTipSnap, spNone, FTipSnap.Position);
     if FInput.Mode = cmBoxing then
       FPainter.DrawBox(FPressPos, FLastPos);
   end;

@@ -26,7 +26,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry, Sloper.Core.Draft,
-  Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.Properties,
+  Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.CanvasTools, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
   Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.Preferences,
@@ -280,17 +280,7 @@ resourcestring
   rsLabelsAll = '&All (hold N)';
   rsLabelsNone = '&None';
   rsMenuTools = '&Tools';
-  rsToolSelect = 'Select';
-  rsToolPoint = 'Point';
-  rsToolLine = 'Line';
-  rsToolCurve = 'Curve';
-  rsToolPiece = 'Piece';
-  rsToolNotch = 'Notch';
-  rsToolSeam = 'Seam';
-  rsToolText = 'Text';
-  rsToolCallout = 'Callout';
   rsMenuToolsSplit = 'Sp&lit Edge';
-  rsToolCircle = 'Circle';
   rsMenuToolsArc = 'A&rc';
   rsMenuToolsEdge = '&Edge';
   rsMenuToolsOffset = 'O&ffset';
@@ -301,7 +291,6 @@ resourcestring
   rsMenuOffsetRight = 'Edge &Right';
   rsMenuOffsetInside = '&Inside Piece';
   rsMenuOffsetOutside = '&Outside Piece';
-  rsToolRectangle = 'Rectangle';
   rsMenuToolsOffsetLeft = 'O&ffset Edge Left';
   rsMenuToolsOffsetRight = 'Offset Edge Ri&ght';
   rsMenuToolsOffsetInside = 'Offset Inside Piece';
@@ -905,14 +894,12 @@ end;
 // TOffsetSide, or Ord(True) for inside a piece.
 procedure TMainForm.CreateToolCommands;
 const
-  ToolIcons: array[TCanvasTool] of TAppIcon = (aiSelect, aiPoint, aiLine, aiCurve, aiCircle, aiRectangle, aiPiece, aiNotch, aiSeam, aiText,
-    aiCallout);
   MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
   TransformIcons: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
 var
   MenuTools, Item: TMenuItem;
   Tool: TCanvasTool;
-  Captions: array[TCanvasTool] of string;
+  Info: TCanvasToolInfo;
   TransformCaptions: array[TTransformKind] of string;
   MarkingCaptions: array[TMarkingKind] of string;
   Marking: TMarkingKind;
@@ -954,24 +941,14 @@ begin
   TransformCaptions[tkRotate] := rsMenuToolsRotate;
   TransformCaptions[tkMirror] := rsMenuToolsMirror;
   TransformCaptions[tkMove] := rsMenuToolsMove;
-  Captions[ctSelect] := rsToolSelect;
-  Captions[ctPoint] := rsToolPoint;
-  Captions[ctLine] := rsToolLine;
-  Captions[ctCurve] := rsToolCurve;
-  Captions[ctPiece] := rsToolPiece;
-  Captions[ctNotch] := rsToolNotch;
-  Captions[ctSeam] := rsToolSeam;
-  Captions[ctCircle] := rsToolCircle;
-  Captions[ctRectangle] := rsToolRectangle;
-  Captions[ctText] := rsToolText;
-  Captions[ctCallout] := rsToolCallout;
   MenuTools := TMenuItem.Create(MainMenu);
   MenuTools.Caption := rsMenuTools;
   MainMenu.Items.Insert(MainMenu.Items.IndexOf(MenuHelp), MenuTools);
   // The canvas reads the tool keys itself, so they are in the caption only
   for Tool := Low(TCanvasTool) to High(TCanvasTool) do
   begin
-    FToolActions[Tool] := NewAction(Format(rsHintKey, [Captions[Tool], ShortcutInfo(ToolCommands[Tool]).Keys]), ToolIcons[Tool], @ToolClick, 0, Ord(Tool));
+    Info := CanvasToolInfo(Tool);
+    FToolActions[Tool] := NewAction(Format(rsHintKey, [Info.Caption, ShortcutInfo(Info.Command).Keys]), Info.Icon, @ToolClick, 0, Ord(Tool));
     FToolActions[Tool].GroupIndex := 1;
     Item := AddMenuItem(MenuTools, FToolActions[Tool]);
     Item.RadioItem := True;

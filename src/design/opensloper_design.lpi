@@ -214,6 +214,11 @@
         <UnitName Value="Sloper.UI.CanvasInput"/>
       </Unit>
       <Unit>
+        <Filename Value="../ui/sloper.ui.canvastools.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.CanvasTools"/>
+      </Unit>
+      <Unit>
         <Filename Value="../ui/sloper.ui.selectionedits.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.SelectionEdits"/>
