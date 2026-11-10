@@ -844,7 +844,7 @@ OpenSloper drafts accessories in fabric and leather (bags, pouches, wallets, hat
 
 **Material sheets** (`kind` `material`): a fabric width or a foam or card board, `materialWidth` by `materialLength` (left out for a roll), printed as one sheet. Use is reported as the length used on a roll, else as the pieces' area against the sheet's. `material` limits a layout to one material by name (material IDs belong to each pattern, and a layout can have several), so each material gets its own cutting layout; other pieces leave the tray, packing, checks and exports, but keep their placements.
 
-**Leather hides** come next, as a step of their own: a hide's outline drawn or traced from a photo, with flaws marked as areas to avoid. Bounding boxes cannot honour an irregular outline, so packing on a hide needs true shapes; until then pieces are placed by hand and checked against the outline.
+**Leather hides** come next, as a step of their own: a hide's outline drawn or traced from a photo, with flaws marked as areas to avoid. Bounding boxes cannot honour an irregular outline, so packing on a hide needs true shapes; until then pieces are placed by hand and checked against the outline - Question: not sure if this is important enought, is there evidence that the comunity will need this?
 
 **Not included.** Fashion drawing is left to Inkscape and Krita. Hardware sizes (rings, buckles, zips) are entered as variables; the Notions library in Future ideas would change that.
 
@@ -873,6 +873,9 @@ Ideas worth keeping that are deliberately outside the roadmap. Each is added onl
 | ISO 8559-1 check | Check catalogue definitions against the standard and add clause references, if the project gains traction |
 | Spread tool | Generates the chain of rotations for slash and spread in one step; see Transforms |
 | Fabric textures and properties | Image textures (e.g. a photo of the actual fabric) for fills and the Blender export; fabric width and nap direction for automatic layout |
+| Leather sizing | Leather hides: outlines drawn or traced from a photo, flaws, packing on true shapes |
+| Material App | Have a similar app to the measurment app, where the user can store a list of materials and their specifications, that can then be used in the design and publish app |
+
 
 ## Roadmap and open questions
 
@@ -895,7 +898,6 @@ Save, load and undo came before the canvas, so the canvas was built on document 
 15. Transforms (done; the ghost preview is left for later)
 16. Accessories: circles and arcs, rectangles, rounded corners, offset edges, internal markings, material allowances (done; rounding curved corners is left)
 17. Cutting machine output and material sheets (done; untried on a real machine, and profiles are edited in the settings file)
-18. Leather hides: outlines drawn or traced from a photo, flaws, packing on true shapes
 19. Blender export for 3D preview
 
 ### Planned
@@ -914,5 +916,7 @@ Agreed but not yet designed in detail or placed in the steps above.
 - **Role styles in Preferences**: overriding a role's colour, dash and weight.
 - **Finding an open publish window**: Publish… opens another window each time, rather than finding the one already open.
 - **Preferences across open apps**: an app already open picks up a preference changed in another only when restarted.
+- **Side Panel Tabs** Move the tabs from the side , to top of each panel, but have only one tab shown at the same time. So similiar to an accordian tab display, the seleted tab and it's panel are shown the other tabs are shown collapsed. Only one selected tab panel is shown at a time.
+
 
 **Open question:** whether `view.pieceOrder` should list every piece or only those moved, and where a piece left out goes when another is brought to front.
