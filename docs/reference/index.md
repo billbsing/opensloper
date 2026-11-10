@@ -16,4 +16,5 @@ the program itself, so they always match the version they were built with.
   apps.
 - [Command line](cli.md): `opensloper-cli` commands, options and exit codes.
 - [Automation API](api.md): the JSON-RPC methods `opensloper-cli serve` answers,
-  for scripts and assistants such as Claude.
+  for scripts and assistants such as Claude, and
+  [`opensloper.py`](opensloper.py), a Python client with a method for each.

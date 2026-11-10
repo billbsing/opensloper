@@ -25,68 +25,75 @@ $ opensloper-cli serve
 It stops at the end of its input (++ctrl+d++ when typing). A request with no
 `id` is a notification: it is carried out and gets no answer.
 
+## The Python client
+
+[`opensloper.py`](../reference/opensloper.py) is a small Python module that
+starts `serve` and gives each method as a Python method, with its parameters
+and their descriptions, so an editor can complete them. It is written from the
+program's own list of methods, so it always matches the version it came with.
+Download it into the folder of your script; it needs Python 3.8 or later and
+nothing else.
+
+- `OpenSloper()` starts `opensloper-cli` from your `PATH`, or the program the
+  `OPENSLOPER_CLI` environment variable names. Use it in a `with` block, which
+  stops the server at the end.
+- Parameters a method needs come first, in order or by name; the others are
+  given by name. The object a method acts on is given by its ID (a number) or
+  its name.
+- `add_point` and `add_edge` take the type's members as named parameters, as on
+  the [operations page](../reference/operations.md).
+- A refused call raises `OpenSloperError`, with the error's `code`, `message`,
+  `field` and `position`.
+- `call("method", {...})` sends any method by name, with its parameters as a
+  dictionary.
+
+Other languages talk to `serve` directly, a line of JSON each way, as
+[How it talks](#how-it-talks) shows.
+
 ## A first script
 
 This Python script drafts half a gathered skirt from the example
 [size table](../getting-started/examples.md), checks it, draws it and saves it.
-Run it in a folder holding a copy of the example `measurements` folder, with
-`opensloper-cli` on your `PATH`.
+Run it in a folder holding `opensloper.py` and a copy of the example
+`measurements` folder, with `opensloper-cli` on your `PATH`.
 
 ```python
 import json
-import subprocess
-import sys
 
-# Start opensloper-cli serve; each request and each answer is one line of JSON
-server = subprocess.Popen(["opensloper-cli", "serve"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-next_id = 0
-
-
-def call(method, **params):
-    global next_id
-    next_id += 1
-    request = {"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}
-    server.stdin.write(json.dumps(request) + "\n")
-    server.stdin.flush()
-    answer = json.loads(server.stdout.readline())
-    if "error" in answer:
-        sys.exit(f"{method} was refused: {answer['error']['message']} {answer['error'].get('data', '')}")
-    return answer["result"]
-
+from opensloper import OpenSloper
 
 # A new pattern in cm that uses the example size table
 with open("gathered-skirt.sloper", "w", encoding="utf-8") as f:
     json.dump({"format": "pattern", "version": 1, "units": "cm",
                "measurementFile": "measurements/size-table.slm"}, f)
-call("open", path="gathered-skirt.sloper", size="12")
 
-call("add_variable", name="fullness", formula="1.5", description="Skirt width at the waist, times the hip")
-call("add_variable", name="hem", formula="4", description="Hem depth, turned up")
+with OpenSloper() as sloper:
+    sloper.open("gathered-skirt.sloper", size="12")
 
-# Half the skirt: a rectangle from the waist at centre front to the hem at the side
-call("add_point", type="freePoint", name="A", x="0", y="0")
-sides = call("add_rectangle", corner="A", width="@hip_circumference / 2 * #fullness",
-             height="@waist_to_knee + #hem", role="outline")
-waist, side, hem, centre = [edge["name"] for edge in sides]
-call("rename", name=waist, newName="Waist")
-call("rename", name=centre, newName="Centre_front")
-call("rename", name=hem, newName="Hem")
+    sloper.add_variable("fullness", "1.5", description="Skirt width at the waist, times the hip")
+    sloper.add_variable("hem", "4", description="Hem depth, turned up")
 
-# Pieces are found from a place inside the outline, given in mm
-call("create_piece", x=50, y=50, name="Skirt", allowance="1.5")
-call("set_fold", name="Skirt", edge="Centre_front")
-call("set_cut", name="Skirt", count=2)
-call("set_edge_allowance", name="Skirt", edge="Hem", allowance="1")
+    # Half the skirt: a rectangle from the waist at centre front to the hem at the side
+    sloper.add_point("freePoint", name="A", x="0", y="0")
+    sides = sloper.add_rectangle("A", "@hip_circumference / 2 * #fullness", "@waist_to_knee + #hem", role="outline")
+    waist, side, hem, centre = [edge["name"] for edge in sides]
+    sloper.rename(waist, "Waist")
+    sloper.rename(centre, "Centre_front")
+    sloper.rename(hem, "Hem")
 
-# Check it, look at it and keep it
-problems = call("evaluate")["problems"]
-print("Problems:", problems or "none")
-print("Waist to gather:", round(call("get_object", name="Waist")["length"]), "mm")
-with open("gathered-skirt.svg", "w", encoding="utf-8") as f:
-    f.write(call("render", labels=True)["svg"])
-call("save")
-server.stdin.close()
-server.wait()
+    # Pieces are found from a place inside the outline, given in mm
+    sloper.create_piece(50, 50, name="Skirt", allowance="1.5")
+    sloper.set_fold("Skirt", edge="Centre_front")
+    sloper.set_cut("Skirt", 2)
+    sloper.set_edge_allowance("Skirt", "Hem", allowance="1")
+
+    # Check it, look at it and keep it
+    problems = sloper.evaluate()["problems"]
+    print("Problems:", problems or "none")
+    print("Waist to gather:", round(sloper.get_object("Waist")["length"]), "mm")
+    with open("gathered-skirt.svg", "w", encoding="utf-8") as f:
+        f.write(sloper.render(labels=True)["svg"])
+    sloper.save()
 ```
 
 It prints:
@@ -132,7 +139,8 @@ nothing is changed:
 { "jsonrpc" : "2.0", "id" : 5, "error" : { "code" : -32000, "message" : "The formula ends too soon", "data" : { "field" : "length", "position" : 5 } } }
 ```
 
-`data` names the field and the place in the formula, counted from 1. Check the
+`data` names the field and the place in the formula, counted from 1; the Python
+client raises it as `OpenSloperError`. Check the
 `code`, not the message, which may be translated: -32000 is a call that was
 understood and refused, such as an unknown name or a formula that does not
 read; the others are listed on the reference page. An object whose formulas

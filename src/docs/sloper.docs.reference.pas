@@ -29,9 +29,10 @@ interface
 
 const
   // A page is written to docs/reference/TOPIC.md, and a schema, whose topic is
-  // its file name, to docs/reference/schemas/TOPIC
-  DocTopics: array[0..8] of string = ('functions', 'operations', 'files', 'shortcuts', 'cli', 'api', 'pattern.schema.json',
-    'measurements.schema.json', 'layout.schema.json');
+  // its file name, to docs/reference/schemas/TOPIC; opensloper.py, the Python
+  // client of the Automation API, to docs/reference/opensloper.py
+  DocTopics: array[0..9] of string = ('functions', 'operations', 'files', 'shortcuts', 'cli', 'api', 'pattern.schema.json',
+    'measurements.schema.json', 'layout.schema.json', 'opensloper.py');
 
 // The page or schema for Topic; False when there is no such topic
 function ReferencePage(const Topic: string; out Markdown: string): boolean;
@@ -197,7 +198,8 @@ implementation
 
 uses
   SysUtils, StrUtils, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Units, Sloper.Core.OperationInfo, Sloper.Core.FileInfo,
-  Sloper.Core.PatternFile, Sloper.Core.Shortcuts, Sloper.API.Server, Sloper.API.Methods, Sloper.CLI.Arguments, Sloper.Docs.Schema;
+  Sloper.Core.PatternFile, Sloper.Core.Shortcuts, Sloper.API.Server, Sloper.API.Methods, Sloper.CLI.Arguments, Sloper.Docs.Schema,
+  Sloper.Docs.Python;
 
 // Characters that would end a table cell or start markup
 function Cell(const Text: string): string;
@@ -586,6 +588,8 @@ begin
     Markdown := FilesPage
   else if Topic = 'shortcuts' then
     Markdown := ShortcutsPage
+  else if Topic = PythonClientTopic then
+    Markdown := PythonClient
   else if Topic.EndsWith(SchemaSuffix) then
     Result := FileSchema(Copy(Topic, 1, Length(Topic) - Length(SchemaSuffix)), Markdown)
   else
@@ -601,6 +605,8 @@ function DocTopicPath(const Topic: string): string;
 begin
   if Topic.EndsWith(SchemaSuffix) then
     Result := 'schemas/' + Topic
+  else if Topic = PythonClientTopic then
+    Result := Topic
   else
     Result := Topic + '.md';
 end;

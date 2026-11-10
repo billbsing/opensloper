@@ -35,6 +35,7 @@ type
     procedure TestEveryFunctionListed;
     procedure TestParserHasEveryOption;
     procedure TestEveryCommandListed;
+    procedure TestPythonClientHasEveryMethod;
     procedure TestExamplePatternsHaveNoProblems;
     procedure TestTutorialImagesDrawWhatExists;
   end;
@@ -43,7 +44,8 @@ implementation
 
 uses
   SysUtils, Classes, ConsoleTools, Sloper.Core.JSON, Sloper.Core.Formula, Sloper.Core.Measurements, Sloper.Core.Pattern,
-  Sloper.Core.PatternFile, Sloper.Core.PatternCheck, Sloper.CLI.Arguments, Sloper.Docs.Reference;
+  Sloper.Core.PatternFile, Sloper.Core.PatternCheck, Sloper.CLI.Arguments, Sloper.Docs.Reference,
+  Sloper.API.Methods, Sloper.Docs.Python;
 
 function DocsFolder: string;
 begin
@@ -126,6 +128,27 @@ begin
   AssertTrue(ReferencePage('cli', Markdown));
   for Command in CliCommands do
     AssertTrue(Command.Name, Pos('### ' + Command.Name + #10, Markdown) > 0);
+end;
+
+procedure TTestDocs.TestPythonClientHasEveryMethod;
+var
+  Python, Reserved: string;
+  Method: TApiMethod;
+begin
+  AssertTrue(ReferencePage(PythonClientTopic, Python));
+  AssertEquals('opensloper.py', DocTopicPath(PythonClientTopic));
+  for Method in ApiMethods do
+  begin
+    AssertTrue(Method.Name, Pos('    def ' + Method.Name + '(', Python) > 0);
+    AssertTrue(Method.Name, Pos('self._send("' + Method.Name + '"', Python) > 0);
+    // The client's own methods keep their names
+    for Reserved in PythonClientReserved do
+      AssertFalse(Method.Name + ' is a name the Python client uses', SameText(Method.Name, Reserved));
+  end;
+  // A target is sent as id or name, and members as given
+  AssertTrue(Pos('return self._send("set_formula", _target(target), {', Python) > 0);
+  AssertTrue(Pos('return self._send("add_point", members, {', Python) > 0);
+  AssertTrue(Pos(#13, Python) = 0);
 end;
 
 // Every file under Folder, in its subfolders too, with this extension
