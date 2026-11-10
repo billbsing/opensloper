@@ -272,6 +272,11 @@
         <UnitName Value="Sloper.Tests.GridColumns"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.propertytext.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.PropertyText"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.settings.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Settings"/>

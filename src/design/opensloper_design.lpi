@@ -314,6 +314,16 @@
         <UnitName Value="Sloper.UI.MaterialGrid"/>
       </Unit>
       <Unit>
+        <Filename Value="../ui/sloper.ui.pieceproperties.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.PieceProperties"/>
+      </Unit>
+      <Unit>
+        <Filename Value="../ui/sloper.ui.propertytext.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.PropertyText"/>
+      </Unit>
+      <Unit>
         <Filename Value="../ui/sloper.ui.materialdialog.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.MaterialDialog"/>

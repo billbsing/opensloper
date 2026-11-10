@@ -21,6 +21,10 @@
 // value on the right. Formulas are shown with names; Enter or leaving a field
 // commits it as one undo step, Escape puts it back. The object is held by its
 // ID, since undo and redo replace the pattern's objects.
+
+// The panel keeps the row layout, the column divider and formula editing;
+// the rows for each kind of object come from section objects, made for the
+// selected object and freed on each rebuild.
 unit Sloper.UI.Properties;
 
 {$mode ObjFPC}{$H+}
@@ -28,9 +32,13 @@ unit Sloper.UI.Properties;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, Spin, Forms, Graphics, LCLType, Sloper.Core.Draft, Sloper.Core.Materials, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Transform, Sloper.Core.Pattern, Sloper.Core.Evaluator, Sloper.Core.Note,
-  Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
+  Classes, SysUtils, Generics.Collections, Controls, StdCtrls, Forms, Graphics, LCLType, Sloper.Core.Draft,
+  Sloper.Core.Evaluator, Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
+
+const
+  // Space above a group of rows, and above a row, in pixels
+  PropertyGap = 6;
+  PropertyRowGap = 3;
 
 type
   // One line of text that cuts itself to the label's width with an ellipsis
@@ -76,9 +84,42 @@ type
     FieldName: string;
   end;
 
-  // A change that adds or removes rows, so it runs once the handler of the
-  // control that asked has returned
-  TQueuedChange = (qcConvertType, qcAddAllowance, qcRemoveAllowance, qcGrain);
+  // Where a section's rows go, top to bottom: every section adds its rows
+  // for one place before any section adds rows for the next
+  TSectionPlace = (spType, spName, spFields, spRows, spResult, spEnd);
+
+  TPropertiesPanel = class;
+
+  // The rows for one kind of object, with their controls, handlers and lists.
+  // The panel makes the sections the selected object needs and frees them on
+  // each rebuild, after freeing the controls, which belong to the panel. A
+  // commit that does not go through BeginEdit, or a queued change, can rebuild
+  // the panel and free the section whose code is running: such code keeps the
+  // panel in a local first and uses only that afterwards.
+  TPropertySection = class
+  private
+    FPanel: TPropertiesPanel;
+  protected
+    // Rows are being filled in, which is not the user changing them
+    FFilling: boolean;
+    property Panel: TPropertiesPanel read FPanel;
+  public
+    constructor Create(APanel: TPropertiesPanel); virtual;
+    procedure Build(Node: TEvalNode; Place: TSectionPlace); virtual; abstract;
+    // Shows the object's values in the rows already built
+    procedure Refresh(Node: TEvalNode); virtual;
+    // A field the section shows in its own rows, which the field rows leave out
+    function OwnsField(Node: TEvalNode; const FieldName: string): boolean; virtual;
+    // The caption of a field's row, or '' for the usual one
+    function FieldRowCaption(Node: TEvalNode; const FieldName: string): string; virtual;
+    // True when the section deals with committing this text to a field itself
+    function TakesCommit(Node: TEvalNode; const FieldName, AText: string): boolean; virtual;
+    // A change the section queued with the panel, now due
+    procedure QueuedChangeDue(Change, Data: integer); virtual;
+  end;
+
+  TPropertySectionClass = class of TPropertySection;
+  TPropertySectionList = specialize TObjectList<TPropertySection>;
 
   TPropertiesPanel = class(TScrollBox)
   private
@@ -88,51 +129,16 @@ type
     FNameShare: double;
     // The fields the controls were built for; a rebuild is needed when they change
     FFieldNames: TStringArray;
+    FSections: TPropertySectionList;
     FDivider: TColumnDivider;
     FRows: array of TFieldRow;
-    FRoleBox: TComboBox;
-    FMarkerBox: TComboBox;
-    // The pieces a marking line prints on
-    FMarkedOnText: TGridLabel;
-    FEndsBox: TComboBox;
-    FCutEdit: TSpinEdit;
-    FMirrorBox: TCheckBox;
-    FFoldBox: TComboBox;
-    // A line, curve or arc's type, which can be changed
-    FTypeBox: TComboBox;
-    // Adds an edge's own seam allowance: one choice per edge without one,
-    // after the prompt, with the path index of each
-    FAllowanceBox: TComboBox;
-    FAllowanceIndexes: array of integer;
-    // The grainline's kind, in the order of TGrainKind, and its two points
-    // when it runs between them: Choose..., then every point by name
-    FGrainBox, FGrainStartBox, FGrainEndBox: TComboBox;
-    FGrainPointKeys: TStringArray;
-    // The object a queued change is for, and the change; one at a time
+    // The object a queued change is for, the section that asked, and the
+    // change; one at a time
     FQueuedKey: string;
-    FQueuedChange: TQueuedChange;
+    FQueuedSection: TPropertySectionClass;
+    FQueuedChange: integer;
     FQueuedData: integer;
     FOnMessage: TPropertiesMessageEvent;
-    // The edge of each fold choice; '' for none
-    FFoldKeys: TStringArray;
-    // One choice per material, then none
-    FMaterialBox: TComboBox;
-    FFillStyleBox: TComboBox;
-    // From the material, the piece's own colour if it has one, then choosing one
-    FFillColorBox: TComboBox;
-    FMadeByText: TGridLabel;
-    FSideAText, FSideBText, FDifferenceText: TGridLabel;
-    // A note's text, size, whether it prints, and what it hangs from
-    FNoteText: TMemo;
-    FNoteSize: TFloatSpinEdit;
-    FNotePrint: TCheckBox;
-    FNoteAnchorText: TGridLabel;
-    FNoteRefusal: TLabel;
-    FNoteLeaderBox, FNoteAlignBox: TComboBox;
-    FNoteBoxCheck: TCheckBox;
-    FFreeButton: TButton;
-    FResult: TGridLabel;
-    FProblem: TLabel;
     FFirstRow: TControl;
     FLastRow: TControl;
     FLastControl: TControl;
@@ -144,29 +150,17 @@ type
     FSwallowEnterUp: boolean;
     // Undo or redo changed the pattern, so even the field being typed in follows it
     FRefreshFocused: boolean;
-    // Rows are being filled in, which is not the user changing them
-    FFilling: boolean;
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
-    // The object shown, or nil
-    function SelectedNode: TEvalNode;
-    // A change made from the panel: the document's notification while it
-    // commits refreshes the values and keeps the controls
-    procedure BeginEdit(const Description: string);
-    // Records the change when Done, else puts the pattern back
-    function EndEdit(Done: boolean; const MergeKey: string = ''): boolean;
-    procedure QueueChange(Change: TQueuedChange; Data: integer);
     procedure QueuedChangeDue(Data: PtrInt);
-    procedure ClearControls;
+    procedure AddSections(Node: TEvalNode);
+    function FindSection(SectionClass: TPropertySectionClass): TPropertySection;
+    procedure FreeRows;
     procedure HangBelowLast(Control: TControl; SpaceAbove: integer);
     procedure Stack(Control: TControl; SpaceAbove: integer);
-    function AddLabel(const ACaption: string; SpaceAbove: integer): TLabel;
-    procedure AddRow(const ACaption: string; Value: TControl; SpaceAbove: integer);
-    function AddTextRow(const ACaption, AText: string; SpaceAbove: integer): TGridLabel;
-    function AddChoiceRow(const ACaption: string; const Items: array of string; Handler: TNotifyEvent; SpaceAbove: integer): TComboBox;
-    function AddEditRow(const ACaption: string; Kind: TFieldRowKind; const FieldName: string): TEdit;
     // The formula row of this field, or -1
     function FormulaRowOf(const FieldName: string): integer;
+    function SectionOwnsField(Node: TEvalNode; const FieldName: string): boolean;
     function ColumnSpace: integer;
     function MinColumn: integer;
     procedure PositionDivider;
@@ -175,7 +169,6 @@ type
     function RefusalRow(Edit: TEdit): TLabel;
     procedure ShowRefusal(Edit: TEdit; const Reason: string);
     procedure ClearRefusal(Edit: TEdit);
-    procedure Rebuild;
     procedure RefreshValues;
     function CurrentFieldNames: TStringArray;
     procedure EditKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
@@ -185,49 +178,7 @@ type
     procedure EditClick(Sender: TObject);
     procedure UpdateCompletion(Edit: TEdit; Explicit: boolean);
     procedure SetEditText(Edit: TEdit; const AText: string);
-    function KeepsText(Edit: TEdit): boolean;
-    procedure RoleChange(Sender: TObject);
-    procedure MarkerChange(Sender: TObject);
-    function MarkedOnText(DraftObject: TDraftObject): string;
-    procedure AddPieceRows(Piece: TPieceObject);
-    procedure AddSeamRows;
-    procedure AddNoteTextRow;
-    procedure AddNoteRows(Note: TNoteObject);
-    procedure RefreshNoteRows(Note: TNoteObject);
-    function NoteAnchorText(Note: TNoteObject): string;
-    procedure CommitNoteText;
-    procedure NoteTextExit(Sender: TObject);
-    procedure NoteTextKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
-    procedure NoteSizeChange(Sender: TObject);
-    procedure NotePrintClick(Sender: TObject);
-    procedure NoteLookChange(Sender: TObject);
-    procedure FreeClick(Sender: TObject);
-    procedure RefreshSeamRows(Seam: TSeamObject);
-    procedure FlipClick(Sender: TObject);
-    procedure AddRepeatRows(ARepeat: TRepeatObject);
-    procedure EndsChange(Sender: TObject);
     function EditableKey(const Key: string): string;
-    procedure RefreshPieceRows(Piece: TPieceObject);
-    procedure CutChange(Sender: TObject);
-    procedure FoldChange(Sender: TObject);
-    procedure TypeChange(Sender: TObject);
-    // ItemIndex is the type box's choice
-    procedure ConvertType(ItemIndex: integer);
-    procedure AllowanceChange(Sender: TObject);
-    // Added with the piece's allowance, or removed
-    procedure AddEdgeAllowance(PathIndex: integer);
-    procedure RemoveEdgeAllowance(PathIndex: integer);
-    function FieldRowCaption(Node: TEvalNode; const FieldName: string): string;
-    procedure AddGrainRows(Piece: TPieceObject);
-    procedure RefreshGrainRows(Piece: TPieceObject);
-    procedure GrainChange(Sender: TObject);
-    procedure ChangeGrain(Kind: TGrainKind);
-    procedure MaterialChange(Sender: TObject);
-    procedure FillStyleChange(Sender: TObject);
-    procedure FillColorChange(Sender: TObject);
-    procedure ChangePieceFill(const AColor: string; Style: TPieceFillStyle);
-    procedure RefreshMaterialRows(Piece: TPieceObject);
-    procedure RefreshTransformRows(Node: TEvalNode);
     procedure CommitEdit(Edit: TEdit);
     function OriginalText(Edit: TEdit): string;
   protected
@@ -246,6 +197,39 @@ type
     property NameShare: double read FNameShare write SetNameShare;
     // Says why a change was refused
     property OnMessage: TPropertiesMessageEvent read FOnMessage write FOnMessage;
+
+    { For the sections }
+
+    // The key of the object shown, or ''
+    property SelectedKey: string read FKey;
+    // The object shown, or nil
+    function SelectedNode: TEvalNode;
+    // Builds every row again for the object shown
+    procedure Rebuild;
+    // A change made from the panel: the document's notification while it
+    // commits refreshes the values and keeps the controls
+    procedure BeginEdit(const Description: string);
+    // Records the change when Done, else puts the pattern back
+    function EndEdit(Done: boolean; const MergeKey: string = ''): boolean;
+    // A change that adds or removes rows, so it runs once the handler of the
+    // control that asked has returned, through the section's QueuedChangeDue.
+    // A later change replaces one still waiting.
+    procedure QueueChange(Section: TPropertySection; Change, Data: integer);
+    // Says why a change was refused, through OnMessage
+    procedure Report(const AText: string);
+    // A field being typed in keeps its text, unless undo or redo changed the pattern
+    function KeepsText(Control: TWinControl): boolean;
+    // A change from the panel is being committed
+    property Committing: boolean read FCommitting;
+    function AddLabel(const ACaption: string; SpaceAbove: integer): TLabel;
+    procedure AddRow(const ACaption: string; Value: TControl; SpaceAbove: integer);
+    function AddTextRow(const ACaption, AText: string; SpaceAbove: integer): TGridLabel;
+    // Items in the order of the value they stand for; the handler is set after
+    // them, and the caller sets the choice
+    function AddChoiceRow(const ACaption: string; const Items: array of string; Handler: TNotifyEvent; SpaceAbove: integer): TComboBox;
+    function AddEditRow(const ACaption: string; Kind: TFieldRowKind; const FieldName: string): TEdit;
+    // Puts the cursor in this field's row, with its text selected
+    procedure FocusFormulaRow(const FieldName: string);
   end;
 
 // What a role is called in the app
@@ -273,8 +257,6 @@ resourcestring
   rsPropSkiveRole = 'Skive line';
   rsPropEdgeFinishRole = 'Edge finish';
   rsPropMarkedOn = 'Marked on';
-  rsPropMarkedOnNone = 'No piece';
-  rsPropNotMarking = '-';
   rsPropMarker = 'Marker';
   rsPropMarkerPlain = 'Plain';
   rsPropMarkerHole = 'Hole';
@@ -287,10 +269,6 @@ resourcestring
   rsPropNotePrint = 'Print';
   rsPropNotePrintCaption = 'Print and export it';
   rsPropNoteAnchor = 'Hangs from';
-  rsPropNoteAnchorPoint = 'Point %s';
-  rsPropNoteAnchorEdge = '%s';
-  rsPropNoteAnchorPiece = 'Piece %s';
-  rsPropNoteAnchorFree = 'Nothing (free)';
   rsPropNoteFree = 'Make free';
   rsPropNoteFreeHint = 'Unhook the note, leaving it where it is, so what it hangs from can be deleted';
   rsPropChangeNoteText = 'Change note text';
@@ -319,37 +297,7 @@ resourcestring
   rsPropDirection = 'Direction';
   rsPropFlip = 'Flip';
   rsPropFlipSeam = 'Flip seam';
-  rsPropCut = 'Cut';
-  rsPropMirrored = 'Mirrored';
-  rsPropFold = 'Fold';
-  rsPropMaterial = 'Material';
-  rsPropNoMaterial = 'None';
-  rsPropChangeMaterial = 'Change material';
-  rsPropFillStyle = 'Fill';
-  rsPropFillColor = 'Colour';
-  rsPropFromMaterial = 'From material';
-  rsPropFillTint = 'Tint';
-  rsPropFillHatch = 'Hatching';
-  rsPropChooseColor = 'Choose…';
-  rsPropChangeFill = 'Change fill';
   rsPropMadeBy = 'Made by';
-  rsPropNoFold = 'None';
-  rsPropGrainline = 'Grainline';
-  rsPropGrainNone = 'None';
-  rsPropGrainAngle = 'At an angle';
-  rsPropGrainPoints = 'Between two points';
-  rsPropGrainFrom = 'Grainline from';
-  rsPropGrainTo = 'Grainline to';
-  rsPropGrainChoose = 'Choose...';
-  rsPropChangeGrainline = 'Change grainline';
-  rsPropOwnAllowance = 'Own allowance';
-  rsPropOwnAllowancePrompt = 'Add for an edge...';
-  rsPropOwnAllowanceHint = 'Give one edge its own seam allowance; empty its row to go back to the piece''s';
-  rsPropEdgeAllowance = 'Allowance, %s';
-  rsPropAddEdgeAllowance = 'Add edge allowance';
-  rsPropRemoveEdgeAllowance = 'Remove edge allowance';
-  rsPropChangeCut = 'Change cut';
-  rsPropChangeFold = 'Change fold';
   rsPropChangeType = 'Change edge type';
   rsPropEdit = 'Change %s';
   rsPropRename = 'Rename';
@@ -358,8 +306,98 @@ resourcestring
 implementation
 
 uses
-  Math, Sloper.Core.EvalTypes, Sloper.Core.Settings,
-  Sloper.UI.MaterialGrid, Sloper.UI.GridColumns, Sloper.UI.ObjectList;
+  Math, Spin, Sloper.Core.EvalTypes, Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
+  Sloper.Core.Note, Sloper.Core.Settings, Sloper.UI.GridColumns, Sloper.UI.ObjectList, Sloper.UI.PieceProperties, Sloper.UI.PropertyText;
+
+type
+  // Rows every object has: type, name and formula fields first; what made a
+  // copy, the result and the problem last
+  TCommonSection = class(TPropertySection)
+  private
+    FMadeByText: TGridLabel;
+    FResult: TGridLabel;
+    FProblem: TLabel;
+    procedure AddFieldRows(Node: TEvalNode);
+    procedure AddResultRows(Node: TEvalNode);
+  public
+    procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
+    procedure Refresh(Node: TEvalNode); override;
+  end;
+
+  // A line, curve or arc: its type when it can change, its role and the
+  // pieces it is marked on
+  TEdgeSection = class(TPropertySection)
+  private
+    FTypeBox: TComboBox;
+    FRoleBox: TComboBox;
+    FMarkedOnText: TGridLabel;
+    procedure TypeChange(Sender: TObject);
+    // ItemIndex is the type box's choice
+    procedure ConvertType(ItemIndex: integer);
+    procedure RoleChange(Sender: TObject);
+  public
+    procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
+    procedure Refresh(Node: TEvalNode); override;
+    procedure QueuedChangeDue(Change, Data: integer); override;
+  end;
+
+  // A point's or repeat's marker, its size, and the pieces it is marked on
+  TMarkerSection = class(TPropertySection)
+  private
+    FMarkerBox: TComboBox;
+    FMarkedOnText: TGridLabel;
+    procedure MarkerChange(Sender: TObject);
+  public
+    procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
+    procedure Refresh(Node: TEvalNode); override;
+    function OwnsField(Node: TEvalNode; const FieldName: string): boolean; override;
+  end;
+
+  // What a repeat runs between or along, and whether it includes the ends
+  TRepeatSection = class(TPropertySection)
+  private
+    FEndsBox: TComboBox;
+    procedure EndsChange(Sender: TObject);
+  public
+    procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
+    procedure Refresh(Node: TEvalNode); override;
+  end;
+
+  // A seam's sides, its direction, and the difference in their lengths
+  TSeamSection = class(TPropertySection)
+  private
+    FSideAText, FSideBText, FDifferenceText: TGridLabel;
+    procedure FlipClick(Sender: TObject);
+  public
+    procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
+    procedure Refresh(Node: TEvalNode); override;
+  end;
+
+  // A note's text, size, whether it prints, its look, and what it hangs from
+  TNoteSection = class(TPropertySection)
+  private
+    FNoteText: TMemo;
+    FNoteRefusal: TLabel;
+    FNoteSize: TFloatSpinEdit;
+    FNotePrint: TCheckBox;
+    FNoteAnchorText: TGridLabel;
+    FNoteLeaderBox, FNoteAlignBox: TComboBox;
+    FNoteBoxCheck: TCheckBox;
+    procedure AddTextRow;
+    procedure AddRows(Note: TNoteObject);
+    procedure CommitText;
+    procedure TextExit(Sender: TObject);
+    procedure TextKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
+    procedure SizeChange(Sender: TObject);
+    procedure PrintClick(Sender: TObject);
+    procedure LookChange(Sender: TObject);
+    procedure FreeClick(Sender: TObject);
+  public
+    procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
+    procedure Refresh(Node: TEvalNode); override;
+    function OwnsField(Node: TEvalNode; const FieldName: string): boolean; override;
+    procedure FocusText;
+  end;
 
 function RoleCaption(Role: TEdgeRole): string;
 begin
@@ -377,16 +415,15 @@ begin
 end;
 
 const
-  Gap = 6;
-  RowGap = 3;
   Indent = 8;
   // At 96 pixels per inch
   DividerWidth96 = 8;
   MinColumn96 = 48;
-  MaxCutCount = 99;
   // A note's text field, at 96 pixels per inch
   NoteTextHeight96 = 64;
   NoteSizeStep = 1;
+  // The edge section's queued change
+  QueuedConvertType = 0;
 
 // A note's draft value field: value1, value2
 function IsNoteValue(const FieldName: string): boolean;
@@ -405,6 +442,12 @@ begin
     if First[Index] <> Second[Index] then
       Exit(False);
   Result := True;
+end;
+
+// A line, curve or arc the user drew can change type; copies and parts follow other edges
+function CanChangeType(Node: TEvalNode): boolean;
+begin
+  Result := (Node.ClassType = TLineObject) or (Node.ClassType = TCurveObject) or (Node.ClassType = TArcObject);
 end;
 
 { TGridLabel }
@@ -472,6 +515,37 @@ begin
     FDragging := False;
 end;
 
+{ TPropertySection }
+
+constructor TPropertySection.Create(APanel: TPropertiesPanel);
+begin
+  inherited Create;
+  FPanel := APanel;
+end;
+
+procedure TPropertySection.Refresh(Node: TEvalNode);
+begin
+end;
+
+function TPropertySection.OwnsField(Node: TEvalNode; const FieldName: string): boolean;
+begin
+  Result := False;
+end;
+
+function TPropertySection.FieldRowCaption(Node: TEvalNode; const FieldName: string): string;
+begin
+  Result := '';
+end;
+
+function TPropertySection.TakesCommit(Node: TEvalNode; const FieldName, AText: string): boolean;
+begin
+  Result := False;
+end;
+
+procedure TPropertySection.QueuedChangeDue(Change, Data: integer);
+begin
+end;
+
 { TPropertiesPanel }
 
 constructor TPropertiesPanel.Create(AOwner: TComponent);
@@ -480,14 +554,17 @@ begin
   BorderStyle := bsNone;
   FNameShare := DefaultNameColumnShare;
   HorzScrollBar.Visible := False;
+  FSections := TPropertySectionList.Create(True);
   Rebuild;
 end;
 
+// The sections go after the controls, whose events may still reach them
 destructor TPropertiesPanel.Destroy;
 begin
   Application.RemoveAsyncCalls(Self);
   SetDocument(nil);
   inherited Destroy;
+  FreeAndNil(FSections);
 end;
 
 procedure TPropertiesPanel.SetDocument(ADocument: TPatternDocument);
@@ -570,33 +647,48 @@ begin
   end;
 end;
 
-// A later change replaces one still waiting, so the first call to come runs
-// the latest and any other finds nothing to do
-procedure TPropertiesPanel.QueueChange(Change: TQueuedChange; Data: integer);
+procedure TPropertiesPanel.Report(const AText: string);
+begin
+  if Assigned(FOnMessage) then
+    FOnMessage(Self, AText);
+end;
+
+// The section is found again by its class when the change is due, since a
+// rebuild in between frees the one that asked
+procedure TPropertiesPanel.QueueChange(Section: TPropertySection; Change, Data: integer);
 begin
   FQueuedKey := FKey;
+  FQueuedSection := TPropertySectionClass(Section.ClassType);
   FQueuedChange := Change;
   FQueuedData := Data;
   Application.QueueAsyncCall(@QueuedChangeDue, 0);
 end;
 
-// Only for the object still shown
+// Only for the object still shown; the first call to come runs the latest
+// change and any other finds nothing to do
 procedure TPropertiesPanel.QueuedChangeDue(Data: PtrInt);
+var
+  Section: TPropertySection;
 begin
   if not Assigned(FDocument) or (FQueuedKey = '') or (FQueuedKey <> FKey) then
     Exit;
   FQueuedKey := '';
-  case FQueuedChange of
-    qcConvertType: ConvertType(FQueuedData);
-    qcAddAllowance: AddEdgeAllowance(FQueuedData);
-    qcRemoveAllowance: RemoveEdgeAllowance(FQueuedData);
-    qcGrain: ChangeGrain(TGrainKind(FQueuedData));
-  end;
+  Section := FindSection(FQueuedSection);
+  if Assigned(Section) then
+    Section.QueuedChangeDue(FQueuedChange, FQueuedData);
 end;
 
-function TPropertiesPanel.KeepsText(Edit: TEdit): boolean;
+function TPropertiesPanel.FindSection(SectionClass: TPropertySectionClass): TPropertySection;
 begin
-  Result := Edit.Focused and not FRefreshFocused;
+  for Result in FSections do
+    if Result.ClassType = SectionClass then
+      Exit;
+  Result := nil;
+end;
+
+function TPropertiesPanel.KeepsText(Control: TWinControl): boolean;
+begin
+  Result := Control.Focused and not FRefreshFocused;
 end;
 
 function TPropertiesPanel.CurrentFieldNames: TStringArray;
@@ -613,54 +705,43 @@ begin
     Result[Index] := Node.Fields[Index].Name;
 end;
 
-procedure TPropertiesPanel.ClearControls;
+// The sections for this object, in the order their rows go in each place
+procedure TPropertiesPanel.AddSections(Node: TEvalNode);
+begin
+  FSections.Add(TCommonSection.Create(Self));
+  if Node is TEdgeObject then
+    FSections.Add(TEdgeSection.Create(Self));
+  // A repeat's points share the repeat's marker
+  if ((Node is TPointObject) and not (Node is TRepeatPoint)) or (Node is TRepeatObject) then
+    FSections.Add(TMarkerSection.Create(Self));
+  if Node is TRepeatObject then
+    FSections.Add(TRepeatSection.Create(Self));
+  if Node is TPieceObject then
+    FSections.Add(TPieceSection.Create(Self));
+  if Node is TSeamObject then
+    FSections.Add(TSeamSection.Create(Self));
+  if Node is TNoteObject then
+    FSections.Add(TNoteSection.Create(Self));
+end;
+
+// The controls go before the sections whose handlers they call. A focused
+// field being freed would run its exit handler and commit mid-rebuild.
+procedure TPropertiesPanel.FreeRows;
 var
-  Row: TFieldRow;
+  Index: integer;
 begin
   if Assigned(FCompleter) then
     FCompleter.Hide;
-  // Freeing a focused edit would run its exit handler and commit mid-rebuild
-  for Row in FRows do
-    Row.Edit.OnExit := nil;
+  for Index := 0 to ControlCount - 1 do
+    if Controls[Index] is TEdit then
+      TEdit(Controls[Index]).OnExit := nil
+    else if Controls[Index] is TMemo then
+      TMemo(Controls[Index]).OnExit := nil;
   while ControlCount > 0 do
     Controls[0].Free;
+  FSections.Clear;
   FDivider := nil;
   FRows := nil;
-  FRoleBox := nil;
-  FMarkerBox := nil;
-  FMarkedOnText := nil;
-  FEndsBox := nil;
-  FCutEdit := nil;
-  FMirrorBox := nil;
-  FFoldBox := nil;
-  FAllowanceBox := nil;
-  FAllowanceIndexes := nil;
-  FGrainBox := nil;
-  FGrainStartBox := nil;
-  FGrainEndBox := nil;
-  FGrainPointKeys := nil;
-  FTypeBox := nil;
-  FFoldKeys := nil;
-  FMaterialBox := nil;
-  FFillStyleBox := nil;
-  FFillColorBox := nil;
-  FMadeByText := nil;
-  FSideAText := nil;
-  FSideBText := nil;
-  FDifferenceText := nil;
-  if Assigned(FNoteText) then
-    FNoteText.OnExit := nil;
-  FNoteText := nil;
-  FNoteSize := nil;
-  FNotePrint := nil;
-  FNoteAnchorText := nil;
-  FNoteRefusal := nil;
-  FNoteLeaderBox := nil;
-  FNoteAlignBox := nil;
-  FNoteBoxCheck := nil;
-  FFreeButton := nil;
-  FResult := nil;
-  FProblem := nil;
   FFirstRow := nil;
   FLastRow := nil;
   FLastControl := nil;
@@ -747,8 +828,6 @@ begin
   AddRow(ACaption, Result, SpaceAbove);
 end;
 
-// Items in the order of the value they stand for; the handler is set after
-// them, and the caller sets the choice
 function TPropertiesPanel.AddChoiceRow(const ACaption: string; const Items: array of string; Handler: TNotifyEvent;
   SpaceAbove: integer): TComboBox;
 var
@@ -778,8 +857,8 @@ begin
   Result.OnKeyUp := @EditKeyUp;
   Result.OnChange := @EditChange;
   Result.OnClick := @EditClick;
-  AddRow(ACaption, Result, RowGap);
-  FRows[Index].Refusal := AddLabel('', RowGap);
+  AddRow(ACaption, Result, PropertyRowGap);
+  FRows[Index].Refusal := AddLabel('', PropertyRowGap);
   FRows[Index].Refusal.Font.Color := clRed;
   FRows[Index].Refusal.Visible := False;
 end;
@@ -790,6 +869,27 @@ begin
     if (FRows[Result].Kind = frFormula) and (FRows[Result].FieldName = FieldName) then
       Exit;
   Result := -1;
+end;
+
+procedure TPropertiesPanel.FocusFormulaRow(const FieldName: string);
+var
+  RowIndex: integer;
+begin
+  RowIndex := FormulaRowOf(FieldName);
+  if RowIndex < 0 then
+    Exit;
+  FRows[RowIndex].Edit.SetFocus;
+  FRows[RowIndex].Edit.SelectAll;
+end;
+
+function TPropertiesPanel.SectionOwnsField(Node: TEvalNode; const FieldName: string): boolean;
+var
+  Section: TPropertySection;
+begin
+  for Section in FSections do
+    if Section.OwnsField(Node, FieldName) then
+      Exit(True);
+  Result := False;
 end;
 
 // The width the two columns share
@@ -846,93 +946,30 @@ end;
 procedure TPropertiesPanel.Rebuild;
 var
   Node: TEvalNode;
-  Index: integer;
-  Role: TEdgeRole;
-  RoleNames: TStringArray;
+  Place: TSectionPlace;
+  Section: TPropertySection;
 begin
   DisableAlign;
   try
-    ClearControls;
+    FreeRows;
     FFieldNames := CurrentFieldNames;
     Node := SelectedNode;
     if not Assigned(Node) then
     begin
       if FSelectionCount > 1 then
-        AddLabel(Format(rsPropMany, [FSelectionCount]), Gap)
+        AddLabel(Format(rsPropMany, [FSelectionCount]), PropertyGap)
       else
-        AddLabel(rsPropNothing, Gap);
+        AddLabel(rsPropNothing, PropertyGap);
       Exit;
     end;
     FDivider := TColumnDivider.Create(Self);
     FDivider.Width := Scale96ToForm(DividerWidth96);
     FDivider.Parent := Self;
     FDivider.OnDrag := @DividerDrag;
-    // A line, curve or arc the user drew can change type; copies and parts follow other edges
-    if (Node.ClassType = TLineObject) or (Node.ClassType = TCurveObject) or (Node.ClassType = TArcObject) then
-    begin
-      if Node is TArcObject then
-        FTypeBox := AddChoiceRow(rsPropType, [rsTypeArc, rsTypeLine], nil, Gap)
-      else
-        FTypeBox := AddChoiceRow(rsPropType, [rsTypeLine, rsTypeCurve], nil, Gap);
-      FTypeBox.ItemIndex := FTypeBox.Items.IndexOf(TypeCaption(Node));
-      FTypeBox.OnChange := @TypeChange;
-    end
-    else
-      AddTextRow(rsPropType, TypeCaption(Node), Gap);
-    if Node is TRepeatPoint then
-      AddTextRow(rsPropName, TRepeatPoint(Node).Name, RowGap)
-    else if Node is TDraftObject then
-      AddEditRow(rsPropName, frName, '');
-    if Node is TNoteObject then
-      AddNoteTextRow;
-    // A marker's size goes under the marker, and a piece's grainline angle
-    // under the grainline
-    for Index := 0 to Node.FieldCount - 1 do
-      if (Node.Fields[Index].Name <> MarkerSizeField) and not ((Node is TPieceObject) and (Node.Fields[Index].Name = GrainAngleField)) and
-        not ((Node is TNoteObject) and IsNoteValue(Node.Fields[Index].Name)) then
-        AddEditRow(FieldRowCaption(Node, Node.Fields[Index].Name), frFormula, Node.Fields[Index].Name);
-    if Node is TEdgeObject then
-    begin
-      RoleNames := nil;
-      for Role := Low(TEdgeRole) to High(TEdgeRole) do
-        Insert(RoleCaption(Role), RoleNames, Length(RoleNames));
-      FRoleBox := AddChoiceRow(rsPropRole, RoleNames, @RoleChange, RowGap);
-      FMarkedOnText := AddTextRow(rsPropMarkedOn, '', RowGap);
-    end;
-    // A repeat's points share the repeat's marker
-    if ((Node is TPointObject) and not (Node is TRepeatPoint)) or (Node is TRepeatObject) then
-    begin
-      // In the order of TPointMarker
-      FMarkerBox := AddChoiceRow(rsPropMarker, [rsPropMarkerPlain, rsPropMarkerHole, rsPropMarkerButton, rsPropMarkerMatch], @MarkerChange, RowGap);
-      for Index := 0 to Node.FieldCount - 1 do
-        if Node.Fields[Index].Name = MarkerSizeField then
-          AddEditRow(FieldCaption(MarkerSizeField), frFormula, MarkerSizeField);
-      FMarkedOnText := AddTextRow(rsPropMarkedOn, '', RowGap);
-    end;
-    if Node is TRepeatObject then
-      AddRepeatRows(TRepeatObject(Node));
-    if Node is TPieceObject then
-      AddPieceRows(TPieceObject(Node));
-    if Node is TSeamObject then
-      AddSeamRows;
-    if Node is TNoteObject then
-      AddNoteRows(TNoteObject(Node));
-    if CopyTransformKey(Node) <> '' then
-      FMadeByText := AddTextRow(rsPropMadeBy, '', RowGap);
-    if Node is TPointObject then
-      FResult := AddTextRow(rsPropPosition, '', Gap)
-    else if Node is TEdgeObject then
-      FResult := AddTextRow(rsPropLength, '', Gap)
-    else if Node is TPieceObject then
-      FResult := AddTextRow(rsPropPerimeter, '', Gap)
-    else if Node is TSeamObject then
-      FResult := AddTextRow(rsPropSeamLengths, '', Gap)
-    else if Node is TNoteObject then
-      FResult := AddTextRow(rsPropPosition, '', Gap);
-    if Node is TSeamObject then
-      FDifferenceText := AddTextRow(rsPropSeamDifference, '', RowGap);
-    FProblem := AddLabel('', Gap);
-    FProblem.Font.Color := clRed;
+    AddSections(Node);
+    for Place := Low(TSectionPlace) to High(TSectionPlace) do
+      for Section in FSections do
+        Section.Build(Node, Place);
     FDivider.Anchors := [akLeft, akTop, akBottom];
     FDivider.AnchorSideTop.Control := FFirstRow;
     FDivider.AnchorSideTop.Side := asrTop;
@@ -964,6 +1001,7 @@ procedure TPropertiesPanel.RefreshValues;
 var
   Node: TEvalNode;
   Row: TFieldRow;
+  Section: TPropertySection;
 begin
   Node := SelectedNode;
   if not Assigned(Node) then
@@ -976,39 +1014,15 @@ begin
       if not FCommitting then
         ClearRefusal(Row.Edit);
     end;
-  if Assigned(FRoleBox) then
-    FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
-  if Assigned(FMarkerBox) then
-    FMarkerBox.ItemIndex := Ord(TDraftObject(Node).Marker);
-  if Assigned(FMarkedOnText) then
-    FMarkedOnText.Caption := MarkedOnText(TDraftObject(Node));
-  if Assigned(FEndsBox) then
-    FEndsBox.ItemIndex := Ord(not TRepeatObject(Node).IncludeEnds);
-  if Node is TPieceObject then
-    RefreshPieceRows(TPieceObject(Node));
-  if Node is TSeamObject then
-    RefreshSeamRows(TSeamObject(Node));
-  if Node is TNoteObject then
-    RefreshNoteRows(TNoteObject(Node));
-  RefreshTransformRows(Node);
-  if Assigned(FResult) then
-    if (Node is TNoteObject) and Node.HasResult then
-      FResult.Caption := PositionText(TNoteObject(Node).Position, FDocument.Pattern.Units)
-    else if Node is TDraftObject then
-      FResult.Caption := ResultText(TDraftObject(Node), FDocument.Pattern.Units)
-    else
-      FResult.Caption := '';
-  if Assigned(FProblem) and not FCommitting then
-    if Node.State = esValid then
-      FProblem.Caption := ''
-    else
-      FProblem.Caption := Node.Message;
+  for Section in FSections do
+    Section.Refresh(Node);
 end;
 
 procedure TPropertiesPanel.CommitEdit(Edit: TEdit);
 var
   Node: TEvalNode;
   Row: TFieldRow;
+  Section: TPropertySection;
   Reason: string;
   ErrorPos: integer;
   Done: boolean;
@@ -1022,14 +1036,10 @@ begin
     Exit;
   end;
   Row := FRows[Edit.Tag];
-  // Emptying an edge's own allowance removes it, which takes its row away,
-  // so it waits until this edit's handler has returned
-  if (Row.Kind = frFormula) and (Node is TPieceObject) and (Trim(Edit.Text) = '') and
-    (TPieceObject(Node).OverridePathIndex(Row.FieldName) >= 0) then
-  begin
-    QueueChange(qcRemoveAllowance, TPieceObject(Node).OverridePathIndex(Row.FieldName));
-    Exit;
-  end;
+  if Row.Kind = frFormula then
+    for Section in FSections do
+      if Section.TakesCommit(Node, Row.FieldName, Edit.Text) then
+        Exit;
   if Row.Kind = frName then
   begin
     BeginEdit(rsPropRename);
@@ -1111,12 +1121,12 @@ begin
 end;
 
 procedure TPropertiesPanel.FocusNoteText;
+var
+  Section: TPropertySection;
 begin
-  if Assigned(FNoteText) and FNoteText.CanFocus then
-  begin
-    FNoteText.SetFocus;
-    FNoteText.SelectAll;
-  end;
+  Section := FindSection(TNoteSection);
+  if Assigned(Section) then
+    TNoteSection(Section).FocusText;
 end;
 
 procedure TPropertiesPanel.FocusName;
@@ -1167,718 +1177,551 @@ begin
     FCompleter.Hide;
 end;
 
-procedure TPropertiesPanel.AddSeamRows;
-var
-  Flip: TButton;
-begin
-  FSideAText := AddTextRow(rsPropSideA, '', RowGap);
-  FSideBText := AddTextRow(rsPropSideB, '', RowGap);
-  Flip := TButton.Create(Self);
-  Flip.Caption := rsPropFlip;
-  Flip.OnClick := @FlipClick;
-  AddRow(rsPropDirection, Flip, RowGap);
-end;
+{ TCommonSection }
 
-// Enter adds a line; leaving the field commits it as one undo step
-procedure TPropertiesPanel.AddNoteTextRow;
+procedure TCommonSection.Build(Node: TEvalNode; Place: TSectionPlace);
 begin
-  FNoteText := TMemo.Create(Self);
-  FNoteText.Height := Scale96ToForm(NoteTextHeight96);
-  FNoteText.ScrollBars := ssAutoVertical;
-  FNoteText.WantReturns := True;
-  FNoteText.WordWrap := False;
-  FNoteText.OnExit := @NoteTextExit;
-  FNoteText.OnKeyDown := @NoteTextKeyDown;
-  FNoteText.Hint := rsPropNoteTextHint;
-  FNoteText.ShowHint := True;
-  AddRow(rsPropNoteText, FNoteText, RowGap);
-  FNoteRefusal := AddLabel('', RowGap);
-  FNoteRefusal.Font.Color := clRed;
-  FNoteRefusal.WordWrap := True;
-  FNoteRefusal.Visible := False;
-end;
-
-procedure TPropertiesPanel.AddNoteRows(Note: TNoteObject);
-begin
-  FNoteSize := TFloatSpinEdit.Create(Self);
-  FNoteSize.MinValue := NoteSizeStep;
-  FNoteSize.MaxValue := MaxNoteSize;
-  FNoteSize.Increment := NoteSizeStep;
-  FNoteSize.DecimalPlaces := 1;
-  FNoteSize.OnChange := @NoteSizeChange;
-  AddRow(rsPropNoteSize, FNoteSize, RowGap);
-  FNotePrint := TCheckBox.Create(Self);
-  FNotePrint.Caption := rsPropNotePrintCaption;
-  FNotePrint.OnClick := @NotePrintClick;
-  AddRow(rsPropNotePrint, FNotePrint, RowGap);
-  // In the order of TTextAlign
-  FNoteAlignBox := AddChoiceRow(rsPropNoteAlign, [rsPropNoteAlignLeft, rsPropNoteAlignCentre, rsPropNoteAlignRight], @NoteLookChange, RowGap);
-  FNoteBoxCheck := TCheckBox.Create(Self);
-  FNoteBoxCheck.Caption := rsPropNoteBoxCaption;
-  FNoteBoxCheck.OnClick := @NoteLookChange;
-  AddRow(rsPropNoteBox, FNoteBoxCheck, RowGap);
-  // A free note has nothing to point at
-  if Note.Anchor <> naFree then
-    // In the order of TNoteLeader
-    FNoteLeaderBox := AddChoiceRow(rsPropNoteLeader, [rsPropNoteLeaderNone, rsPropNoteLeaderArrow, rsPropNoteLeaderDot, rsPropNoteLeaderLine],
-      @NoteLookChange, RowGap);
-  FNoteAnchorText := AddTextRow(rsPropNoteAnchor, '', RowGap);
-  if Note.Anchor <> naFree then
-  begin
-    FFreeButton := TButton.Create(Self);
-    FFreeButton.Caption := rsPropNoteFree;
-    FFreeButton.Hint := rsPropNoteFreeHint;
-    FFreeButton.ShowHint := True;
-    FFreeButton.OnClick := @FreeClick;
-    AddRow('', FFreeButton, RowGap);
-  end;
-end;
-
-function TPropertiesPanel.NoteAnchorText(Note: TNoteObject): string;
-var
-  Node: TEvalNode;
-begin
-  Node := FDocument.Pattern.FindNode(Note.AnchorKey);
-  if (Note.Anchor = naFree) or not Assigned(Node) then
-    Exit(rsPropNoteAnchorFree);
-  case Note.Anchor of
-    naPoint: Result := Format(rsPropNoteAnchorPoint, [Node.DisplayName]);
-    naEdge: Result := Format(rsPropNoteAnchorEdge, [Node.DisplayName]);
-    else
-      Result := Format(rsPropNoteAnchorPiece, [Node.DisplayName]);
-  end;
-end;
-
-// The text field keeps what is being typed in it
-procedure TPropertiesPanel.RefreshNoteRows(Note: TNoteObject);
-begin
-  FFilling := True;
-  try
-    if Assigned(FNoteText) and (not FNoteText.Focused or FRefreshFocused) then
+  case Place of
+    spType:
+      if not CanChangeType(Node) then
+        Panel.AddTextRow(rsPropType, TypeCaption(Node), PropertyGap);
+    spName:
+      if Node is TRepeatPoint then
+        Panel.AddTextRow(rsPropName, TRepeatPoint(Node).Name, PropertyRowGap)
+      else if Node is TDraftObject then
+        Panel.AddEditRow(rsPropName, frName, '');
+    spFields:
+      AddFieldRows(Node);
+    spResult:
+      AddResultRows(Node);
+    spEnd:
     begin
-      FNoteText.Text := Note.DisplayText(FDocument.Pattern.Resolver);
-      FNoteRefusal.Visible := False;
-    end;
-    if Assigned(FNoteAlignBox) then
-      FNoteAlignBox.ItemIndex := Ord(Note.Align);
-    if Assigned(FNoteBoxCheck) then
-      FNoteBoxCheck.Checked := Note.Boxed;
-    if Assigned(FNoteLeaderBox) then
-      FNoteLeaderBox.ItemIndex := Ord(Note.Leader);
-    if Assigned(FNoteSize) and not FNoteSize.Focused then
-      FNoteSize.Value := Note.Size;
-    if Assigned(FNotePrint) then
-      FNotePrint.Checked := Note.Print;
-    if Assigned(FNoteAnchorText) then
-      FNoteAnchorText.Caption := NoteAnchorText(Note);
-  finally
-    FFilling := False;
-  end;
-end;
-
-// The memo's own line breaks are stored as line feeds. A draft value that
-// does not parse keeps the text as typed, with the reason.
-procedure TPropertiesPanel.CommitNoteText;
-var
-  Node: TEvalNode;
-  NewText, Reason: string;
-  Done: boolean;
-begin
-  Node := SelectedNode;
-  if not Assigned(FNoteText) or not (Node is TNoteObject) then
-    Exit;
-  NewText := StringReplace(FNoteText.Text, #13#10, #10, [rfReplaceAll]);
-  NewText := StringReplace(NewText, #13, #10, [rfReplaceAll]);
-  // The memo adds a line break after the last line
-  while (NewText <> '') and (NewText[Length(NewText)] = #10) do
-    SetLength(NewText, Length(NewText) - 1);
-  if NewText = TNoteObject(Node).DisplayText(FDocument.Pattern.Resolver) then
-  begin
-    FNoteRefusal.Visible := False;
-    Exit;
-  end;
-  BeginEdit(rsPropChangeNoteText);
-  Done := FDocument.Pattern.SetNoteText(TNoteObject(Node), NewText);
-  Reason := FDocument.Pattern.LastError;
-  EndEdit(Done);
-  if not Done then
-    FNoteRefusal.Caption := Reason;
-  FNoteRefusal.Visible := not Done;
-end;
-
-procedure TPropertiesPanel.NoteTextExit(Sender: TObject);
-begin
-  CommitNoteText;
-end;
-
-// Escape puts the text back
-procedure TPropertiesPanel.NoteTextKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
-var
-  Node: TEvalNode;
-begin
-  if Key <> VK_ESCAPE then
-    Exit;
-  Node := SelectedNode;
-  if Node is TNoteObject then
-    FNoteText.Text := TNoteObject(Node).DisplayText(FDocument.Pattern.Resolver);
-  FNoteRefusal.Visible := False;
-  Key := 0;
-end;
-
-// The leader, alignment and box, as one undo step
-procedure TPropertiesPanel.NoteLookChange(Sender: TObject);
-var
-  Node: TEvalNode;
-  Note: TNoteObject;
-  Leader: TNoteLeader;
-  Reason: string;
-begin
-  if FFilling then
-    Exit;
-  Node := SelectedNode;
-  if not (Node is TNoteObject) then
-    Exit;
-  Note := TNoteObject(Node);
-  Leader := Note.Leader;
-  if Assigned(FNoteLeaderBox) and (FNoteLeaderBox.ItemIndex >= 0) then
-    Leader := TNoteLeader(FNoteLeaderBox.ItemIndex);
-  if (Leader = Note.Leader) and (Ord(Note.Align) = FNoteAlignBox.ItemIndex) and (Note.Boxed = FNoteBoxCheck.Checked) then
-    Exit;
-  BeginEdit(rsPropChangeNoteLook);
-  FDocument.Pattern.SetNoteAlign(Note, TTextAlign(Max(0, FNoteAlignBox.ItemIndex)));
-  FDocument.Pattern.SetNoteBoxed(Note, FNoteBoxCheck.Checked);
-  Reason := '';
-  if not FDocument.Pattern.SetNoteLeader(Note, Leader) then
-    Reason := FDocument.Pattern.LastError;
-  EndEdit(Reason = '');
-  if (Reason <> '') and Assigned(FOnMessage) then
-    FOnMessage(Self, Reason);
-end;
-
-procedure TPropertiesPanel.NoteSizeChange(Sender: TObject);
-var
-  Node: TEvalNode;
-begin
-  if FFilling then
-    Exit;
-  Node := SelectedNode;
-  if not (Node is TNoteObject) or SameValue(TNoteObject(Node).Size, FNoteSize.Value) then
-    Exit;
-  BeginEdit(rsPropChangeNoteSize);
-  EndEdit(FDocument.Pattern.SetNoteSize(TNoteObject(Node), FNoteSize.Value), 'notesize:' + FKey);
-end;
-
-procedure TPropertiesPanel.NotePrintClick(Sender: TObject);
-var
-  Node: TEvalNode;
-begin
-  if FFilling then
-    Exit;
-  Node := SelectedNode;
-  if not (Node is TNoteObject) or (TNoteObject(Node).Print = FNotePrint.Checked) then
-    Exit;
-  BeginEdit(rsPropChangeNotePrint);
-  FDocument.Pattern.SetNotePrint(TNoteObject(Node), FNotePrint.Checked);
-  EndEdit(True);
-end;
-
-procedure TPropertiesPanel.FreeClick(Sender: TObject);
-var
-  Node: TEvalNode;
-  Reason: string;
-begin
-  Node := SelectedNode;
-  if not (Node is TNoteObject) then
-    Exit;
-  FDocument.BeginChange(rsPropFreeNote);
-  Reason := '';
-  if not FDocument.Pattern.MakeNoteFree(TNoteObject(Node)) then
-    Reason := FDocument.Pattern.LastError;
-  FDocument.Commit(Reason = '');
-  if (Reason <> '') and Assigned(FOnMessage) then
-    FOnMessage(Self, Reason);
-end;
-
-procedure TPropertiesPanel.RefreshSeamRows(Seam: TSeamObject);
-begin
-  FSideAText.Caption := SeamSideText(FDocument.Pattern, Seam.SideA);
-  FSideBText.Caption := SeamSideText(FDocument.Pattern, Seam.SideB);
-  if Seam.HasResult then
-    FDifferenceText.Caption := SeamDifferenceText(Seam, FDocument.Pattern.Units)
-  else
-    FDifferenceText.Caption := '';
-end;
-
-procedure TPropertiesPanel.FlipClick(Sender: TObject);
-var
-  Node: TEvalNode;
-begin
-  Node := SelectedNode;
-  if not (Node is TSeamObject) then
-    Exit;
-  BeginEdit(rsPropFlipSeam);
-  TSeamObject(Node).Reversed := not TSeamObject(Node).Reversed;
-  EndEdit(True);
-end;
-
-// Only straight edges can be a fold, so only those are offered
-procedure TPropertiesPanel.AddPieceRows(Piece: TPieceObject);
-var
-  Entry: TPieceEdge;
-  Edge: TEvalNode;
-  Index: integer;
-  FoldNames, AllowanceNames: TStringArray;
-begin
-  FCutEdit := TSpinEdit.Create(Self);
-  FCutEdit.MinValue := 1;
-  FCutEdit.MaxValue := MaxCutCount;
-  FCutEdit.OnChange := @CutChange;
-  AddRow(rsPropCut, FCutEdit, RowGap);
-  FMirrorBox := TCheckBox.Create(Self);
-  FMirrorBox.OnChange := @CutChange;
-  AddRow(rsPropMirrored, FMirrorBox, RowGap);
-  FoldNames := nil;
-  Insert(rsPropNoFold, FoldNames, 0);
-  Insert('', FFoldKeys, 0);
-  for Entry in Piece.Path do
-  begin
-    Edge := FDocument.Pattern.FindNode(Entry.EdgeKey);
-    if IsStraightEdge(TEdgeObject(Edge)) then
-    begin
-      Insert(Edge.DisplayName, FoldNames, Length(FoldNames));
-      Insert(Entry.EdgeKey, FFoldKeys, Length(FFoldKeys));
+      FProblem := Panel.AddLabel('', PropertyGap);
+      FProblem.Font.Color := clRed;
     end;
   end;
-  FFoldBox := AddChoiceRow(rsPropFold, FoldNames, @FoldChange, RowGap);
-  AllowanceNames := nil;
-  Insert(rsPropOwnAllowancePrompt, AllowanceNames, 0);
-  for Index := 0 to High(Piece.Path) do
-    if not Piece.HasOverride(Index) then
-    begin
-      Insert(FDocument.Pattern.FindNode(Piece.Path[Index].EdgeKey).DisplayName, AllowanceNames, Length(AllowanceNames));
-      Insert(Index, FAllowanceIndexes, Length(FAllowanceIndexes));
-    end;
-  FAllowanceBox := AddChoiceRow(rsPropOwnAllowance, AllowanceNames, @AllowanceChange, RowGap);
-  FAllowanceBox.Hint := rsPropOwnAllowanceHint;
-  FAllowanceBox.ShowHint := True;
-  FAllowanceBox.ItemIndex := 0;
-  FAllowanceBox.Enabled := Length(FAllowanceIndexes) > 0;
-  AddGrainRows(Piece);
-  FMaterialBox := AddChoiceRow(rsPropMaterial, [], @MaterialChange, RowGap);
-  // In the order of TPieceFillStyle
-  FFillStyleBox := AddChoiceRow(rsPropFillStyle, [rsPropFromMaterial, rsPropFillTint, rsPropFillHatch], @FillStyleChange, RowGap);
-  FFillColorBox := AddChoiceRow(rsPropFillColor, [], @FillColorChange, RowGap);
 end;
 
-procedure TPropertiesPanel.RefreshPieceRows(Piece: TPieceObject);
+// A marker's size goes under the marker, on the objects that show one, and
+// other sections show some fields in their own rows
+procedure TCommonSection.AddFieldRows(Node: TEvalNode);
 var
+  Section: TPropertySection;
+  FieldName, Caption: string;
   Index: integer;
 begin
-  // Each row fires its change event, when the others are not yet filled in
-  FFilling := True;
-  try
-    FCutEdit.Value := Piece.CutCount;
-    FMirrorBox.Checked := Piece.Mirrored;
-    RefreshMaterialRows(Piece);
-    RefreshGrainRows(Piece);
-  finally
-    FFilling := False;
+  for Index := 0 to Node.FieldCount - 1 do
+  begin
+    FieldName := Node.Fields[Index].Name;
+    if (FieldName = MarkerSizeField) or Panel.SectionOwnsField(Node, FieldName) then
+      Continue;
+    Caption := '';
+    for Section in Panel.FSections do
+      if Caption = '' then
+        Caption := Section.FieldRowCaption(Node, FieldName);
+    if Caption = '' then
+      Caption := FieldCaption(FieldName);
+    Panel.AddEditRow(Caption, frFormula, FieldName);
   end;
-  for Index := 0 to High(FFoldKeys) do
-    if FFoldKeys[Index] = Piece.FoldEdgeKey then
-      FFoldBox.ItemIndex := Index;
 end;
 
-// The materials can change while the piece stays selected
-procedure TPropertiesPanel.RefreshMaterialRows(Piece: TPieceObject);
+procedure TCommonSection.AddResultRows(Node: TEvalNode);
+begin
+  if CopyTransformKey(Node) <> '' then
+    FMadeByText := Panel.AddTextRow(rsPropMadeBy, '', PropertyRowGap);
+  if Node is TPointObject then
+    FResult := Panel.AddTextRow(rsPropPosition, '', PropertyGap)
+  else if Node is TEdgeObject then
+    FResult := Panel.AddTextRow(rsPropLength, '', PropertyGap)
+  else if Node is TPieceObject then
+    FResult := Panel.AddTextRow(rsPropPerimeter, '', PropertyGap)
+  else if Node is TSeamObject then
+    FResult := Panel.AddTextRow(rsPropSeamLengths, '', PropertyGap)
+  else if Node is TNoteObject then
+    FResult := Panel.AddTextRow(rsPropPosition, '', PropertyGap);
+end;
+
+procedure TCommonSection.Refresh(Node: TEvalNode);
 var
   Pattern: TPattern;
-  Index: integer;
 begin
-  Pattern := FDocument.Pattern;
-  FMaterialBox.Items.Clear;
-  for Index := 0 to Pattern.MaterialCount - 1 do
-    FMaterialBox.Items.Add(Pattern.Materials[Index].Name);
-  FMaterialBox.Items.Add(rsPropNoMaterial);
-  FMaterialBox.ItemIndex := Pattern.MaterialCount;
-  for Index := 0 to Pattern.MaterialCount - 1 do
-    if Pattern.MaterialOf(Piece) = Pattern.Materials[Index] then
-      FMaterialBox.ItemIndex := Index;
-  FFillStyleBox.ItemIndex := Ord(Piece.FillStyle);
-  FFillColorBox.Items.Clear;
-  FFillColorBox.Items.Add(rsPropFromMaterial);
-  if Piece.FillColor <> '' then
-    FFillColorBox.Items.Add(Piece.FillColor);
-  FFillColorBox.Items.Add(rsPropChooseColor);
-  FFillColorBox.ItemIndex := Ord(Piece.FillColor <> '');
-end;
-
-procedure TPropertiesPanel.MaterialChange(Sender: TObject);
-var
-  Node: TEvalNode;
-  Material: TPatternMaterial;
-begin
-  Node := SelectedNode;
-  if FFilling or not (Node is TPieceObject) or (FMaterialBox.ItemIndex < 0) then
-    Exit;
-  Material := nil;
-  if FMaterialBox.ItemIndex < FDocument.Pattern.MaterialCount then
-    Material := FDocument.Pattern.Materials[FMaterialBox.ItemIndex];
-  BeginEdit(rsPropChangeMaterial);
-  FDocument.Pattern.SetPieceMaterial(TPieceObject(Node), Material);
-  EndEdit(True);
-  RefreshPieceRows(TPieceObject(SelectedNode));
-end;
-
-procedure TPropertiesPanel.ChangePieceFill(const AColor: string; Style: TPieceFillStyle);
-var
-  Node: TEvalNode;
-begin
-  Node := SelectedNode;
-  if not (Node is TPieceObject) then
-    Exit;
-  BeginEdit(rsPropChangeFill);
-  EndEdit(FDocument.Pattern.SetPieceFill(TPieceObject(Node), AColor, Style));
-  RefreshPieceRows(TPieceObject(SelectedNode));
-end;
-
-procedure TPropertiesPanel.FillStyleChange(Sender: TObject);
-var
-  Node: TEvalNode;
-begin
-  Node := SelectedNode;
-  if FFilling or not (Node is TPieceObject) or (FFillStyleBox.ItemIndex < 0) then
-    Exit;
-  ChangePieceFill(TPieceObject(Node).FillColor, TPieceFillStyle(FFillStyleBox.ItemIndex));
-end;
-
-procedure TPropertiesPanel.FillColorChange(Sender: TObject);
-var
-  Node: TEvalNode;
-  Piece: TPieceObject;
-  Chosen: string;
-begin
-  Node := SelectedNode;
-  if FFilling or not (Node is TPieceObject) then
-    Exit;
-  Piece := TPieceObject(Node);
-  if FFillColorBox.ItemIndex = 0 then
-    ChangePieceFill('', Piece.FillStyle)
-  else if FFillColorBox.ItemIndex = FFillColorBox.Items.Count - 1 then
-  begin
-    Chosen := Piece.FillColor;
-    if Chosen = '' then
-      Chosen := FDocument.Pattern.Materials[0].Color;
-    if ChooseMaterialColor(Self, Chosen) then
-      ChangePieceFill(Chosen, Piece.FillStyle)
+  Pattern := Panel.Document.Pattern;
+  if Assigned(FMadeByText) then
+    FMadeByText.Caption := Pattern.FindNode(CopyTransformKey(Node)).DisplayName;
+  if Assigned(FResult) then
+    if (Node is TNoteObject) and Node.HasResult then
+      FResult.Caption := PositionText(TNoteObject(Node).Position, Pattern.Units)
+    else if Node is TDraftObject then
+      FResult.Caption := ResultText(TDraftObject(Node), Pattern.Units)
     else
-      RefreshPieceRows(Piece);
+      FResult.Caption := '';
+  if Assigned(FProblem) and not Panel.Committing then
+    if Node.State = esValid then
+      FProblem.Caption := ''
+    else
+      FProblem.Caption := Node.Message;
+end;
+
+{ TEdgeSection }
+
+procedure TEdgeSection.Build(Node: TEvalNode; Place: TSectionPlace);
+var
+  Role: TEdgeRole;
+  RoleNames: TStringArray;
+begin
+  case Place of
+    spType:
+      if CanChangeType(Node) then
+      begin
+        if Node is TArcObject then
+          FTypeBox := Panel.AddChoiceRow(rsPropType, [rsTypeArc, rsTypeLine], nil, PropertyGap)
+        else
+          FTypeBox := Panel.AddChoiceRow(rsPropType, [rsTypeLine, rsTypeCurve], nil, PropertyGap);
+        FTypeBox.ItemIndex := FTypeBox.Items.IndexOf(TypeCaption(Node));
+        FTypeBox.OnChange := @TypeChange;
+      end;
+    spRows:
+    begin
+      RoleNames := nil;
+      for Role := Low(TEdgeRole) to High(TEdgeRole) do
+        Insert(RoleCaption(Role), RoleNames, Length(RoleNames));
+      FRoleBox := Panel.AddChoiceRow(rsPropRole, RoleNames, @RoleChange, PropertyRowGap);
+      FMarkedOnText := Panel.AddTextRow(rsPropMarkedOn, '', PropertyRowGap);
+    end;
   end;
 end;
 
-// Runs of spin clicks merge into one undo step
-procedure TPropertiesPanel.CutChange(Sender: TObject);
-var
-  Node: TEvalNode;
-  Piece: TPieceObject;
+procedure TEdgeSection.Refresh(Node: TEvalNode);
 begin
-  if FFilling then
-    Exit;
-  Node := SelectedNode;
-  if not (Node is TPieceObject) then
-    Exit;
-  Piece := TPieceObject(Node);
-  if (Piece.CutCount = FCutEdit.Value) and (Piece.Mirrored = FMirrorBox.Checked) then
-    Exit;
-  BeginEdit(rsPropChangeCut);
-  EndEdit(FDocument.Pattern.SetCut(Piece, FCutEdit.Value, FMirrorBox.Checked), 'cut:' + FKey);
-end;
-
-procedure TPropertiesPanel.RefreshTransformRows(Node: TEvalNode);
-begin
-  if Assigned(FMadeByText) then
-    FMadeByText.Caption := FDocument.Pattern.FindNode(CopyTransformKey(Node)).DisplayName;
+  FRoleBox.ItemIndex := Ord(TEdgeObject(Node).Role);
+  FMarkedOnText.Caption := MarkedOnText(Panel.Document.Pattern, TDraftObject(Node));
 end;
 
 // Changing type replaces the object and rebuilds the panel, box and all
-procedure TPropertiesPanel.TypeChange(Sender: TObject);
+procedure TEdgeSection.TypeChange(Sender: TObject);
 begin
-  QueueChange(qcConvertType, FTypeBox.ItemIndex);
+  Panel.QueueChange(Self, QueuedConvertType, FTypeBox.ItemIndex);
 end;
 
-procedure TPropertiesPanel.ConvertType(ItemIndex: integer);
+procedure TEdgeSection.QueuedChangeDue(Change, Data: integer);
+begin
+  if Change = QueuedConvertType then
+    ConvertType(Data);
+end;
+
+// The commit rebuilds the panel, which frees this section, so only the panel
+// is used after it
+procedure TEdgeSection.ConvertType(ItemIndex: integer);
 var
+  APanel: TPropertiesPanel;
+  Pattern: TPattern;
   Node: TEvalNode;
   Wanted, Reason: string;
   Done: boolean;
 begin
   if not Assigned(FTypeBox) then
     Exit;
-  Node := SelectedNode;
+  APanel := Panel;
+  Node := APanel.SelectedNode;
   if not (Node is TEdgeObject) or (ItemIndex < 0) or (ItemIndex >= FTypeBox.Items.Count) then
     Exit;
   Wanted := FTypeBox.Items[ItemIndex];
   if Wanted = TypeCaption(Node) then
     Exit;
-  FDocument.BeginChange(rsPropChangeType);
+  Pattern := APanel.Document.Pattern;
+  APanel.Document.BeginChange(rsPropChangeType);
   if Wanted = rsTypeLine then
-    Done := Assigned(FDocument.Pattern.ConvertToLine(TEdgeObject(Node)))
+    Done := Assigned(Pattern.ConvertToLine(TEdgeObject(Node)))
   else
-    Done := Assigned(FDocument.Pattern.ConvertToCurve(TEdgeObject(Node)));
-  Reason := FDocument.Pattern.LastError;
-  if FDocument.Commit(Done) then
+    Done := Assigned(Pattern.ConvertToCurve(TEdgeObject(Node)));
+  Reason := Pattern.LastError;
+  if APanel.Document.Commit(Done) then
     Exit;
   // The box goes back to the type the edge still has
-  Rebuild;
-  if Assigned(FOnMessage) then
-    FOnMessage(Self, Reason);
+  APanel.Rebuild;
+  APanel.Report(Reason);
 end;
 
-procedure TPropertiesPanel.FoldChange(Sender: TObject);
+procedure TEdgeSection.RoleChange(Sender: TObject);
 var
   Node: TEvalNode;
 begin
-  Node := SelectedNode;
-  if not (Node is TPieceObject) or (TPieceObject(Node).FoldEdgeKey = FFoldKeys[FFoldBox.ItemIndex]) then
+  Node := Panel.SelectedNode;
+  if not (Node is TEdgeObject) or (Ord(TEdgeObject(Node).Role) = FRoleBox.ItemIndex) then
     Exit;
-  BeginEdit(rsPropChangeFold);
-  EndEdit(FDocument.Pattern.SetFoldEdge(TPieceObject(Node), FFoldKeys[FFoldBox.ItemIndex]));
+  Panel.BeginEdit(rsPropChangeRole);
+  Panel.Document.Pattern.SetEdgeRole(TEdgeObject(Node), TEdgeRole(FRoleBox.ItemIndex));
+  Panel.EndEdit(True);
 end;
 
-procedure TPropertiesPanel.AddRepeatRows(ARepeat: TRepeatObject);
+{ TMarkerSection }
+
+procedure TMarkerSection.Build(Node: TEvalNode; Place: TSectionPlace);
+var
+  Index: integer;
+begin
+  if Place <> spRows then
+    Exit;
+  // In the order of TPointMarker
+  FMarkerBox := Panel.AddChoiceRow(rsPropMarker, [rsPropMarkerPlain, rsPropMarkerHole, rsPropMarkerButton, rsPropMarkerMatch], @MarkerChange,
+    PropertyRowGap);
+  for Index := 0 to Node.FieldCount - 1 do
+    if Node.Fields[Index].Name = MarkerSizeField then
+      Panel.AddEditRow(FieldCaption(MarkerSizeField), frFormula, MarkerSizeField);
+  FMarkedOnText := Panel.AddTextRow(rsPropMarkedOn, '', PropertyRowGap);
+end;
+
+function TMarkerSection.OwnsField(Node: TEvalNode; const FieldName: string): boolean;
+begin
+  Result := FieldName = MarkerSizeField;
+end;
+
+procedure TMarkerSection.Refresh(Node: TEvalNode);
+begin
+  FMarkerBox.ItemIndex := Ord(TDraftObject(Node).Marker);
+  FMarkedOnText.Caption := MarkedOnText(Panel.Document.Pattern, TDraftObject(Node));
+end;
+
+procedure TMarkerSection.MarkerChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  Node := Panel.SelectedNode;
+  if not (Node is TDraftObject) or (Ord(TDraftObject(Node).Marker) = FMarkerBox.ItemIndex) then
+    Exit;
+  Panel.BeginEdit(rsPropChangeMarker);
+  Panel.Document.Pattern.SetMarker(Node.Key, TPointMarker(FMarkerBox.ItemIndex));
+  Panel.EndEdit(True);
+end;
+
+{ TRepeatSection }
+
+procedure TRepeatSection.Build(Node: TEvalNode; Place: TSectionPlace);
 
   function NameOf(const Key: string): string;
   var
-    Node: TEvalNode;
+    Found: TEvalNode;
   begin
-    Node := FDocument.Pattern.FindNode(Key);
-    if not Assigned(Node) then
+    Found := Panel.Document.Pattern.FindNode(Key);
+    if not Assigned(Found) then
       Result := Key
     else
-      Result := Node.DisplayName;
+      Result := Found.DisplayName;
   end;
 
+var
+  ARepeat: TRepeatObject;
 begin
+  if Place <> spRows then
+    Exit;
+  ARepeat := TRepeatObject(Node);
   if ARepeat.Edge <> '' then
-    AddTextRow(rsPropRepeatEdge, NameOf(ARepeat.Edge), RowGap)
+    Panel.AddTextRow(rsPropRepeatEdge, NameOf(ARepeat.Edge), PropertyRowGap)
   else
   begin
-    AddTextRow(rsPropRepeatFrom, NameOf(ARepeat.FirstPoint), RowGap);
-    AddTextRow(rsPropRepeatTo, NameOf(ARepeat.LastPoint), RowGap);
+    Panel.AddTextRow(rsPropRepeatFrom, NameOf(ARepeat.FirstPoint), PropertyRowGap);
+    Panel.AddTextRow(rsPropRepeatTo, NameOf(ARepeat.LastPoint), PropertyRowGap);
   end;
-  FEndsBox := AddChoiceRow(rsPropEnds, [rsPropEndsInclude, rsPropEndsExclude], @EndsChange, RowGap);
+  FEndsBox := Panel.AddChoiceRow(rsPropEnds, [rsPropEndsInclude, rsPropEndsExclude], @EndsChange, PropertyRowGap);
 end;
 
-procedure TPropertiesPanel.EndsChange(Sender: TObject);
+procedure TRepeatSection.Refresh(Node: TEvalNode);
+begin
+  FEndsBox.ItemIndex := Ord(not TRepeatObject(Node).IncludeEnds);
+end;
+
+procedure TRepeatSection.EndsChange(Sender: TObject);
 var
   Node: TEvalNode;
 begin
-  Node := SelectedNode;
+  Node := Panel.SelectedNode;
   if not (Node is TRepeatObject) or (Ord(not TRepeatObject(Node).IncludeEnds) = FEndsBox.ItemIndex) then
     Exit;
-  BeginEdit(rsPropChangeEnds);
+  Panel.BeginEdit(rsPropChangeEnds);
   TRepeatObject(Node).IncludeEnds := FEndsBox.ItemIndex = 0;
-  EndEdit(True);
+  Panel.EndEdit(True);
 end;
 
-// The pieces it prints on, for a marking line or a marked point
-function TPropertiesPanel.MarkedOnText(DraftObject: TDraftObject): string;
+{ TSeamSection }
+
+procedure TSeamSection.Build(Node: TEvalNode; Place: TSectionPlace);
 var
-  Piece: TPieceObject;
+  Flip: TButton;
 begin
-  if not FDocument.Pattern.IsMarking(DraftObject) then
-    Exit(rsPropNotMarking);
-  Result := '';
-  for Piece in FDocument.Pattern.PiecesWithMarking(DraftObject.Key) do
-  begin
-    if Result <> '' then
-      Result := Result + ', ';
-    Result := Result + Piece.DisplayName;
-  end;
-  if Result = '' then
-    Result := rsPropMarkedOnNone;
-end;
-
-procedure TPropertiesPanel.MarkerChange(Sender: TObject);
-var
-  Node: TEvalNode;
-begin
-  Node := SelectedNode;
-  if not (Node is TDraftObject) or (Ord(TDraftObject(Node).Marker) = FMarkerBox.ItemIndex) then
-    Exit;
-  BeginEdit(rsPropChangeMarker);
-  FDocument.Pattern.SetMarker(Node.Key, TPointMarker(FMarkerBox.ItemIndex));
-  EndEdit(True);
-end;
-
-procedure TPropertiesPanel.RoleChange(Sender: TObject);
-var
-  Node: TEvalNode;
-begin
-  Node := SelectedNode;
-  if not (Node is TEdgeObject) or (Ord(TEdgeObject(Node).Role) = FRoleBox.ItemIndex) then
-    Exit;
-  BeginEdit(rsPropChangeRole);
-  FDocument.Pattern.SetEdgeRole(TEdgeObject(Node), TEdgeRole(FRoleBox.ItemIndex));
-  EndEdit(True);
-end;
-
-// An edge's own allowance is named after its edge, which its field is not
-function TPropertiesPanel.FieldRowCaption(Node: TEvalNode; const FieldName: string): string;
-var
-  PathIndex: integer;
-begin
-  PathIndex := -1;
-  if Node is TPieceObject then
-    PathIndex := TPieceObject(Node).OverridePathIndex(FieldName);
-  if PathIndex < 0 then
-    Exit(FieldCaption(FieldName));
-  Result := Format(rsPropEdgeAllowance, [FDocument.Pattern.FindNode(TPieceObject(Node).Path[PathIndex].EdgeKey).DisplayName]);
-end;
-
-// Adding a field rebuilds the panel, box and all
-procedure TPropertiesPanel.AllowanceChange(Sender: TObject);
-begin
-  if FAllowanceBox.ItemIndex <= 0 then
-    Exit;
-  QueueChange(qcAddAllowance, FAllowanceIndexes[FAllowanceBox.ItemIndex - 1]);
-end;
-
-// Starts at the piece's own allowance, with its row ready to type in
-procedure TPropertiesPanel.AddEdgeAllowance(PathIndex: integer);
-var
-  Node: TEvalNode;
-  Piece: TPieceObject;
-  RowIndex: integer;
-begin
-  Node := SelectedNode;
-  if not (Node is TPieceObject) or (PathIndex > High(TPieceObject(Node).Path)) then
-    Exit;
-  Piece := TPieceObject(Node);
-  FDocument.BeginChange(rsPropAddEdgeAllowance);
-  FDocument.Commit(FDocument.Pattern.SetEdgeAllowance(Piece, PathIndex, FDocument.Pattern.FormulaText(Piece, PieceAllowanceField)));
-  // The commit rebuilt the panel and may have replaced the piece
-  Node := SelectedNode;
-  if not (Node is TPieceObject) then
-    Exit;
-  RowIndex := FormulaRowOf(TPieceObject(Node).OverrideField(PathIndex));
-  if RowIndex >= 0 then
-  begin
-    FRows[RowIndex].Edit.SetFocus;
-    FRows[RowIndex].Edit.SelectAll;
+  case Place of
+    spRows:
+    begin
+      FSideAText := Panel.AddTextRow(rsPropSideA, '', PropertyRowGap);
+      FSideBText := Panel.AddTextRow(rsPropSideB, '', PropertyRowGap);
+      Flip := TButton.Create(Panel);
+      Flip.Caption := rsPropFlip;
+      Flip.OnClick := @FlipClick;
+      Panel.AddRow(rsPropDirection, Flip, PropertyRowGap);
+    end;
+    // Under the lengths it compares
+    spResult:
+      FDifferenceText := Panel.AddTextRow(rsPropSeamDifference, '', PropertyRowGap);
   end;
 end;
 
-procedure TPropertiesPanel.RemoveEdgeAllowance(PathIndex: integer);
+procedure TSeamSection.Refresh(Node: TEvalNode);
 var
-  Node: TEvalNode;
+  Seam: TSeamObject;
+  Pattern: TPattern;
 begin
-  Node := SelectedNode;
-  if not (Node is TPieceObject) or (PathIndex > High(TPieceObject(Node).Path)) then
-    Exit;
-  FDocument.BeginChange(rsPropRemoveEdgeAllowance);
-  FDocument.Commit(FDocument.Pattern.SetEdgeAllowance(TPieceObject(Node), PathIndex, ''));
-end;
-
-procedure TPropertiesPanel.AddGrainRows(Piece: TPieceObject);
-var
-  Point: TPointObject;
-  Index: integer;
-  PointNames: TStringArray;
-begin
-  // In the order of TGrainKind
-  FGrainBox := AddChoiceRow(rsPropGrainline, [rsPropGrainNone, rsPropGrainAngle, rsPropGrainPoints], @GrainChange, RowGap);
-  for Index := 0 to Piece.FieldCount - 1 do
-    if Piece.Fields[Index].Name = GrainAngleField then
-      AddEditRow(FieldRowCaption(Piece, GrainAngleField), frFormula, GrainAngleField);
-  PointNames := nil;
-  Insert(rsPropGrainChoose, PointNames, 0);
-  Insert('', FGrainPointKeys, 0);
-  for Point in FDocument.Pattern.AllPoints do
-  begin
-    Insert(Point.DisplayName, PointNames, Length(PointNames));
-    Insert(Point.Key, FGrainPointKeys, Length(FGrainPointKeys));
-  end;
-  FGrainStartBox := AddChoiceRow(rsPropGrainFrom, PointNames, @GrainChange, RowGap);
-  FGrainEndBox := AddChoiceRow(rsPropGrainTo, PointNames, @GrainChange, RowGap);
-end;
-
-procedure TPropertiesPanel.RefreshGrainRows(Piece: TPieceObject);
-
-  function PlaceOf(const Key: string): integer;
-  begin
-    for Result := 0 to High(FGrainPointKeys) do
-      if (Key <> '') and (FGrainPointKeys[Result] = Key) then
-        Exit;
-    Result := 0;
-  end;
-
-begin
-  if not Assigned(FGrainBox) then
-    Exit;
-  FGrainBox.ItemIndex := Ord(Piece.GrainKind);
-  if Piece.GrainKind = gkPoints then
-  begin
-    FGrainStartBox.ItemIndex := PlaceOf(Piece.GrainStartKey);
-    FGrainEndBox.ItemIndex := PlaceOf(Piece.GrainEndKey);
-  end
+  Seam := TSeamObject(Node);
+  Pattern := Panel.Document.Pattern;
+  FSideAText.Caption := SeamSideText(Pattern, Seam.SideA);
+  FSideBText.Caption := SeamSideText(Pattern, Seam.SideB);
+  if Seam.HasResult then
+    FDifferenceText.Caption := SeamDifferenceText(Seam, Pattern.Units)
   else
-  begin
-    FGrainStartBox.ItemIndex := 0;
-    FGrainEndBox.ItemIndex := 0;
-  end;
-  FGrainStartBox.Enabled := Piece.GrainKind = gkPoints;
-  FGrainEndBox.Enabled := Piece.GrainKind = gkPoints;
+    FDifferenceText.Caption := '';
 end;
 
-// Between two points takes effect once both are chosen. Changing the kind
-// adds or removes the angle's row, so the change is queued.
-procedure TPropertiesPanel.GrainChange(Sender: TObject);
-var
-  Points: boolean;
-begin
-  if FFilling or not Assigned(FGrainBox) then
-    Exit;
-  Points := FGrainBox.ItemIndex = Ord(gkPoints);
-  FGrainStartBox.Enabled := Points;
-  FGrainEndBox.Enabled := Points;
-  if Points and ((FGrainStartBox.ItemIndex <= 0) or (FGrainEndBox.ItemIndex <= 0)) then
-    Exit;
-  QueueChange(qcGrain, FGrainBox.ItemIndex);
-end;
-
-procedure TPropertiesPanel.ChangeGrain(Kind: TGrainKind);
+procedure TSeamSection.FlipClick(Sender: TObject);
 var
   Node: TEvalNode;
-  Piece: TPieceObject;
-  Reason: string;
+begin
+  Node := Panel.SelectedNode;
+  if not (Node is TSeamObject) then
+    Exit;
+  Panel.BeginEdit(rsPropFlipSeam);
+  TSeamObject(Node).Reversed := not TSeamObject(Node).Reversed;
+  Panel.EndEdit(True);
+end;
+
+{ TNoteSection }
+
+procedure TNoteSection.Build(Node: TEvalNode; Place: TSectionPlace);
+begin
+  case Place of
+    spName: AddTextRow;
+    spRows: AddRows(TNoteObject(Node));
+  end;
+end;
+
+// Its draft values are part of its text
+function TNoteSection.OwnsField(Node: TEvalNode; const FieldName: string): boolean;
+begin
+  Result := IsNoteValue(FieldName);
+end;
+
+// Enter adds a line; leaving the field commits it as one undo step
+procedure TNoteSection.AddTextRow;
+begin
+  FNoteText := TMemo.Create(Panel);
+  FNoteText.Height := Panel.Scale96ToForm(NoteTextHeight96);
+  FNoteText.ScrollBars := ssAutoVertical;
+  FNoteText.WantReturns := True;
+  FNoteText.WordWrap := False;
+  FNoteText.OnExit := @TextExit;
+  FNoteText.OnKeyDown := @TextKeyDown;
+  FNoteText.Hint := rsPropNoteTextHint;
+  FNoteText.ShowHint := True;
+  Panel.AddRow(rsPropNoteText, FNoteText, PropertyRowGap);
+  FNoteRefusal := Panel.AddLabel('', PropertyRowGap);
+  FNoteRefusal.Font.Color := clRed;
+  FNoteRefusal.WordWrap := True;
+  FNoteRefusal.Visible := False;
+end;
+
+procedure TNoteSection.AddRows(Note: TNoteObject);
+var
+  FreeButton: TButton;
+begin
+  FNoteSize := TFloatSpinEdit.Create(Panel);
+  FNoteSize.MinValue := NoteSizeStep;
+  FNoteSize.MaxValue := MaxNoteSize;
+  FNoteSize.Increment := NoteSizeStep;
+  FNoteSize.DecimalPlaces := 1;
+  FNoteSize.OnChange := @SizeChange;
+  Panel.AddRow(rsPropNoteSize, FNoteSize, PropertyRowGap);
+  FNotePrint := TCheckBox.Create(Panel);
+  FNotePrint.Caption := rsPropNotePrintCaption;
+  FNotePrint.OnClick := @PrintClick;
+  Panel.AddRow(rsPropNotePrint, FNotePrint, PropertyRowGap);
+  // In the order of TTextAlign
+  FNoteAlignBox := Panel.AddChoiceRow(rsPropNoteAlign, [rsPropNoteAlignLeft, rsPropNoteAlignCentre, rsPropNoteAlignRight], @LookChange,
+    PropertyRowGap);
+  FNoteBoxCheck := TCheckBox.Create(Panel);
+  FNoteBoxCheck.Caption := rsPropNoteBoxCaption;
+  FNoteBoxCheck.OnClick := @LookChange;
+  Panel.AddRow(rsPropNoteBox, FNoteBoxCheck, PropertyRowGap);
+  // A free note has nothing to point at
+  if Note.Anchor <> naFree then
+    // In the order of TNoteLeader
+    FNoteLeaderBox := Panel.AddChoiceRow(rsPropNoteLeader, [rsPropNoteLeaderNone, rsPropNoteLeaderArrow, rsPropNoteLeaderDot,
+      rsPropNoteLeaderLine], @LookChange, PropertyRowGap);
+  FNoteAnchorText := Panel.AddTextRow(rsPropNoteAnchor, '', PropertyRowGap);
+  if Note.Anchor <> naFree then
+  begin
+    FreeButton := TButton.Create(Panel);
+    FreeButton.Caption := rsPropNoteFree;
+    FreeButton.Hint := rsPropNoteFreeHint;
+    FreeButton.ShowHint := True;
+    FreeButton.OnClick := @FreeClick;
+    Panel.AddRow('', FreeButton, PropertyRowGap);
+  end;
+end;
+
+// The text field keeps what is being typed in it
+procedure TNoteSection.Refresh(Node: TEvalNode);
+var
+  Note: TNoteObject;
+begin
+  Note := TNoteObject(Node);
+  FFilling := True;
+  try
+    if not Panel.KeepsText(FNoteText) then
+    begin
+      FNoteText.Text := Note.DisplayText(Panel.Document.Pattern.Resolver);
+      FNoteRefusal.Visible := False;
+    end;
+    FNoteAlignBox.ItemIndex := Ord(Note.Align);
+    FNoteBoxCheck.Checked := Note.Boxed;
+    if Assigned(FNoteLeaderBox) then
+      FNoteLeaderBox.ItemIndex := Ord(Note.Leader);
+    if not FNoteSize.Focused then
+      FNoteSize.Value := Note.Size;
+    FNotePrint.Checked := Note.Print;
+    FNoteAnchorText.Caption := NoteAnchorText(Panel.Document.Pattern, Note);
+  finally
+    FFilling := False;
+  end;
+end;
+
+procedure TNoteSection.FocusText;
+begin
+  if FNoteText.CanFocus then
+  begin
+    FNoteText.SetFocus;
+    FNoteText.SelectAll;
+  end;
+end;
+
+// A draft value that does not parse keeps the text as typed, with the reason
+procedure TNoteSection.CommitText;
+var
+  Node: TEvalNode;
+  NewText, Reason: string;
   Done: boolean;
 begin
-  if not Assigned(FGrainBox) then
+  Node := Panel.SelectedNode;
+  if not (Node is TNoteObject) then
     Exit;
-  Node := SelectedNode;
-  if not (Node is TPieceObject) then
+  NewText := NoteTextFromField(FNoteText.Text);
+  if NewText = TNoteObject(Node).DisplayText(Panel.Document.Pattern.Resolver) then
+  begin
+    FNoteRefusal.Visible := False;
     Exit;
-  Piece := TPieceObject(Node);
-  FDocument.BeginChange(rsPropChangeGrainline);
-  case Kind of
-    gkNone:
-    begin
-      FDocument.Pattern.ClearGrain(Piece);
-      Done := True;
-    end;
-    gkAngle:
-      if Piece.GrainKind = gkAngle then
-        Done := True
-      else
-        Done := FDocument.Pattern.SetGrainAngle(Piece, DefaultGrainAngle);
-    else
-      Done := FDocument.Pattern.SetGrainPoints(Piece, FGrainPointKeys[FGrainStartBox.ItemIndex], FGrainPointKeys[FGrainEndBox.ItemIndex]);
   end;
-  Reason := FDocument.Pattern.LastError;
-  FDocument.Commit(Done);
-  if not Done and Assigned(FOnMessage) then
-    FOnMessage(Self, Reason);
+  Panel.BeginEdit(rsPropChangeNoteText);
+  Done := Panel.Document.Pattern.SetNoteText(TNoteObject(Node), NewText);
+  Reason := Panel.Document.Pattern.LastError;
+  Panel.EndEdit(Done);
+  if not Done then
+    FNoteRefusal.Caption := Reason;
+  FNoteRefusal.Visible := not Done;
+end;
+
+procedure TNoteSection.TextExit(Sender: TObject);
+begin
+  CommitText;
+end;
+
+// Escape puts the text back
+procedure TNoteSection.TextKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
+var
+  Node: TEvalNode;
+begin
+  if Key <> VK_ESCAPE then
+    Exit;
+  Node := Panel.SelectedNode;
+  if Node is TNoteObject then
+    FNoteText.Text := TNoteObject(Node).DisplayText(Panel.Document.Pattern.Resolver);
+  FNoteRefusal.Visible := False;
+  Key := 0;
+end;
+
+// The leader, alignment and box, as one undo step
+procedure TNoteSection.LookChange(Sender: TObject);
+var
+  Node: TEvalNode;
+  Note: TNoteObject;
+  Pattern: TPattern;
+  Leader: TNoteLeader;
+  Reason: string;
+begin
+  if FFilling then
+    Exit;
+  Node := Panel.SelectedNode;
+  if not (Node is TNoteObject) then
+    Exit;
+  Note := TNoteObject(Node);
+  Pattern := Panel.Document.Pattern;
+  Leader := Note.Leader;
+  if Assigned(FNoteLeaderBox) and (FNoteLeaderBox.ItemIndex >= 0) then
+    Leader := TNoteLeader(FNoteLeaderBox.ItemIndex);
+  if (Leader = Note.Leader) and (Ord(Note.Align) = FNoteAlignBox.ItemIndex) and (Note.Boxed = FNoteBoxCheck.Checked) then
+    Exit;
+  Panel.BeginEdit(rsPropChangeNoteLook);
+  Pattern.SetNoteAlign(Note, TTextAlign(Max(0, FNoteAlignBox.ItemIndex)));
+  Pattern.SetNoteBoxed(Note, FNoteBoxCheck.Checked);
+  Reason := '';
+  if not Pattern.SetNoteLeader(Note, Leader) then
+    Reason := Pattern.LastError;
+  Panel.EndEdit(Reason = '');
+  if Reason <> '' then
+    Panel.Report(Reason);
+end;
+
+procedure TNoteSection.SizeChange(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  if FFilling then
+    Exit;
+  Node := Panel.SelectedNode;
+  if not (Node is TNoteObject) or SameValue(TNoteObject(Node).Size, FNoteSize.Value) then
+    Exit;
+  Panel.BeginEdit(rsPropChangeNoteSize);
+  Panel.EndEdit(Panel.Document.Pattern.SetNoteSize(TNoteObject(Node), FNoteSize.Value), 'notesize:' + Panel.SelectedKey);
+end;
+
+procedure TNoteSection.PrintClick(Sender: TObject);
+var
+  Node: TEvalNode;
+begin
+  if FFilling then
+    Exit;
+  Node := Panel.SelectedNode;
+  if not (Node is TNoteObject) or (TNoteObject(Node).Print = FNotePrint.Checked) then
+    Exit;
+  Panel.BeginEdit(rsPropChangeNotePrint);
+  Panel.Document.Pattern.SetNotePrint(TNoteObject(Node), FNotePrint.Checked);
+  Panel.EndEdit(True);
+end;
+
+// The commit rebuilds the panel, which frees this section, so only the panel
+// is used after it
+procedure TNoteSection.FreeClick(Sender: TObject);
+var
+  APanel: TPropertiesPanel;
+  Node: TEvalNode;
+  Reason: string;
+begin
+  APanel := Panel;
+  Node := APanel.SelectedNode;
+  if not (Node is TNoteObject) then
+    Exit;
+  APanel.Document.BeginChange(rsPropFreeNote);
+  Reason := '';
+  if not APanel.Document.Pattern.MakeNoteFree(TNoteObject(Node)) then
+    Reason := APanel.Document.Pattern.LastError;
+  APanel.Document.Commit(Reason = '');
+  if Reason <> '' then
+    APanel.Report(Reason);
 end;
 
 end.
