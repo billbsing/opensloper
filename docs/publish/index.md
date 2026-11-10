@@ -20,7 +20,8 @@ a pattern to start a layout for.
 - **The pages**, on the left: the pieces where they lie, over the sheets they
   print on. Each page's printable area is white, and grey when nothing prints
   on it. The status bar counts the pages.
-- **Tabs**, on the right:
+- **Tabs**, on the right, one open at a time, as in the design app's side
+  panel: click a tab's header to open it:
 
     | Tab | What it holds |
     | --- | --- |

@@ -28,7 +28,7 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Core.TextFields, Sloper.Core.Note,
   Sloper.Output.Layout, Sloper.Output.LayoutDocument,
-  Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu;
+  Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu, Sloper.UI.Accordion;
 
 type
   TPublishForm = class(TForm)
@@ -36,7 +36,7 @@ type
     FDocument: TLayoutDocument;
     FPreview: TPreviewCanvas;
     // The side tabs; the rows being built go into FRowParent
-    FTabs: TPageControl;
+    FTabs: TAccordion;
     FPiecesSide, FSide, FNotesSide, FRowParent: TWinControl;
     FColumn: TPanel;
     FTitleBox, FEveryPageBox: TCheckBox;
@@ -341,17 +341,14 @@ begin
   FProblems.Height := ProblemsHeight;
   FProblems.ShowHint := True;
   FProblems.BorderSpacing.Around := SideGap;
-  FTabs := TPageControl.Create(Self);
+  // One tab open at a time, as in the design app's side panel
+  FTabs := TAccordion.Create(Self);
   FTabs.Parent := FColumn;
   FTabs.Align := alClient;
-  FPiecesSide := FTabs.AddTabSheet;
-  TTabSheet(FPiecesSide).Caption := rsTabPieces;
-  FPatternsSide := FTabs.AddTabSheet;
-  TTabSheet(FPatternsSide).Caption := rsTabPatterns;
-  FSide := FTabs.AddTabSheet;
-  TTabSheet(FSide).Caption := rsTabOutput;
-  FNotesSide := FTabs.AddTabSheet;
-  TTabSheet(FNotesSide).Caption := rsTabNotes;
+  FPiecesSide := FTabs.AddSection(rsTabPieces);
+  FPatternsSide := FTabs.AddSection(rsTabPatterns);
+  FSide := FTabs.AddSection(rsTabOutput);
+  FNotesSide := FTabs.AddSection(rsTabNotes);
   FPreview := TPreviewCanvas.Create(Self);
   FPreview.Parent := Self;
   FPreview.Align := alClient;
