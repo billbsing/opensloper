@@ -45,6 +45,8 @@ type
     procedure TestLabelModeRoundTrip;
     procedure TestSidePanelRoundTrip;
     procedure TestRulersRoundTrip;
+    procedure TestOpenTabsRoundTrip;
+    procedure TestSavingPublishTabKeepsTheRest;
     procedure TestUnknownLabelModeIsIgnored;
     procedure TestPreferenceDefaults;
     procedure TestPreferencesRoundTrip;
@@ -114,6 +116,45 @@ begin
     AssertFalse('hidden', Other.ShowSidePanel);
   finally
     FreeAndNil(Other);
+  end;
+end;
+
+procedure TTestSettings.TestOpenTabsRoundTrip;
+var
+  Other: TAppSettings;
+  Err: string;
+begin
+  AssertEquals('none by default', '', FSettings.SideTab);
+  AssertEquals('', FSettings.PublishTab);
+  FSettings.SideTab := 'objects';
+  FSettings.PublishTab := 'output';
+  Other := TAppSettings.Create;
+  try
+    AssertTrue(Err, Other.LoadFromText(FSettings.SaveToText, Err));
+    AssertEquals('objects', Other.SideTab);
+    AssertEquals('output', Other.PublishTab);
+  finally
+    FreeAndNil(Other);
+  end;
+end;
+
+// The publish app writes only its tab, leaving what the design app saved
+procedure TTestSettings.TestSavingPublishTabKeepsTheRest;
+var
+  FileName, Err: string;
+begin
+  FileName := GetTempFileName(GetTempDir, 'oss');
+  try
+    FSettings.ShowRulers := False;
+    FSettings.SideTab := 'variables';
+    AssertTrue(Err, FSettings.SaveToFile(FileName, Err));
+    AssertTrue(Err, SavePublishTabToFile(FileName, 'notes', Err));
+    AssertTrue(Err, FSettings.LoadFromFile(FileName, Err));
+    AssertFalse('rulers kept', FSettings.ShowRulers);
+    AssertEquals('design tab kept', 'variables', FSettings.SideTab);
+    AssertEquals('notes', FSettings.PublishTab);
+  finally
+    DeleteFile(FileName);
   end;
 end;
 

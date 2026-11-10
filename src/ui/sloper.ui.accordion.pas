@@ -54,6 +54,8 @@ type
 
   TAccordionSection = class
   public
+    // Names the section in settings, whatever its caption
+    Key: string;
     Header: TAccordionHeader;
     // What the section shows, the parent for its panel
     Content: TPanel;
@@ -75,6 +77,8 @@ type
     procedure FocusNextHeader(Header: TAccordionHeader; Step: integer);
     function GetActiveContent: TWinControl;
     procedure SetActiveContent(Content: TWinControl);
+    function GetActiveKey: string;
+    procedure SetActiveKey(const AKey: string);
   protected
     procedure Resize; override;
     procedure Paint; override;
@@ -83,12 +87,14 @@ type
     destructor Destroy; override;
     // A new section at the end, closed unless it is the first; the result is
     // the parent for its panel
-    function AddSection(const ACaption: string): TWinControl;
+    function AddSection(const AKey, ACaption: string): TWinControl;
     // Leaves a section out, header and all, or brings it back; the open
     // section, once left out, gives way to the first shown one
     procedure SetSectionShown(Content: TWinControl; Shown: boolean);
     // The open section, by what AddSection gave
     property ActiveContent: TWinControl read GetActiveContent write SetActiveContent;
+    // The open section by its key; a key no shown section has changes nothing
+    property ActiveKey: string read GetActiveKey write SetActiveKey;
   end;
 
 implementation
@@ -257,12 +263,13 @@ begin
   end;
 end;
 
-function TAccordion.AddSection(const ACaption: string): TWinControl;
+function TAccordion.AddSection(const AKey, ACaption: string): TWinControl;
 var
   Section: TAccordionSection;
 begin
   Section := TAccordionSection.Create;
   FSections.Add(Section);
+  Section.Key := AKey;
   Section.Shown := True;
   Section.Header := TAccordionHeader.Create(Self);
   Section.Header.Caption := ACaption;
@@ -334,6 +341,25 @@ begin
   Section := SectionOf(Content);
   if Assigned(Section) and Section.Shown then
     Activate(Section);
+end;
+
+function TAccordion.GetActiveKey: string;
+begin
+  Result := '';
+  if Assigned(FActive) then
+    Result := FActive.Key;
+end;
+
+procedure TAccordion.SetActiveKey(const AKey: string);
+var
+  Section: TAccordionSection;
+begin
+  for Section in FSections do
+    if (Section.Key = AKey) and Section.Shown then
+    begin
+      Activate(Section);
+      Exit;
+    end;
 end;
 
 // The new section is shown before the old one is hidden, so the panel never

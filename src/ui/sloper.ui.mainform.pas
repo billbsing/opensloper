@@ -414,6 +414,7 @@ begin
   FMaterialSplit := FSettings.MaterialDialogSplit;
   FPreferences := FSettings.Preferences;
   FRoles.SetPresets(FSettings.RolePresets);
+  FSidePanel.ActiveKey := FSettings.SideTab;
 end;
 
 // Read again first, so that what the other apps saved in the same file while
@@ -427,6 +428,7 @@ begin
   FSettings.LabelMode := FCanvas.LabelMode;
   FSettings.ShowPieceFills := FCanvas.ShowPieceFills;
   FSettings.ShowSidePanel := FSidePanel.Visible;
+  FSettings.SideTab := FSidePanel.ActiveKey;
   FSettings.ShowRulers := FRulersAction.Checked;
   FSettings.MaterialDialogSplit := FMaterialSplit;
   TAppPaths.ForceDir(TAppPaths.ConfigDir);
@@ -465,16 +467,16 @@ end;
 // One section open at a time, each under its own header
 procedure TMainForm.CreateSidePanel;
 
-  function AddSection(const ACaption: string; Panel: TWinControl): TWinControl;
+  function AddSection(const AKey, ACaption: string; Panel: TWinControl): TWinControl;
   begin
-    Panel.Parent := FSidePanel.AddSection(ACaption);
+    Panel.Parent := FSidePanel.AddSection(AKey, ACaption);
     Panel.Align := alClient;
     Result := Panel;
   end;
 
-  function AddList(const ACaption: string; Panel: TListPanel): TListPanel;
+  function AddList(const AKey, ACaption: string; Panel: TListPanel): TListPanel;
   begin
-    AddSection(ACaption, Panel);
+    AddSection(AKey, ACaption, Panel);
     Panel.Document := FDocument;
     Panel.OnMessage := @ListPanelMessage;
     Result := Panel;
@@ -485,29 +487,29 @@ begin
   FSidePanel.Parent := Self;
   FSidePanel.Align := alRight;
   FSidePanel.Width := Scale96ToForm(490);
-  FProperties := TPropertiesPanel(AddSection(rsTabProperties, TPropertiesPanel.Create(Self)));
+  FProperties := TPropertiesPanel(AddSection('properties', rsTabProperties, TPropertiesPanel.Create(Self)));
   FProperties.Document := FDocument;
   FProperties.OnMessage := @ListPanelMessage;
-  FObjects := TObjectsPanel(AddList(rsTabObjects, TObjectsPanel.Create(Self)));
+  FObjects := TObjectsPanel(AddList('objects', rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
   FObjects.OnDelete := @ObjectsDelete;
-  FVariables := TVariablesPanel(AddList(rsTabVariables, TVariablesPanel.Create(Self)));
-  FMeasurements := TMeasurementsPanel(AddList(rsTabMeasurements, TMeasurementsPanel.Create(Self)));
+  FVariables := TVariablesPanel(AddList('variables', rsTabVariables, TVariablesPanel.Create(Self)));
+  FMeasurements := TMeasurementsPanel(AddList('measurements', rsTabMeasurements, TMeasurementsPanel.Create(Self)));
   FMeasurements.OnNewSet := @MeasurementsNewSet;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
-  FAlign := TAlignPanel(AddSection(rsTabAlign, TAlignPanel.Create(Self)));
+  FAlign := TAlignPanel(AddSection('align', rsTabAlign, TAlignPanel.Create(Self)));
   FAlign.Document := FDocument;
   FAlign.OnMessage := @ListPanelMessage;
   FAlign.OnSelect := @AlignSelect;
   // Hidden until the panel is fixed; the arrange code stays for the Automation API
   FSidePanel.SetSectionShown(FAlign.Parent, False);
-  FRoles := TRolesPanel(AddSection(rsTabLines, TRolesPanel.Create(Self)));
+  FRoles := TRolesPanel(AddSection('lines', rsTabLines, TRolesPanel.Create(Self)));
   FRoles.Document := FDocument;
   FRoles.OnMessage := @ListPanelMessage;
-  FMaterials := TMaterialsPanel(AddSection(rsTabMaterials, TMaterialsPanel.Create(Self)));
+  FMaterials := TMaterialsPanel(AddSection('materials', rsTabMaterials, TMaterialsPanel.Create(Self)));
   FMaterials.Document := FDocument;
   FMaterials.OnMessage := @ListPanelMessage;
   FMaterials.OnEdit := @MaterialsEditClick;

@@ -81,6 +81,10 @@ type
     NameColumnShare: double;
     LabelMode: TLabelMode;
     ShowSidePanel: boolean;
+    // The tab open in the design app's side panel and in the publish app, by
+    // key; '' for the first. The apps leave a key they do not know.
+    SideTab: string;
+    PublishTab: string;
     // Rulers along the top and left of the drafting canvas
     ShowRulers: boolean;
     // Whether the drafting canvas fills pieces with their material
@@ -131,6 +135,11 @@ function SavePreferencesToFile(const FileName: string; const Preferences: TPrefe
 // The same for role presets
 function SaveUserRolePresets(const Presets: TRolePresetArray; out ErrorMessage: string): boolean;
 function SaveRolePresetsToFile(const FileName: string; const Presets: TRolePresetArray; out ErrorMessage: string): boolean;
+// The same for the publish app's open tab, the only setting it writes
+function SaveUserPublishTab(const Key: string; out ErrorMessage: string): boolean;
+function SavePublishTabToFile(const FileName, Key: string; out ErrorMessage: string): boolean;
+// The publish app's open tab when it was last closed; '' when unknown
+function UserPublishTab: string;
 
 resourcestring
   rsSettingsWrongFormat = 'This is not an OpenSloper settings file';
@@ -188,6 +197,8 @@ begin
   NameColumnShare := DefaultNameColumnShare;
   LabelMode := DefaultLabelMode;
   ShowSidePanel := True;
+  SideTab := '';
+  PublishTab := '';
   ShowRulers := True;
   ShowPieceFills := True;
   MaterialDialogSplit := 0;
@@ -310,6 +321,10 @@ begin
     Obj.Add('nameColumnShare', JSONFloat(NameColumnShare));
     Obj.Add('labelMode', LabelModeNames[LabelMode]);
     Obj.Add('showSidePanel', ShowSidePanel);
+    if SideTab <> '' then
+      Obj.Add('sideTab', SideTab);
+    if PublishTab <> '' then
+      Obj.Add('publishTab', PublishTab);
     Obj.Add('showRulers', ShowRulers);
     Obj.Add('showPieceFills', ShowPieceFills);
     if MaterialDialogSplit > 0 then
@@ -363,6 +378,10 @@ begin
           LabelMode := Mode;
     if GetJSONBoolean(Obj, 'showSidePanel', Shown) then
       ShowSidePanel := Shown;
+    if GetJSONString(Obj, 'sideTab', TextValue) then
+      SideTab := TextValue;
+    if GetJSONString(Obj, 'publishTab', TextValue) then
+      PublishTab := TextValue;
     if GetJSONBoolean(Obj, 'showRulers', Shown) then
       ShowRulers := Shown;
     if GetJSONBoolean(Obj, 'showPieceFills', Shown) then
@@ -465,6 +484,41 @@ begin
       Exit(False);
     Settings.Preferences := Preferences;
     Result := Settings.SaveToFile(FileName, ErrorMessage);
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+function SaveUserPublishTab(const Key: string; out ErrorMessage: string): boolean;
+begin
+  TAppPaths.ForceDir(TAppPaths.ConfigDir);
+  Result := SavePublishTabToFile(TAppPaths.SettingsFile, Key, ErrorMessage);
+end;
+
+function SavePublishTabToFile(const FileName, Key: string; out ErrorMessage: string): boolean;
+var
+  Settings: TAppSettings;
+begin
+  Settings := TAppSettings.Create;
+  try
+    if not Settings.LoadFromFile(FileName, ErrorMessage) then
+      Exit(False);
+    Settings.PublishTab := Key;
+    Result := Settings.SaveToFile(FileName, ErrorMessage);
+  finally
+    FreeAndNil(Settings);
+  end;
+end;
+
+function UserPublishTab: string;
+var
+  Settings: TAppSettings;
+  Reason: string;
+begin
+  Settings := TAppSettings.Create;
+  try
+    Settings.LoadFromFile(TAppPaths.SettingsFile, Reason);
+    Result := Settings.PublishTab;
   finally
     FreeAndNil(Settings);
   end;

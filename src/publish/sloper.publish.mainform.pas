@@ -345,10 +345,10 @@ begin
   FTabs := TAccordion.Create(Self);
   FTabs.Parent := FColumn;
   FTabs.Align := alClient;
-  FPiecesSide := FTabs.AddSection(rsTabPieces);
-  FPatternsSide := FTabs.AddSection(rsTabPatterns);
-  FSide := FTabs.AddSection(rsTabOutput);
-  FNotesSide := FTabs.AddSection(rsTabNotes);
+  FPiecesSide := FTabs.AddSection('pieces', rsTabPieces);
+  FPatternsSide := FTabs.AddSection('patterns', rsTabPatterns);
+  FSide := FTabs.AddSection('output', rsTabOutput);
+  FNotesSide := FTabs.AddSection('notes', rsTabNotes);
   FPreview := TPreviewCanvas.Create(Self);
   FPreview.Parent := Self;
   FPreview.Align := alClient;
@@ -365,6 +365,7 @@ begin
   BuildSide;
   FRowParent := ScrollingRows(FNotesSide);
   BuildNotesTab;
+  FTabs.ActiveKey := UserPublishTab;
   RefreshControls;
   FWatch := TTimer.Create(Self);
   FWatch.Interval := WatchMilliseconds;
@@ -1274,9 +1275,15 @@ begin
   Result := not FDocument.Modified or (MessageDlg(rsDiscardQuestion, mtConfirmation, [mbYes, mbNo], 0) = mrYes);
 end;
 
+// The open tab is kept for next time; a settings file that cannot be read is
+// left as it is
 procedure TPublishForm.CloseAsked(Sender: TObject; var CanClose: boolean);
+var
+  Err: string;
 begin
   CanClose := ConfirmDiscard;
+  if CanClose then
+    SaveUserPublishTab(FTabs.ActiveKey, Err);
 end;
 
 procedure TPublishForm.OpenClick(Sender: TObject);
