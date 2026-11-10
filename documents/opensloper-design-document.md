@@ -227,6 +227,8 @@ The canvas feels like Inkscape, but every point records how it was placed relati
 
 **Formula completion** (`Sloper.UI.FormulaCompleter`, with the LCL-free `Sloper.UI.Completion`): `@` lists measurements, `#` variables, a dot an object's properties, and a bare word everything, matches first; choosing an object goes straight on to its properties. The object being edited, and objects in a variable's formula, are left out, since neither would be accepted.
 
+**Side panel sections** (built 2026-11-10, `Sloper.UI.Accordion`). The side panel is an accordion rather than tabs down its side: each tab has a header across the full width, and exactly one is open, its header and those before it at the top, its panel under them, and the headers after it collapsed at the bottom. Clicking a header, or Enter or Space on it, opens it and closes the one that was open; Up and Down move between headers. A click does not take the keyboard from the canvas, as a tab did not. Vertical tab captions were hard to read, and the headers leave the panel's whole width to the open tab; the layout arithmetic is in the LCL-free `Sloper.UI.AccordionLayout`, where tests check it. Which tab is open is not saved.
+
 **Side panel and editable panels.** Tabs for properties, objects, variables, measurements, lines and materials share `Sloper.UI.ListPanel`: a search box over a list, with the selection held by key. Decided 2026-11-07, built 2026-11-08: a list is read in the grid and, where a value fits a cell, edited there (F2, Enter or typing opens it; Enter or leaving commits; Escape reverts); a refused value keeps its text, the cell red and the reason in the status bar; buttons sit in one row at the bottom with Add first; file commands go in the main menu, not in panels. Materials is the exception, read-only with editing in a dialog, since colour and fill do not fit a cell. An editable list selects cells, not rows, and Delete reaches the tab only when no cell is open. A commit is made by the row's key, after the grid has closed the cell, so a row that moves cannot take the edit; the commits are in the LCL-free `Sloper.UI.PanelEdits`, where tests make them.
 
 - **Variables** are edited in the grid, one undo step per cell; a selected variable is not shown in the properties.
@@ -916,7 +918,6 @@ Agreed but not yet designed in detail or placed in the steps above.
 - **Role styles in Preferences**: overriding a role's colour, dash and weight.
 - **Finding an open publish window**: Publish… opens another window each time, rather than finding the one already open.
 - **Preferences across open apps**: an app already open picks up a preference changed in another only when restarted.
-- **Side Panel Tabs** Move the tabs from the side , to top of each panel, but have only one tab shown at the same time. So similiar to an accordian tab display, the seleted tab and it's panel are shown the other tabs are shown collapsed. Only one selected tab panel is shown at a time.
 
 
 **Open question:** whether `view.pieceOrder` should list every piece or only those moved, and where a piece left out goes when another is brought to front.

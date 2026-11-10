@@ -30,7 +30,7 @@ uses
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
   Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.Preferences,
-  Sloper.Core.Transform, Sloper.Core.Fragment;
+  Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion;
 
 type
 
@@ -106,7 +106,7 @@ type
     FLabelActions: array[TLabelMode] of TAction;
     FRoleActions: array[TEdgeRole] of TAction;
     FRoleBox: TComboBox;
-    FSidePanel: TPageControl;
+    FSidePanel: TAccordion;
     FSideSplitter: TSplitter;
     FCanvasPanel: TPanel;
     FMaterials: TMaterialsPanel;
@@ -462,69 +462,52 @@ begin
   FLabelActions[Mode].Checked := True;
 end;
 
-// The tabs down the left; the list panels share one place
+// One section open at a time, each under its own header
 procedure TMainForm.CreateSidePanel;
 
-  function AddTab(const ACaption: string; Panel: TListPanel): TListPanel;
-  var
-    Sheet: TTabSheet;
+  function AddSection(const ACaption: string; Panel: TWinControl): TWinControl;
   begin
-    Sheet := FSidePanel.AddTabSheet;
-    Sheet.Caption := ACaption;
-    Panel.Parent := Sheet;
+    Panel.Parent := FSidePanel.AddSection(ACaption);
     Panel.Align := alClient;
+    Result := Panel;
+  end;
+
+  function AddList(const ACaption: string; Panel: TListPanel): TListPanel;
+  begin
+    AddSection(ACaption, Panel);
     Panel.Document := FDocument;
     Panel.OnMessage := @ListPanelMessage;
     Result := Panel;
   end;
 
-var
-  PropertySheet, AlignSheet, MaterialsSheet, RolesSheet: TTabSheet;
 begin
-  FSidePanel := TPageControl.Create(Self);
+  FSidePanel := TAccordion.Create(Self);
   FSidePanel.Parent := Self;
   FSidePanel.Align := alRight;
   FSidePanel.Width := Scale96ToForm(490);
-  FSidePanel.TabPosition := tpLeft;
-  PropertySheet := FSidePanel.AddTabSheet;
-  PropertySheet.Caption := rsTabProperties;
-  FProperties := TPropertiesPanel.Create(Self);
-  FProperties.Parent := PropertySheet;
-  FProperties.Align := alClient;
+  FProperties := TPropertiesPanel(AddSection(rsTabProperties, TPropertiesPanel.Create(Self)));
   FProperties.Document := FDocument;
   FProperties.OnMessage := @ListPanelMessage;
-  FObjects := TObjectsPanel(AddTab(rsTabObjects, TObjectsPanel.Create(Self)));
+  FObjects := TObjectsPanel(AddList(rsTabObjects, TObjectsPanel.Create(Self)));
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
   FObjects.OnDelete := @ObjectsDelete;
-  FVariables := TVariablesPanel(AddTab(rsTabVariables, TVariablesPanel.Create(Self)));
-  FMeasurements := TMeasurementsPanel(AddTab(rsTabMeasurements, TMeasurementsPanel.Create(Self)));
+  FVariables := TVariablesPanel(AddList(rsTabVariables, TVariablesPanel.Create(Self)));
+  FMeasurements := TMeasurementsPanel(AddList(rsTabMeasurements, TMeasurementsPanel.Create(Self)));
   FMeasurements.OnNewSet := @MeasurementsNewSet;
   FMeasurementWatch := TTimer.Create(Self);
   FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
-  AlignSheet := FSidePanel.AddTabSheet;
-  AlignSheet.Caption := rsTabAlign;
-  FAlign := TAlignPanel.Create(Self);
-  FAlign.Parent := AlignSheet;
-  FAlign.Align := alClient;
+  FAlign := TAlignPanel(AddSection(rsTabAlign, TAlignPanel.Create(Self)));
   FAlign.Document := FDocument;
   FAlign.OnMessage := @ListPanelMessage;
   FAlign.OnSelect := @AlignSelect;
   // Hidden until the panel is fixed; the arrange code stays for the Automation API
-  AlignSheet.TabVisible := False;
-  RolesSheet := FSidePanel.AddTabSheet;
-  RolesSheet.Caption := rsTabLines;
-  FRoles := TRolesPanel.Create(Self);
-  FRoles.Parent := RolesSheet;
-  FRoles.Align := alClient;
+  FSidePanel.SetSectionShown(FAlign.Parent, False);
+  FRoles := TRolesPanel(AddSection(rsTabLines, TRolesPanel.Create(Self)));
   FRoles.Document := FDocument;
   FRoles.OnMessage := @ListPanelMessage;
-  MaterialsSheet := FSidePanel.AddTabSheet;
-  MaterialsSheet.Caption := rsTabMaterials;
-  FMaterials := TMaterialsPanel.Create(Self);
-  FMaterials.Parent := MaterialsSheet;
-  FMaterials.Align := alClient;
+  FMaterials := TMaterialsPanel(AddSection(rsTabMaterials, TMaterialsPanel.Create(Self)));
   FMaterials.Document := FDocument;
   FMaterials.OnMessage := @ListPanelMessage;
   FMaterials.OnEdit := @MaterialsEditClick;
@@ -839,7 +822,7 @@ procedure TMainForm.CanvasNoteAdded(Sender: TObject);
 begin
   if not FSidePanel.Visible then
     Exit;
-  FSidePanel.ActivePage := FProperties.Parent as TTabSheet;
+  FSidePanel.ActiveContent := FProperties.Parent;
   FProperties.FocusNoteText;
 end;
 

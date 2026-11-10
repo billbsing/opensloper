@@ -10,7 +10,10 @@ points and edges placed by formulas, then closed outlines become pieces.
 - **Tools**, down the left of the canvas: Select, Point, Line, Curve, Circle,
   Rectangle, Piece, Notch, Seam, Text and Callout, then commands such as Arc,
   Split Edge and Round Corner. The Tools menu lists them all.
-- **Side panel**, on the right (View → Side Panel), with tabs:
+- **Side panel**, on the right (View → Side Panel), with tabs, one open at a
+  time: click a tab's header to open it, and the others fold up under it.
+  With a header focused, ++enter++ or ++space++ opens it and the arrow keys
+  move to the next one:
 
     | Tab | What it shows |
     | --- | --- |

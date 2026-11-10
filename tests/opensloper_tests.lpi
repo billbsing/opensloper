@@ -277,6 +277,11 @@
         <UnitName Value="Sloper.Tests.PropertyText"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.accordionlayout.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.AccordionLayout"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.settings.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Settings"/>
