@@ -50,12 +50,11 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Graphics, ButtonPanel, Sloper.Core.Evaluator, Sloper.UI.ObjectList;
+  SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Graphics, ButtonPanel, Sloper.Core.Evaluator, Sloper.UI.ObjectList, Sloper.UI.Spacing;
 
 const
   DialogWidth = 640;
   DialogHeight = 480;
-  DialogBorder = 8;
   ChoiceWidth = 120;
   // Marks the number in its formula
   NumberOpen = '«';
@@ -104,7 +103,7 @@ begin
   Result.Parent := AParent;
   StackBelow(Result);
   Result.WordWrap := True;
-  Result.BorderSpacing.Around := DialogBorder;
+  Result.BorderSpacing.Around := ControlGap;
   Result.Caption := ACaption;
 end;
 
@@ -141,14 +140,15 @@ begin
   FButtons := TButtonPanel.Create(Self);
   FButtons.Parent := Self;
   FButtons.ShowButtons := [pbOK, pbCancel];
+  SpaceButtons(FButtons);
   FButtons.OKButton.Caption := rsConvertButton;
   AddLabel(Self, Format(rsConvertFrom, [MeasureUnitNames[APattern.Units]]));
   FUnitBox := TComboBox.Create(Self);
   FUnitBox.Parent := Self;
   StackBelow(FUnitBox);
   FUnitBox.Style := csDropDownList;
-  FUnitBox.BorderSpacing.Left := DialogBorder;
-  FUnitBox.BorderSpacing.Right := DialogBorder;
+  FUnitBox.BorderSpacing.Left := ControlGap;
+  FUnitBox.BorderSpacing.Right := ControlGap;
   FUnits := nil;
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
     if AUnit <> APattern.Units then
@@ -173,7 +173,7 @@ begin
   FRows := TScrollBox.Create(Self);
   FRows.Parent := Self;
   FRows.Align := alClient;
-  FRows.BorderSpacing.Around := DialogBorder;
+  FRows.BorderSpacing.Around := ControlGap;
   FRows.HorzScrollBar.Visible := False;
   FRows.Visible := Length(FOpen) > 0;
   FChoices := nil;
@@ -210,7 +210,7 @@ begin
   Description.Parent := Row;
   Description.Align := alClient;
   Description.Layout := tlCenter;
-  Description.BorderSpacing.Around := DialogBorder div 2;
+  Description.BorderSpacing.Around := ControlGap;
   Description.Caption := RowCaption(FPattern, Number);
 end;
 

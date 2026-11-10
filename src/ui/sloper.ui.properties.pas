@@ -35,11 +35,6 @@ uses
   Classes, SysUtils, Generics.Collections, Controls, StdCtrls, Forms, Graphics, LCLType, Sloper.Core.Draft,
   Sloper.Core.Evaluator, Sloper.Document.PatternDocument, Sloper.UI.FormulaCompleter;
 
-const
-  // Space above a group of rows, and above a row, in pixels
-  PropertyGap = 6;
-  PropertyRowGap = 3;
-
 type
   // One line of text that cuts itself to the label's width with an ellipsis
   // and shows the full text as a tooltip when it does
@@ -156,8 +151,8 @@ type
     procedure AddSections(Node: TEvalNode);
     function FindSection(SectionClass: TPropertySectionClass): TPropertySection;
     procedure FreeRows;
-    procedure HangBelowLast(Control: TControl; SpaceAbove: integer);
-    procedure Stack(Control: TControl; SpaceAbove: integer);
+    procedure HangBelowLast(Control: TControl);
+    procedure Stack(Control: TControl);
     // The formula row of this field, or -1
     function FormulaRowOf(const FieldName: string): integer;
     function SectionOwnsField(Node: TEvalNode; const FieldName: string): boolean;
@@ -221,12 +216,12 @@ type
     function KeepsText(Control: TWinControl): boolean;
     // A change from the panel is being committed
     property Committing: boolean read FCommitting;
-    function AddLabel(const ACaption: string; SpaceAbove: integer): TLabel;
-    procedure AddRow(const ACaption: string; Value: TControl; SpaceAbove: integer);
-    function AddTextRow(const ACaption, AText: string; SpaceAbove: integer): TGridLabel;
+    function AddLabel(const ACaption: string): TLabel;
+    procedure AddRow(const ACaption: string; Value: TControl);
+    function AddTextRow(const ACaption, AText: string): TGridLabel;
     // Items in the order of the value they stand for; the handler is set after
     // them, and the caller sets the choice
-    function AddChoiceRow(const ACaption: string; const Items: array of string; Handler: TNotifyEvent; SpaceAbove: integer): TComboBox;
+    function AddChoiceRow(const ACaption: string; const Items: array of string; Handler: TNotifyEvent): TComboBox;
     function AddEditRow(const ACaption: string; Kind: TFieldRowKind; const FieldName: string): TEdit;
     // Puts the cursor in this field's row, with its text selected
     procedure FocusFormulaRow(const FieldName: string);
@@ -307,7 +302,7 @@ implementation
 
 uses
   Math, Spin, Sloper.Core.EvalTypes, Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
-  Sloper.Core.Note, Sloper.Core.Settings, Sloper.UI.GridColumns, Sloper.UI.ObjectList, Sloper.UI.PieceProperties, Sloper.UI.PropertyText;
+  Sloper.Core.Note, Sloper.Core.Settings, Sloper.UI.GridColumns, Sloper.UI.ObjectList, Sloper.UI.PieceProperties, Sloper.UI.PropertyText, Sloper.UI.Spacing;
 
 type
   // Rows every object has: type, name and formula fields first; what made a
@@ -417,7 +412,6 @@ begin
 end;
 
 const
-  Indent = 8;
   // At 96 pixels per inch
   DividerWidth96 = 8;
   MinColumn96 = 48;
@@ -753,7 +747,7 @@ end;
 // Each control hangs below the one before, so sizes follow the widgetset's
 // fonts and scaling and the order is explicit. A hidden control takes no
 // room: the next one anchors through it.
-procedure TPropertiesPanel.HangBelowLast(Control: TControl; SpaceAbove: integer);
+procedure TPropertiesPanel.HangBelowLast(Control: TControl);
 begin
   if not Assigned(FLastControl) then
   begin
@@ -765,12 +759,12 @@ begin
     Control.AnchorSideTop.Control := FLastControl;
     Control.AnchorSideTop.Side := asrBottom;
   end;
-  Control.BorderSpacing.Top := SpaceAbove;
+  Control.BorderSpacing.Top := ControlGap;
   FLastControl := Control;
 end;
 
 // A control across both columns
-procedure TPropertiesPanel.Stack(Control: TControl; SpaceAbove: integer);
+procedure TPropertiesPanel.Stack(Control: TControl);
 begin
   Control.Parent := Self;
   Control.Anchors := [akLeft, akTop, akRight];
@@ -778,23 +772,23 @@ begin
   Control.AnchorSideLeft.Side := asrTop;
   Control.AnchorSideRight.Control := Self;
   Control.AnchorSideRight.Side := asrBottom;
-  Control.BorderSpacing.Left := Indent;
-  Control.BorderSpacing.Right := Indent;
-  HangBelowLast(Control, SpaceAbove);
+  Control.BorderSpacing.Left := ControlGap;
+  Control.BorderSpacing.Right := ControlGap;
+  HangBelowLast(Control);
 end;
 
-function TPropertiesPanel.AddLabel(const ACaption: string; SpaceAbove: integer): TLabel;
+function TPropertiesPanel.AddLabel(const ACaption: string): TLabel;
 begin
   Result := TLabel.Create(Self);
   Result.Caption := ACaption;
   Result.WordWrap := True;
   Result.AutoSize := True;
-  Stack(Result, SpaceAbove);
+  Stack(Result);
 end;
 
 // A name in the left column beside Value in the right; the value sets the
 // row's height and the divider sets where the columns meet
-procedure TPropertiesPanel.AddRow(const ACaption: string; Value: TControl; SpaceAbove: integer);
+procedure TPropertiesPanel.AddRow(const ACaption: string; Value: TControl);
 var
   NameLabel: TGridLabel;
 begin
@@ -804,8 +798,8 @@ begin
   Value.AnchorSideLeft.Side := asrBottom;
   Value.AnchorSideRight.Control := Self;
   Value.AnchorSideRight.Side := asrBottom;
-  Value.BorderSpacing.Right := Indent;
-  HangBelowLast(Value, SpaceAbove);
+  Value.BorderSpacing.Right := ControlGap;
+  HangBelowLast(Value);
   NameLabel := TGridLabel.Create(Self);
   NameLabel.Caption := ACaption;
   NameLabel.Parent := Self;
@@ -818,21 +812,20 @@ begin
   NameLabel.AnchorSideTop.Side := asrTop;
   NameLabel.AnchorSideBottom.Control := Value;
   NameLabel.AnchorSideBottom.Side := asrBottom;
-  NameLabel.BorderSpacing.Left := Indent;
+  NameLabel.BorderSpacing.Left := ControlGap;
   if not Assigned(FFirstRow) then
     FFirstRow := Value;
   FLastRow := Value;
 end;
 
-function TPropertiesPanel.AddTextRow(const ACaption, AText: string; SpaceAbove: integer): TGridLabel;
+function TPropertiesPanel.AddTextRow(const ACaption, AText: string): TGridLabel;
 begin
   Result := TGridLabel.Create(Self);
   Result.Caption := AText;
-  AddRow(ACaption, Result, SpaceAbove);
+  AddRow(ACaption, Result);
 end;
 
-function TPropertiesPanel.AddChoiceRow(const ACaption: string; const Items: array of string; Handler: TNotifyEvent;
-  SpaceAbove: integer): TComboBox;
+function TPropertiesPanel.AddChoiceRow(const ACaption: string; const Items: array of string; Handler: TNotifyEvent): TComboBox;
 var
   Item: string;
 begin
@@ -841,7 +834,7 @@ begin
   for Item in Items do
     Result.Items.Add(Item);
   Result.OnChange := Handler;
-  AddRow(ACaption, Result, SpaceAbove);
+  AddRow(ACaption, Result);
 end;
 
 function TPropertiesPanel.AddEditRow(const ACaption: string; Kind: TFieldRowKind; const FieldName: string): TEdit;
@@ -860,8 +853,8 @@ begin
   Result.OnKeyUp := @EditKeyUp;
   Result.OnChange := @EditChange;
   Result.OnClick := @EditClick;
-  AddRow(ACaption, Result, PropertyRowGap);
-  FRows[Index].Refusal := AddLabel('', PropertyRowGap);
+  AddRow(ACaption, Result);
+  FRows[Index].Refusal := AddLabel('');
   FRows[Index].Refusal.Font.Color := clRed;
   FRows[Index].Refusal.Visible := False;
 end;
@@ -898,7 +891,7 @@ end;
 // The width the two columns share
 function TPropertiesPanel.ColumnSpace: integer;
 begin
-  Result := ClientWidth - 2 * Indent - FDivider.Width;
+  Result := ClientWidth - 2 * ControlGap - FDivider.Width;
 end;
 
 function TPropertiesPanel.MinColumn: integer;
@@ -909,12 +902,12 @@ end;
 procedure TPropertiesPanel.PositionDivider;
 begin
   if Assigned(FDivider) then
-    FDivider.Left := Indent + NameColumnWidth(ColumnSpace, MinColumn, FNameShare);
+    FDivider.Left := ControlGap + NameColumnWidth(ColumnSpace, MinColumn, FNameShare);
 end;
 
 procedure TPropertiesPanel.DividerDrag(Sender: TObject; NewLeft: integer);
 begin
-  FNameShare := NameShareAt(NewLeft - Indent, ColumnSpace, MinColumn);
+  FNameShare := NameShareAt(NewLeft - ControlGap, ColumnSpace, MinColumn);
   PositionDivider;
 end;
 
@@ -960,9 +953,9 @@ begin
     if not Assigned(Node) then
     begin
       if FSelectionCount > 1 then
-        AddLabel(Format(rsPropMany, [FSelectionCount]), PropertyGap)
+        AddLabel(Format(rsPropMany, [FSelectionCount]))
       else
-        AddLabel(rsPropNothing, PropertyGap);
+        AddLabel(rsPropNothing);
       Exit;
     end;
     FDivider := TColumnDivider.Create(Self);
@@ -1187,10 +1180,10 @@ begin
   case Place of
     spType:
       if not CanChangeType(Node) then
-        Panel.AddTextRow(rsPropType, TypeCaption(Node), PropertyGap);
+        Panel.AddTextRow(rsPropType, TypeCaption(Node));
     spName:
       if Node is TRepeatPoint then
-        Panel.AddTextRow(rsPropName, TRepeatPoint(Node).Name, PropertyRowGap)
+        Panel.AddTextRow(rsPropName, TRepeatPoint(Node).Name)
       else if Node is TDraftObject then
         Panel.AddEditRow(rsPropName, frName, '');
     spFields:
@@ -1199,7 +1192,7 @@ begin
       AddResultRows(Node);
     spEnd:
     begin
-      FProblem := Panel.AddLabel('', PropertyGap);
+      FProblem := Panel.AddLabel('');
       FProblem.Font.Color := clRed;
     end;
   end;
@@ -1231,17 +1224,17 @@ end;
 procedure TCommonSection.AddResultRows(Node: TEvalNode);
 begin
   if CopyTransformKey(Node) <> '' then
-    FMadeByText := Panel.AddTextRow(rsPropMadeBy, '', PropertyRowGap);
+    FMadeByText := Panel.AddTextRow(rsPropMadeBy, '');
   if Node is TPointObject then
-    FResult := Panel.AddTextRow(rsPropPosition, '', PropertyGap)
+    FResult := Panel.AddTextRow(rsPropPosition, '')
   else if Node is TEdgeObject then
-    FResult := Panel.AddTextRow(rsPropLength, '', PropertyGap)
+    FResult := Panel.AddTextRow(rsPropLength, '')
   else if Node is TPieceObject then
-    FResult := Panel.AddTextRow(rsPropPerimeter, '', PropertyGap)
+    FResult := Panel.AddTextRow(rsPropPerimeter, '')
   else if Node is TSeamObject then
-    FResult := Panel.AddTextRow(rsPropSeamLengths, '', PropertyGap)
+    FResult := Panel.AddTextRow(rsPropSeamLengths, '')
   else if Node is TNoteObject then
-    FResult := Panel.AddTextRow(rsPropPosition, '', PropertyGap);
+    FResult := Panel.AddTextRow(rsPropPosition, '');
 end;
 
 procedure TCommonSection.Refresh(Node: TEvalNode);
@@ -1277,9 +1270,9 @@ begin
       if CanChangeType(Node) then
       begin
         if Node is TArcObject then
-          FTypeBox := Panel.AddChoiceRow(rsPropType, [rsTypeArc, rsTypeLine], nil, PropertyGap)
+          FTypeBox := Panel.AddChoiceRow(rsPropType, [rsTypeArc, rsTypeLine], nil)
         else
-          FTypeBox := Panel.AddChoiceRow(rsPropType, [rsTypeLine, rsTypeCurve], nil, PropertyGap);
+          FTypeBox := Panel.AddChoiceRow(rsPropType, [rsTypeLine, rsTypeCurve], nil);
         FTypeBox.ItemIndex := FTypeBox.Items.IndexOf(TypeCaption(Node));
         FTypeBox.OnChange := @TypeChange;
       end;
@@ -1288,8 +1281,8 @@ begin
       RoleNames := nil;
       for Role := Low(TEdgeRole) to High(TEdgeRole) do
         Insert(RoleCaption(Role), RoleNames, Length(RoleNames));
-      FRoleBox := Panel.AddChoiceRow(rsPropRole, RoleNames, @RoleChange, PropertyRowGap);
-      FMarkedOnText := Panel.AddTextRow(rsPropMarkedOn, '', PropertyRowGap);
+      FRoleBox := Panel.AddChoiceRow(rsPropRole, RoleNames, @RoleChange);
+      FMarkedOnText := Panel.AddTextRow(rsPropMarkedOn, '');
     end;
   end;
 end;
@@ -1366,12 +1359,11 @@ begin
   if Place <> spRows then
     Exit;
   // In the order of TPointMarker
-  FMarkerBox := Panel.AddChoiceRow(rsPropMarker, [rsPropMarkerPlain, rsPropMarkerHole, rsPropMarkerButton, rsPropMarkerMatch], @MarkerChange,
-    PropertyRowGap);
+  FMarkerBox := Panel.AddChoiceRow(rsPropMarker, [rsPropMarkerPlain, rsPropMarkerHole, rsPropMarkerButton, rsPropMarkerMatch], @MarkerChange);
   for Index := 0 to Node.FieldCount - 1 do
     if Node.Fields[Index].Name = MarkerSizeField then
       Panel.AddEditRow(FieldCaption(MarkerSizeField), frFormula, MarkerSizeField);
-  FMarkedOnText := Panel.AddTextRow(rsPropMarkedOn, '', PropertyRowGap);
+  FMarkedOnText := Panel.AddTextRow(rsPropMarkedOn, '');
 end;
 
 function TMarkerSection.OwnsField(Node: TEvalNode; const FieldName: string): boolean;
@@ -1448,13 +1440,13 @@ begin
     Exit;
   ARepeat := TRepeatObject(Node);
   if ARepeat.Edge <> '' then
-    Panel.AddTextRow(rsPropRepeatEdge, NameOf(ARepeat.Edge), PropertyRowGap)
+    Panel.AddTextRow(rsPropRepeatEdge, NameOf(ARepeat.Edge))
   else
   begin
-    Panel.AddTextRow(rsPropRepeatFrom, NameOf(ARepeat.FirstPoint), PropertyRowGap);
-    Panel.AddTextRow(rsPropRepeatTo, NameOf(ARepeat.LastPoint), PropertyRowGap);
+    Panel.AddTextRow(rsPropRepeatFrom, NameOf(ARepeat.FirstPoint));
+    Panel.AddTextRow(rsPropRepeatTo, NameOf(ARepeat.LastPoint));
   end;
-  FEndsBox := Panel.AddChoiceRow(rsPropEnds, [rsPropEndsInclude, rsPropEndsExclude], @EndsChange, PropertyRowGap);
+  FEndsBox := Panel.AddChoiceRow(rsPropEnds, [rsPropEndsInclude, rsPropEndsExclude], @EndsChange);
 end;
 
 procedure TRepeatSection.Refresh(Node: TEvalNode);
@@ -1483,16 +1475,16 @@ begin
   case Place of
     spRows:
     begin
-      FSideAText := Panel.AddTextRow(rsPropSideA, '', PropertyRowGap);
-      FSideBText := Panel.AddTextRow(rsPropSideB, '', PropertyRowGap);
+      FSideAText := Panel.AddTextRow(rsPropSideA, '');
+      FSideBText := Panel.AddTextRow(rsPropSideB, '');
       Flip := TButton.Create(Panel);
       Flip.Caption := rsPropFlip;
       Flip.OnClick := @FlipClick;
-      Panel.AddRow(rsPropDirection, Flip, PropertyRowGap);
+      Panel.AddRow(rsPropDirection, Flip);
     end;
     // Under the lengths it compares
     spResult:
-      FDifferenceText := Panel.AddTextRow(rsPropSeamDifference, '', PropertyRowGap);
+      FDifferenceText := Panel.AddTextRow(rsPropSeamDifference, '');
   end;
 end;
 
@@ -1551,8 +1543,8 @@ begin
   FNoteText.OnKeyDown := @TextKeyDown;
   FNoteText.Hint := rsPropNoteTextHint;
   FNoteText.ShowHint := True;
-  Panel.AddRow(rsPropNoteText, FNoteText, PropertyRowGap);
-  FNoteRefusal := Panel.AddLabel('', PropertyRowGap);
+  Panel.AddRow(rsPropNoteText, FNoteText);
+  FNoteRefusal := Panel.AddLabel('');
   FNoteRefusal.Font.Color := clRed;
   FNoteRefusal.WordWrap := True;
   FNoteRefusal.Visible := False;
@@ -1568,24 +1560,23 @@ begin
   FNoteSize.Increment := NoteSizeStep;
   FNoteSize.DecimalPlaces := 1;
   FNoteSize.OnChange := @SizeChange;
-  Panel.AddRow(rsPropNoteSize, FNoteSize, PropertyRowGap);
+  Panel.AddRow(rsPropNoteSize, FNoteSize);
   FNotePrint := TCheckBox.Create(Panel);
   FNotePrint.Caption := rsPropNotePrintCaption;
   FNotePrint.OnClick := @PrintClick;
-  Panel.AddRow(rsPropNotePrint, FNotePrint, PropertyRowGap);
+  Panel.AddRow(rsPropNotePrint, FNotePrint);
   // In the order of TTextAlign
-  FNoteAlignBox := Panel.AddChoiceRow(rsPropNoteAlign, [rsPropNoteAlignLeft, rsPropNoteAlignCentre, rsPropNoteAlignRight], @LookChange,
-    PropertyRowGap);
+  FNoteAlignBox := Panel.AddChoiceRow(rsPropNoteAlign, [rsPropNoteAlignLeft, rsPropNoteAlignCentre, rsPropNoteAlignRight], @LookChange);
   FNoteBoxCheck := TCheckBox.Create(Panel);
   FNoteBoxCheck.Caption := rsPropNoteBoxCaption;
   FNoteBoxCheck.OnClick := @LookChange;
-  Panel.AddRow(rsPropNoteBox, FNoteBoxCheck, PropertyRowGap);
+  Panel.AddRow(rsPropNoteBox, FNoteBoxCheck);
   // A free note has nothing to point at
   if Note.Anchor <> naFree then
     // In the order of TNoteLeader
     FNoteLeaderBox := Panel.AddChoiceRow(rsPropNoteLeader, [rsPropNoteLeaderNone, rsPropNoteLeaderArrow, rsPropNoteLeaderDot,
-      rsPropNoteLeaderLine], @LookChange, PropertyRowGap);
-  FNoteAnchorText := Panel.AddTextRow(rsPropNoteAnchor, '', PropertyRowGap);
+      rsPropNoteLeaderLine], @LookChange);
+  FNoteAnchorText := Panel.AddTextRow(rsPropNoteAnchor, '');
   if Note.Anchor <> naFree then
   begin
     FreeButton := TButton.Create(Panel);
@@ -1593,7 +1584,7 @@ begin
     FreeButton.Hint := rsPropNoteFreeHint;
     FreeButton.ShowHint := True;
     FreeButton.OnClick := @FreeClick;
-    Panel.AddRow('', FreeButton, PropertyRowGap);
+    Panel.AddRow('', FreeButton);
   end;
 end;
 

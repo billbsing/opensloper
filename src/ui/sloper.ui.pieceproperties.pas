@@ -137,10 +137,10 @@ begin
   FCutEdit.MinValue := 1;
   FCutEdit.MaxValue := MaxCutCount;
   FCutEdit.OnChange := @CutChange;
-  Panel.AddRow(rsPropCut, FCutEdit, PropertyRowGap);
+  Panel.AddRow(rsPropCut, FCutEdit);
   FMirrorBox := TCheckBox.Create(Panel);
   FMirrorBox.OnChange := @CutChange;
-  Panel.AddRow(rsPropMirrored, FMirrorBox, PropertyRowGap);
+  Panel.AddRow(rsPropMirrored, FMirrorBox);
   FoldNames := nil;
   Insert(rsPropNoFold, FoldNames, 0);
   Insert('', FFoldKeys, 0);
@@ -153,7 +153,7 @@ begin
       Insert(Entry.EdgeKey, FFoldKeys, Length(FFoldKeys));
     end;
   end;
-  FFoldBox := Panel.AddChoiceRow(rsPropFold, FoldNames, @FoldChange, PropertyRowGap);
+  FFoldBox := Panel.AddChoiceRow(rsPropFold, FoldNames, @FoldChange);
   AllowanceNames := nil;
   Insert(rsPropOwnAllowancePrompt, AllowanceNames, 0);
   for Index := 0 to High(Piece.Path) do
@@ -162,16 +162,16 @@ begin
       Insert(Pattern.FindNode(Piece.Path[Index].EdgeKey).DisplayName, AllowanceNames, Length(AllowanceNames));
       Insert(Index, FAllowanceIndexes, Length(FAllowanceIndexes));
     end;
-  FAllowanceBox := Panel.AddChoiceRow(rsPropOwnAllowance, AllowanceNames, @AllowanceChange, PropertyRowGap);
+  FAllowanceBox := Panel.AddChoiceRow(rsPropOwnAllowance, AllowanceNames, @AllowanceChange);
   FAllowanceBox.Hint := rsPropOwnAllowanceHint;
   FAllowanceBox.ShowHint := True;
   FAllowanceBox.ItemIndex := 0;
   FAllowanceBox.Enabled := Length(FAllowanceIndexes) > 0;
   AddGrainRows(Piece);
-  FMaterialBox := Panel.AddChoiceRow(rsPropMaterial, [], @MaterialChange, PropertyRowGap);
+  FMaterialBox := Panel.AddChoiceRow(rsPropMaterial, [], @MaterialChange);
   // In the order of TPieceFillStyle
-  FFillStyleBox := Panel.AddChoiceRow(rsPropFillStyle, [rsPropFromMaterial, rsPropFillTint, rsPropFillHatch], @FillStyleChange, PropertyRowGap);
-  FFillColorBox := Panel.AddChoiceRow(rsPropFillColor, [], @FillColorChange, PropertyRowGap);
+  FFillStyleBox := Panel.AddChoiceRow(rsPropFillStyle, [rsPropFromMaterial, rsPropFillTint, rsPropFillHatch], @FillStyleChange);
+  FFillColorBox := Panel.AddChoiceRow(rsPropFillColor, [], @FillColorChange);
 end;
 
 // The grainline's angle goes under the grainline, not with the other fields
@@ -395,7 +395,7 @@ var
   PointNames: TStringArray;
 begin
   // In the order of TGrainKind
-  FGrainBox := Panel.AddChoiceRow(rsPropGrainline, [rsPropGrainNone, rsPropGrainAngle, rsPropGrainPoints], @GrainChange, PropertyRowGap);
+  FGrainBox := Panel.AddChoiceRow(rsPropGrainline, [rsPropGrainNone, rsPropGrainAngle, rsPropGrainPoints], @GrainChange);
   for Index := 0 to Piece.FieldCount - 1 do
     if Piece.Fields[Index].Name = GrainAngleField then
       Panel.AddEditRow(FieldCaption(GrainAngleField), frFormula, GrainAngleField);
@@ -407,8 +407,8 @@ begin
     Insert(Point.DisplayName, PointNames, Length(PointNames));
     Insert(Point.Key, FGrainPointKeys, Length(FGrainPointKeys));
   end;
-  FGrainStartBox := Panel.AddChoiceRow(rsPropGrainFrom, PointNames, @GrainChange, PropertyRowGap);
-  FGrainEndBox := Panel.AddChoiceRow(rsPropGrainTo, PointNames, @GrainChange, PropertyRowGap);
+  FGrainStartBox := Panel.AddChoiceRow(rsPropGrainFrom, PointNames, @GrainChange);
+  FGrainEndBox := Panel.AddChoiceRow(rsPropGrainTo, PointNames, @GrainChange);
 end;
 
 procedure TPieceSection.RefreshGrainRows(Piece: TPieceObject);

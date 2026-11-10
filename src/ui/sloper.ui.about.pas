@@ -43,13 +43,12 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Types, Forms, Controls, Graphics, StdCtrls, ExtCtrls, Sloper.Core.Version;
+  SysUtils, Types, Forms, Controls, Graphics, StdCtrls, ExtCtrls, Sloper.Core.Version, Sloper.UI.Spacing;
 
 const
   // At 96 dpi; scaled to the screen
   LogoSize = 128;
   TextWidth = 360;
-  DialogBorder = 12;
   // Points
   TitleFontSize = 16;
 
@@ -69,8 +68,8 @@ procedure PlaceBelow(ALabel: TLabel; Logo, AControl: TControl; Gap: integer);
 begin
   ALabel.AnchorSide[akLeft].Control := Logo;
   ALabel.AnchorSide[akLeft].Side := asrRight;
-  ALabel.BorderSpacing.Left := DialogBorder;
-  ALabel.BorderSpacing.Right := DialogBorder;
+  ALabel.BorderSpacing.Left := ControlGap;
+  ALabel.BorderSpacing.Right := ControlGap;
   ALabel.Anchors := [akLeft, akTop];
   if Assigned(AControl) then
   begin
@@ -79,7 +78,7 @@ begin
     ALabel.BorderSpacing.Top := Gap;
   end
   else
-    ALabel.BorderSpacing.Top := DialogBorder;
+    ALabel.BorderSpacing.Top := ControlGap;
 end;
 
 function NewLogo(Dialog: TForm): TImage;
@@ -91,7 +90,7 @@ begin
   Result.Parent := Dialog;
   Result.SetBounds(0, 0, Size, Size);
   Result.Anchors := [akLeft, akTop];
-  Result.BorderSpacing.Around := DialogBorder;
+  Result.BorderSpacing.Around := ControlGap;
   Result.Stretch := True;
   Result.Proportional := True;
   Result.Center := True;
@@ -122,9 +121,9 @@ begin
     VersionLabel := NewLabel(Dialog, Format(rsAboutVersion, [AppVersion]));
     PlaceBelow(VersionLabel, Logo, TitleLabel, 0);
     SummaryLabel := NewLabel(Dialog, ASummary);
-    PlaceBelow(SummaryLabel, Logo, VersionLabel, DialogBorder);
+    PlaceBelow(SummaryLabel, Logo, VersionLabel, ControlGap);
     LicenceLabel := NewLabel(Dialog, rsAboutLicence);
-    PlaceBelow(LicenceLabel, Logo, SummaryLabel, DialogBorder);
+    PlaceBelow(LicenceLabel, Logo, SummaryLabel, ControlGap);
     OKButton := TButton.Create(Dialog);
     OKButton.Parent := Dialog;
     OKButton.Caption := rsAboutOK;
@@ -137,8 +136,8 @@ begin
     OKButton.AnchorSide[akTop].Side := asrBottom;
     OKButton.AnchorSide[akRight].Control := LicenceLabel;
     OKButton.AnchorSide[akRight].Side := asrRight;
-    OKButton.BorderSpacing.Top := DialogBorder;
-    OKButton.BorderSpacing.Bottom := DialogBorder;
+    OKButton.BorderSpacing.Top := ControlGap;
+    OKButton.BorderSpacing.Bottom := ControlGap;
     Dialog.ActiveControl := OKButton;
     Dialog.ShowModal;
   finally

@@ -246,10 +246,9 @@ implementation
 
 uses
   Graphics, LCLType, Math, Sloper.Core.AppPaths, Sloper.Core.RecentFiles, Sloper.Core.SeamlyFormat, Sloper.Core.Settings,
-  Sloper.UI.About, Sloper.UI.IconSet, Sloper.UI.Preferences;
+  Sloper.UI.About, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.UI.Spacing;
 
 const
-  HeaderHeight = 30;
   SideWidth = 430;
   CatalogueHeight = 410;
   EntryInfoHeight = 120;
@@ -259,7 +258,6 @@ const
   ReportHeight = 480;
   GroupNames: array[0..High(CatalogueGroups)] of string = (rsGroupHeights, rsGroupCircumferences, rsGroupWidths, rsGroupArm, rsGroupLeg,
     rsGroupCrotch, rsGroupHead, rsGroupHand, rsGroupFoot);
-  SideGap = 6;
   LabelWidth = 50;
   KeyColumnWidth = 190;
   ValueColumnWidth = 80;
@@ -295,6 +293,7 @@ begin
   FTableColumn.Parent := Self;
   FTableColumn.Align := alClient;
   FTableColumn.BevelOuter := bvNone;
+  SpaceChildren(FTableColumn);
   BuildMissing;
   BuildGrid;
   LoadCatalogue;
@@ -391,13 +390,11 @@ var
     Title.Layout := tlCenter;
     Title.AutoSize := False;
     Title.Width := LabelWidth;
-    Title.BorderSpacing.Left := SideGap;
     Result := TEdit.Create(Self);
     Result.Parent := Row;
     Result.Align := alLeft;
     Result.Left := Row.ControlCount * 1000;
     Result.Width := AWidth;
-    Result.BorderSpacing.Around := 2;
     Result.OnEditingDone := @HeaderDone;
   end;
 
@@ -407,8 +404,9 @@ begin
   // Under the toolbar: top-aligned controls stack in the order of their Top
   Row.Top := FCommands.Bar.BoundsRect.Bottom;
   Row.Align := alTop;
-  Row.Height := HeaderHeight + SideGap;
+  Row.AutoSize := True;
   Row.BevelOuter := bvNone;
+  SpaceChildren(Row);
   FNameEdit := AddField(rsName, 240);
   FNotesEdit := AddField(rsNotes, 420);
 end;
@@ -420,7 +418,6 @@ begin
   Result.Align := alLeft;
   Result.Left := FBar.ControlCount * 1000;
   Result.AutoSize := True;
-  Result.BorderSpacing.Around := 2;
   Result.Caption := ACaption;
   Result.OnClick := AHandler;
 end;
@@ -434,12 +431,16 @@ begin
   FBar.Parent := Self;
   FBar.Align := alTop;
   FBar.Top := FNameEdit.Parent.BoundsRect.Bottom;
-  FBar.Height := HeaderHeight + SideGap;
+  FBar.AutoSize := True;
   FBar.BevelOuter := bvNone;
+  // Under the name row, whose spacing already parts them
+  SpaceBetween(FBar);
+  FBar.ChildSizing.LeftRightSpacing := ControlGap;
   AddButton(rsAdd, @AddClick);
   AddButton(rsDelete, @DeleteClick);
   AddButton(rsUp, @UpClick);
-  AddButton(rsDown, @DownClick).BorderSpacing.Right := SideGap * 3;
+  // Three gaps part the measurement buttons from the size buttons
+  AddButton(rsDown, @DownClick).BorderSpacing.Right := ControlGap * 3;
   AddButton(rsAddSize, @AddSizeClick);
   AddButton(rsRenameSize, @RenameSizeClick);
   AddButton(rsDeleteSize, @DeleteSizeClick);
@@ -450,7 +451,6 @@ begin
   FUnitBox.Align := alRight;
   FUnitBox.Style := csDropDownList;
   FUnitBox.Width := 70;
-  FUnitBox.BorderSpacing.Around := 2;
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
     FUnitBox.Items.Add(MeasureUnitNames[AUnit]);
   FUnitBox.ItemIndex := Ord(FUnit);
@@ -460,7 +460,6 @@ begin
   Title.Caption := rsShowIn;
   Title.Align := alRight;
   Title.Layout := tlCenter;
-  Title.BorderSpacing.Right := SideGap;
 end;
 
 procedure TMeasurementsForm.BuildGrid;
@@ -491,19 +490,21 @@ begin
   Side.Align := alRight;
   Side.Width := SideWidth;
   Side.BevelOuter := bvNone;
+  // Its left is the table column's right edge, so only the other edges get the gap
+  SpaceBetween(Side);
+  Side.ChildSizing.TopBottomSpacing := ControlGap;
   Browser := TGroupBox.Create(Self);
   Browser.Parent := Side;
   Browser.Align := alBottom;
   Browser.Height := CatalogueHeight;
-  Browser.BorderSpacing.Around := SideGap;
+  Browser.BorderSpacing.Right := ControlGap;
   Browser.Caption := rsCatalogueTitle;
+  SpaceChildren(Browser);
   FGroupBox := TComboBox.Create(Self);
   FGroupBox.Parent := Browser;
   FGroupBox.Align := alTop;
   FGroupBox.Top := 100;
   FGroupBox.Style := csDropDownList;
-  FGroupBox.BorderSpacing.Left := SideGap;
-  FGroupBox.BorderSpacing.Right := SideGap;
   FGroupBox.Items.Add(rsAllGroups);
   for Group in GroupNames do
     FGroupBox.Items.Add(Group);
@@ -514,18 +515,17 @@ begin
   FSearchEdit.Align := alTop;
   FSearchEdit.Top := 200;
   FSearchEdit.TextHint := rsSearchHint;
-  FSearchEdit.BorderSpacing.Around := SideGap;
   FSearchEdit.OnChange := @FilterChange;
   Buttons := TPanel.Create(Self);
   Buttons.Parent := Browser;
   Buttons.Align := alBottom;
   Buttons.AutoSize := True;
   Buttons.BevelOuter := bvNone;
+  SpaceBetween(Buttons);
   FAddKnownButton := TButton.Create(Self);
   FAddKnownButton.Parent := Buttons;
   FAddKnownButton.Align := alLeft;
   FAddKnownButton.AutoSize := True;
-  FAddKnownButton.BorderSpacing.Around := SideGap;
   FAddKnownButton.Caption := rsAddKnown;
   FAddKnownButton.OnClick := @AddKnownClick;
   FEntryInfo := TMemo.Create(Self);
@@ -535,20 +535,15 @@ begin
   FEntryInfo.ReadOnly := True;
   FEntryInfo.WordWrap := True;
   FEntryInfo.ScrollBars := ssAutoVertical;
-  FEntryInfo.BorderSpacing.Left := SideGap;
-  FEntryInfo.BorderSpacing.Right := SideGap;
   FEntryList := TListBox.Create(Self);
   FEntryList.Parent := Browser;
   FEntryList.Align := alClient;
-  FEntryList.BorderSpacing.Left := SideGap;
-  FEntryList.BorderSpacing.Right := SideGap;
-  FEntryList.BorderSpacing.Bottom := SideGap;
   FEntryList.OnClick := @EntryClick;
   FEntryList.OnDblClick := @AddKnownClick;
   FFigure := TBodyFigure.Create(Self);
   FFigure.Parent := Side;
   FFigure.Align := alClient;
-  FFigure.BorderSpacing.Around := SideGap;
+  FFigure.BorderSpacing.Right := ControlGap;
   FFigure.OnPick := @FigurePick;
   FFigure.OnHover := @FigureHover;
 end;
@@ -561,30 +556,27 @@ begin
   FMissingPanel.Parent := FTableColumn;
   FMissingPanel.Align := alBottom;
   FMissingPanel.Height := MissingHeight;
-  FMissingPanel.BorderSpacing.Top := SideGap;
   FMissingPanel.Caption := rsMissingTitle;
+  SpaceChildren(FMissingPanel);
   FMissingPanel.Visible := False;
   Buttons := TPanel.Create(Self);
   Buttons.Parent := FMissingPanel;
   Buttons.Align := alRight;
   Buttons.AutoSize := True;
   Buttons.BevelOuter := bvNone;
+  SpaceBetween(Buttons);
   FMissingButton := TButton.Create(Self);
   FMissingButton.Parent := Buttons;
   FMissingButton.Align := alTop;
   FMissingButton.AutoSize := True;
-  FMissingButton.BorderSpacing.Around := SideGap;
   FMissingButton.Caption := rsMissingFix;
   FMissingButton.OnClick := @MissingFix;
   FMissingLabel := TLabel.Create(Self);
   FMissingLabel.Parent := FMissingPanel;
   FMissingLabel.Align := alTop;
-  FMissingLabel.BorderSpacing.Around := SideGap;
   FMissingList := TListBox.Create(Self);
   FMissingList.Parent := FMissingPanel;
   FMissingList.Align := alClient;
-  FMissingList.BorderSpacing.Left := SideGap;
-  FMissingList.BorderSpacing.Bottom := SideGap;
   FMissingList.OnClick := @MissingSelect;
   FMissingList.OnDblClick := @MissingFix;
 end;
@@ -1272,10 +1264,10 @@ begin
     Window.Width := ReportWidth;
     Window.Height := ReportHeight;
     Window.Position := poOwnerFormCenter;
+    SpaceChildren(Window);
     Button := TButton.Create(Window);
     Button.Parent := Window;
     Button.Align := alBottom;
-    Button.BorderSpacing.Around := SideGap;
     Button.Caption := rsClose;
     Button.ModalResult := mrClose;
     Body := TMemo.Create(Window);
@@ -1283,7 +1275,6 @@ begin
     Body.Align := alClient;
     Body.ReadOnly := True;
     Body.ScrollBars := ssAutoBoth;
-    Body.BorderSpacing.Around := SideGap;
     Body.Lines.Assign(Lines);
     Window.ShowModal;
   finally

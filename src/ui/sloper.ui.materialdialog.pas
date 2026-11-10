@@ -93,7 +93,7 @@ resourcestring
 implementation
 
 uses
-  Math, Types, LCLIntf, Sloper.Core.Materials, Sloper.Core.Units;
+  Math, Types, LCLIntf, Sloper.Core.Materials, Sloper.Core.Units, Sloper.UI.Spacing;
 
 const
   DialogWidth96 = 640;
@@ -101,7 +101,6 @@ const
   DefaultSplit96 = 300;
   MinSplit96 = 160;
   FieldsWidth96 = 260;
-  Gap96 = 8;
   SwatchHeight96 = 30;
   RefusedPaper = TColor($D8D8FF);
   ProblemInk = TColor($2020C0);
@@ -125,7 +124,7 @@ begin
   Bottom.Align := alBottom;
   Bottom.BevelOuter := bvNone;
   Bottom.AutoSize := True;
-  Bottom.BorderSpacing.Around := Scale96ToScreen(Gap96);
+  Bottom.BorderSpacing.Around := ControlGap;
   CloseButton := TButton.Create(Self);
   CloseButton.Parent := Bottom;
   CloseButton.Align := alRight;
@@ -180,14 +179,15 @@ begin
   FLeft.Align := alLeft;
   FLeft.Width := Scale96ToScreen(DefaultSplit96);
   FLeft.BevelOuter := bvNone;
-  FLeft.BorderSpacing.Left := Scale96ToScreen(Gap96);
-  FLeft.BorderSpacing.Top := Scale96ToScreen(Gap96);
+  FLeft.BorderSpacing.Left := ControlGap;
+  FLeft.BorderSpacing.Top := ControlGap;
   Buttons := TPanel.Create(Self);
   Buttons.Parent := FLeft;
   Buttons.Align := alBottom;
   Buttons.BevelOuter := bvNone;
   Buttons.AutoSize := True;
-  Buttons.BorderSpacing.Top := Scale96ToScreen(Gap96 div 2);
+  Buttons.BorderSpacing.Top := ControlGap;
+  SpaceBetween(Buttons);
   AddButton(rsMaterialsNew, rsMaterialsNewHint, @NewClick);
   FDeleteButton := AddButton(rsMaterialsDelete, rsMaterialsDeleteHint, @DeleteClick);
   FGrid := TMaterialGrid.Create(Self);
@@ -202,7 +202,7 @@ begin
   Result.Parent := Host;
   Result.Align := alTop;
   Result.Top := Host.ControlCount * 100;
-  Result.BorderSpacing.Top := Scale96ToScreen(Gap96);
+  Result.BorderSpacing.Top := ControlGap;
   Result.Caption := ACaption;
 end;
 
@@ -236,7 +236,8 @@ begin
   FFields.Parent := Self;
   FFields.Align := alClient;
   FFields.BevelOuter := bvNone;
-  FFields.BorderSpacing.Around := Scale96ToScreen(Gap96);
+  FFields.BorderSpacing.Around := ControlGap;
+  SpaceBetween(FFields);
   AddCaption(FFields, rsMaterialsName).BorderSpacing.Top := 0;
   FNameEdit := AddEdit(FFields);
 
@@ -249,7 +250,7 @@ begin
   FColourButton.Parent := Row;
   FColourButton.Align := alRight;
   FColourButton.AutoSize := True;
-  FColourButton.BorderSpacing.Left := Scale96ToScreen(Gap96);
+  FColourButton.BorderSpacing.Left := ControlGap;
   FColourButton.Caption := rsMaterialsChoose;
   FColourButton.OnClick := @ColourClick;
   FSwatch := TPaintBox.Create(Self);
@@ -274,7 +275,7 @@ begin
   FUnitLabel.Parent := Row;
   FUnitLabel.Align := alRight;
   FUnitLabel.Layout := tlCenter;
-  FUnitLabel.BorderSpacing.Left := Scale96ToScreen(Gap96);
+  FUnitLabel.BorderSpacing.Left := ControlGap;
   FAllowanceEdit := AddEdit(Row);
   FAllowanceEdit.Align := alClient;
   FAllowanceEdit.Hint := rsMaterialsAllowanceHint;

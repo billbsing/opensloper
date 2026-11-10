@@ -122,7 +122,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.UI.ObjectList;
+  Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.UI.ObjectList, Sloper.UI.Spacing;
 
 const
   // Test size steps, in percent either way
@@ -141,10 +141,9 @@ begin
   SetGroup.Parent := FHeader;
   SetGroup.Align := alTop;
   SetGroup.Top := -1;
-  SetGroup.BorderSpacing.Bottom := 6;
   SetGroup.AutoSize := True;
   SetGroup.Caption := rsMeasurementsSetTitle;
-  SetGroup.ChildSizing.TopBottomSpacing := 8;
+  SpaceChildren(SetGroup);
 
   FFileLabel := TLabel.Create(Self);
   FFileLabel.Parent := SetGroup;
@@ -156,14 +155,13 @@ begin
   FSizeBar.Parent := SetGroup;
   FSizeBar.Align := alTop;
   FSizeBar.Top := 1000;
-  FSizeBar.BorderSpacing.Top := 6;
   FSizeBar.BevelOuter := bvNone;
   FSizeBar.AutoSize := True;
+  SpaceBetween(FSizeBar);
   SizeLabel := TLabel.Create(Self);
   SizeLabel.Parent := FSizeBar;
   SizeLabel.Align := alLeft;
   SizeLabel.Layout := tlCenter;
-  SizeLabel.BorderSpacing.Right := 6;
   SizeLabel.Caption := rsMeasurementsSize;
   FSizeBox := TComboBox.Create(Self);
   FSizeBox.Parent := FSizeBar;
@@ -178,6 +176,7 @@ begin
   FButtons.Top := 200000;
   FButtons.BevelOuter := bvNone;
   FButtons.AutoSize := True;
+  SpaceBetween(FButtons);
   FAddButton := AddButton(FButtons, rsMeasurementsAdd, @AddClick);
   FSaveButton := AddButton(FButtons, rsMeasurementsSave, @SaveClick);
   FSaveButton.Hint := rsMeasurementsSaveHint;
@@ -280,18 +279,17 @@ begin
   FTestGroup.Align := alBottom;
   FTestGroup.Top := 100000;
   FTestGroup.Caption := rsMeasurementsTestTitle;
-  FTestGroup.BorderSpacing.Top := 6;
-  FTestGroup.BorderSpacing.Bottom := 6;
   FTestGroup.AutoSize := True;
   FTestGroup.Hint := rsMeasurementsTestHint;
   FTestGroup.ShowHint := True;
-  FTestGroup.ChildSizing.TopBottomSpacing := 8;
+  SpaceChildren(FTestGroup);
 
   Row := TPanel.Create(Self);
   Row.Parent := FTestGroup;
   Row.Align := alTop;
   Row.BevelOuter := bvNone;
   Row.AutoSize := True;
+  SpaceBetween(Row);
   FTestReset := AddButton(Row, rsMeasurementsTestReset, @TestResetClick);
   FTestReset.Align := alRight;
   FTestLabel := TLabel.Create(Self);

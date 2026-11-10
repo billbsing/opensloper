@@ -281,7 +281,8 @@ resourcestring
 implementation
 
 uses
-  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.RecentFiles, Sloper.Core.Settings, Sloper.UI.IconSet,
+  LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.RecentFiles,
+  Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Spacing,
   Sloper.UI.About, Sloper.UI.Preferences, Sloper.Output.LayoutExport,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
@@ -293,7 +294,6 @@ const
   NoteMemoHeight = 110;
   // In the order of FFieldBoxes
   TitleFields: array[0..5] of string = (FieldPatternName, FieldMeasurementsName, FieldLayoutName, FieldDate, FieldCutList, FieldMaterials);
-  SideGap = 6;
   SideRowStep = 100;
   ProblemsHeight = 110;
   WatchMilliseconds = 1000;
@@ -333,14 +333,14 @@ begin
   ProblemsGroup.Parent := FColumn;
   ProblemsGroup.Align := alBottom;
   ProblemsGroup.AutoSize := True;
-  ProblemsGroup.BorderSpacing.Around := SideGap;
+  ProblemsGroup.BorderSpacing.Around := ControlGap;
   ProblemsGroup.Caption := rsProblemsGroup;
   FProblems := TListBox.Create(Self);
   FProblems.Parent := ProblemsGroup;
   FProblems.Align := alTop;
   FProblems.Height := ProblemsHeight;
   FProblems.ShowHint := True;
-  FProblems.BorderSpacing.Around := SideGap;
+  FProblems.BorderSpacing.Around := ControlGap;
   // One tab open at a time, as in the design app's side panel
   FTabs := TAccordion.Create(Self);
   FTabs.Parent := FColumn;
@@ -460,8 +460,9 @@ begin
   Inc(FNextRowTop, SideRowStep);
   Row.Top := FNextRowTop;
   Row.Align := alTop;
-  Row.BorderSpacing.Left := SideGap;
-  Row.BorderSpacing.Right := SideGap;
+  Row.BorderSpacing.Left := ControlGap;
+  Row.BorderSpacing.Right := ControlGap;
+  Row.BorderSpacing.Top := ControlGap;
   Row.Parent := FRowParent;
 end;
 
@@ -476,8 +477,7 @@ begin
   Group.Caption := ACaption;
   Group.AutoSize := True;
   PlaceRow(Group);
-  Group.BorderSpacing.Top := SideGap;
-  Group.ChildSizing.TopBottomSpacing := SideGap div 2;
+  SpaceChildren(Group);
   FGroupOuter := FRowParent;
   FRowParent := Group;
 end;
@@ -644,7 +644,7 @@ function TPublishForm.AddLabel(const ACaption: string): TLabel;
 begin
   Result := TLabel.Create(Self);
   Result.Caption := ACaption;
-  Result.BorderSpacing.Top := SideGap;
+  Result.BorderSpacing.Top := ControlGap;
   PlaceRow(Result);
 end;
 
@@ -664,7 +664,7 @@ function TPublishForm.AddButton(const ACaption: string; AHandler: TNotifyEvent):
 begin
   Result := TButton.Create(Self);
   Result.Caption := ACaption;
-  Result.BorderSpacing.Top := SideGap;
+  Result.BorderSpacing.Top := ControlGap;
   Result.OnClick := AHandler;
   PlaceRow(Result);
 end;
@@ -958,14 +958,14 @@ begin
   TrayGroup := TGroupBox.Create(Self);
   TrayGroup.Parent := FPiecesSide;
   TrayGroup.Align := alClient;
-  TrayGroup.BorderSpacing.Around := SideGap;
+  TrayGroup.BorderSpacing.Around := ControlGap;
   TrayGroup.Caption := rsTrayGroup;
   FRowParent := TrayGroup;
   AddLabel(rsTray);
   FTray := TListBox.Create(Self);
   FTray.Parent := TrayGroup;
   FTray.Align := alClient;
-  FTray.BorderSpacing.Around := SideGap;
+  FTray.BorderSpacing.Around := ControlGap;
   FTray.OnMouseDown := @TrayMouseDown;
   FTray.OnDblClick := @TrayDoubleClick;
 end;

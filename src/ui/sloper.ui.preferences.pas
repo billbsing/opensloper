@@ -67,14 +67,12 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, Spin, ButtonPanel, Dialogs, Sloper.Core.Measurements, Sloper.Core.Units;
+  SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, Spin, ButtonPanel, Dialogs, Sloper.Core.Measurements,
+  Sloper.Core.Units, Sloper.UI.Spacing;
 
 const
   DialogWidth = 560;
   DialogHeight = 500;
-  DialogBorder = 8;
-  RowSpacing = 6;
-  ColumnSpacing = 12;
   CalibrationDecimals = 4;
   MeasuredDecimals: array[TMeasureUnit] of integer = (1, 2, 3);
   GridDecimals: array[TMeasureUnit] of integer = (1, 2, 4);
@@ -125,10 +123,11 @@ begin
   Buttons := TButtonPanel.Create(Self);
   Buttons.Parent := Self;
   Buttons.ShowButtons := [pbOK, pbCancel];
+  SpaceButtons(Buttons);
   FPages := TPageControl.Create(Self);
   FPages.Parent := Self;
   FPages.Align := alClient;
-  FPages.BorderSpacing.Around := DialogBorder;
+  FPages.BorderSpacing.Around := ControlGap;
   BuildGeneralTab;
   BuildDesignTab;
   BuildPublishTab;
@@ -152,7 +151,7 @@ begin
       Bottom := Max(Bottom, Host.Controls[Index].Top + Host.Controls[Index].Height);
   Control.Top := Bottom + 1;
   Control.Align := alTop;
-  Control.BorderSpacing.Around := DialogBorder;
+  Control.BorderSpacing.Around := ControlGap;
   Control.Parent := Host;
 end;
 
@@ -173,8 +172,8 @@ begin
   Result.BevelOuter := bvNone;
   Result.ChildSizing.Layout := cclLeftToRightThenTopToBottom;
   Result.ChildSizing.ControlsPerLine := 2;
-  Result.ChildSizing.HorizontalSpacing := ColumnSpacing;
-  Result.ChildSizing.VerticalSpacing := RowSpacing;
+  Result.ChildSizing.HorizontalSpacing := ControlGap;
+  Result.ChildSizing.VerticalSpacing := ControlGap;
   Result.ChildSizing.EnlargeHorizontal := crsHomogenousChildResize;
   StackIn(Host, Result);
 end;

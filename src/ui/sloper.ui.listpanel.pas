@@ -171,7 +171,7 @@ resourcestring
 implementation
 
 uses
-  Forms, Sloper.UI.ObjectList;
+  Forms, Sloper.UI.ObjectList, Sloper.UI.Spacing;
 
 const
   ProblemInk = TColor($2020C0);
@@ -266,12 +266,14 @@ var
 begin
   inherited Create(AOwner);
   BevelOuter := bvNone;
+  SpaceChildren(Self);
   FMultiSelect := True;
   FHeader := TPanel.Create(Self);
   FHeader.Parent := Self;
   FHeader.Align := alTop;
   FHeader.BevelOuter := bvNone;
   FHeader.AutoSize := True;
+  SpaceBetween(FHeader);
   FSearch := TEdit.Create(Self);
   FSearch.Parent := FHeader;
   FSearch.Align := alTop;

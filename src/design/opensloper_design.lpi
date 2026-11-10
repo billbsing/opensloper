@@ -334,6 +334,11 @@
         <UnitName Value="Sloper.UI.AccordionLayout"/>
       </Unit>
       <Unit>
+        <Filename Value="../ui/sloper.ui.spacing.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.Spacing"/>
+      </Unit>
+      <Unit>
         <Filename Value="../ui/sloper.ui.materialdialog.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.UI.MaterialDialog"/>

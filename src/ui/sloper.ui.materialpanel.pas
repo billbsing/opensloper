@@ -64,6 +64,9 @@ resourcestring
 
 implementation
 
+uses
+  Sloper.UI.Spacing;
+
 const
   CutListHeight96 = 90;
 
@@ -73,6 +76,7 @@ var
 begin
   inherited Create(AOwner);
   BevelOuter := bvNone;
+  SpaceChildren(Self);
   FButtons := TPanel.Create(Self);
   FButtons.Parent := Self;
   FButtons.Align := alBottom;
@@ -80,6 +84,7 @@ begin
   FButtons.Top := 2000;
   FButtons.BevelOuter := bvNone;
   FButtons.AutoSize := True;
+  SpaceBetween(FButtons);
   Button := TButton.Create(Self);
   Button.Parent := FButtons;
   Button.Align := alLeft;
@@ -93,8 +98,7 @@ begin
   FCutGroup.Align := alBottom;
   FCutGroup.Top := 1000;
   FCutGroup.AutoSize := True;
-  FCutGroup.BorderSpacing.Top := 6;
-  FCutGroup.BorderSpacing.Bottom := 6;
+  SpaceChildren(FCutGroup);
   FCutGroup.Caption := rsMaterialCutList;
   FCutList := TMemo.Create(Self);
   FCutList.Parent := FCutGroup;

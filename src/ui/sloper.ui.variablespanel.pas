@@ -55,7 +55,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.UI.ObjectList, Sloper.UI.PanelEdits;
+  Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.UI.ObjectList, Sloper.UI.PanelEdits, Sloper.UI.Spacing;
 
 const
   NewVariableFormula = '0';
@@ -84,6 +84,7 @@ begin
   FButtons.Align := alBottom;
   FButtons.BevelOuter := bvNone;
   FButtons.AutoSize := True;
+  SpaceBetween(FButtons);
   AddButton(rsVariablesAdd, @AddClick);
   AddButton(rsVariablesDelete, @DeleteClick);
   SetColumns([rsColumnVariableName, rsColumnFormula, rsColumnVariableValue, rsColumnDescription], [110, 150, 70, 200]);

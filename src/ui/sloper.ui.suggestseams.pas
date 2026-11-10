@@ -35,12 +35,11 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Sloper.UI.ObjectList;
+  SysUtils, Sloper.UI.ObjectList, Sloper.UI.Spacing;
 
 const
   DialogWidth = 560;
   DialogHeight = 400;
-  DialogBorder = 8;
 
 function ChooseSeams(AOwner: TComponent; Pattern: TPattern; const Suggestions: TSeamSuggestionArray): TSeamSuggestionArray;
 var
@@ -60,10 +59,11 @@ begin
     Buttons := TButtonPanel.Create(Dialog);
     Buttons.Parent := Dialog;
     Buttons.ShowButtons := [pbOK, pbCancel];
+    SpaceButtons(Buttons);
     List := TCheckListBox.Create(Dialog);
     List.Parent := Dialog;
     List.Align := alClient;
-    List.BorderSpacing.Around := DialogBorder;
+    List.BorderSpacing.Around := ControlGap;
     for Index := 0 to High(Suggestions) do
       List.Items.Add(SuggestionCaption(Pattern, Suggestions[Index]));
     if Dialog.ShowModal <> mrOk then

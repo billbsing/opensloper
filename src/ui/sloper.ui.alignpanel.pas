@@ -97,11 +97,10 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.Draft, Sloper.Core.Pattern;
+  Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.UI.Spacing;
 
 const
   DefaultRepeatCount = '3';
-  RowGap = 6;
   ActionTags: array[TArrangeAction] of integer = (0, 1, 2, 3, 4, 5);
 
 constructor TAlignPanel.Create(AOwner: TComponent);
@@ -110,6 +109,7 @@ var
 begin
   inherited Create(AOwner);
   BevelOuter := bvNone;
+  SpaceChildren(Self);
   FNextTop := 1;
   AddHeading(rsAlignRelative);
   FRelativeBox := TComboBox.Create(Self);
@@ -147,9 +147,6 @@ begin
   Control.Align := alTop;
   Control.Top := FNextTop;
   Inc(FNextTop, 1000);
-  Control.BorderSpacing.Left := RowGap;
-  Control.BorderSpacing.Right := RowGap;
-  Control.BorderSpacing.Top := RowGap div 2;
 end;
 
 // A captioned box that the controls after it go in
@@ -162,8 +159,7 @@ begin
   Inc(FNextTop, 1000);
   FGroup.AutoSize := True;
   FGroup.Caption := ACaption;
-  FGroup.BorderSpacing.Around := RowGap;
-  FGroup.ChildSizing.TopBottomSpacing := RowGap div 2;
+  SpaceChildren(FGroup);
 end;
 
 procedure TAlignPanel.AddButton(const ACaption: string; AAction: TArrangeAction);
