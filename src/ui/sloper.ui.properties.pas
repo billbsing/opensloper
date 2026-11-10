@@ -347,10 +347,12 @@ type
     FMarkerBox: TComboBox;
     FMarkedOnText: TGridLabel;
     procedure MarkerChange(Sender: TObject);
+    procedure ChangeMarker(Marker: TPointMarker);
   public
     procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
     procedure Refresh(Node: TEvalNode); override;
     function OwnsField(Node: TEvalNode; const FieldName: string): boolean; override;
+    procedure QueuedChangeDue(Change, Data: integer); override;
   end;
 
   // What a repeat runs between or along, and whether it includes the ends
@@ -422,8 +424,9 @@ const
   // A note's text field, at 96 pixels per inch
   NoteTextHeight96 = 64;
   NoteSizeStep = 1;
-  // The edge section's queued change
+  // The edge and marker sections' queued changes
   QueuedConvertType = 0;
+  QueuedMarker = 1;
 
 // A note's draft value field: value1, value2
 function IsNoteValue(const FieldName: string): boolean;
@@ -1382,16 +1385,45 @@ begin
   FMarkedOnText.Caption := MarkedOnText(Panel.Document.Pattern, TDraftObject(Node));
 end;
 
+// A plain point has no size, so changing to or from plain adds or removes
+// the size's row and the change is queued
 procedure TMarkerSection.MarkerChange(Sender: TObject);
 var
   Node: TEvalNode;
 begin
   Node := Panel.SelectedNode;
-  if not (Node is TDraftObject) or (Ord(TDraftObject(Node).Marker) = FMarkerBox.ItemIndex) then
+  if not (Node is TDraftObject) or (FMarkerBox.ItemIndex < 0) or (Ord(TDraftObject(Node).Marker) = FMarkerBox.ItemIndex) then
     Exit;
-  Panel.BeginEdit(rsPropChangeMarker);
-  Panel.Document.Pattern.SetMarker(Node.Key, TPointMarker(FMarkerBox.ItemIndex));
-  Panel.EndEdit(True);
+  Panel.QueueChange(Self, QueuedMarker, FMarkerBox.ItemIndex);
+end;
+
+procedure TMarkerSection.QueuedChangeDue(Change, Data: integer);
+begin
+  if Change = QueuedMarker then
+    ChangeMarker(TPointMarker(Data));
+end;
+
+// Committed outside BeginEdit, so the panel rebuilds when the fields change,
+// which frees this section: only the panel is used after it
+procedure TMarkerSection.ChangeMarker(Marker: TPointMarker);
+var
+  APanel: TPropertiesPanel;
+  Node: TEvalNode;
+  Reason: string;
+  Done: boolean;
+begin
+  APanel := Panel;
+  Node := APanel.SelectedNode;
+  if not (Node is TDraftObject) or (TDraftObject(Node).Marker = Marker) then
+    Exit;
+  APanel.Document.BeginChange(rsPropChangeMarker);
+  Done := APanel.Document.Pattern.SetMarker(Node.Key, Marker);
+  Reason := APanel.Document.Pattern.LastError;
+  if APanel.Document.Commit(Done) then
+    Exit;
+  // The box goes back to the marker the object still has
+  APanel.Rebuild;
+  APanel.Report(Reason);
 end;
 
 { TRepeatSection }

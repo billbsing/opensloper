@@ -46,6 +46,7 @@ type
     procedure TestMatchDotReadsAsFilled;
     procedure TestSizeIsAFormula;
     procedure TestPlainTakesItOff;
+    procedure TestFormulaTextOfRemovedSize;
     procedure TestBadSizeLeavesMarkerAsItWas;
     procedure TestMarkerJoinsNewPiece;
     procedure TestMarkerInOverlappingPiecesJoinsBoth;
@@ -194,6 +195,18 @@ begin
   AssertTrue(FPattern.SetMarker(Key, pmPlain));
   AssertEquals(0, Length(Piece.Markings));
   AssertNull('size field gone', FPattern.FindNode(Key).Field(MarkerSizeField));
+end;
+
+// The properties panel still showed the size row after Plain took the field
+// away, and reading its text raised an access violation
+procedure TTestMarkers.TestFormulaTextOfRemovedSize;
+var
+  Key: string;
+begin
+  Key := Pt('H', 100, 50);
+  AssertTrue(FPattern.SetMarker(Key, pmHole));
+  AssertTrue(FPattern.SetMarker(Key, pmPlain));
+  AssertEquals('', FPattern.FormulaText(FPattern.FindNode(Key), MarkerSizeField));
 end;
 
 procedure TTestMarkers.TestBadSizeLeavesMarkerAsItWas;

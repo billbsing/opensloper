@@ -364,7 +364,8 @@ type
     function Delete(Node: TEvalNode): boolean;
     // Nodes that read Node directly
     function UsersOf(Node: TEvalNode): TEvalNodeArray;
-    // A formula as the user sees it, with current names
+    // A formula as the user sees it, with current names; '' when the node
+    // has no such field, as a marker's size once it is plain
     function FormulaText(Node: TEvalNode; const AField: string): string;
 
     // A transform and a copy of each source, as one change. The copies start
@@ -3307,8 +3308,13 @@ begin
 end;
 
 function TPattern.FormulaText(Node: TEvalNode; const AField: string): string;
+var
+  Formula: TFormula;
 begin
-  Result := Node.Field(AField).DisplayText(ResolverFor(Node));
+  Formula := Node.Field(AField);
+  if not Assigned(Formula) then
+    Exit('');
+  Result := Formula.DisplayText(ResolverFor(Node));
 end;
 
 procedure TPattern.RebuildMeasurementNodes;
