@@ -173,6 +173,7 @@ type
     procedure RepeatClick(Sender: TObject);
     procedure BreakClick(Sender: TObject);
     procedure TransformClick(Sender: TObject);
+    procedure GoToSourceClick(Sender: TObject);
     procedure ArcClick(Sender: TObject);
     procedure OffsetClick(Sender: TObject);
     procedure OffsetPieceClick(Sender: TObject);
@@ -311,6 +312,7 @@ resourcestring
   rsMenuToolsRotate = '&Rotate Copy...';
   rsMenuToolsMirror = 'M&irror Copy...';
   rsMenuToolsMove = 'Mo&ve Copy...';
+  rsMenuToolsGoToSource = '&Go to Source';
   rsMenuToolsSuggest = 'Suggest &Seams...';
   rsMenuToolsConvertUnits = 'Convert Pattern &Units...';
   rsConvertUnitsChange = 'Convert pattern units';
@@ -892,7 +894,7 @@ var
   Marking: TMarkingKind;
   Kind: TTransformKind;
   SubMenu: TMenuItem;
-  OffsetAction, ConvertAction: TAction;
+  OffsetAction, ConvertAction, SourceAction: TAction;
   Role: TEdgeRole;
 
   procedure AddCommand(AParent: TMenuItem; AAction: TAction);
@@ -984,6 +986,11 @@ begin
   SubMenu := AddSubmenu(rsMenuToolsTransform);
   for Kind := Low(TTransformKind) to High(TTransformKind) do
     AddCommand(SubMenu, NewAction(TransformCaptions[Kind], TransformIcons[Kind], @TransformClick, 0, Ord(Kind)));
+  // Menu only: it finds rather than makes, and double-clicking a copy does it too
+  SubMenu.Add(NewLine);
+  SourceAction := NewAction(rsMenuToolsGoToSource, aiMove, @GoToSourceClick);
+  SourceAction.ImageIndex := -1;
+  AddMenuItem(SubMenu, SourceAction);
   AddCommand(MenuTools, NewAction(rsMenuToolsSuggest, aiSuggestSeams, @SuggestSeamsClick));
   // Menu only: a rare command, with no icon of its own
   MenuTools.Add(NewLine);
@@ -1056,6 +1063,12 @@ end;
 procedure TMainForm.TransformClick(Sender: TObject);
 begin
   FCanvas.StartTransform(TTransformKind(TComponent(Sender).Tag));
+  FCanvas.SetFocus;
+end;
+
+procedure TMainForm.GoToSourceClick(Sender: TObject);
+begin
+  FCanvas.GoToSource;
   FCanvas.SetFocus;
 end;
 

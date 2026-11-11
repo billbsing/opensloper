@@ -53,6 +53,15 @@ type
 
   TEdgeSlotArray = array of TEdgeSlot;
 
+  // A transform copy and the source it follows, with where to draw the line
+  // between them: the points, or the middles of the edges
+  TCopyLink = record
+    CopyKey, SourceKey: string;
+    CopyAt, SourceAt: TVec2;
+  end;
+
+  TCopyLinkArray = array of TCopyLink;
+
   // Where a notch would go: on a point, or Position mm along the edge
   TNotchTarget = record
     EdgeKey, PointKey: string;
@@ -125,6 +134,10 @@ function PolylineMiddle(const Line: TVec2Array): TVec2;
 // ToolKeys, the objects a tool is working with.
 function LabelKeys(Pattern: TPattern; Mode: TLabelMode; const Selection: TStringArray; const HoverKey: string;
   const ToolKeys: TStringArray): TStringArray;
+// Links from copies to their sources, in pattern order: the hovered copy, the
+// selected ones, and the copied points of a selected transform (its edges'
+// ends already show where they went)
+function CopyLinks(Pattern: TPattern; const Selection: TStringArray; const HoverKey: string): TCopyLinkArray;
 
 resourcestring
   rsSceneSplitSelect = 'Select an edge and a point on it to split the edge';
@@ -847,6 +860,59 @@ begin
   finally
     FreeAndNil(Wanted);
   end;
+end;
+
+// Edges are linked at their middles, flattened finely enough to land on the curve
+function CopyLinks(Pattern: TPattern; const Selection: TStringArray; const HoverKey: string): TCopyLinkArray;
+const
+  MiddleTolerance = 0.05;
+var
+  Index, Count: integer;
+  DraftObject: TDraftObject;
+  Source: TEvalNode;
+  Link: TCopyLink;
+  CopyLine, SourceLine: TVec2Array;
+  Wanted: boolean;
+begin
+  Result := nil;
+  SetLength(Result, Pattern.ObjectCount);
+  Count := 0;
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    DraftObject := Pattern.Objects[Index];
+    if not DraftObject.HasResult or (CopyTransformKey(DraftObject) = '') then
+      Continue;
+    Wanted := (DraftObject.Key = HoverKey) or (IndexStr(DraftObject.Key, Selection) >= 0) or
+      ((DraftObject is TPointCopy) and (IndexStr(CopyTransformKey(DraftObject), Selection) >= 0));
+    if not Wanted then
+      Continue;
+    Link := Default(TCopyLink);
+    Link.CopyKey := DraftObject.Key;
+    if DraftObject is TPointCopy then
+    begin
+      Source := Pattern.FindNode(TPointCopy(DraftObject).Source);
+      if not (Source is TPointObject) or not Source.HasResult then
+        Continue;
+      Link.CopyAt := TPointCopy(DraftObject).Position;
+      Link.SourceAt := TPointObject(Source).Position;
+    end
+    else
+    begin
+      Source := Pattern.FindNode(TEdgeCopy(DraftObject).Source);
+      if not (Source is TEdgeObject) or not Source.HasResult then
+        Continue;
+      CopyLine := EdgePolyline(TEdgeObject(DraftObject), MiddleTolerance);
+      SourceLine := EdgePolyline(TEdgeObject(Source), MiddleTolerance);
+      if (Length(CopyLine) = 0) or (Length(SourceLine) = 0) then
+        Continue;
+      Link.CopyAt := PolylineMiddle(CopyLine);
+      Link.SourceAt := PolylineMiddle(SourceLine);
+    end;
+    Link.SourceKey := Source.Key;
+    Result[Count] := Link;
+    Inc(Count);
+  end;
+  SetLength(Result, Count);
 end;
 
 end.

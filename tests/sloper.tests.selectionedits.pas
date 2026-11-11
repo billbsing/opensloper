@@ -88,6 +88,7 @@ type
     procedure TestUnmarkNothingMarked;
     procedure TestTransformSelectsIt;
     procedure TestObjectNames;
+    procedure TestGoToSource;
   end;
 
 implementation
@@ -590,6 +591,46 @@ end;
 procedure TTestSelectionEdits.TestObjectNames;
 begin
   AssertEquals('A, B, Front', ObjectNames(Pattern, [FA, FB, 'missing', FPiece]));
+end;
+
+// A copy goes to what it follows, a transform to what it copies, and
+// nothing in the pattern changes
+procedure TTestSelectionEdits.TestGoToSource;
+var
+  Spec: TTransformSpec;
+  Transform: string;
+  CopyA, CopyAB: string;
+  Index: integer;
+  Edit: TSelectionEdit;
+begin
+  Spec := Default(TTransformSpec);
+  Spec.Kind := tkMove;
+  Spec.Name := 'Back';
+  Spec.Sources := [FAB];
+  Spec.DX := '200';
+  Spec.DY := '0';
+  Transform := AddTransform(FDocument, Spec).Selection[0];
+  CopyA := '';
+  CopyAB := '';
+  for Index := 0 to Pattern.ObjectCount - 1 do
+    if (Pattern.Objects[Index] is TPointCopy) and (TPointCopy(Pattern.Objects[Index]).Source = FA) then
+      CopyA := Pattern.Objects[Index].Key
+    else if Pattern.Objects[Index] is TEdgeCopy then
+      CopyAB := Pattern.Objects[Index].Key;
+  AssertTrue('copies made', (CopyA <> '') and (CopyAB <> ''));
+
+  Edit := GoToSource(FDocument, [CopyA]);
+  AssertTrue('a point copy', Edit.Done and Edit.Reselect);
+  AssertEquals('its source', FA, string.Join(' ', Edit.Selection));
+  AssertEquals('says so', Format(rsSelectionSourceOf, [Pattern.FindNode(CopyA).DisplayName, 'A']), Edit.Message);
+  AssertEquals('an edge copy', FAB, string.Join(' ', GoToSource(FDocument, [CopyAB]).Selection));
+  AssertEquals('a transform, what it copies with the edge''s ends', string.Join(' ', [FA, FB, FAB]),
+    string.Join(' ', GoToSource(FDocument, [Transform]).Selection));
+  AssertEquals('others left out, each source once', FA, string.Join(' ', GoToSource(FDocument, [FB, CopyA, CopyA]).Selection));
+  Edit := GoToSource(FDocument, [FA, FPiece]);
+  AssertFalse('no copy: not done', Edit.Done or Edit.Reselect);
+  AssertEquals('no copy: says what to select', rsSelectionPickCopy, Edit.Message);
+  AssertFalse('no change left open', FDocument.ChangeOpen);
 end;
 
 initialization

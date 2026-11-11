@@ -78,6 +78,9 @@ function MarkSelection(Document: TPatternDocument; const Selection: TStringArray
 function UnmarkSelection(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
 // Adds the transform, its sources and pivot or axis already chosen
 function AddTransform(Document: TPatternDocument; const Spec: TTransformSpec): TSelectionEdit;
+// Selects what the selected transform copies follow, and what a selected
+// transform copies; changes nothing in the pattern
+function GoToSource(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
 // For the status bar: "A, B, Line_A_B"
 function ObjectNames(Pattern: TPattern; const Keys: TStringArray): string;
 
@@ -120,6 +123,9 @@ resourcestring
   rsSelectionRemoveMarking = 'Remove marking';
   rsSelectionPickMarkingToRemove = 'Select the piece and the point or edge of the marking to remove';
   rsSelectionTransform = 'Add %s';
+  rsSelectionPickCopy = 'Select a transform copy, or a transform, to go to its source';
+  rsSelectionSourceOf = '%s follows %s';
+  rsSelectionSources = 'Selected the sources: %s';
 
 implementation
 
@@ -616,6 +622,45 @@ begin
   Document.BeginChange(Format(rsSelectionTransform, [Spec.Name]));
   Transform := Document.Pattern.AddTransform(Spec);
   Result := CommitSelecting(Document, Assigned(Transform), KeyOf(Transform));
+end;
+
+function GoToSource(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
+var
+  Pattern: TPattern;
+  Node, Source: TEvalNode;
+  Key, SourceKey: string;
+  Sources, Found: TStringArray;
+begin
+  Pattern := Document.Pattern;
+  Found := nil;
+  for Key in Selection do
+  begin
+    Node := Pattern.FindNode(Key);
+    if Node is TPointCopy then
+      Sources := [TPointCopy(Node).Source]
+    else if Node is TEdgeCopy then
+      Sources := [TEdgeCopy(Node).Source]
+    else if Node is TTransformObject then
+      Sources := TTransformObject(Node).Sources
+    else
+      Continue;
+    for SourceKey in Sources do
+    begin
+      Source := Pattern.FindNode(SourceKey);
+      if Assigned(Source) and (IndexStr(Source.Key, Found) < 0) then
+        Insert(Source.Key, Found, Length(Found));
+    end;
+  end;
+  if Length(Found) = 0 then
+    Exit(Refused(rsSelectionPickCopy));
+  Result := Default(TSelectionEdit);
+  Result.Done := True;
+  Result.Reselect := True;
+  Result.Selection := Found;
+  if (Length(Selection) = 1) and (Length(Found) = 1) and (CopyTransformKey(Pattern.FindNode(Selection[0])) <> '') then
+    Result.Message := Format(rsSelectionSourceOf, [Pattern.FindNode(Selection[0]).DisplayName, Pattern.FindNode(Found[0]).DisplayName])
+  else
+    Result.Message := Format(rsSelectionSources, [ObjectNames(Pattern, Found)]);
 end;
 
 end.

@@ -162,7 +162,7 @@ var
   Err: string;
 begin
   A := Pt('A', '-5', '-0.5');
-  AssertTrue(Err, CanDrag(A, Err));
+  AssertTrue(Err, CanDrag(FPattern, A, Err));
 end;
 
 procedure TTestDrag.TestFormulaIsLocked;
@@ -173,7 +173,7 @@ begin
   Pt('A', '0', '0');
   B := TPointObject(Check(FPattern.AddOffsetPoint('B', '1', omPolar, '@waist / 4', '0')));
   FPattern.Evaluate;
-  AssertFalse(CanDrag(B, Err));
+  AssertFalse(CanDrag(FPattern, B, Err));
   AssertEquals(Format(rsDragFormula, ['B']), Err);
   AssertFalse('drag refused', DragPoint(FPattern, B, Vec2(1, 1), Err));
   AssertEquals('formula kept', '@waist / 4', FPattern.FormulaText(B, 'length'));
@@ -191,7 +191,7 @@ begin
   Check(FPattern.AddLine('1', '2'));
   Check(FPattern.AddLine('3', '4'));
   Crossing := TPointObject(Check(FPattern.AddIntersectPoint('X', '5', '6', False, False, 1)));
-  AssertFalse(CanDrag(Crossing, Err));
+  AssertFalse(CanDrag(FPattern, Crossing, Err));
   AssertEquals(Format(rsDragPlaced, ['X']), Err);
 end;
 

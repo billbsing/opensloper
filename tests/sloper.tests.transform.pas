@@ -519,12 +519,21 @@ begin
   AssertNotNull('copy stays', FPattern.FindObject('A_r1'));
 end;
 
+// The refusal says what the copy follows and where to change it
 procedure TTestTransform.TestCopyCannotBeDragged;
 var
   Reason: string;
+  Transform: TTransformObject;
+  Copy: TPointObject;
 begin
-  Rotate([Pt('A', 10, 0).Key], Pt('P', 0, 0).Key, '90');
-  AssertFalse('refused', CanDrag(TPointObject(FPattern.FindObject('A_r1')), Reason));
+  Transform := Rotate([Pt('A', 10, 0).Key], Pt('P', 0, 0).Key, '90');
+  FPattern.Evaluate;
+  Copy := TPointObject(FPattern.FindObject('A_r1'));
+  AssertFalse('refused', CanDrag(FPattern, Copy, Reason));
+  AssertEquals('names the source and transform', Format('A_r1 follows A (Rotate Copy ''%s''). Edit A to change it.',
+    [Transform.DisplayName]), Reason);
+  AssertFalse('a drag refused too', DragPoint(FPattern, Copy, Vec2(1, 1), Reason));
+  AssertEquals('with the same reason', Format(rsDragCopy, ['A_r1', 'A', rsTransformRotateCopy, Transform.DisplayName]), Reason);
 end;
 
 procedure TTestTransform.TestCopyCannotBeConverted;

@@ -90,13 +90,14 @@ type
     procedure TestEdgesDrawnByPriority;
     procedure TestHiddenRoleNotPicked;
     procedure TestHiddenRoleNotSnappedTo;
+    procedure TestCopyLinks;
   end;
 
 implementation
 
 uses
   StrUtils, Sloper.UI.Snap, Sloper.Core.Geometry, Sloper.Core.Bounds, Sloper.Core.Draft, Sloper.Core.Drag, Sloper.Core.PieceDetect,
-  Sloper.Core.Settings, Sloper.UI.View,
+  Sloper.Core.Settings, Sloper.Core.Transform, Sloper.UI.View,
   Sloper.UI.Scene;
 
 function MakeRect(MinX, MinY, MaxX, MaxY: double): TRect2;
@@ -847,6 +848,49 @@ begin
   AssertFalse('not when hidden', FindSnap(FPattern, Vec2(50, 1), 3).Kind = snEdge);
 end;
 
+
+// A copy is linked to its source while hovered or selected; a selected
+// transform links its copied points, whose edges' ends show the rest
+procedure TTestCanvasModel.TestCopyLinks;
+var
+  Spec: TTransformSpec;
+  Transform: TTransformObject;
+  Links: TCopyLinkArray;
+  Line: TLineObject;
+  PointA, CopyA, CopyLine: string;
+begin
+  PointA := FPattern.AddFreePoint('A', '10', '0').Key;
+  Line := FPattern.AddLine(PointA, FPattern.AddFreePoint('B', '20', '0').Key);
+  Spec := Default(TTransformSpec);
+  Spec.Kind := tkRotate;
+  Spec.Sources := [Line.Key];
+  Spec.Pivot := FPattern.AddFreePoint('P', '0', '0').Key;
+  Spec.Angle := '90';
+  Transform := FPattern.AddTransform(Spec);
+  AssertNotNull(FPattern.LastError, Transform);
+  FPattern.Evaluate;
+  CopyA := FPattern.FindObject('A_r1').Key;
+  CopyLine := FPattern.FindObject(Line.Name + '_r1').Key;
+
+  AssertEquals('nothing going on', 0, Length(CopyLinks(FPattern, nil, '')));
+  AssertEquals('a source is not a copy', 0, Length(CopyLinks(FPattern, [PointA], PointA)));
+
+  Links := CopyLinks(FPattern, nil, CopyA);
+  AssertEquals('hovered point', 1, Length(Links));
+  AssertEquals('its source', PointA, Links[0].SourceKey);
+  AssertPointsNear('from the copy', Vec2(0, -10), Links[0].CopyAt);
+  AssertPointsNear('to the source', Vec2(10, 0), Links[0].SourceAt);
+
+  Links := CopyLinks(FPattern, [CopyLine], '');
+  AssertEquals('selected edge', 1, Length(Links));
+  AssertPointsNear('from the copy''s middle', Vec2(0, -15), Links[0].CopyAt);
+  AssertPointsNear('to the source''s middle', Vec2(15, 0), Links[0].SourceAt);
+
+  Links := CopyLinks(FPattern, [Transform.Key], '');
+  AssertEquals('a selected transform links its points only', 2, Length(Links));
+  AssertEquals('in pattern order', CopyA, Links[0].CopyKey);
+  AssertEquals('hovered and selected once', 1, Length(CopyLinks(FPattern, [CopyA], CopyA)));
+end;
 
 initialization
   RegisterTest(TTestCanvasModel);

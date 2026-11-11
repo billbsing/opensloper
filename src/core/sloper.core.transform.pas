@@ -111,8 +111,13 @@ type
 
 // The transform a copy belongs to, or ''
 function CopyTransformKey(Node: TEvalNode): string;
+// The command that makes a transform of this kind, as the user knows it
+function TransformCommandName(Kind: TTransformKind): string;
 
 resourcestring
+  rsTransformRotateCopy = 'Rotate Copy';
+  rsTransformMirrorCopy = 'Mirror Copy';
+  rsTransformMoveCopy = 'Move Copy';
   rsTransformNotATransform = '%s is not a transform';
   rsTransformCurvedAxis = 'A mirror needs a straight edge, and %s is not';
   rsTransformNoAxis = 'The mirror''s two points are at the same place';
@@ -431,6 +436,16 @@ begin
     Result := TEdgeCopy(Node).TransformKey
   else
     Result := '';
+end;
+
+function TransformCommandName(Kind: TTransformKind): string;
+begin
+  case Kind of
+    tkRotate: Result := rsTransformRotateCopy;
+    tkMirror: Result := rsTransformMirrorCopy;
+    else
+      Result := rsTransformMoveCopy;
+  end;
 end;
 
 end.

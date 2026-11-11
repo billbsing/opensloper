@@ -86,7 +86,12 @@ its **Angle**, or **Across** and **Down**, in the properties, as formulas. A
 dart's angle, for example, is the difference between its legs' angles,
 `Dart_leg_2.angle - Dart_leg_1.angle`.
 
-The copies are named after their sources with a suffix, such as `A_r1`. They
+The copies are named after their sources with a suffix, such as `A_r1`.
+Copied points are drawn as diamonds rather than dots. Hover over or select a
+copy to see a faint dashed line to its source, which lights up; selecting the
+transform shows this for all its points. Double-click a copy, or choose Tools →
+Transform → Go to Source, to select its source and bring it into view; with
+the transform selected, Go to Source selects everything it copies. Copies
 cannot be dragged, since the transform places them, but they can be used by
 any other operation, and a copied edge can be given another role. To make a
 piece from copied edges, click inside them with the Piece tool. Deleting the

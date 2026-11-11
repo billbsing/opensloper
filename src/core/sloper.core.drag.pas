@@ -57,8 +57,9 @@ function RoundedText(Value: double; Decimals: integer): string;
 // in the pattern unit
 function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double; Units: TMeasureUnit): string;
 // True when Point can be dragged: its type moves freely, and every field the
-// drag would change is a plain number. Otherwise ErrorMessage says why.
-function CanDrag(Point: TPointObject; out ErrorMessage: string): boolean;
+// drag would change is a plain number. Otherwise ErrorMessage says why; for a
+// transform copy it names the source and transform.
+function CanDrag(Pattern: TPattern; Point: TPointObject; out ErrorMessage: string): boolean;
 // Sets Point's fields so it lies at Target, or as near as its operation
 // allows (a point along an edge stays on the edge). Call inside a document
 // change and evaluate afterwards. False, with ErrorMessage, when the point
@@ -83,12 +84,14 @@ function DragHandle(Pattern: TPattern; Edge: TEdgeObject; const Handle: TCurveHa
 resourcestring
   rsDragFormula = '%s is placed by a formula; change it in its properties';
   rsDragPlaced = '%s is placed by other objects and cannot be dragged';
+  // A_r1 follows A (Move Copy 'Back'). Edit A to change it.
+  rsDragCopy = '%0:s follows %1:s (%2:s ''%3:s''). Edit %1:s to change it.';
   rsDragHandleFormula = 'This handle of %s is set by a formula; change it in its properties';
 
 implementation
 
 uses
-  Math, Sloper.Core.Evaluator, Sloper.Core.JSON;
+  Math, Sloper.Core.Evaluator, Sloper.Core.JSON, Sloper.Core.Transform;
 
 function RoundedText(Value: double; Decimals: integer): string;
 var
@@ -130,12 +133,29 @@ begin
     Result := ['value'];
 end;
 
-function CanDrag(Point: TPointObject; out ErrorMessage: string): boolean;
+// Empty when Point is not a copy, or its source or transform is gone
+function CopyRefusal(Pattern: TPattern; Point: TPointObject): string;
+var
+  Source, Transform: TEvalNode;
+begin
+  Result := '';
+  if not (Point is TPointCopy) then
+    Exit;
+  Source := Pattern.FindNode(TPointCopy(Point).Source);
+  Transform := Pattern.FindNode(TPointCopy(Point).TransformKey);
+  if Assigned(Source) and (Transform is TTransformObject) then
+    Result := Format(rsDragCopy, [Point.DisplayName, Source.DisplayName, TransformCommandName(TTransformObject(Transform).Kind),
+      Transform.DisplayName]);
+end;
+
+function CanDrag(Pattern: TPattern; Point: TPointObject; out ErrorMessage: string): boolean;
 var
   FieldName: string;
   Fields: TStringArray;
 begin
-  ErrorMessage := '';
+  ErrorMessage := CopyRefusal(Pattern, Point);
+  if ErrorMessage <> '' then
+    Exit(False);
   Fields := DragFields(Point);
   if Length(Fields) = 0 then
   begin
@@ -201,7 +221,7 @@ var
   Edge: TEdgeObject;
   Position, Offset, Distance, EdgeLength: double;
 begin
-  if not CanDrag(Point, ErrorMessage) then
+  if not CanDrag(Pattern, Point, ErrorMessage) then
     Exit(False);
   if Point is TFreePoint then
     Exit(SetFields(Pattern, Point, ['x', 'y'],

@@ -57,6 +57,7 @@ type
     FPattern: TPattern;
     FState: TPaintState;
     FEdgeSlots: TEdgeSlotArray;
+    FCopyLinks: TCopyLinkArray;
     function IsSelected(const Key: string): boolean;
     procedure DrawPieceFill(Piece: TPieceObject; const Points: TVec2Array; const Screen: array of TPointF);
     procedure DrawPiece(Piece: TPieceObject);
@@ -68,6 +69,8 @@ type
     function EdgeShift(const Key: string): TVec2;
     procedure DrawEdge(Edge: TEdgeObject);
     procedure DrawPoint(Point: TPointObject);
+    procedure DrawSourceHalos;
+    procedure DrawCopyLinks;
     procedure DrawMarker(DraftObject: TDraftObject);
   public
     constructor Create;
@@ -117,6 +120,10 @@ const
   ChevronSize = 7;
   ChevronSpread = 150;
   SeamLineWidth = 4;
+  // A copied point's diamond reaches this many dot radii from its centre, a
+  // little larger than a dot so that its corners show past the lines through it
+  DiamondScale = 1.6;
+  SourceHaloWidth = 8;
   // Text smaller than this many pixels is drawn as a faint bar
   MinNotePixels = 3;
 
@@ -178,6 +185,12 @@ end;
 function HoverHalo: TBGRAPixel;
 begin
   Result := BGRA(37, 116, 214, 60);
+end;
+
+// From a transform copy to its source
+function CopyLinkInk: TBGRAPixel;
+begin
+  Result := BGRA(37, 116, 214, 170);
 end;
 
 function StateInk(State: TEvalState; const Normal: TBGRAPixel): TBGRAPixel;
@@ -527,7 +540,63 @@ begin
     InkColor := SelectedInk;
     Radius := Radius + 1.5;
   end;
-  FBitmap.FillEllipseAntialias(Screen.X, Screen.Y, Radius, Radius, InkColor);
+  // A transform copy is a diamond, so it reads as following something else
+  // without looking locked or failing
+  if Point is TPointCopy then
+  begin
+    Radius := Radius * DiamondScale;
+    FBitmap.FillPolyAntialias([PointF(Screen.X, Screen.Y - Radius), PointF(Screen.X + Radius, Screen.Y),
+      PointF(Screen.X, Screen.Y + Radius), PointF(Screen.X - Radius, Screen.Y)], InkColor);
+  end
+  else
+    FBitmap.FillEllipseAntialias(Screen.X, Screen.Y, Radius, Radius, InkColor);
+end;
+
+// The sources of the linked copies, lit as if hovered, under their own lines
+procedure TPatternPainter.DrawSourceHalos;
+var
+  Link: TCopyLink;
+  Node: TEvalNode;
+  Model: TVec2Array;
+  Screen: array of TPointF;
+  Shift, Spot: TVec2;
+  Index: integer;
+begin
+  for Link in FCopyLinks do
+  begin
+    Node := FPattern.FindNode(Link.SourceKey);
+    if Node is TPointObject then
+    begin
+      Spot := FState.View.ToScreen(TPointObject(Node).Position);
+      FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, PointRadius + 5, PointRadius + 5, HoverHalo);
+    end
+    else if (Node is TEdgeObject) and not FPattern.IsHidden(TEdgeObject(Node)) then
+    begin
+      Model := EdgePolyline(TEdgeObject(Node), FState.View.PixelsToMM(FlattenPixels));
+      Shift := EdgeShift(Node.Key);
+      Screen := nil;
+      SetLength(Screen, Length(Model));
+      for Index := 0 to High(Model) do
+        Screen[Index] := ScreenPoint(FState.View.ToScreen(Model[Index]) + Shift);
+      FBitmap.DrawPolyLineAntialias(Screen, HoverHalo, SourceHaloWidth);
+    end;
+  end;
+end;
+
+// A faint dashed line from each linked copy to its source
+procedure TPatternPainter.DrawCopyLinks;
+var
+  Link: TCopyLink;
+  First, Last: TVec2;
+begin
+  FBitmap.PenStyle := psDash;
+  for Link in FCopyLinks do
+  begin
+    First := FState.View.ToScreen(Link.CopyAt);
+    Last := FState.View.ToScreen(Link.SourceAt);
+    FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, CopyLinkInk, 1.5);
+  end;
+  FBitmap.PenStyle := psSolid;
 end;
 
 procedure TPatternPainter.DrawPattern;
@@ -541,9 +610,11 @@ begin
   // Pieces under edges, edges under points
   Shown := ShownObjects(FPattern);
   FEdgeSlots := CoincidentEdges(FPattern);
+  FCopyLinks := CopyLinks(FPattern, FState.Selection, FState.HoverKey);
   for DraftObject in Shown do
     if (DraftObject is TPieceObject) and DraftObject.HasResult then
       DrawPiece(TPieceObject(DraftObject));
+  DrawSourceHalos;
   for DraftObject in EdgesInDrawOrder(Shown) do
     if DraftObject.HasResult then
       DrawEdge(TEdgeObject(DraftObject));
@@ -567,6 +638,7 @@ begin
   for DraftObject in Shown do
     if (DraftObject.Marker <> pmPlain) and DraftObject.HasResult then
       DrawMarker(DraftObject);
+  DrawCopyLinks;
   for Point in ShownPoints(FPattern) do
     if Point.HasResult then
       DrawPoint(Point);

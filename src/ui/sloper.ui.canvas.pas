@@ -188,6 +188,9 @@ type
     procedure BreakSelection;
     // Rounds the corner between the two selected edges
     procedure RoundSelectedCorner;
+    // Selects the sources of the selected transform copies, or of a selected
+    // transform, and brings them into view
+    procedure GoToSource;
     // mkPoint makes the selected points and repeats holes, which join the
     // pieces they lie in; the others add a marking to the selected piece
     // from the edge (or, for mkLine, the marked point) selected with it
@@ -627,7 +630,7 @@ begin
     Exit;
   end;
   Point := TPointObject(Node);
-  if not CanDrag(Point, Reason) then
+  if not CanDrag(FDocument.Pattern, Point, Reason) then
   begin
     ShowMessageText(Reason);
     FInput.Mode := cmRefused;
@@ -815,6 +818,18 @@ procedure TPatternCanvas.BreakSelection;
 begin
   if Assigned(FDocument) then
     ApplyEdit(Sloper.UI.SelectionEdits.BreakSelection(FDocument, FSelection));
+end;
+
+procedure TPatternCanvas.GoToSource;
+var
+  Edit: TSelectionEdit;
+begin
+  if not Assigned(FDocument) then
+    Exit;
+  Edit := Sloper.UI.SelectionEdits.GoToSource(FDocument, FSelection);
+  ApplyEdit(Edit);
+  if Edit.Done then
+    RevealSelection;
 end;
 
 procedure TPatternCanvas.RoundSelectedCorner;
@@ -1092,6 +1107,13 @@ begin
   end;
   if Button <> mbLeft then
     Exit;
+  // Double-clicking a copy, which its first click selected, goes to its
+  // source; the press starts nothing, so its release does not cycle on
+  if (ssDouble in Shift) and (Length(FSelection) = 1) and (CopyTransformKey(FDocument.Pattern.FindNode(FSelection[0])) <> '') then
+  begin
+    GoToSource;
+    Exit;
+  end;
   // A callout's tip or a curve's handle lies over whatever else is there
   FPressKey := CalloutTipAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius));
   FPressTip := FPressKey <> '';
