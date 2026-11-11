@@ -959,6 +959,9 @@ end;
 procedure TTestAPI.TestNotificationGetsNoReply;
 begin
   AssertEquals('', FServer.HandleLine('{"jsonrpc": "2.0", "method": "evaluate"}'));
+  // Not even when it fails: an MCP client sends notifications the API does not know
+  AssertEquals('unknown method', '', FServer.HandleLine('{"jsonrpc": "2.0", "method": "notifications/initialized"}'));
+  AssertEquals('refused', '', FServer.HandleLine('{"jsonrpc": "2.0", "method": "get_object", "params": {"name": "nothing"}}'));
 end;
 
 procedure TTestAPI.TestIdIsEchoed;

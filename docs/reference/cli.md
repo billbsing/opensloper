@@ -64,7 +64,7 @@ opensloper-cli pack LAYOUT
 
 ### serve
 
-Answer JSON-RPC 2.0 on stdin and stdout, one message per line
+Answer JSON-RPC 2.0 on stdin and stdout, one message per line, as the Automation API and as an MCP server
 
 ```
 opensloper-cli serve

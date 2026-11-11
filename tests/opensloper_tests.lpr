@@ -87,7 +87,8 @@ uses
   Sloper.Tests.FileInfo,
   Sloper.Tests.Shortcuts,
   Sloper.Tests.OperationInfo,
-  Sloper.Tests.ApiMethods;
+  Sloper.Tests.ApiMethods,
+  Sloper.Tests.MCP;
 
 var
   App: TTestRunner;

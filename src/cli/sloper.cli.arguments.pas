@@ -78,7 +78,7 @@ resourcestring
   rsCmdLayout = 'Start a layout file for a pattern, with every piece placed';
   rsCmdMeasurements = 'List a measurement file, set a value, or see what a pattern needs that it lacks';
   rsCmdPack = 'Pack a layout''s pieces and rewrite the layout file';
-  rsCmdServe = 'Answer JSON-RPC 2.0 on stdin and stdout, one message per line';
+  rsCmdServe = 'Answer JSON-RPC 2.0 on stdin and stdout, one message per line, as the Automation API and as an MCP server';
   rsCmdDoc = 'Write a page of the reference documentation as Markdown, or a file format''s JSON Schema; with no ' +
     'topic, list the topics';
   rsExitSuccess = 'Success';

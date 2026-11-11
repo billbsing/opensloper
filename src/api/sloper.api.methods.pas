@@ -17,7 +17,7 @@
 }
 
 // Every Automation API method with its parameters and reply, for the
-// reference documentation, and later for listing the methods as MCP tools.
+// reference documentation and for listing the methods as MCP tools.
 // Tests hold it to the server: every method listed is answered, every method
 // answered is listed, and every parameter is one the server reads. No LCL
 // dependency.
@@ -61,6 +61,8 @@ type
     Summary: string;
     Params: TApiParamArray;
     Returns: string;
+    // Changes neither the pattern nor any file
+    ReadOnly: boolean;
   end;
   TApiMethodArray = array of TApiMethod;
 
@@ -334,6 +336,12 @@ begin
   Table[Building].Group := AGroup;
   Table[Building].Summary := ASummary;
   Table[Building].Returns := AReturns;
+  Table[Building].ReadOnly := False;
+end;
+
+procedure ReadsOnly;
+begin
+  Table[Building].ReadOnly := True;
 end;
 
 procedure P(const AName: string; AKind: TApiParamKind; ARequired: boolean; const ADescription: string;
@@ -380,15 +388,19 @@ begin
   Method('redo', agFiles, rsApiRedo, rsApiReturnsDocument);
   // Measurements
   Method('get_measurements', agMeasurements, rsApiGetMeasurements, rsApiGetMeasurementsReturns);
+  ReadsOnly;
   Method('set_measurement', agMeasurements, rsApiSetMeasurement, rsApiSetMeasurementReturns);
   P('key', apText, True, rsApiSetMeasurementKey);
   P('value', apNumber, True, rsApiSetMeasurementValue);
   P('size', apText, False, rsApiSetMeasurementSize);
   P('description', apText, False, rsApiSetMeasurementDescription);
   Method('missing_measurements', agMeasurements, rsApiMissingMeasurements, rsApiMissingReturns);
+  ReadsOnly;
   // Objects
   Method('list_objects', agObjects, rsApiListObjects, rsApiListReturns);
+  ReadsOnly;
   Method('get_object', agObjects, rsApiGetObject, rsApiReturnsObject);
+  ReadsOnly;
   Target;
   Method('set_formula', agObjects, rsApiSetFormula, rsApiReturnsObject);
   Target;
@@ -441,6 +453,7 @@ begin
   Method('break_point', agDrafting, rsApiBreakPoint, rsApiBreakReturns);
   Target;
   Method('copy_objects', agDrafting, rsApiCopyObjects, rsApiCopyReturns);
+  ReadsOnly;
   P('objects', apReferences, True, rsApiCopyObjectsList);
   Method('paste_objects', agDrafting, rsApiPasteObjects, rsApiPasteReturns);
   P('fragment', apText, True, rsApiPasteFragment);
@@ -525,6 +538,7 @@ begin
   P('style', apChoice, False, rsApiFillStyle, Joined(PIECE_FILL_NAMES));
   // Materials
   Method('list_materials', agMaterials, rsApiListMaterials, rsApiListMaterialsReturns);
+  ReadsOnly;
   Method('add_material', agMaterials, rsApiAddMaterial, rsApiReturnsMaterials);
   P('name', apText, False, rsApiMaterialName);
   P('color', apText, False, rsApiMaterialColor);
@@ -554,6 +568,7 @@ begin
   Method('flip_seam', agSeams, rsApiFlipSeam, rsApiReturnsObject);
   Target;
   Method('suggest_seams', agSeams, rsApiSuggestSeams, rsApiSuggestReturns);
+  ReadsOnly;
   // Notes
   Method('add_note', agNotes, rsApiAddNote, rsApiReturnsObject);
   P('text', apText, True, rsApiNoteText);
@@ -582,8 +597,11 @@ begin
   P('box', apFlag, False, rsApiNoteBox);
   // Checking and output
   Method('evaluate', agChecking, rsApiEvaluate, rsApiEvaluateReturns);
+  ReadsOnly;
   Method('check', agChecking, rsApiCheck, rsApiCheckReturns);
+  ReadsOnly;
   Method('render', agChecking, rsApiRender, rsApiRenderReturns);
+  ReadsOnly;
   P('format', apChoice, False, rsApiRenderFormat, 'svg');
   P('labels', apFlag, False, rsApiRenderLabels);
   P('hiddenRoles', apNames, False, rsApiRenderHiddenRoles, RoleChoices);

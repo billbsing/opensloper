@@ -45,7 +45,7 @@ uses
   Sloper.Output.Layout,
   Sloper.Output.LayoutExport,
   Sloper.Output.Packing,
-  Sloper.API.Server;
+  Sloper.API.MCP;
 
 resourcestring
   rsUnknownTopic = 'There is no documentation topic "%s"; use one of: %s';
@@ -472,13 +472,13 @@ resourcestring
     end;
   end;
 
-  // The Automation API: one request a line, until stdin closes
+  // The Automation API, also as an MCP server: one request a line, until stdin closes
   procedure RunServe;
   var
-    Server: TApiServer;
+    Server: TMcpServer;
     Line, Reply: string;
   begin
-    Server := TApiServer.Create;
+    Server := TMcpServer.Create;
     try
       while not EOF(Input) do
       begin

@@ -257,6 +257,11 @@
         <UnitName Value="Sloper.Tests.ApiMethods"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.mcp.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.MCP"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.canvasmodel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>

@@ -169,8 +169,33 @@ draws a pattern as SVG.
 
 ## With Claude
 
-Claude Code can run `opensloper-cli serve` itself and use the methods above to
-draft, check and fix a pattern, looking at `render` to see what it made. The
-[File formats](../reference/files.md) page and its schemas describe the files,
-so it can also read and write them directly. Connecting Claude to the design
-window, so that you watch its changes and undo them, is planned.
+`serve` is also a [Model Context Protocol](https://modelcontextprotocol.io)
+server, so Claude can use the methods above as tools: draft, check and fix a
+pattern, and look at `render` to see what it made. To add it to Claude Code:
+
+```
+$ claude mcp add opensloper -- /path/to/opensloper-cli serve
+```
+
+For Claude Desktop, add it to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "opensloper": {
+      "command": "/path/to/opensloper-cli",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Each method is a tool of the same name, with the parameters on the
+[reference page](../reference/api.md). A refused call comes back to Claude as
+the error above, so it can read why and try again. Claude works on its own copy
+of the pattern, as a script does, and changes your file only when it calls
+`save`; open the file in the design window afterwards to see the result.
+
+The [File formats](../reference/files.md) page and its schemas describe the
+files, so Claude can also read and write them directly. Connecting Claude to
+the design window, so that you watch its changes and undo them, is planned.

@@ -54,7 +54,6 @@ type
   TApiServer = class
   private
     FDocument: TPatternDocument;
-    function CallMethod(const Method: string; Params: TJSONObject): TJSONData;
     function FindTarget(Params: TJSONObject): TEvalNode;
     function DocumentInfo: TJSONObject;
     function ProblemsResult(WithReport: boolean): TJSONObject;
@@ -124,11 +123,19 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    // The method's result, or EApiError when it is refused
+    function CallMethod(const Method: string; Params: TJSONObject): TJSONData;
     // The response to one line, on one line; '' for a notification, which has
     // no id and gets no reply
     function HandleLine(const Line: string): string;
     property Document: TPatternDocument read FDocument;
   end;
+
+// A JSON-RPC response on one line: the result, which it takes over, or an
+// error with the field and position it names
+function RpcResultResponse(Id, Output: TJSONData): string;
+function RpcErrorResponse(Id: TJSONData; Code: integer; const AMessage: string; const FieldName: string = '';
+  APosition: integer = 0): string;
 
 resourcestring
   rsApiNotRequest = 'The request must be a JSON-RPC 2.0 object with a method';
@@ -2274,7 +2281,23 @@ begin
   end;
 end;
 
-function ErrorResponse(Id: TJSONData; Code: integer; const AMessage, FieldName: string; Position: integer): string;
+function RpcResultResponse(Id, Output: TJSONData): string;
+var
+  Response: TJSONObject;
+begin
+  Response := TJSONObject.Create;
+  try
+    Response.Add('jsonrpc', '2.0');
+    Response.Add('id', Id.Clone);
+    Response.Add('result', Output);
+    Result := Response.AsJSON;
+  finally
+    FreeAndNil(Response);
+  end;
+end;
+
+function RpcErrorResponse(Id: TJSONData; Code: integer; const AMessage: string; const FieldName: string;
+  APosition: integer): string;
 var
   Response, Error, Data: TJSONObject;
 begin
@@ -2289,12 +2312,12 @@ begin
     Response.Add('error', Error);
     Error.Add('code', Code);
     Error.Add('message', AMessage);
-    if (FieldName <> '') or (Position > 0) then
+    if (FieldName <> '') or (APosition > 0) then
     begin
       Data := TJSONObject.Create;
       Error.Add('data', Data);
       Data.Add('field', FieldName);
-      Data.Add('position', Position);
+      Data.Add('position', APosition);
     end;
     Result := Response.AsJSON;
   finally
@@ -2308,20 +2331,18 @@ var
   Err, Method: string;
   Id, ParamsData, Output: TJSONData;
   Params, OwnParams: TJSONObject;
-  Response: TJSONObject;
 begin
   OwnParams := nil;
   if not ParseJSONObject(Line, Request, Err) then
-    Exit(ErrorResponse(nil, RPC_PARSE_ERROR, Err, '', 0));
+    Exit(RpcErrorResponse(nil, RPC_PARSE_ERROR, Err));
   try
     Id := Request.Find('id');
     if not GetJSONString(Request, 'method', Method) then
-      Exit(ErrorResponse(Id, RPC_INVALID_REQUEST, rsApiNotRequest, '', 0));
+      Exit(RpcErrorResponse(Id, RPC_INVALID_REQUEST, rsApiNotRequest));
     ParamsData := Request.Find('params');
     if Assigned(ParamsData) and (ParamsData.JSONType <> jtObject) then
-      Exit(ErrorResponse(Id, RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['params']), '', 0));
+      Exit(RpcErrorResponse(Id, RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['params'])));
     // Methods read members straight from it, so a request without any gets an empty one
-    OwnParams := nil;
     if not Assigned(ParamsData) then
     begin
       OwnParams := TJSONObject.Create;
@@ -2332,24 +2353,21 @@ begin
     try
       try
         Output := CallMethod(Method, Params);
-        if not Assigned(Id) then
-          Exit('');
-        Response := TJSONObject.Create;
-        try
-          Response.Add('jsonrpc', '2.0');
-          Response.Add('id', Id.Clone);
-          Response.Add('result', Output);
+        Result := '';
+        if Assigned(Id) then
+        begin
+          Result := RpcResultResponse(Id, Output);
           Output := nil;
-          Result := Response.AsJSON;
-        finally
-          FreeAndNil(Response);
         end;
       except
         on Failure: EApiError do
-          Result := ErrorResponse(Id, Failure.Code, Failure.Message, Failure.FieldName, Failure.Position);
+          Result := RpcErrorResponse(Id, Failure.Code, Failure.Message, Failure.FieldName, Failure.Position);
         on Failure: Exception do
-          Result := ErrorResponse(Id, RPC_INTERNAL_ERROR, Failure.Message, '', 0);
+          Result := RpcErrorResponse(Id, RPC_INTERNAL_ERROR, Failure.Message);
       end;
+      // A notification gets no reply, not even an error
+      if not Assigned(Id) then
+        Result := '';
     finally
       FreeAndNil(Output);
     end;
