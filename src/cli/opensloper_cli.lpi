@@ -24,6 +24,10 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="BGRABitmapPack4NoLCL_FreeType"/>
+        <DefaultFilename Value="../packages/bgrabitmap/bgrabitmap/bgrabitmappack4nolcl_freetype.lpk" Prefer="True"/>
+      </Item>
+      <Item>
         <PackageName Value="OSClipper2"/>
         <DefaultFilename Value="../core/clipper2/osclipper2.lpk" Prefer="True"/>
       </Item>
@@ -42,7 +46,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../core;../document;../api;../output;../docs;../packages/console-tools"/>
+      <OtherUnitFiles Value="../core;../document;../api;../output;../output/thirdparty;../docs;../packages/console-tools"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

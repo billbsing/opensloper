@@ -25,7 +25,7 @@ The project uses Lazarus/Free Pascal and is licensed GPLv3 or later.
 | --- | --- | --- |
 | Lazarus LCL / FCL | GUI, JSON (`fpjson`), XML (`DOM`, `XMLRead`), SQLite (SQLdb) | Modified LGPL with static-linking exception |
 | Clipper2 | Polygon offsetting and booleans for seam allowance | Boost |
-| BGRABitmap | Antialiased canvas drawing, SVG | Modified LGPL |
+| BGRABitmap | Antialiased canvas drawing, SVG; PNG images in the CLI and API, without the LCL | Modified LGPL |
 | fpvectorial (optional) | DXF/SVG/PDF export helpers | Modified LGPL |
 | Tabler Icons | Toolbar and menu icons, SVG in `data/icons` | MIT |
 
@@ -715,7 +715,7 @@ Third-party and personal Pascal libraries are git submodules under `src/packages
 | Package | Use | Licence |
 | --- | --- | --- |
 | Clipper2 | Seam allowance offsetting and polygon booleans | Boost |
-| BGRABitmap | Antialiased canvas drawing, SVG | Modified LGPL |
+| BGRABitmap | Antialiased canvas drawing, SVG; PNG images in the CLI and API, without the LCL | Modified LGPL |
 | ConsoleTools | Argument parsing and help for the CLI | MIT |
 
 **Clipper2** comes from our fork of AngusJohnson/Clipper2 ([github.com/billbsing/Clipper2](https://github.com/billbsing/Clipper2)), which carries our fixes (see `documents/known-issues.md`). That repository was archived in October 2026, and development moved to PolyClipping/Clipper2, which is becoming C++ only, so the fork stays on the original. When we need to change Clipper2's behaviour it becomes our own Pascal-only Clipper2, keeping Angus Johnson's notices. Projects depend on `src/core/clipper2/osclipper2.lpk` rather than adding it to their search path.
@@ -732,7 +732,7 @@ OpenSloper exposes its document operations as an API, first so Claude Code can t
 
 ### Phase 1: scripting and testing
 
-Built (`Sloper.API.Server`, `opensloper-cli serve`): JSON-RPC 2.0 over stdin and stdout, one message a line, with no window. Objects are named by `id` or `name`; `add_point` and `add_edge` take a `type` and fields as in a pattern file, so a whole pattern can be built through the API, and formulas are in the pattern's unit while reported positions stay mm. `render` returns the draft as SVG (`Sloper.Output.DraftSVG`), so Claude can look at the result, not only check numbers, and a wrong curve or misplaced dart is caught. `export` reads the saved files, as the publish app does. PNG waits, since the CLI has no LCL to draw it; batches are not supported. A notification (a request without an `id`) gets no reply, not even when it fails, as JSON-RPC requires.
+Built (`Sloper.API.Server`, `opensloper-cli serve`): JSON-RPC 2.0 over stdin and stdout, one message a line, with no window. Objects are named by `id` or `name`; `add_point` and `add_edge` take a `type` and fields as in a pattern file, so a whole pattern can be built through the API, and formulas are in the pattern's unit while reported positions stay mm. `render` returns the draft as SVG (`Sloper.Output.DraftSVG`), so Claude can look at the result, not only check numbers, and a wrong curve or misplaced dart is caught. `export` reads the saved files, as the publish app does. `render` with `format` png returns the draft as a PNG image, base64 (see Drawing images without the LCL); batches are not supported. A notification (a request without an `id`) gets no reply, not even when it fails, as JSON-RPC requires.
 
 **A generated Python client, not an embedded language** (decided 2026-11-10). `opensloper-cli doc opensloper.py` (`Sloper.Docs.Python`) writes `docs/reference/opensloper.py` from the methods table: one Python method per API method, with typed parameters (choices as `Literal`) and the table's descriptions as docstrings, the target as `id` or `name` by its type, `add_point` and `add_edge` members as keyword arguments, and a refused call raised as `OpenSloperError` with its code, field and position. It is committed with the other generated pages, so a test fails when it falls behind the table, and readers download it from the site; it is MIT licensed so it does not bind the licence of the scripts that import it, and it is not published to PyPI until users ask for that. Pascal scripting inside the apps was rejected: it would duplicate the API with a second binding layer, few pattern makers know Pascal, and scripts carried in shared patterns would run code from untrusted files. Driving the running app is left to the GUI's `--automation` socket, which the same client can then use.
 
@@ -742,7 +742,7 @@ Built (`Sloper.API.Server`, `opensloper-cli serve`): JSON-RPC 2.0 over stdin and
 
 ### Phase 2: Claude as a design assistant
 
-- **MCP server** (built 2026-11-11, `Sloper.API.MCP`). MCP is JSON-RPC 2.0 over stdio, so `opensloper-cli serve` answers the MCP handshake (`initialize`, `ping`, `tools/list`, `tools/call`, notifications) and passes every other method to the API server: one command serves scripts and MCP clients, and Claude Code and Claude Desktop connect directly. The tool list is made from the methods table, one tool per method with the same name: a JSON Schema from each parameter's kind (a target becomes `id` or `name`, neither required), the summary and reply as the description, and `readOnlyHint` from the table's `ReadOnly`. `add_point` and `add_edge` take their members by type, so their descriptions list each type's members from `Sloper.Core.OperationInfo` rather than a schema per type. A refused call is a tool result with `isError` and the API's error (code, message, field, position) as its text, so the model reads why and retries; an unknown tool is a protocol error. `render` answers with the SVG as text: MCP clients take PNG but not SVG images, and the CLI has no LCL to draw PNG (see Phase 1). Resources and prompts wait until there is a use for them.
+- **MCP server** (built 2026-11-11, `Sloper.API.MCP`). MCP is JSON-RPC 2.0 over stdio, so `opensloper-cli serve` answers the MCP handshake (`initialize`, `ping`, `tools/list`, `tools/call`, notifications) and passes every other method to the API server: one command serves scripts and MCP clients, and Claude Code and Claude Desktop connect directly. The tool list is made from the methods table, one tool per method with the same name: a JSON Schema from each parameter's kind (a target becomes `id` or `name`, neither required), the summary and reply as the description, and `readOnlyHint` from the table's `ReadOnly`. `add_point` and `add_edge` take their members by type, so their descriptions list each type's members from `Sloper.Core.OperationInfo` rather than a schema per type. A refused call is a tool result with `isError` and the API's error (code, message, field, position) as its text, so the model reads why and retries; an unknown tool is a protocol error. `render` answers with the SVG as text, and with `format` png as an image, so the model sees the draft: MCP clients take PNG but not SVG images. Resources and prompts wait until there is a use for them.
 - With the GUI in `--automation` mode, the user sees Claude's changes live, each request one undo step labelled `Claude: <summary>`, so it can be reviewed and undone at once.
 - Example requests: "move the shoulder dart to the side seam", "add 2 cm ease at the hip", "why is point C invalid?".
 
@@ -770,6 +770,12 @@ Reviewed 2026-11-08.
 - The API works on the open document; file access is limited to `open`, `save` and `export` with paths the caller gives.
 - The API layer depends only on the document and core layers, keeping both usable without it.
 - Nothing runs a shell: the apps start each other with `TProcess` and an argument list, so file names cannot inject commands. Text written into SVG is escaped (`EscapeXML`).
+
+### Drawing images without the LCL
+
+Built 2026-11-11 (`Sloper.Output.DraftPNG`). The CLI and the API draw the draft as PNG by drawing the draft's SVG with BGRABitmap's no-LCL build (`bgrabitmappack4nolcl_freetype`), so the image always matches the SVG and there is no second drawing routine. Text goes through Lazarus's own FreeType (`freetypelaz`, Pascal, no system library) with fonts bundled in `data/fonts`: Noto Sans, then DejaVu Sans if Noto is missing (BGRABitmap uses the first family it has; it does not fall back glyph by glyph). Bundling rather than reading system fonts gives the same image on every platform and in tests, and LazFreeType cannot read every system font. The SVG names the bundled families first in each `font-family`, since BGRABitmap cannot draw the generic `sans-serif` alone. Widths are 16 to 4096 pixels, 1600 by default, and the height follows the drawing.
+
+Our units that use a third-party drawing library live in `src/output/thirdparty`: every standard applies there, and `check-standards.sh` allows only BGRABitmap's no-LCL units besides, so the rest of `src/output` stays vector-only and nothing below `src/ui` uses the LCL. The CLI and tests require the no-LCL package; the GUI apps keep the LCL build, which compiles the same units.
 
 ## Garment view
 

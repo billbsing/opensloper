@@ -42,10 +42,15 @@ uses
   Sloper.Core.PatternCheck,
   Sloper.Core.Settings,
   Sloper.Output.DraftSVG,
+  Sloper.Output.DraftPNG,
   Sloper.Output.Layout,
   Sloper.Output.LayoutExport,
   Sloper.Output.Packing,
   Sloper.API.MCP;
+
+const
+  DRAFT_FORMAT_SVG = 'svg';
+  DRAFT_FORMAT_PNG = 'png';
 
 resourcestring
   rsUnknownTopic = 'There is no documentation topic "%s"; use one of: %s';
@@ -73,6 +78,8 @@ resourcestring
   rsCheckBlocked = 'Blocked by these problems: %d more';
   rsExportNeedsLayout = 'The export command needs a layout file (%s). Make one with the layout command.';
   rsWroteFile = 'Wrote %s';
+  rsDraftFormat = 'export-draft writes svg or png, not "%s"';
+  rsDraftWidth = 'The width must be a whole number of pixels, such as 1600';
   rsWarning = 'Warning: %s';
 
   // False, with a message, when FileName does not exist; the load messages
@@ -204,16 +211,37 @@ resourcestring
     Result := True;
   end;
 
-  function RunExportDraft(const PatternFile, MeasurementOption, SizeOption, OutputOption, UpTo: string; WithLabels: boolean): integer;
+  function RunExportDraft(const PatternFile, MeasurementOption, SizeOption, OutputOption, UpTo, FormatOption, WidthOption: string;
+    WithLabels: boolean): integer;
   var
     Pattern: TPattern;
     Measurements: TMeasurementSet;
     Options: TDraftSVGOptions;
-    MeasurementPath, Target, Err, Problem: string;
-    BlockedCount: integer;
+    MeasurementPath, Target, Err, Problem, DraftFormat: string;
+    Content: rawbytestring;
+    BlockedCount, Width: integer;
   begin
     Measurements := nil;
     Pattern := nil;
+    // The format given, else the output file's extension, else svg
+    DraftFormat := LowerCase(FormatOption);
+    if (DraftFormat = '') and (OutputOption <> '') then
+      DraftFormat := LowerCase(Copy(ExtractFileExt(OutputOption), 2, MaxInt));
+    if (DraftFormat <> DRAFT_FORMAT_PNG) then
+    begin
+      if (FormatOption <> '') and (DraftFormat <> DRAFT_FORMAT_SVG) then
+      begin
+        WriteLn(StdErr, Format(rsDraftFormat, [FormatOption]));
+        Exit(EXIT_FAILURE);
+      end;
+      DraftFormat := DRAFT_FORMAT_SVG;
+    end;
+    Width := PNG_DEFAULT_WIDTH;
+    if (WidthOption <> '') and not TryStrToInt(WidthOption, Width) then
+    begin
+      WriteLn(StdErr, rsDraftWidth);
+      Exit(EXIT_FAILURE);
+    end;
     try
       Measurements := TMeasurementSet.Create;
       Pattern := TPattern.Create;
@@ -235,8 +263,15 @@ resourcestring
       Target := OutputOption;
       if Target = '' then
         // ExtractFilePath keeps its separator, and is empty for a file in this folder
-        Target := ChangeFileExt(PatternFile, '.svg');
-      if not WriteTextFile(Target, DraftToSVG(Pattern, Options), Err) then
+        Target := ChangeFileExt(PatternFile, '.' + DraftFormat);
+      if DraftFormat = DRAFT_FORMAT_SVG then
+        Content := DraftToSVG(Pattern, Options)
+      else if not DraftToPNG(Pattern, Options, Width, Content, Err) then
+      begin
+        WriteLn(StdErr, Err);
+        Exit(EXIT_FAILURE);
+      end;
+      if not WriteTextFile(Target, Content, Err) then
       begin
         WriteLn(StdErr, Err);
         Exit(EXIT_FAILURE);
@@ -604,7 +639,8 @@ begin
       ExitCode := RunPack(PatternFile)
     else if CommandName = 'export-draft' then
       ExitCode := RunExportDraft(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
-        Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('upto'), Parser.IsOption('labels'))
+        Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('upto'), Parser.GetOptionValueAsString('format'),
+        Parser.GetOptionValueAsString('width'), Parser.IsOption('labels'))
     else
       ExitCode := RunExport(PatternFile, Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('format'),
         Parser.GetOptionValueAsString('profile'));

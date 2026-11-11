@@ -1175,16 +1175,19 @@ class OpenSloper:
     def render(
         self,
         *,
-        format: Literal["svg"] | None = None,
+        format: Literal["svg", "png"] | None = None,
+        width: int | None = None,
         labels: bool | None = None,
         hiddenRoles: list[Literal["construction", "outline", "placement", "stitch", "fold", "cut", "skive", "edgeFinish"]] | None = None,
         annotations: bool | None = None,
         region: dict[str, Any] | None = None,
     ) -> Any:
-        """Draws the pattern as SVG, as the drafting window shows it.
+        """Draws the pattern as SVG or as a PNG image, as the drafting window shows it.
 
         Args:
-            format: Only svg so far.
+            format: svg, or png for an image; by default svg.
+            width: png: the image's width in pixels, from 16 to 4096; by default 1600. Its height
+                follows the drawing.
             labels: Name the points and pieces.
             hiddenRoles: Roles of edges to leave out.
             annotations: Whether to draw notes; by default true.
@@ -1195,10 +1198,11 @@ class OpenSloper:
             region.maxY: The right or bottom. Required.
 
         Returns:
-            `format` and the `svg` text.
+            `format` and the `svg` text; or, for png, the `png` file as base64 and its `width`.
         """
         return self._send("render", {
             "format": format,
+            "width": width,
             "labels": labels,
             "hiddenRoles": hiddenRoles,
             "annotations": annotations,

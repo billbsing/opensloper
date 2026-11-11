@@ -34,6 +34,10 @@ my %lcl = map { lc($_) => 1 } qw(
   ButtonPanel CheckLst Grids Spin Buttons Clipbrd ImgList ExtDlgs Interfaces
   LCLProc LCLType LCLIntf LMessages LResources BGRABitmap BGRABitmapTypes BGRASVG);
 
+# Third-party drawing libraries, built without the LCL, that our own units in a
+# thirdparty folder (src/output/thirdparty) may use; every other rule applies there
+my %thirdparty = map { lc($_) => 1 } qw(BGRABitmap BGRABitmapTypes BGRASVG);
+
 # Sloper areas each folder may use; folders not listed may use any area
 my %allowed = (
   'src/core'     => [qw(Core)],
@@ -82,6 +86,8 @@ for my $file (@ARGV) {
   my $nocomments = strip($raw, 0);
   my $code = strip($raw, 1);
   (my $dir = $file) =~ s{/[^/]*$}{};
+  # A thirdparty folder belongs to its parent's area and layer
+  my $in_thirdparty = $dir =~ s{/thirdparty$}{};
   my $is_test = $file =~ m{^tests/};
 
   # GPL header, then the compiler mode
@@ -115,7 +121,7 @@ for my $file (@ARGV) {
     $first_uses = 0;
     for my $unit (@units) {
       report('error', $file, line_of($code, $at), "$dir must not use the LCL unit $unit")
-        if $no_lcl{$dir} && $lcl{lc $unit};
+        if $no_lcl{$dir} && $lcl{lc $unit} && !($in_thirdparty && $thirdparty{lc $unit});
       if ($allowed{$dir} && $unit =~ /^Sloper\.(\w+)\./i) {
         my $area = $1;
         report('error', $file, line_of($code, $at), "$dir must not use $unit (allowed: Sloper." .

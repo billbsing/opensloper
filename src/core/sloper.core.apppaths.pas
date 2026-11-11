@@ -51,6 +51,9 @@ type
     // The toolbar and menu icons, found the same way; '' when they are not there
     class function IconDir: string;
     class function IconDirIn(const Folder: string): string;
+    // The fonts bundled for drawing text into images, data/fonts
+    class function FontDir: string;
+    class function FontDirIn(const Folder: string): string;
     // Creates Dir if missing and returns it; folders are made on first use
     class function ForceDir(const Dir: string): string;
     // XDG rule: EnvValue when it is an absolute path, else Home + Fallback
@@ -71,6 +74,7 @@ const
   DATA_FOLDER = 'data';
   CATALOGUE_FILE_NAME = 'measurement-catalogue.json';
   ICON_FOLDER = 'icons';
+  FONT_FOLDER = 'fonts';
   {$IFDEF WINDOWS}
   PUBLISH_FILE_NAME = 'opensloper-publish.exe';
   MEASUREMENTS_FILE_NAME = 'opensloper-measurements.exe';
@@ -246,6 +250,16 @@ end;
 class function TAppPaths.IconDirIn(const Folder: string): string;
 begin
   Result := DataPathIn(Folder, ICON_FOLDER, True);
+end;
+
+class function TAppPaths.FontDir: string;
+begin
+  Result := FontDirIn(ExeDir);
+end;
+
+class function TAppPaths.FontDirIn(const Folder: string): string;
+begin
+  Result := DataPathIn(Folder, FONT_FOLDER, True);
 end;
 
 class function TAppPaths.MeasurementsProgram: string;

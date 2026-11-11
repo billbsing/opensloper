@@ -107,6 +107,7 @@ type
     procedure TestRenderLabelsAndRegion;
     procedure TestRenderFollowsEdits;
     procedure TestRenderRefusals;
+    procedure TestRenderPng;
     procedure TestRenderWithoutParams;
     procedure TestBuildFromNothing;
     procedure TestEveryPointType;
@@ -138,7 +139,7 @@ type
 implementation
 
 uses
-  Sloper.Output.Layout,
+  base64, Sloper.Output.Layout,
   Sloper.Core.Arrange, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.PatternFile, Sloper.Core.Variables,
   Sloper.Core.Draft, Sloper.Core.PieceDetect, Sloper.Core.Units, Sloper.Core.PatternMaterials;
 
@@ -1033,12 +1034,30 @@ end;
 
 procedure TTestAPI.TestRenderRefusals;
 begin
-  Call('render', '{"format": "png"}');
+  Call('render', '{"format": "jpeg"}');
   AssertEquals(RPC_REFUSED, ErrorCode);
+  Call('render', '{"format": "png", "width": 3}');
+  AssertEquals('too narrow', RPC_REFUSED, ErrorCode);
+  Call('render', '{"format": "png", "width": 100000}');
+  AssertEquals('too wide', RPC_REFUSED, ErrorCode);
   Call('render', '{"region": {"minX": 5, "minY": 0, "maxX": 1, "maxY": 1}}');
   AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
   Call('render', '{"region": 3}');
   AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
+end;
+
+// The PNG comes as base64, PNG_MIN_WIDTH to PNG_MAX_WIDTH pixels across
+procedure TTestAPI.TestRenderPng;
+var
+  Png: string;
+begin
+  OpenTestPattern;
+  Call('render', '{"format": "png", "width": 400, "labels": true}');
+  AssertEquals('png', Answer.Get('format', ''));
+  AssertEquals(400, Answer.Get('width', 0));
+  Png := DecodeStringBase64(Answer.Get('png', ''));
+  AssertEquals('a PNG file', #137'PNG', Copy(Png, 1, 4));
+  AssertEquals('as wide as asked', 400, BEtoN(PLongWord(@Png[17])^));
 end;
 
 procedure TTestAPI.TestRenderWithoutParams;

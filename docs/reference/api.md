@@ -663,11 +663,12 @@ Returns: The problems, and every object's computed values.
 
 ### `render`
 
-Draws the pattern as SVG, as the drafting window shows it.
+Draws the pattern as SVG or as a PNG image, as the drafting window shows it.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
-| `format` | one of: `svg` |  | Only svg so far |
+| `format` | one of: `svg`, `png` |  | svg, or png for an image; by default svg |
+| `width` | whole number |  | png: the image's width in pixels, from 16 to 4096; by default 1600. Its height follows the drawing |
 | `labels` | true or false |  | Name the points and pieces |
 | `hiddenRoles` | list of: `construction`, `outline`, `placement`, `stitch`, `fold`, `cut`, `skive`, `edgeFinish` |  | Roles of edges to leave out |
 | `annotations` | true or false |  | Whether to draw notes; by default true |
@@ -677,7 +678,7 @@ Draws the pattern as SVG, as the drafting window shows it.
 | `region.maxX` | number | yes | The right or bottom |
 | `region.maxY` | number | yes | The right or bottom |
 
-Returns: `format` and the `svg` text.
+Returns: `format` and the `svg` text; or, for png, the `png` file as base64 and its `width`.
 
 ### `export`
 

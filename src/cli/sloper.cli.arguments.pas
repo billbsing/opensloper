@@ -64,7 +64,9 @@ resourcestring
   rsOptOutput = 'layout, export, export-draft, doc: the file to write';
   rsOptLabels = 'export-draft: name the points and pieces';
   rsOptUpTo = 'export-draft: draw only this object and those before it, as the pattern was when it was added';
-  rsOptFormat = 'export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf';
+  rsOptFormat = 'export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf. export-draft: svg or png; ' +
+    'default: the extension of --output, or svg';
+  rsOptWidth = 'export-draft: the width of a png in pixels, from 16 to 4096; default: 1600';
   rsOptProfile = 'export: a machine profile from the settings, in place of the layout''s';
   rsArgCommand = 'Command to run';
   rsArgPattern = 'Pattern file (.sloper), layout file (.slayout) to export, for measurements: list, set or missing, ' +
@@ -74,7 +76,7 @@ resourcestring
   rsArgValue = 'measurements set: the value in mm';
   rsCmdCheck = 'Evaluate a pattern and report problems';
   rsCmdExport = 'Export a layout file as PDF, SVG or DXF';
-  rsCmdExportDraft = 'Export a pattern''s draft as SVG, as the drafting window shows it';
+  rsCmdExportDraft = 'Export a pattern''s draft as SVG or a PNG image, as the drafting window shows it';
   rsCmdLayout = 'Start a layout file for a pattern, with every piece placed';
   rsCmdMeasurements = 'List a measurement file, set a value, or see what a pattern needs that it lacks';
   rsCmdPack = 'Pack a layout''s pieces and rewrite the layout file';
@@ -90,7 +92,7 @@ const
   CLI_COMMANDS: array[0..7] of TCliCommand = (
     (Name: 'check'; Usage: 'check PATTERN [-m FILE] [-s SIZE] [--json]'; Description: rsCmdCheck),
     (Name: 'export'; Usage: 'export LAYOUT [-o FILE] [--format=FORMAT] [--profile=NAME]'; Description: rsCmdExport),
-    (Name: 'export-draft'; Usage: 'export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--labels] [--upto=NAME]';
+    (Name: 'export-draft'; Usage: 'export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--format=FORMAT] [--width=PIXELS] [--labels] [--upto=NAME]';
     Description: rsCmdExportDraft),
     (Name: 'layout'; Usage: 'layout PATTERN [-o FILE] [-m FILE] [-s SIZE]'; Description: rsCmdLayout),
     (Name: 'measurements'; Usage: 'measurements list FILE [-s SIZE] [--json]' + LineEnding +
@@ -98,7 +100,7 @@ const
     (Name: 'pack'; Usage: 'pack LAYOUT'; Description: rsCmdPack),
     (Name: 'serve'; Usage: 'serve'; Description: rsCmdServe),
     (Name: 'doc'; Usage: 'doc TOPIC [-o FILE]' + LineEnding + 'doc'; Description: rsCmdDoc));
-  CLI_OPTIONS: array[0..10] of TCliOption = (
+  CLI_OPTIONS: array[0..11] of TCliOption = (
     (Name: 'help'; Short: '-h'; Long: '--help'; Parameter: ''; Description: rsOptHelp),
     (Name: 'version'; Short: '-V'; Long: '--version'; Parameter: ''; Description: rsOptVersion),
     (Name: 'measurements'; Short: '-m'; Long: '--measurements'; Parameter: 'file'; Description: rsOptMeasurements),
@@ -109,7 +111,8 @@ const
     (Name: 'format'; Short: ''; Long: '--format'; Parameter: 'format'; Description: rsOptFormat),
     (Name: 'profile'; Short: ''; Long: '--profile'; Parameter: 'name'; Description: rsOptProfile),
     (Name: 'labels'; Short: ''; Long: '--labels'; Parameter: ''; Description: rsOptLabels),
-    (Name: 'upto'; Short: ''; Long: '--upto'; Parameter: 'name'; Description: rsOptUpTo));
+    (Name: 'upto'; Short: ''; Long: '--upto'; Parameter: 'name'; Description: rsOptUpTo),
+    (Name: 'width'; Short: ''; Long: '--width'; Parameter: 'pixels'; Description: rsOptWidth));
   // After the command, in order; all optional, as each command takes its own
   CLI_ARGUMENTS: array[0..3] of TCliArgument = (
     (Name: 'pattern'; Description: rsArgPattern),

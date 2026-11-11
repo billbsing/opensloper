@@ -158,7 +158,7 @@ resourcestring
   rsApiUnknownType = 'There is no type "%s"; use one of: %s';
   rsApiBadChoice = 'Parameter "%s" must be one of: %s';
   rsApiBadNodes = 'A curve path needs a "nodes" list, each with a point and angle';
-  rsApiRenderFormat = 'Format "%s" is not available; use svg';
+  rsApiRenderFormat = 'Format "%s" is not available; use svg or png';
   rsApiPieceExists = '%s already covers this region';
   rsApiNotAPiece = '%s is not a piece';
   rsApiNotAnEdge = '%s is not an edge';
@@ -206,7 +206,8 @@ implementation
 uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
-  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Core.Fragment, Sloper.Output.DraftSVG, Sloper.Output.Layout,
+  Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Core.Fragment, base64,
+  Sloper.Output.DraftSVG, Sloper.Output.DraftPNG, Sloper.Output.Layout,
   Sloper.Output.LayoutExport, Sloper.Core.Version;
 
 const
@@ -215,6 +216,7 @@ const
   SEAM_TYPE = 'seam';
   NOTE_TYPE = 'note';
   RENDER_FORMAT_SVG = 'svg';
+  RENDER_FORMAT_PNG = 'png';
 
 constructor EApiError.Create(ACode: integer; const AMessage: string; const AFieldName: string; APosition: integer);
 begin
@@ -1040,42 +1042,44 @@ var
   Options: TDraftSVGOptions;
   Region: TJSONData;
   RegionItem: TJSONObject;
-  RenderFormat: string;
+  RenderFormat, Err: string;
+  Png: rawbytestring;
+  Width: integer;
   Info: TJSONObject;
 begin
   RenderFormat := OptionalString(Params, 'format');
-  if (RenderFormat <> '') and (RenderFormat <> RENDER_FORMAT_SVG) then
+  if RenderFormat = '' then
+    RenderFormat := RENDER_FORMAT_SVG;
+  if (RenderFormat <> RENDER_FORMAT_SVG) and (RenderFormat <> RENDER_FORMAT_PNG) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiRenderFormat, [RenderFormat]));
   Options := DefaultDraftSVGOptions;
-  if Assigned(Params) then
+  GetJSONBoolean(Params, 'labels', Options.Labels);
+  if Assigned(Params.Find('hiddenRoles')) and not NamesToRoles(StringListParam(Params, 'hiddenRoles'), Options.HiddenRoles) then
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiBadChoice, ['hiddenRoles', JoinedRoleNames]));
+  if Assigned(Params.Find('annotations')) then
+    Options.HideAnnotations := not BooleanParam(Params, 'annotations');
+  Region := Params.Find('region');
+  if Assigned(Region) then
   begin
-    GetJSONBoolean(Params, 'labels', Options.Labels);
-    if Assigned(Params.Find('hiddenRoles')) and not NamesToRoles(StringListParam(Params, 'hiddenRoles'), Options.HiddenRoles) then
-      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiBadChoice, ['hiddenRoles', JoinedRoleNames]));
-    if Assigned(Params.Find('annotations')) then
-      Options.HideAnnotations := not BooleanParam(Params, 'annotations');
-    Region := Params.Find('region');
-    if Assigned(Region) then
-    begin
-      if Region.JSONType <> jtObject then
-        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadRegion);
-      RegionItem := TJSONObject(Region);
-      if not GetJSONNumber(RegionItem, 'minX', Options.Region.MinX) or not GetJSONNumber(RegionItem, 'minY', Options.Region.MinY) or
-        not GetJSONNumber(RegionItem, 'maxX', Options.Region.MaxX) or not GetJSONNumber(RegionItem, 'maxY', Options.Region.MaxY) or
-        (Options.Region.MaxX <= Options.Region.MinX) or (Options.Region.MaxY <= Options.Region.MinY) then
-        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadRegion);
-      Options.HasRegion := True;
-    end;
+    if Region.JSONType <> jtObject then
+      raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadRegion);
+    RegionItem := TJSONObject(Region);
+    if not GetJSONNumber(RegionItem, 'minX', Options.Region.MinX) or not GetJSONNumber(RegionItem, 'minY', Options.Region.MinY) or
+      not GetJSONNumber(RegionItem, 'maxX', Options.Region.MaxX) or not GetJSONNumber(RegionItem, 'maxY', Options.Region.MaxY) or
+      (Options.Region.MaxX <= Options.Region.MinX) or (Options.Region.MaxY <= Options.Region.MinY) then
+      raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadRegion);
+    Options.HasRegion := True;
   end;
-  Info := TJSONObject.Create;
-  try
-    Info.Add('format', RENDER_FORMAT_SVG);
-    Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
-    Result := Info;
-  except
-    FreeAndNil(Info);
-    raise;
-  end;
+  if RenderFormat = RENDER_FORMAT_SVG then
+    Exit(TJSONObject.Create(['format', RENDER_FORMAT_SVG, 'svg', DraftToSVG(FDocument.Pattern, Options)]));
+  Width := PNG_DEFAULT_WIDTH;
+  if Assigned(Params.Find('width')) and not GetJSONInteger(Params, 'width', Width) then
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['width']));
+  if not DraftToPNG(FDocument.Pattern, Options, Width, Png, Err) then
+    raise EApiError.Create(RPC_REFUSED, Err);
+  Info := TJSONObject.Create(['format', RENDER_FORMAT_PNG, 'width', Width]);
+  Info.Add('png', EncodeStringBase64(Png));
+  Result := Info;
 end;
 
 function TApiServer.DoAddVariable(Params: TJSONObject): TJSONData;

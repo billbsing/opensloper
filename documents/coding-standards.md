@@ -32,7 +32,7 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 
 ## Checking the rules
 
-`./check-standards.sh` checks the rules below that a pattern match can find: the GPL header and `{$mode ObjFPC}{$H+}`, unit and file names, the layering of `uses` clauses (no LCL below `src/ui`, and which `Sloper.*` areas each folder may use), `Sloper.Core.CodePage` first in programs, `FreeAndNil`, `Assigned`, `ssModifier`, and message text that should be a `resourcestring`. These are errors. Single-letter names are warnings. CI runs it on the files each pull request changes. The rest, such as descriptive names, `try`/`finally` protection and undoable commands, is left to review.
+`./check-standards.sh` checks the rules below that a pattern match can find: the GPL header and `{$mode ObjFPC}{$H+}`, unit and file names, the layering of `uses` clauses (no LCL below `src/ui`, and which `Sloper.*` areas each folder may use), `Sloper.Core.CodePage` first in programs, `FreeAndNil`, `Assigned`, `ssModifier`, and message text that should be a `resourcestring`. These are errors. Single-letter names are warnings. CI runs it on the files each pull request changes. The rest, such as descriptive names, `try`/`finally` protection and undoable commands, is left to review. A `thirdparty` folder (`src/output/thirdparty`) belongs to its parent's area and layer and meets every rule, except that it may use BGRABitmap built without the LCL (`BGRABitmap`, `BGRABitmapTypes`, `BGRASVG`).
 
 ## Naming
 
@@ -41,7 +41,7 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 - **Parameters that would clash take an `A` prefix.** When a parameter's plain name matches a field, property or method of the class (`AName`, `AEdge`, `AKey`, `AValue`), prefix it with `A`. Free Pascal refuses a local or parameter with the same name as a member. Locals use plain descriptive names instead (`EdgeObject`, `PointPos`).
 - **Fields** start with `F` and are private; expose them through properties.
 - **Types** start with `T`, exception classes with `E`; enumeration values carry a short lower-case prefix (`esValid`, `omPolar`, `pdAngle`).
-- **Units** are named `Sloper.<Area>.<Name>`, where the area is the folder: `Sloper.Core.Formula` (`src/core`), `Sloper.Document.…` (`src/document`), `Sloper.UI.MainForm` (`src/ui`), `Sloper.Output.…` (`src/output`) and `Sloper.Tests.Pattern` (`tests`). File names are the unit name in lower case (`sloper.core.formula.pas`).
+- **Units** are named `Sloper.<Area>.<Name>`, where the area is the folder: `Sloper.Core.Formula` (`src/core`), `Sloper.Document.…` (`src/document`), `Sloper.UI.MainForm` (`src/ui`), `Sloper.Output.…` (`src/output`, and `src/output/thirdparty`, which takes its parent's area) and `Sloper.Tests.Pattern` (`tests`). File names are the unit name in lower case (`sloper.core.formula.pas`).
 - **Constants** are upper case with underscores between words (`COPY_LINK_WIDTH`, `DIAMOND_SCALE`).
 - **Resource strings** start with `rs` and the unit's area (`rsFormulaEmpty`, `rsDraftPastEnd`).
 - **IDs and names** follow the project's name rules (see `CLAUDE.md`): letters, digits and underscore, compared without regard to case.

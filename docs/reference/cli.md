@@ -30,10 +30,10 @@ opensloper-cli export LAYOUT [-o FILE] [--format=FORMAT] [--profile=NAME]
 
 ### export-draft
 
-Export a pattern's draft as SVG, as the drafting window shows it
+Export a pattern's draft as SVG or a PNG image, as the drafting window shows it
 
 ```
-opensloper-cli export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--labels] [--upto=NAME]
+opensloper-cli export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--format=FORMAT] [--width=PIXELS] [--labels] [--upto=NAME]
 ```
 
 ### layout
@@ -90,10 +90,11 @@ opensloper-cli doc
 | `-d`, `--description` | text | measurements set: the description; default: keep the one it has |
 | `--json` |  | check: print every computed value as JSON; measurements list: print the file |
 | `-o`, `--output` | file | layout, export, export-draft, doc: the file to write |
-| `--format` | format | export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf |
+| `--format` | format | export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf. export-draft: svg or png; default: the extension of --output, or svg |
 | `--profile` | name | export: a machine profile from the settings, in place of the layout's |
 | `--labels` |  | export-draft: name the points and pieces |
 | `--upto` | name | export-draft: draw only this object and those before it, as the pattern was when it was added |
+| `--width` | pixels | export-draft: the width of a png in pixels, from 16 to 4096; default: 1600 |
 
 ## Arguments
 

@@ -24,6 +24,10 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="BGRABitmapPack4NoLCL_FreeType"/>
+        <DefaultFilename Value="../src/packages/bgrabitmap/bgrabitmap/bgrabitmappack4nolcl_freetype.lpk" Prefer="True"/>
+      </Item>
+      <Item>
         <PackageName Value="OSClipper2"/>
         <DefaultFilename Value="../src/core/clipper2/osclipper2.lpk" Prefer="True"/>
       </Item>
@@ -262,6 +266,11 @@
         <UnitName Value="Sloper.Tests.MCP"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.draftpng.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.DraftPNG"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.canvasmodel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>
@@ -370,7 +379,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../src/ui;../src/cli;../src/docs;../src/packages/console-tools"/>
+      <OtherUnitFiles Value="../src/core;../src/document;../src/api;../src/output;../src/output/thirdparty;../src/ui;../src/cli;../src/docs;../src/packages/console-tools"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <CodeGeneration>

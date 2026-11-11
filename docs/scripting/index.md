@@ -153,7 +153,8 @@ such problem, gaps in pieces and seams out of tolerance.
 and `redo` work as in the window.
 
 **Looking at the result.** `render` answers with the draft as SVG, as the
-window draws it, so a script or an assistant can see a curve or a dart and not
+window draws it, or with `"format": "png"` as a PNG image (base64, `width`
+pixels across), so a script or an assistant can see a curve or a dart and not
 only its numbers. `check` gives every computed value.
 
 **What it will write.** `save` writes only `.sloper` files and never replaces a
@@ -165,13 +166,14 @@ extension; `set_measurement` writes only the pattern's own measurement file.
 For one-off jobs the command line may be enough:
 [`opensloper-cli check`](../reference/cli.md) reports a pattern's problems and
 exits with 1 when it has any, so it suits a build or a test, and `export-draft`
-draws a pattern as SVG.
+draws a pattern as SVG, or as PNG with `--format=png`.
 
 ## With Claude
 
 `serve` is also a [Model Context Protocol](https://modelcontextprotocol.io)
 server, so Claude can use the methods above as tools: draft, check and fix a
-pattern, and look at `render` to see what it made. To add it to Claude Code:
+pattern, and look at `render` with `"format": "png"`, which Claude receives as
+an image, to see what it made. To add it to Claude Code:
 
 ```
 $ claude mcp add opensloper -- /path/to/opensloper-cli serve

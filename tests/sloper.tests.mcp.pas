@@ -53,6 +53,7 @@ type
     procedure TestRefusalIsToolError;
     procedure TestUnknownTool;
     procedure TestRenderGivesSvgText;
+    procedure TestRenderPngIsImage;
     procedure TestApiRequestsStillAnswered;
   end;
 
@@ -269,6 +270,18 @@ begin
   Text := CallTool('render', '{}', IsError);
   AssertFalse(IsError);
   AssertTrue('the SVG itself, not JSON: ' + Copy(Text, 1, 80), (Pos('<svg', Text) > 0) and (Pos('<svg', Text) < 100));
+end;
+
+procedure TTestMCP.TestRenderPngIsImage;
+var
+  Item: TJSONObject;
+begin
+  Send('tools/call', '{"name": "render", "arguments": {"format": "png", "width": 200}}');
+  AssertFalse(Answer.Get('isError', False));
+  Item := Answer.Arrays['content'].Objects[0];
+  AssertEquals('image', Item.Get('type', ''));
+  AssertEquals('image/png', Item.Get('mimeType', ''));
+  AssertEquals('PNG data', 'iVBORw0K', Copy(Item.Get('data', ''), 1, 8));
 end;
 
 procedure TTestMCP.TestApiRequestsStillAnswered;

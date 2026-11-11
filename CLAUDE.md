@@ -9,7 +9,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/core/` — geometry, expressions, model, evaluator, piece builder, storage. **No LCL dependency**: never add `Forms`, `Graphics`, `Controls` or other LCL units here.
 - `src/document/` — `TPatternDocument`, undo/redo commands, change notifications.
 - `src/ui/` — forms, canvas, interaction tools, snapping, panels. Keep it thin: call into document and core.
-- `src/output/` — PDF, SVG, DXF and Blender exporters; read computed geometry only.
+- `src/output/` — PDF, SVG, DXF and Blender exporters; read computed geometry only. `src/output/thirdparty/` holds our own units that draw with BGRABitmap built without the LCL (the draft as PNG); every standard applies there, and only those BGRA units are allowed besides.
 - `src/api/` — the Automation API (JSON-RPC 2.0). Depends only on the document and core; every edit goes through document commands.
 - `src/design/` — `opensloper-design`, the main design app.
 - `src/measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
@@ -18,7 +18,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/docs/` — code that writes the generated reference pages, the file format schemas and the Python API client (`opensloper.py`) of the user documentation (`opensloper-cli doc TOPIC`). Doc generation code goes here.
 - `src/packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.
 - `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources; `make-icons.sh` regenerates the apps' `.ico` files after an SVG changes, and `linux/` holds the `.desktop` entries.
-- `data/` — files the apps read at run time: the measurement catalogue and its body figures, and the Tabler toolbar icons (`data/icons`, MIT).
+- `data/` — files the apps read at run time: the measurement catalogue and its body figures, the Tabler toolbar icons (`data/icons`, MIT), and the fonts images are drawn with (`data/fonts`: Noto Sans, OFL, and DejaVu Sans, Bitstream Vera licence).
 - `tests/` — FPCUnit test project and regression patterns.
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
 - `documents/` — internal development notes, the design document, `coding-standards.md`, `known-issues.md` and the GPL unit header (`gpl-header.txt`).

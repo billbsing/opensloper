@@ -70,8 +70,10 @@ const
   MCP_PROTOCOL_VERSIONS: array[0..3] of string = ('2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05');
   MCP_NOTIFICATION_PREFIX = 'notifications/';
   TYPE_PARAM = 'type';
-  // The render reply member that is sent as text of its own, not inside JSON
+  // The render reply members sent as content of their own, not inside JSON
   SVG_MEMBER = 'svg';
+  PNG_MEMBER = 'png';
+  PNG_MIME_TYPE = 'image/png';
 
 // Markdown links become their text: an MCP client has no reference pages
 function PlainText(const Text: string): string;
@@ -251,26 +253,31 @@ begin
   end;
 end;
 
-// The text an MCP client shows the model: the draft's SVG as it is, anything
-// else as JSON
-function ToolText(Output: TJSONData): string;
+// What an MCP client shows the model: a PNG as an image, so the model sees
+// the draft; the SVG as it is; anything else as JSON
+function ToolResult(Output: TJSONData): TJSONObject;
 var
-  Svg: TJSONData;
+  Member: TJSONData;
+  Item: TJSONObject;
 begin
-  Svg := nil;
+  Item := nil;
   if Output.JSONType = jtObject then
-    Svg := TJSONObject(Output).Find(SVG_MEMBER);
-  if Assigned(Svg) and (Svg.JSONType = jtString) then
-    Result := Svg.AsString
-  else
-    Result := Output.AsJSON;
+  begin
+    Member := TJSONObject(Output).Find(PNG_MEMBER);
+    if Assigned(Member) and (Member.JSONType = jtString) then
+      Item := TJSONObject.Create(['type', 'image', 'data', Member.AsString, 'mimeType', PNG_MIME_TYPE]);
+    Member := TJSONObject(Output).Find(SVG_MEMBER);
+    if not Assigned(Item) and Assigned(Member) and (Member.JSONType = jtString) then
+      Item := TJSONObject.Create(['type', 'text', 'text', Member.AsString]);
+  end;
+  if not Assigned(Item) then
+    Item := TJSONObject.Create(['type', 'text', 'text', Output.AsJSON]);
+  Result := TJSONObject.Create(['content', TJSONArray.Create([Item])]);
 end;
 
-function ToolResult(const Text: string; IsError: boolean): TJSONObject;
+function ErrorResult(const Text: string): TJSONObject;
 begin
-  Result := TJSONObject.Create(['content', TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', Text])])]);
-  if IsError then
-    Result.Add('isError', True);
+  Result := TJSONObject.Create(['content', TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', Text])]), 'isError', True]);
 end;
 
 // A refusal as the API gives it, so the model reads the code, field and position
@@ -341,12 +348,12 @@ begin
   try
     try
       Output := FApi.CallMethod(ToolName, TJSONObject(Arguments));
-      Result := ToolResult(ToolText(Output), False);
+      Result := ToolResult(Output);
     except
       on Failure: EApiError do
-        Result := ToolResult(RefusalText(Failure.Code, Failure.Message, Failure.FieldName, Failure.Position), True);
+        Result := ErrorResult(RefusalText(Failure.Code, Failure.Message, Failure.FieldName, Failure.Position));
       on Failure: Exception do
-        Result := ToolResult(RefusalText(RPC_INTERNAL_ERROR, Failure.Message, '', 0), True);
+        Result := ErrorResult(RefusalText(RPC_INTERNAL_ERROR, Failure.Message, '', 0));
     end;
   finally
     FreeAndNil(Output);

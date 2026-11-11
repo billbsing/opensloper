@@ -88,7 +88,8 @@ uses
   Sloper.Tests.Shortcuts,
   Sloper.Tests.OperationInfo,
   Sloper.Tests.ApiMethods,
-  Sloper.Tests.MCP;
+  Sloper.Tests.MCP,
+  Sloper.Tests.DraftPNG;
 
 var
   App: TTestRunner;
