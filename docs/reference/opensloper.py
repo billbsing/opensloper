@@ -1209,6 +1209,18 @@ class OpenSloper:
             "region": region,
         })
 
+    def ui_state(self) -> Any:
+        """Gives the design window's state: its pattern file, the selection, the label mode and the
+        part of the draft in view. Only through opensloper-cli serve --connect, with the window in
+        automation mode.
+
+        Returns:
+            `file`, `modified`, `units`, `selection` (each with `id`, `name` and `type`), `labels`
+            and `view`, the region in view in mm (`minX`, `minY`, `maxX`, `maxY`), which `render`
+            takes as its `region`.
+        """
+        return self._send("ui_state")
+
     def export(
         self,
         layout: str,

@@ -680,6 +680,14 @@ Draws the pattern as SVG or as a PNG image, as the drafting window shows it.
 
 Returns: `format` and the `svg` text; or, for png, the `png` file as base64 and its `width`.
 
+### `ui_state`
+
+Gives the design window's state: its pattern file, the selection, the label mode and the part of the draft in view. Only through opensloper-cli serve --connect, with the window in automation mode.
+
+No parameters.
+
+Returns: `file`, `modified`, `units`, `selection` (each with `id`, `name` and `type`), `labels` and `view`, the region in view in mm (`minX`, `minY`, `maxX`, `maxY`), which `render` takes as its `region`.
+
 ### `export`
 
 Exports a saved layout file as PDF, SVG, DXF or machine DXF.

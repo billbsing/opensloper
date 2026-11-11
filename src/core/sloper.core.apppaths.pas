@@ -31,6 +31,11 @@ type
     class function DataDir: string;
     class function StateDir: string;
     class function CacheDir: string;
+    // Files that last only while an app runs, such as the automation socket:
+    // $XDG_RUNTIME_DIR on Linux, the user's own temporary folder on macOS,
+    // Local AppData on Windows. Never the portable folder, which may be on a
+    // drive that cannot hold a socket. Not made private here.
+    class function RuntimeDir: string;
     class function DefaultDocumentsDir: string;
     class function SettingsFile: string;
     // File → Open Recent's lists, which are state rather than settings
@@ -63,6 +68,9 @@ type
 implementation
 
 uses
+  {$IFDEF UNIX}
+  BaseUnix,
+  {$ENDIF}
   SysUtils, Sloper.Core.Version;
 
 const
@@ -159,6 +167,21 @@ begin
   Result := MacDir('Application Support');
   {$ELSE}
   Result := XdgDir('XDG_STATE_HOME', ConcatPaths(['.local', 'state']));
+  {$ENDIF}
+end;
+
+class function TAppPaths.RuntimeDir: string;
+begin
+  {$IF DEFINED(WINDOWS)}
+  Result := WinDir('LOCALAPPDATA', ['run']);
+  {$ELSEIF DEFINED(DARWIN)}
+  // TMPDIR is already the user's own
+  Result := ConcatPaths([ExcludeTrailingPathDelimiter(GetTempDir), APP_NAME_LOWER]);
+  {$ELSE}
+  if (GetEnvironmentVariable('XDG_RUNTIME_DIR') <> '') and (GetEnvironmentVariable('XDG_RUNTIME_DIR')[1] = PathDelim) then
+    Result := ConcatPaths([GetEnvironmentVariable('XDG_RUNTIME_DIR'), APP_NAME_LOWER])
+  else
+    Result := ConcatPaths([ExcludeTrailingPathDelimiter(GetTempDir), APP_NAME_LOWER + '-' + IntToStr(fpGetUid)]);
   {$ENDIF}
 end;
 

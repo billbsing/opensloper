@@ -51,9 +51,34 @@ type
     constructor Create(ACode: integer; const AMessage: string; const AFieldName: string = ''; APosition: integer = 0);
   end;
 
-  TApiServer = class
+  // What answers API calls: the server with its document, or a connection to
+  // the design window's
+  TApiBackend = class
+  public
+    // The method's result, or EApiError when it is refused
+    function CallMethod(const Method: string; Params: TJSONObject): TJSONData; virtual; abstract;
+    // The response to one line, on one line; '' for a notification, which has
+    // no id and gets no reply
+    function HandleLine(const Line: string): string; virtual; abstract;
+  end;
+
+  // Asked before a file is written; False refuses the call
+  TApiConfirmWrite = function(const Path: string): boolean of object;
+  // The design window's state for ui_state
+  TApiWindowState = function: TJSONObject of object;
+
+  TApiServer = class(TApiBackend)
   private
     FDocument: TPatternDocument;
+    FOwnsDocument: boolean;
+    FChangePrefix: string;
+    FOpensFiles: boolean;
+    FOnConfirmWrite: TApiConfirmWrite;
+    FOnWindowState: TApiWindowState;
+    // Opens a change on the document, refusing while the user has one open
+    procedure BeginChange(const Description: string);
+    procedure ConfirmWrite(const Path: string);
+    function DoWindowState: TJSONData;
     function FindTarget(Params: TJSONObject): TEvalNode;
     function DocumentInfo: TJSONObject;
     function ProblemsResult(WithReport: boolean): TJSONObject;
@@ -121,15 +146,25 @@ type
     function DoExport(Params: TJSONObject): TJSONData;
     function DoConvertUnits(Params: TJSONObject): TJSONData;
   public
+    // With a document of its own, empty until open
     constructor Create;
+    // On the design window's document, which it does not free
+    constructor CreateFor(ADocument: TPatternDocument);
     destructor Destroy; override;
-    // The method's result, or EApiError when it is refused
-    function CallMethod(const Method: string; Params: TJSONObject): TJSONData;
-    // The response to one line, on one line; '' for a notification, which has
-    // no id and gets no reply
-    function HandleLine(const Line: string): string;
+    function CallMethod(const Method: string; Params: TJSONObject): TJSONData; override;
+    function HandleLine(const Line: string): string; override;
     property Document: TPatternDocument read FDocument;
+    // Put before each change's description in the undo history
+    property ChangePrefix: string read FChangePrefix write FChangePrefix;
+    // False in the design window, where the user opens patterns
+    property OpensFiles: boolean read FOpensFiles write FOpensFiles;
+    property OnConfirmWrite: TApiConfirmWrite read FOnConfirmWrite write FOnConfirmWrite;
+    // Answers ui_state; without it ui_state is refused
+    property OnWindowState: TApiWindowState read FOnWindowState write FOnWindowState;
   end;
+
+// An object as a selection lists it: its id, name and type
+function NodeReference(Node: TEvalNode): TJSONObject;
 
 // A JSON-RPC response on one line: the result, which it takes over, or an
 // error with the field and position it names
@@ -199,6 +234,10 @@ resourcestring
   rsApiNotANote = '%s is not a note';
   rsApiChangeNote = 'Change note';
   rsApiConvertUnits = 'Convert pattern units';
+  rsApiBusy = 'The window is in the middle of a change; try again when the user has finished';
+  rsApiOpenInWindow = 'Patterns are opened in the design window, not through the API; this works on the pattern open there';
+  rsApiWriteDeclined = 'The user did not allow writing %s';
+  rsApiNoWindow = 'ui_state needs the design window: start it with --automation and run opensloper-cli serve --connect';
   rsApiBadMarks = 'Parameter "marks" must be a list of objects with an "id" or "name", a "field", a "token" and a "role"';
 
 implementation
@@ -208,7 +247,7 @@ uses
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
   Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Core.Fragment, base64,
   Sloper.Output.DraftSVG, Sloper.Output.DraftPNG, Sloper.Output.Layout,
-  Sloper.Output.LayoutExport, Sloper.Core.Version;
+  Sloper.Output.LayoutExport, Sloper.Core.Version, Sloper.API.Methods;
 
 const
   VARIABLE_TYPE = 'variable';
@@ -360,6 +399,25 @@ begin
   end;
 end;
 
+function NodeReference(Node: TEvalNode): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  if (Node is TRepeatPoint) and TRepeatPoint(Node).IsVirtual then
+    Result.Add('id', TJSONNull.Create)
+  else
+    Result.Add('id', StrToInt(Node.Key));
+  if Node is TVariable then
+  begin
+    Result.Add('name', TVariable(Node).Name);
+    Result.Add('type', VARIABLE_TYPE);
+  end
+  else
+  begin
+    Result.Add('name', Node.DisplayName);
+    Result.Add('type', PatternObjectTypeName(TDraftObject(Node)));
+  end;
+end;
+
 function NodeToJSON(Document: TPatternDocument; Node: TEvalNode): TJSONObject;
 var
   Formulas: TJSONObject;
@@ -461,12 +519,43 @@ constructor TApiServer.Create;
 begin
   inherited Create;
   FDocument := TPatternDocument.Create;
+  FOwnsDocument := True;
+  FOpensFiles := True;
+end;
+
+constructor TApiServer.CreateFor(ADocument: TPatternDocument);
+begin
+  inherited Create;
+  FDocument := ADocument;
+  FOwnsDocument := False;
+  FOpensFiles := True;
 end;
 
 destructor TApiServer.Destroy;
 begin
-  FreeAndNil(FDocument);
+  if FOwnsDocument then
+    FreeAndNil(FDocument);
   inherited Destroy;
+end;
+
+procedure TApiServer.BeginChange(const Description: string);
+begin
+  if FDocument.ChangeOpen then
+    raise EApiError.Create(RPC_REFUSED, rsApiBusy);
+  FDocument.BeginChange(FChangePrefix + Description);
+end;
+
+procedure TApiServer.ConfirmWrite(const Path: string);
+begin
+  if Assigned(FOnConfirmWrite) and not FOnConfirmWrite(ExpandFileName(Path)) then
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiWriteDeclined, [Path]));
+end;
+
+function TApiServer.DoWindowState: TJSONData;
+begin
+  if not Assigned(FOnWindowState) then
+    raise EApiError.Create(RPC_REFUSED, rsApiNoWindow);
+  Result := FOnWindowState();
 end;
 
 // The reason is read first, since cancelling can reload the pattern
@@ -557,6 +646,8 @@ function TApiServer.DoOpen(Params: TJSONObject): TJSONData;
 var
   Err, Measurements: string;
 begin
+  if not FOpensFiles then
+    raise EApiError.Create(RPC_REFUSED, rsApiOpenInWindow);
   Measurements := OptionalString(Params, 'measurements');
   if not FDocument.LoadFromFile(RequireString(Params, 'path'), Err) then
     raise EApiError.Create(RPC_REFUSED, Err);
@@ -625,14 +716,14 @@ begin
   if Assigned(Params.Find('edge')) then
   begin
     First := Reference(Params, 'edge');
-    FDocument.BeginChange(rsApiAddRepeat);
+    BeginChange(rsApiAddRepeat);
     Added := FDocument.Pattern.AddRepeatOnEdge(RepeatName, First, CountText, IncludeEnds);
   end
   else
   begin
     First := Reference(Params, 'a');
     Second := Reference(Params, 'b');
-    FDocument.BeginChange(rsApiAddRepeat);
+    BeginChange(rsApiAddRepeat);
     Added := FDocument.Pattern.AddRepeatBetween(RepeatName, First, Second, CountText, IncludeEnds);
   end;
   Result := AddedNode(Added);
@@ -705,7 +796,7 @@ begin
       else
         Kept.Add(Item.Name);
     end;
-    FDocument.BeginChange(rsApiArrange);
+    BeginChange(rsApiArrange);
     if not ApplyArrange(FDocument.Pattern, Request, Replace, Err) then
     begin
       FDocument.CancelChange;
@@ -755,6 +846,7 @@ begin
   if Path = '' then
     raise EApiError.Create(RPC_REFUSED, rsApiNoFileName);
   CheckPatternTarget(Path);
+  ConfirmWrite(Path);
   if not FDocument.SaveToFile(Path, Err) then
     raise EApiError.Create(RPC_REFUSED, Err);
   Result := DocumentInfo;
@@ -873,7 +965,7 @@ begin
   Node := FindTarget(Params);
   FieldName := RequireString(Params, 'field');
   Text := RequireString(Params, 'formula');
-  FDocument.BeginChange(Format(rsApiSetFormula, [FieldName]));
+  BeginChange(Format(rsApiSetFormula, [FieldName]));
   Done := FDocument.Pattern.SetFormula(Node, FieldName, Text);
   if not Done then
     RefuseChange;
@@ -950,7 +1042,7 @@ begin
         end;
       Exit(Reply);
     end;
-    FDocument.BeginChange(rsApiConvertUnits);
+    BeginChange(rsApiConvertUnits);
     if not ConvertPatternUnits(FDocument.Pattern, ToUnits, Analysis.Numbers, Err) then
     begin
       FDocument.CancelChange;
@@ -974,7 +1066,7 @@ var
 begin
   Node := FindTarget(Params);
   NewName := RequireString(Params, 'newName');
-  FDocument.BeginChange(rsApiRename);
+  BeginChange(rsApiRename);
   if not FDocument.Pattern.Rename(Node, NewName) then
     RefuseChange;
   FDocument.EndChange;
@@ -986,7 +1078,7 @@ var
   Node: TEvalNode;
 begin
   Node := FindTarget(Params);
-  FDocument.BeginChange(rsApiDelete);
+  BeginChange(rsApiDelete);
   if not FDocument.Pattern.Delete(Node) then
     RefuseChange;
   FDocument.EndChange;
@@ -1089,7 +1181,7 @@ begin
   VariableName := RequireString(Params, 'name');
   Formula := FormulaParam(Params, 'formula');
   Description := OptionalString(Params, 'description');
-  FDocument.BeginChange(Format(rsApiAdd, [VARIABLE_TYPE]));
+  BeginChange(Format(rsApiAdd, [VARIABLE_TYPE]));
   Result := AddedNode(FDocument.Pattern.AddVariable(VariableName, Formula, Description));
 end;
 
@@ -1112,7 +1204,7 @@ begin
     begin
       FormulaA := FormulaParam(Params, 'x');
       FormulaB := FormulaParam(Params, 'y');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddFreePoint(PointName, FormulaA, FormulaB);
     end;
     'offsetPoint':
@@ -1129,7 +1221,7 @@ begin
         FormulaA := FormulaParam(Params, 'dx');
         FormulaB := FormulaParam(Params, 'dy');
       end;
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddOffsetPoint(PointName, First, TOffsetMode(Mode), FormulaA, FormulaB);
     end;
     'alongEdgePoint':
@@ -1138,7 +1230,7 @@ begin
       FromEnd := ChoiceParam(Params, 'from', ['start', 'end']) = 1;
       Mode := ChoiceParam(Params, 'mode', ['length', 'ratio']);
       FormulaA := FormulaParam(Params, 'value');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddAlongEdgePoint(PointName, First, FromEnd, TAlongMode(Mode), FormulaA);
     end;
     'betweenPoint':
@@ -1147,7 +1239,7 @@ begin
       Second := Reference(Params, 'b');
       Mode := ChoiceParam(Params, 'mode', ['length', 'ratio']);
       FormulaA := FormulaParam(Params, 'value');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddBetweenPoint(PointName, First, Second, TAlongMode(Mode), FormulaA);
     end;
     'intersectPoint':
@@ -1157,7 +1249,7 @@ begin
       FlagA := BooleanParam(Params, 'extendA');
       FlagB := BooleanParam(Params, 'extendB');
       Pick := PickParam(Params);
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddIntersectPoint(PointName, First, Second, FlagA, FlagB, Pick);
     end;
     'circleCirclePoint':
@@ -1167,7 +1259,7 @@ begin
       Second := Reference(Params, 'centreB');
       FormulaB := FormulaParam(Params, 'radiusB');
       Pick := PickParam(Params);
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddCircleCirclePoint(PointName, First, FormulaA, Second, FormulaB, Pick);
     end;
     'circleEdgePoint':
@@ -1177,7 +1269,7 @@ begin
       Second := Reference(Params, 'edge');
       FlagA := BooleanParam(Params, 'extend');
       Pick := PickParam(Params);
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddCircleEdgePoint(PointName, First, FormulaA, Second, FlagA, Pick);
     end;
     'projectPoint':
@@ -1189,7 +1281,7 @@ begin
       if TProjectDirection(Direction) = pdAngle then
         FormulaA := FormulaParam(Params, 'angle');
       FlagA := BooleanParam(Params, 'extend');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddProjectPoint(PointName, First, Second, TProjectDirection(Direction), FormulaA, FlagA);
     end;
     else
@@ -1223,7 +1315,7 @@ begin
     begin
       First := Reference(Params, 'start');
       Second := Reference(Params, 'end');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddLine(First, Second, Role, EdgeName);
     end;
     'curve':
@@ -1234,7 +1326,7 @@ begin
       Length1 := FormulaParam(Params, 'length1');
       Angle2 := FormulaParam(Params, 'angle2');
       Length2 := FormulaParam(Params, 'length2');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddCurve(First, Second, Angle1, Length1, Angle2, Length2, Role, EdgeName);
     end;
     // One edge, or a run of "edges" in any order; inside and outside need
@@ -1255,7 +1347,7 @@ begin
           raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAPiece, [Added.DisplayName]));
         Piece := TPieceObject(Added);
       end;
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := nil;
       Side := TOffsetSide(Index mod 2);
       if Assigned(Piece) then
@@ -1272,7 +1364,7 @@ begin
     begin
       First := Reference(Params, 'centre');
       Length1 := FormulaParam(Params, 'radius');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddCircle(First, Length1, Role, EdgeName);
     end;
     'arc':
@@ -1281,7 +1373,7 @@ begin
       Length1 := FormulaParam(Params, 'radius');
       Angle1 := FormulaParam(Params, 'angle1');
       Angle2 := FormulaParam(Params, 'angle2');
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddArc(First, Length1, Angle1, Angle2, Role, EdgeName);
     end;
     'curvePath':
@@ -1307,7 +1399,7 @@ begin
         LengthsIn[Index] := OptionalFormula(Item, 'lengthIn');
         LengthsOut[Index] := OptionalFormula(Item, 'lengthOut');
       end;
-      FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
+      BeginChange(Format(rsApiAdd, [TypeName]));
       Added := Pattern.AddCurvePath(NodeKeys, Angles, LengthsIn, LengthsOut, Role, EdgeName);
     end;
     else
@@ -1327,7 +1419,7 @@ begin
   Corner := Reference(Params, 'corner');
   Width := FormulaParam(Params, 'width');
   Height := FormulaParam(Params, 'height');
-  FDocument.BeginChange(Format(rsApiAdd, ['rectangle']));
+  BeginChange(Format(rsApiAdd, ['rectangle']));
   if not FDocument.Pattern.AddRectangle(Corner, Width, Height, RoleParam(Params), Edges) then
     RefuseChange;
   for Index := 0 to 3 do
@@ -1351,7 +1443,7 @@ begin
   EdgeA := Reference(Params, 'edgeA');
   EdgeB := Reference(Params, 'edgeB');
   Radius := FormulaParam(Params, 'radius');
-  FDocument.BeginChange(Format(rsApiAdd, ['corner']));
+  BeginChange(Format(rsApiAdd, ['corner']));
   Result := AddedNode(FDocument.Pattern.AddRoundCorner(EdgeA, EdgeB, Radius));
 end;
 
@@ -1363,7 +1455,7 @@ var
 begin
   Edge := Reference(Params, 'edge');
   Point := Reference(Params, 'point');
-  FDocument.BeginChange(rsApiSplit);
+  BeginChange(rsApiSplit);
   if not FDocument.Pattern.SplitEdge(Edge, Point, First, Second) then
     RefuseChange;
   FirstKey := First.Key;
@@ -1400,7 +1492,7 @@ begin
   Existing := PieceOnPath(FDocument.Pattern, Path);
   if Assigned(Existing) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiPieceExists, [Existing.DisplayName]));
-  FDocument.BeginChange(Format(rsApiAdd, [PIECE_TYPE]));
+  BeginChange(Format(rsApiAdd, [PIECE_TYPE]));
   Result := AddedNode(FDocument.Pattern.AddPiece(PieceName, Path, Allowance));
 end;
 
@@ -1423,7 +1515,7 @@ begin
   Piece := TargetPiece(Params);
   if BooleanParam(Params, 'none') then
   begin
-    FDocument.BeginChange(rsApiGrainline);
+    BeginChange(rsApiGrainline);
     FDocument.Pattern.ClearGrain(Piece);
     Exit(AddedNode(Piece));
   end;
@@ -1432,14 +1524,14 @@ begin
     raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadGrainline);
   if Angle <> '' then
   begin
-    FDocument.BeginChange(rsApiGrainline);
+    BeginChange(rsApiGrainline);
     Done := FDocument.Pattern.SetGrainAngle(Piece, Angle);
   end
   else
   begin
     First := Reference(Params, 'start');
     Second := Reference(Params, 'end');
-    FDocument.BeginChange(rsApiGrainline);
+    BeginChange(rsApiGrainline);
     Done := FDocument.Pattern.SetGrainPoints(Piece, First, Second);
   end;
   if not Done then
@@ -1457,7 +1549,7 @@ begin
   if Assigned(Params.Find('point')) then
   begin
     Key := Reference(Params, 'point');
-    FDocument.BeginChange(rsApiAddNotch);
+    BeginChange(rsApiAddNotch);
     Done := FDocument.Pattern.AddPointNotch(Piece, Key);
   end
   else
@@ -1466,7 +1558,7 @@ begin
       raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadNotch);
     Key := Reference(Params, 'edge');
     Position := FormulaParam(Params, 'position');
-    FDocument.BeginChange(rsApiAddNotch);
+    BeginChange(rsApiAddNotch);
     Done := FDocument.Pattern.AddEdgeNotch(Piece, Key, Position);
   end;
   if not Done then
@@ -1491,7 +1583,7 @@ begin
   begin
     Key := Reference(Params, 'point');
     FirstFormula := FormulaParam(Params, 'diameter');
-    FDocument.BeginChange(rsApiAddMarking);
+    BeginChange(rsApiAddMarking);
     Done := FDocument.Pattern.SetMarker(Key, pmHole, FirstFormula) and
       ((Piece.PointMarkingOf(Key) >= 0) or FDocument.Pattern.AddPointMarking(Piece, Key));
     if not Done then
@@ -1503,7 +1595,7 @@ begin
     mkPoint:
     begin
       Key := Reference(Params, 'point');
-      FDocument.BeginChange(rsApiAddMarking);
+      BeginChange(rsApiAddMarking);
       Done := FDocument.Pattern.AddPointMarking(Piece, Key);
     end;
     mkStitchHoles:
@@ -1511,13 +1603,13 @@ begin
       Key := Reference(Params, 'edge');
       FirstFormula := FormulaParam(Params, MARKING_SPACING_FIELD);
       SecondFormula := FormulaParam(Params, MARKING_SIZE_FIELD);
-      FDocument.BeginChange(rsApiAddMarking);
+      BeginChange(rsApiAddMarking);
       Done := FDocument.Pattern.AddStitchMarking(Piece, Key, FirstFormula, SecondFormula);
     end;
     else
     begin
       Key := Reference(Params, 'edge');
-      FDocument.BeginChange(rsApiAddMarking);
+      BeginChange(rsApiAddMarking);
       Done := FDocument.Pattern.AddLineMarking(Piece, Key);
     end;
   end;
@@ -1534,7 +1626,7 @@ begin
   Piece := TargetPiece(Params);
   if not GetJSONInteger(Params, 'marking', Index) then
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['marking']));
-  FDocument.BeginChange(rsApiRemoveMarking);
+  BeginChange(rsApiRemoveMarking);
   if not FDocument.Pattern.RemoveMarking(Piece, Index - 1) then
     RefuseChange;
   Result := AddedNode(Piece);
@@ -1548,7 +1640,7 @@ begin
   Piece := TargetPiece(Params);
   if not GetJSONInteger(Params, 'notch', Index) then
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['notch']));
-  FDocument.BeginChange(rsApiRemoveNotch);
+  BeginChange(rsApiRemoveNotch);
   if not FDocument.Pattern.RemoveNotch(Piece, Index - 1) then
     RefuseChange;
   Result := AddedNode(Piece);
@@ -1568,7 +1660,7 @@ begin
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['count']));
   if Assigned(Params.Find('mirrored')) then
     Mirrored := BooleanParam(Params, 'mirrored');
-  FDocument.BeginChange(rsApiCut);
+  BeginChange(rsApiCut);
   if not FDocument.Pattern.SetCut(Piece, Count, Mirrored) then
     RefuseChange;
   Result := AddedNode(Piece);
@@ -1630,7 +1722,7 @@ function TApiServer.DoAddMaterial(Params: TJSONObject): TJSONData;
 var
   Fill: TMaterialFill;
 begin
-  FDocument.BeginChange(rsApiMaterials);
+  BeginChange(rsApiMaterials);
   Fill := ffTint;
   if Assigned(Params) then
     Fill := TMaterialFill(ChoiceParam(Params, 'fill', MATERIAL_FILL_NAMES));
@@ -1645,7 +1737,7 @@ var
   Material: TPatternMaterial;
 begin
   Material := FindMaterialParam(Params, 'material');
-  FDocument.BeginChange(rsApiMaterials);
+  BeginChange(rsApiMaterials);
   if not FDocument.Pattern.RenameMaterial(Material, RequireString(Params, 'name')) then
     RefuseChange;
   FDocument.EndChange;
@@ -1658,7 +1750,7 @@ var
   Allowance: double;
 begin
   Material := FindMaterialParam(Params, 'material');
-  FDocument.BeginChange(rsApiMaterials);
+  BeginChange(rsApiMaterials);
   if Assigned(Params.Find('color')) and not FDocument.Pattern.SetMaterialColor(Material, RequireString(Params, 'color')) then
     RefuseChange;
   if Assigned(Params.Find('fill')) then
@@ -1677,7 +1769,7 @@ var
   Material: TPatternMaterial;
 begin
   Material := FindMaterialParam(Params, 'material');
-  FDocument.BeginChange(rsApiMaterials);
+  BeginChange(rsApiMaterials);
   if not FDocument.Pattern.DeleteMaterial(Material) then
     RefuseChange;
   FDocument.EndChange;
@@ -1695,7 +1787,7 @@ begin
     Material := FindMaterialParam(Params, 'material')
   else if not (Assigned(Params.Find('none')) and BooleanParam(Params, 'none')) then
     raise EApiError.Create(RPC_INVALID_PARAMS, rsApiMaterialOrNone);
-  FDocument.BeginChange(rsApiPieceMaterial);
+  BeginChange(rsApiPieceMaterial);
   FDocument.Pattern.SetPieceMaterial(Piece, Material);
   Result := AddedNode(Piece);
 end;
@@ -1713,7 +1805,7 @@ begin
     Color := RequireString(Params, 'color');
   if Assigned(Params.Find('style')) then
     Style := TPieceFillStyle(ChoiceParam(Params, 'style', PIECE_FILL_NAMES));
-  FDocument.BeginChange(rsApiPieceFill);
+  BeginChange(rsApiPieceFill);
   if not FDocument.Pattern.SetPieceFill(Piece, Color, Style) then
     RefuseChange;
   Result := AddedNode(Piece);
@@ -1771,7 +1863,7 @@ begin
       end;
     end;
   end;
-  FDocument.BeginChange(rsApiTransform);
+  BeginChange(rsApiTransform);
   Spec.Sources := ReferenceList(Params, 'sources');
   Result := AddedNode(FDocument.Pattern.AddTransform(Spec));
 end;
@@ -1789,7 +1881,7 @@ begin
       raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadFold);
     Edge := Reference(Params, 'edge');
   end;
-  FDocument.BeginChange(rsApiFold);
+  BeginChange(rsApiFold);
   if not FDocument.Pattern.SetFoldEdge(Piece, Edge) then
     RefuseChange;
   Result := AddedNode(Piece);
@@ -1808,7 +1900,7 @@ begin
   if not Assigned(Params) or not Assigned(Params.Find('to')) then
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['to']));
   ToCurve := ChoiceParam(Params, 'to', ['line', 'curve']) = 1;
-  FDocument.BeginChange(rsApiConvertEdge);
+  BeginChange(rsApiConvertEdge);
   if ToCurve then
     Converted := FDocument.Pattern.ConvertToCurve(TEdgeObject(Target))
   else
@@ -1834,7 +1926,7 @@ begin
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['role']));
   // Read before the change opens, as a bad role raises
   Role := RoleParam(Params);
-  FDocument.BeginChange(rsApiRole);
+  BeginChange(rsApiRole);
   if not FDocument.Pattern.SetEdgeRole(TEdgeObject(Target), Role) then
     RefuseChange;
   Result := AddedNode(Target);
@@ -1861,7 +1953,7 @@ begin
   Size := '';
   if Assigned(Params.Find('size')) then
     Size := FormulaParam(Params, 'size');
-  FDocument.BeginChange(rsApiMarker);
+  BeginChange(rsApiMarker);
   if not FDocument.Pattern.SetMarker(Target.Key, Marker, Size) then
     RefuseChange;
   Result := AddedNode(Target);
@@ -1879,7 +1971,7 @@ begin
   if not Assigned(Params) or not Assigned(Params.Find('points')) then
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['points']));
   Points := ReferenceList(Params, 'points');
-  FDocument.BeginChange(rsApiMergePoints);
+  BeginChange(rsApiMergePoints);
   Result := AddedNode(FDocument.Pattern.MergePoints(Points));
 end;
 
@@ -1896,7 +1988,7 @@ begin
   Target := FindTarget(Params);
   if not (Target is TPointObject) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAPoint, [Target.DisplayName]));
-  FDocument.BeginChange(rsApiBreakPoint);
+  BeginChange(rsApiBreakPoint);
   Broken := FDocument.Pattern.BreakPoint(TPointObject(Target));
   if Length(Broken) = 0 then
     RefuseChange;
@@ -1949,7 +2041,7 @@ var
 begin
   if not Assigned(Params) or not GetJSONString(Params, 'fragment', Text) then
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['fragment']));
-  FDocument.BeginChange(rsApiPaste);
+  BeginChange(rsApiPaste);
   if not PasteFragment(FDocument.Pattern, Text, Pasted, Reason) then
   begin
     FDocument.CancelChange;
@@ -2004,7 +2096,7 @@ begin
   Tolerance := OptionalFormula(Params, SEAM_TOLERANCE_FIELD);
   if Tolerance = '' then
     Tolerance := DEFAULT_SEAM_TOLERANCE;
-  FDocument.BeginChange(Format(rsApiAdd, [SEAM_TYPE]));
+  BeginChange(Format(rsApiAdd, [SEAM_TYPE]));
   Result := AddedNode(FDocument.Pattern.AddSeam(OptionalString(Params, 'name'), SideA, SideB, Ease, Tolerance));
 end;
 
@@ -2015,7 +2107,7 @@ begin
   Target := FindTarget(Params);
   if not (Target is TSeamObject) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiNotASeam, [Target.DisplayName]));
-  FDocument.BeginChange(rsApiFlipSeam);
+  BeginChange(rsApiFlipSeam);
   TSeamObject(Target).Reversed := not TSeamObject(Target).Reversed;
   Result := AddedNode(Target);
 end;
@@ -2085,7 +2177,7 @@ begin
   Leader := TNoteLeader(ChoiceParam(Params, 'leader', NOTE_LEADER_NAMES));
   Align := TTextAlign(ChoiceParam(Params, 'align', TEXT_ALIGN_NAMES));
   Boxed := BooleanParam(Params, 'box');
-  FDocument.BeginChange(Format(rsApiAdd, [NOTE_TYPE]));
+  BeginChange(Format(rsApiAdd, [NOTE_TYPE]));
   Note := FDocument.Pattern.AddNote(OptionalString(Params, 'name'), Text, Anchor, AnchorKey, Position, First, Second, Size, Print, Leader);
   if Assigned(Note) then
   begin
@@ -2128,7 +2220,7 @@ begin
   Boxed := Note.Boxed;
   if Assigned(Params.Find('box')) then
     Boxed := BooleanParam(Params, 'box');
-  FDocument.BeginChange(rsApiChangeNote);
+  BeginChange(rsApiChangeNote);
   FDocument.Pattern.SetNotePrint(Note, Print);
   FDocument.Pattern.SetNoteAlign(Note, Align);
   FDocument.Pattern.SetNoteBoxed(Note, Boxed);
@@ -2184,6 +2276,7 @@ begin
   // So an export cannot be written over a file of another kind
   if not SameText(ExtractFileExt(Target), EXPORT_EXTENSIONS[Chosen]) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiExportExtension, [EXPORT_NAMES[Chosen], EXPORT_EXTENSIONS[Chosen]]));
+  ConfirmWrite(Target);
   Layout := TLayout.Create;
   try
     if not Layout.LoadFromFile(LayoutFile, Err) then
@@ -2217,14 +2310,19 @@ begin
   if PathIndex < 0 then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiNotInPiece, [FDocument.Pattern.FindNode(Edge).DisplayName, Target.DisplayName]));
   Allowance := OptionalFormula(Params, PIECE_ALLOWANCE_FIELD);
-  FDocument.BeginChange(rsApiEdgeAllowance);
+  BeginChange(rsApiEdgeAllowance);
   if not FDocument.Pattern.SetEdgeAllowance(TPieceObject(Target), PathIndex, Allowance) then
     RefuseChange;
   Result := AddedNode(Target);
 end;
 
 function TApiServer.CallMethod(const Method: string; Params: TJSONObject): TJSONData;
+var
+  Info: TApiMethod;
 begin
+  // In the design window the user may be dragging; only reading waits for nothing
+  if FDocument.ChangeOpen and FindApiMethod(Method, Info) and not Info.ReadOnly then
+    raise EApiError.Create(RPC_REFUSED, rsApiBusy);
   case Method of
     'open': Result := DoOpen(Params);
     'save': Result := DoSave(Params);
@@ -2280,6 +2378,7 @@ begin
     'set_text': Result := DoSetText(Params);
     'export': Result := DoExport(Params);
     'convert_units': Result := DoConvertUnits(Params);
+    'ui_state': Result := DoWindowState;
     else
       raise EApiError.Create(RPC_METHOD_NOT_FOUND, Format(rsApiNoMethod, [Method]));
   end;

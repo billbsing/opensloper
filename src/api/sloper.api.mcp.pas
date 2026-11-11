@@ -33,16 +33,22 @@ uses
 type
   TMcpServer = class
   private
+    FBackend: TApiBackend;
     FApi: TApiServer;
     function Initialize(Params: TJSONObject): TJSONObject;
     function CallTool(Params: TJSONObject): TJSONObject;
     // The reply to an MCP method, or nil when Method is not one
     function CallMcp(const Method: string; Params: TJSONObject; out Handled: boolean): TJSONData;
   public
+    // On a document of its own
     constructor Create;
+    // Calling Backend, such as a connection to the design window; it is freed
+    // with the server
+    constructor CreateFor(ABackend: TApiBackend);
     destructor Destroy; override;
     // The response to one line, on one line; '' for a notification
     function HandleLine(const Line: string): string;
+    // The local server, or nil when calling another backend
     property Api: TApiServer read FApi;
   end;
 
@@ -299,11 +305,20 @@ constructor TMcpServer.Create;
 begin
   inherited Create;
   FApi := TApiServer.Create;
+  FBackend := FApi;
+end;
+
+constructor TMcpServer.CreateFor(ABackend: TApiBackend);
+begin
+  inherited Create;
+  FBackend := ABackend;
+  FApi := nil;
 end;
 
 destructor TMcpServer.Destroy;
 begin
-  FreeAndNil(FApi);
+  FreeAndNil(FBackend);
+  FApi := nil;
   inherited Destroy;
 end;
 
@@ -347,7 +362,7 @@ begin
   Output := nil;
   try
     try
-      Output := FApi.CallMethod(ToolName, TJSONObject(Arguments));
+      Output := FBackend.CallMethod(ToolName, TJSONObject(Arguments));
       Result := ToolResult(Output);
     except
       on Failure: EApiError do
@@ -385,12 +400,12 @@ begin
   // Anything that is not a request for an MCP method, malformed lines
   // included, is the API server's to answer
   if not ParseJSONObject(Line, Request, Err) then
-    Exit(FApi.HandleLine(Line));
+    Exit(FBackend.HandleLine(Line));
   OwnParams := nil;
   Output := nil;
   try
     if not GetJSONString(Request, 'method', Method) then
-      Exit(FApi.HandleLine(Line));
+      Exit(FBackend.HandleLine(Line));
     Id := Request.Find('id');
     if Assigned(Request.Find('params')) and (Request.Find('params').JSONType = jtObject) then
       Params := Request.Objects['params']
@@ -402,7 +417,7 @@ begin
     try
       Output := CallMcp(Method, Params, Handled);
       if not Handled then
-        Exit(FApi.HandleLine(Line));
+        Exit(FBackend.HandleLine(Line));
       Result := '';
       if Assigned(Id) and Assigned(Output) then
       begin

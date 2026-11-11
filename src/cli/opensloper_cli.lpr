@@ -46,7 +46,8 @@ uses
   Sloper.Output.Layout,
   Sloper.Output.LayoutExport,
   Sloper.Output.Packing,
-  Sloper.API.MCP;
+  Sloper.API.MCP,
+  Sloper.API.Connection;
 
 const
   DRAFT_FORMAT_SVG = 'svg';
@@ -507,13 +508,17 @@ resourcestring
     end;
   end;
 
-  // The Automation API, also as an MCP server: one request a line, until stdin closes
-  procedure RunServe;
+  // The Automation API, also as an MCP server: one request a line, until stdin
+  // closes. With Connect, on the pattern open in the design window.
+  procedure RunServe(Connect: boolean);
   var
     Server: TMcpServer;
     Line, Reply: string;
   begin
-    Server := TMcpServer.Create;
+    if Connect then
+      Server := TMcpServer.CreateFor(TApiConnection.Create)
+    else
+      Server := TMcpServer.Create;
     try
       while not EOF(Input) do
       begin
@@ -595,7 +600,7 @@ begin
     PatternFile := Parser.GetArgumentValueAsString('pattern');
     if CommandName = 'serve' then
     begin
-      RunServe;
+      RunServe(Parser.IsOption('connect'));
       Exit;
     end;
     if CommandName = 'measurements' then

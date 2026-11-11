@@ -21,6 +21,9 @@ program opensloper_tests;
 {$mode ObjFPC}{$H+}
 
 uses
+  {$IFDEF UNIX}
+  cthreads,
+  {$ENDIF}
   Sloper.Core.CodePage,
   Classes,
   SysUtils,
@@ -89,7 +92,8 @@ uses
   Sloper.Tests.OperationInfo,
   Sloper.Tests.ApiMethods,
   Sloper.Tests.MCP,
-  Sloper.Tests.DraftPNG;
+  Sloper.Tests.DraftPNG,
+  Sloper.Tests.Automation;
 
 var
   App: TTestRunner;

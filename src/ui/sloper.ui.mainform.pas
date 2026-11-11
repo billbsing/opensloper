@@ -30,7 +30,7 @@ uses
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
   Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.Preferences,
-  Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion;
+  Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion, Sloper.UI.Automation, fpjson;
 
 type
 
@@ -87,6 +87,9 @@ type
     procedure MenuHelpAboutClick(Sender: TObject);
   private
     FDocument: TPatternDocument;
+    // Claude working on the pattern through opensloper-cli serve --connect
+    FAutomation: TAutomation;
+    FAutomationAction, FDisconnectClaudeAction: TAction;
     FSettings: TAppSettings;
     // The clipboard format of copied objects, registered on first use
     FFragmentFormat: TClipboardFormat;
@@ -189,6 +192,13 @@ type
     procedure CanvasCursorMove(Sender: TObject; const ModelPos: TVec2);
     procedure CanvasMessage(Sender: TObject; const AText: string);
     procedure StatusBarResize(Sender: TObject);
+    procedure StatusBarMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+    procedure AutomationClick(Sender: TObject);
+    procedure DisconnectClaudeClick(Sender: TObject);
+    procedure AutomationChanged(Sender: TObject);
+    procedure StartAutomation;
+    // For ui_state: the file, the selection, the label mode and the view
+    function WindowState: TJSONObject;
     function DisplayName: string;
     // True when there are no unsaved changes, or the user saved or discarded them
     function ConfirmDiscard: boolean;
@@ -215,7 +225,7 @@ uses
   Math, process, Graphics, Clipbrd, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
   Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.UnitConvert,
-  Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
+  Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout, Sloper.Core.Evaluator, Sloper.API.Server;
 
 const
   MARKING_ICONS: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
@@ -228,7 +238,11 @@ const
   PANEL_CURSOR = 0;
   PANEL_PROBLEMS = 1;
   PANEL_MEASUREMENTS = 2;
-  PANEL_MESSAGE = 3;
+  PANEL_AUTOMATION = 3;
+  // Starts with Claude allowed to connect
+  AUTOMATION_SWITCH = '--automation';
+  AUTOMATION_PANEL_PADDING96 = 16;
+  PANEL_MESSAGE = 4;
   PROBLEMS_PANEL_WIDTH96 = 150;
   MEASUREMENT_WATCH_MILLISECONDS = 1000;
 
@@ -287,6 +301,12 @@ resourcestring
   rsLabelsAll = '&All (hold N)';
   rsLabelsNone = '&None';
   rsMenuTools = '&Tools';
+  rsMenuToolsAllowClaude = 'Allow &Claude to Connect';
+  rsMenuToolsDisconnectClaude = '&Disconnect Claude';
+  rsClaudeListening = 'Claude can connect';
+  rsClaudeConnected = 'Claude connected · click to disconnect';
+  rsClaudeCannotStart = 'Claude cannot connect: %s';
+
   rsMenuToolsSplit = 'Sp&lit Edge';
   rsMenuToolsArc = 'A&rc';
   rsMenuToolsEdge = '&Edge';
@@ -361,6 +381,7 @@ begin
   MeasurementsDialog.InitialDir := OpenDialog.InitialDir;
 
   FDocument := TPatternDocument.Create;
+  FAutomation := TAutomation.Create(FDocument, @WindowState);
   CreateToolBars;
   CreateCommands;
   FRecent := TRecentMenu.Create(Self, MenuFile, MenuFileOpen, rlPatterns, @RecentOpen);
@@ -404,6 +425,9 @@ begin
   CanvasToolChange(nil);
   FDocument.AddListener(@DocumentChanged);
   StatusBar.OnResize := @StatusBarResize;
+  StatusBar.OnMouseUp := @StatusBarMouseUp;
+  FAutomation.OnChange := @AutomationChanged;
+  AutomationChanged(nil);
   UpdateTitle;
   UpdateMenus;
   UpdateStatus;
@@ -999,6 +1023,15 @@ begin
   ConvertAction := NewAction(rsMenuToolsConvertUnits, aiSuggestSeams, @ConvertUnitsClick);
   ConvertAction.ImageIndex := -1;
   AddMenuItem(MenuTools, ConvertAction);
+  MenuTools.Add(NewLine);
+  FAutomationAction := NewAction(rsMenuToolsAllowClaude, aiSuggestSeams, @AutomationClick);
+  FAutomationAction.ImageIndex := -1;
+  FAutomationAction.AutoCheck := False;
+  AddMenuItem(MenuTools, FAutomationAction);
+  FDisconnectClaudeAction := NewAction(rsMenuToolsDisconnectClaude, aiSuggestSeams, @DisconnectClaudeClick);
+  FDisconnectClaudeAction.ImageIndex := -1;
+  FDisconnectClaudeAction.Enabled := False;
+  AddMenuItem(MenuTools, FDisconnectClaudeAction);
 end;
 
 procedure TMainForm.MarkingClick(Sender: TObject);
@@ -1148,6 +1181,8 @@ end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
+  // Stops answering Claude before anything it would touch goes
+  FreeAndNil(FAutomation);
   SaveSettings;
   FreeAndNil(FSettings);
   // The canvas and panels listen to the document, so they let go first
@@ -1162,13 +1197,96 @@ begin
 end;
 
 procedure TMainForm.FormShow(Sender: TObject);
+var
+  Index: integer;
+  Automate: boolean;
+  PatternFile: string;
 begin
+  Automate := False;
+  PatternFile := '';
   if FShown then
     Exit;
   FShown := True;
-  if (ParamCount >= 1) and FileExists(ParamStr(1)) then
-    OpenFile(ParamStr(1));
+  for Index := 1 to ParamCount do
+    if ParamStr(Index) = AUTOMATION_SWITCH then
+      Automate := True
+    else if (PatternFile = '') and FileExists(ParamStr(Index)) then
+      PatternFile := ParamStr(Index);
+  if PatternFile <> '' then
+    OpenFile(PatternFile);
+  if Automate then
+    StartAutomation;
   FCanvas.SetFocus;
+end;
+
+procedure TMainForm.StartAutomation;
+var
+  Err: string;
+begin
+  if not FAutomation.Start(Err) then
+    MessageDlg(Format(rsClaudeCannotStart, [Err]), mtError, [mbOK], 0);
+end;
+
+procedure TMainForm.AutomationClick(Sender: TObject);
+begin
+  if FAutomation.State = asOff then
+    StartAutomation
+  else
+    FAutomation.Stop;
+end;
+
+procedure TMainForm.DisconnectClaudeClick(Sender: TObject);
+begin
+  FAutomation.Disconnect;
+end;
+
+procedure TMainForm.StatusBarMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+begin
+  if (Button = mbLeft) and (StatusBar.GetPanelIndexAt(X, Y) = PANEL_AUTOMATION) and (FAutomation.State = asConnected) then
+    FAutomation.Disconnect;
+end;
+
+procedure TMainForm.AutomationChanged(Sender: TObject);
+var
+  Shown: string;
+begin
+  if not Assigned(FAutomationAction) then
+    Exit;
+  FAutomationAction.Checked := FAutomation.State <> asOff;
+  FDisconnectClaudeAction.Enabled := FAutomation.State = asConnected;
+  case FAutomation.State of
+    asListening: Shown := rsClaudeListening;
+    asConnected: Shown := rsClaudeConnected;
+    else
+      Shown := '';
+  end;
+  StatusBar.Panels[PANEL_AUTOMATION].Text := Shown;
+  if Shown = '' then
+    StatusBar.Panels[PANEL_AUTOMATION].Width := 0
+  else
+    StatusBar.Panels[PANEL_AUTOMATION].Width := StatusBar.Canvas.TextWidth(Shown) + Scale96ToForm(AUTOMATION_PANEL_PADDING96);
+  StatusBarResize(StatusBar);
+end;
+
+function TMainForm.WindowState: TJSONObject;
+var
+  Selection: TJSONArray;
+  Key: string;
+  Node: TEvalNode;
+  TopLeft, BottomRight: TVec2;
+begin
+  Selection := TJSONArray.Create;
+  for Key in FCanvas.Selection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if Assigned(Node) then
+      Selection.Add(NodeReference(Node));
+  end;
+  TopLeft := FCanvas.View.ToModel(Vec2(0, 0));
+  BottomRight := FCanvas.View.ToModel(Vec2(FCanvas.ClientWidth, FCanvas.ClientHeight));
+  Result := TJSONObject.Create(['file', FDocument.FileName, 'modified', FDocument.Modified, 'units',
+    MEASURE_UNIT_NAMES[FDocument.Pattern.Units], 'selection', Selection, 'labels', LABEL_MODE_NAMES[FCanvas.LabelMode], 'view',
+    TJSONObject.Create(['minX', TopLeft.X, 'minY', TopLeft.Y, 'maxX', BottomRight.X, 'maxY', BottomRight.Y])]);
 end;
 
 procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: boolean);

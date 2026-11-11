@@ -198,6 +198,32 @@ the error above, so it can read why and try again. Claude works on its own copy
 of the pattern, as a script does, and changes your file only when it calls
 `save`; open the file in the design window afterwards to see the result.
 
+### Claude in the design window
+
+To watch Claude work on the pattern you have open, and undo what you don't
+like, let it connect to the design window:
+
+1. Open the pattern and choose **Tools → Allow Claude to Connect**, or start
+   the window with `opensloper-design --automation pattern.sloper`. The status
+   bar says *Claude can connect*.
+2. Add the window as a second server, with `--connect`:
+
+    ```
+    $ claude mcp add opensloper-window -- /path/to/opensloper-cli serve --connect
+    ```
+
+3. Ask Claude for a change. The first time it reads or changes the pattern,
+   the window asks whether to allow it: once, until you close OpenSloper, or
+   not at all.
+
+Each change Claude makes appears at once and is one step on the undo history,
+labelled *Claude*, such as **Edit → Undo Claude: Add variable**. Claude cannot
+open another pattern in the window, waits while you are dragging, and asks
+before it writes a file outside the pattern's folder. `ui_state` tells it what
+you have selected and which part of the draft is in view, so you can say "move
+the selected point" or "look at this area". Click *Claude connected* in the
+status bar, or choose **Tools → Disconnect Claude**, to stop it; turn
+**Allow Claude to Connect** off to stop listening.
+
 The [File formats](../reference/files.md) page and its schemas describe the
-files, so Claude can also read and write them directly. Connecting Claude to
-the design window, so that you watch its changes and undo them, is planned.
+files, so Claude can also read and write them directly.

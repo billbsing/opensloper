@@ -29,6 +29,9 @@ object MainForm: TMainForm
         Width = 200
       end    
       item
+        Width = 0
+      end    
+      item
         Width = 50
       end>
     SimplePanel = False

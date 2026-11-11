@@ -50,7 +50,9 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Classes, Math, BGRABitmap, BGRABitmapTypes, BGRASVG, EasyLazFreeType, Sloper.Core.AppPaths;
+  SysUtils, Classes, Math, BGRABitmap, BGRABitmapTypes, BGRASVG, BGRAFreeType, EasyLazFreeType,
+  // Makes FreeType's default font collection, which the LCL build of BGRABitmap leaves out
+  LazFreeTypeFontCollection, Sloper.Core.AppPaths;
 
 const
   // The bundled fonts, tried in this order; a missing one is skipped
@@ -134,6 +136,9 @@ begin
       Svg := TBGRASVG.Create(Source);
       Height := Max(1, Round(Width * Svg.ViewBox.size.y / Svg.ViewBox.size.x));
       Image := TBGRABitmap.Create(Width, Height, BGRAWhite);
+      // The bundled fonts in the design window too, where the LCL would draw
+      // with the system's
+      Image.FontRenderer := TBGRAFreeTypeFontRenderer.Create;
       Svg.StretchDraw(Image.Canvas2D, 0, 0, Width, Height);
       Output := TMemoryStream.Create;
       Image.SaveToStreamAsPng(Output);

@@ -300,6 +300,10 @@ resourcestring
   rsApiExportPath = 'The file to write, ending in the format''s extension (.pdf, .svg or .dxf)';
   rsApiExportFormat = 'By default, from the file name''s extension';
   rsApiExportProfile = 'A machine profile from the settings, in place of the layout''s';
+  rsApiUIState = 'Gives the design window''s state: its pattern file, the selection, the label mode and the part ' +
+    'of the draft in view. Only through opensloper-cli serve --connect, with the window in automation mode.';
+  rsApiUIStateReturns = '`file`, `modified`, `units`, `selection` (each with `id`, `name` and `type`), `labels` and ' +
+    '`view`, the region in view in mm (`minX`, `minY`, `maxX`, `maxY`), which `render` takes as its `region`';
   rsApiExportReturns = 'The `path` written';
 
 implementation
@@ -613,6 +617,8 @@ begin
   P('region.minY', apNumber, True, rsApiRenderMin);
   P('region.maxX', apNumber, True, rsApiRenderMax);
   P('region.maxY', apNumber, True, rsApiRenderMax);
+  Method('ui_state', agChecking, rsApiUIState, rsApiUIStateReturns);
+  ReadsOnly;
   Method('export', agChecking, rsApiExport, rsApiExportReturns);
   P('layout', apText, True, rsApiExportLayout);
   P('path', apText, True, rsApiExportPath);

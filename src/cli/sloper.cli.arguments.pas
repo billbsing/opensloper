@@ -66,6 +66,8 @@ resourcestring
   rsOptUpTo = 'export-draft: draw only this object and those before it, as the pattern was when it was added';
   rsOptFormat = 'export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf. export-draft: svg or png; ' +
     'default: the extension of --output, or svg';
+  rsOptConnect = 'serve: work on the pattern open in the design window, which must allow Claude to connect ' +
+    '(Tools menu, or --automation)';
   rsOptWidth = 'export-draft: the width of a png in pixels, from 16 to 4096; default: 1600';
   rsOptProfile = 'export: a machine profile from the settings, in place of the layout''s';
   rsArgCommand = 'Command to run';
@@ -98,9 +100,9 @@ const
     (Name: 'measurements'; Usage: 'measurements list FILE [-s SIZE] [--json]' + LineEnding +
     'measurements set FILE KEY VALUE [-s SIZE] [-d TEXT]' + LineEnding + 'measurements missing FILE PATTERN'; Description: rsCmdMeasurements),
     (Name: 'pack'; Usage: 'pack LAYOUT'; Description: rsCmdPack),
-    (Name: 'serve'; Usage: 'serve'; Description: rsCmdServe),
+    (Name: 'serve'; Usage: 'serve [--connect]'; Description: rsCmdServe),
     (Name: 'doc'; Usage: 'doc TOPIC [-o FILE]' + LineEnding + 'doc'; Description: rsCmdDoc));
-  CLI_OPTIONS: array[0..11] of TCliOption = (
+  CLI_OPTIONS: array[0..12] of TCliOption = (
     (Name: 'help'; Short: '-h'; Long: '--help'; Parameter: ''; Description: rsOptHelp),
     (Name: 'version'; Short: '-V'; Long: '--version'; Parameter: ''; Description: rsOptVersion),
     (Name: 'measurements'; Short: '-m'; Long: '--measurements'; Parameter: 'file'; Description: rsOptMeasurements),
@@ -112,7 +114,8 @@ const
     (Name: 'profile'; Short: ''; Long: '--profile'; Parameter: 'name'; Description: rsOptProfile),
     (Name: 'labels'; Short: ''; Long: '--labels'; Parameter: ''; Description: rsOptLabels),
     (Name: 'upto'; Short: ''; Long: '--upto'; Parameter: 'name'; Description: rsOptUpTo),
-    (Name: 'width'; Short: ''; Long: '--width'; Parameter: 'pixels'; Description: rsOptWidth));
+    (Name: 'width'; Short: ''; Long: '--width'; Parameter: 'pixels'; Description: rsOptWidth),
+    (Name: 'connect'; Short: ''; Long: '--connect'; Parameter: ''; Description: rsOptConnect));
   // After the command, in order; all optional, as each command takes its own
   CLI_ARGUMENTS: array[0..3] of TCliArgument = (
     (Name: 'pattern'; Description: rsArgPattern),

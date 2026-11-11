@@ -33,6 +33,11 @@ type
   // Which labels the canvas shows: those that help the current step, all, or none
   TLabelMode = (lmContextual, lmAll, lmNone);
 
+const
+  LABEL_MODE_NAMES: array[TLabelMode] of string = ('contextual', 'all', 'none');
+
+type
+
   // Factors scaling everything printed at true size, across and down the
   // page, for a printer that is consistently a little off
   TCalibration = record
@@ -153,7 +158,6 @@ uses
 const
   SETTINGS_FORMAT = 'opensloper-settings';
   SETTINGS_VERSION = 1;
-  LABEL_MODE_NAMES: array[TLabelMode] of string = ('contextual', 'all', 'none');
 
 function DefaultPreferences: TPreferences;
 begin

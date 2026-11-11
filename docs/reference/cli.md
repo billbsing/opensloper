@@ -67,7 +67,7 @@ opensloper-cli pack LAYOUT
 Answer JSON-RPC 2.0 on stdin and stdout, one message per line, as the Automation API and as an MCP server
 
 ```
-opensloper-cli serve
+opensloper-cli serve [--connect]
 ```
 
 ### doc
@@ -95,6 +95,7 @@ opensloper-cli doc
 | `--labels` |  | export-draft: name the points and pieces |
 | `--upto` | name | export-draft: draw only this object and those before it, as the pattern was when it was added |
 | `--width` | pixels | export-draft: the width of a png in pixels, from 16 to 4096; default: 1600 |
+| `--connect` |  | serve: work on the pattern open in the design window, which must allow Claude to connect (Tools menu, or --automation) |
 
 ## Arguments
 

@@ -24,6 +24,9 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="freetypelaz"/>
+      </Item>
+      <Item>
         <PackageName Value="OSClipper2"/>
         <DefaultFilename Value="../core/clipper2/osclipper2.lpk" Prefer="True"/>
       </Item>
@@ -362,7 +365,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../core;../document;../ui;../output"/>
+      <OtherUnitFiles Value="../core;../document;../ui;../output;../output/thirdparty;../api"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>
