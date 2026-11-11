@@ -28,11 +28,11 @@ uses
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Draft, Sloper.Core.Piece;
 
 const
-  SeamEaseField = 'ease';
-  SeamToleranceField = 'tolerance';
-  DefaultSeamEase = '0';
+  SEAM_EASE_FIELD = 'ease';
+  SEAM_TOLERANCE_FIELD = 'tolerance';
+  DEFAULT_SEAM_EASE = '0';
   // Asks AddSeam for the pattern unit's starting tolerance (StartingLengths)
-  DefaultSeamTolerance = '';
+  DEFAULT_SEAM_TOLERANCE = '';
 
 type
   TSeamEntry = record
@@ -100,8 +100,8 @@ begin
   inherited Create(AKey);
   FSideA := Copy(ASideA);
   FSideB := Copy(ASideB);
-  AddField(SeamEaseField);
-  AddField(SeamToleranceField);
+  AddField(SEAM_EASE_FIELD);
+  AddField(SEAM_TOLERANCE_FIELD);
 end;
 
 function TSeamObject.InputKeys: TStringArray;
@@ -178,7 +178,7 @@ begin
   Result := SideLength(Context, FSideB, SecondLength);
   if Result <> esValid then
     Exit;
-  if not EvalLength(Context, SeamEaseField, EaseValue) or not EvalLength(Context, SeamToleranceField, ToleranceValue) then
+  if not EvalLength(Context, SEAM_EASE_FIELD, EaseValue) or not EvalLength(Context, SEAM_TOLERANCE_FIELD, ToleranceValue) then
     Exit(esError);
   if ToleranceValue < 0 then
     Exit(Fail(esInvalid, rsSeamNegativeTolerance));
@@ -226,7 +226,7 @@ end;
 
 function TSeamObject.OutOfTolerance: boolean;
 begin
-  Result := Abs(Mismatch) > FTolerance + DefaultTolerance;
+  Result := Abs(Mismatch) > FTolerance + DEFAULT_TOLERANCE;
 end;
 
 function TSeamObject.RunsForward(Piece: TPieceObject; const Entry: TSeamEntry; OnSideB: boolean): boolean;
@@ -242,7 +242,7 @@ end;
 
 function TSeamObject.FieldUnitKind(const AName: string): TFieldUnitKind;
 begin
-  if (AName = SeamEaseField) or (AName = SeamToleranceField) then
+  if (AName = SEAM_EASE_FIELD) or (AName = SEAM_TOLERANCE_FIELD) then
     Result := fkLength
   else
     Result := inherited FieldUnitKind(AName);

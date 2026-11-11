@@ -615,21 +615,21 @@ var
   Deep: string;
   V: double;
 begin
-  Deep := StringOfChar('(', MaxFormulaDepth) + '1' + StringOfChar(')', MaxFormulaDepth);
+  Deep := StringOfChar('(', MAX_FORMULA_DEPTH) + '1' + StringOfChar(')', MAX_FORMULA_DEPTH);
   AssertTrue('at the limit', FFormula.Parse(Deep, FResolver));
   AssertTrue(FFormula.Evaluate(FContext, V));
   AssertFalse('brackets', FFormula.Parse(StringOfChar('(', 100000) + '1' + StringOfChar(')', 100000), FResolver));
-  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertEquals(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]), FFormula.ErrorMessage);
   AssertFalse('signs', FFormula.Parse(StringOfChar('-', 100000) + '1', FResolver));
-  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertEquals(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]), FFormula.ErrorMessage);
   AssertFalse('functions', FFormula.Parse(DupeString('abs(', 100000) + '1' + StringOfChar(')', 100000), FResolver));
-  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertEquals(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]), FFormula.ErrorMessage);
   AssertFalse('powers', FFormula.Parse(DupeString('2^', 100000) + '1', FResolver));
-  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertEquals(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]), FFormula.ErrorMessage);
   AssertFalse('a chain', FFormula.Parse('1' + DupeString('+1', 100000), FResolver));
-  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertEquals(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]), FFormula.ErrorMessage);
   AssertFalse('stored form', FFormula.ParseStored(StringOfChar('(', 100000) + '1' + StringOfChar(')', 100000)));
-  AssertEquals(Format(rsFormulaTooDeep, [MaxFormulaDepth]), FFormula.ErrorMessage);
+  AssertEquals(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]), FFormula.ErrorMessage);
 end;
 
 procedure TTestFormula.TestStoredFormRejectsNames;

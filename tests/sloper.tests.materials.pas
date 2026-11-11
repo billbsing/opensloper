@@ -82,7 +82,8 @@ uses
   Sloper.Document.PatternDocument, Sloper.Output.DraftSVG, Sloper.UI.ObjectList, Sloper.Core.PatternMaterials;
 
 const
-  SquareSize = 100;
+  SQUARE_SIZE = 100;
+  HATCH_TOLERANCE = 1e-6;
 
 procedure TTestMaterials.SetUp;
 begin
@@ -108,12 +109,12 @@ begin
   for Index := 0 to 3 do
   begin
     NumberText := PieceName + 'p' + IntToStr(Index);
-    Corners[Index] := FPattern.AddFreePoint(NumberText, FloatToStr(Left + SquareSize * Ord(Index in [1, 2])), FloatToStr(SquareSize * Ord(Index in [2, 3])));
+    Corners[Index] := FPattern.AddFreePoint(NumberText, FloatToStr(Left + SQUARE_SIZE * Ord(Index in [1, 2])), FloatToStr(SQUARE_SIZE * Ord(Index in [2, 3])));
   end;
   for Index := 0 to 3 do
     FPattern.AddLine(Corners[Index].Key, Corners[(Index + 1) mod 4].Key, erOutline);
   FPattern.Evaluate;
-  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(Left + SquareSize / 2, SquareSize / 2), Path, Reason));
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(Left + SQUARE_SIZE / 2, SQUARE_SIZE / 2), Path, Reason));
   Result := FPattern.AddPiece(PieceName, Path, '10');
   FPattern.Evaluate;
 end;
@@ -132,7 +133,7 @@ end;
 procedure TTestMaterials.TestNewPatternHasMain;
 begin
   AssertEquals(1, FPattern.MaterialCount);
-  AssertEquals(DefaultMaterialName, FPattern.Materials[0].Name);
+  AssertEquals(DEFAULT_MATERIAL_NAME, FPattern.Materials[0].Name);
   AssertEquals('no ID yet', '', FPattern.Materials[0].Key);
   AssertTrue(IsMaterialColor(FPattern.Materials[0].Color));
 end;
@@ -213,7 +214,7 @@ begin
   AssertTrue(not Assigned(FPattern.AddMaterial('2nd')));
   AssertTrue(not Assigned(FPattern.AddMaterial('Inter facing')));
   AssertFalse(FPattern.RenameMaterial(FPattern.Materials[0], 'not a name'));
-  AssertEquals('refused without changing', DefaultMaterialName, FPattern.Materials[0].Name);
+  AssertEquals('refused without changing', DEFAULT_MATERIAL_NAME, FPattern.Materials[0].Name);
   AssertEquals('stays implicit', '', FPattern.Materials[0].Key);
 end;
 
@@ -230,10 +231,10 @@ var
 begin
   First := FPattern.AddMaterial;
   Second := FPattern.AddMaterial;
-  AssertEquals(NewMaterialBaseName, First.Name);
-  AssertEquals(NewMaterialBaseName + '2', Second.Name);
-  AssertEquals(MaterialPalette[1], First.Color);
-  AssertEquals(MaterialPalette[2], Second.Color);
+  AssertEquals(NEW_MATERIAL_BASE_NAME, First.Name);
+  AssertEquals(NEW_MATERIAL_BASE_NAME + '2', Second.Name);
+  AssertEquals(MATERIAL_PALETTE[1], First.Color);
+  AssertEquals(MATERIAL_PALETTE[2], Second.Color);
 end;
 
 procedure TTestMaterials.TestRefusesBadColour;
@@ -345,7 +346,7 @@ begin
 end;
 
 const
-  FileStart = '{"format":"pattern","version":1,"variables":[],';
+  FILE_START = '{"format":"pattern","version":1,"variables":[],';
 
 procedure TTestMaterials.TestRefusesUnknownMaterial;
 var
@@ -365,7 +366,7 @@ var
   Reason: string;
 begin
   FLoaded := TPattern.Create;
-  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"materials":[' +
+  AssertFalse(LoadPatternFromText(FLoaded, FILE_START + '"objects":[],"materials":[' +
     '{"id":1,"name":"A","color":"#112233"},{"id":1,"name":"B","color":"#112233"}]}', Reason));
   AssertEquals(Format(rsPatternFileBadId, [2, 'materials']), Reason);
 end;
@@ -375,7 +376,7 @@ var
   Reason: string;
 begin
   FLoaded := TPattern.Create;
-  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"materials":[{"id":1,"name":"A","color":"red"}]}', Reason));
+  AssertFalse(LoadPatternFromText(FLoaded, FILE_START + '"objects":[],"materials":[{"id":1,"name":"A","color":"red"}]}', Reason));
   AssertTrue(Reason, Pos('red', Reason) > 0);
 end;
 
@@ -384,7 +385,7 @@ var
   Reason: string;
 begin
   FLoaded := TPattern.Create;
-  AssertFalse(LoadPatternFromText(FLoaded, FileStart + '"objects":[],"materials":[]}', Reason));
+  AssertFalse(LoadPatternFromText(FLoaded, FILE_START + '"objects":[],"materials":[]}', Reason));
   AssertEquals(Format(rsPatternFileList, ['materials']), Reason);
 end;
 
@@ -411,8 +412,6 @@ begin
 end;
 
 procedure TTestMaterials.TestHatchLinesStayInsideSquare;
-const
-  Tolerance = 1e-6;
 var
   Square: TVec2Array;
   Lines: TLine2Array;
@@ -428,16 +427,16 @@ begin
   AssertTrue(Length(Lines) > 10);
   for Line in Lines do
   begin
-    AssertTrue(Min(Line.P1.X, Line.P2.X) >= -Tolerance);
-    AssertTrue(Max(Line.P1.X, Line.P2.X) <= 100 + Tolerance);
-    AssertTrue(Min(Line.P1.Y, Line.P2.Y) >= -Tolerance);
-    AssertTrue(Max(Line.P1.Y, Line.P2.Y) <= 100 + Tolerance);
+    AssertTrue(Min(Line.P1.X, Line.P2.X) >= -HATCH_TOLERANCE);
+    AssertTrue(Max(Line.P1.X, Line.P2.X) <= 100 + HATCH_TOLERANCE);
+    AssertTrue(Min(Line.P1.Y, Line.P2.Y) >= -HATCH_TOLERANCE);
+    AssertTrue(Max(Line.P1.Y, Line.P2.Y) <= 100 + HATCH_TOLERANCE);
   end;
   // Level rows through a square that sits on the rows: every one spans it
   Lines := HatchLines(Square, 10, 0);
   AssertEquals('rows 0 to 90', 10, Length(Lines));
   for Line in Lines do
-    AssertEquals(100, Abs(Line.P2.X - Line.P1.X), Tolerance);
+    AssertEquals(100, Abs(Line.P2.X - Line.P1.X), HATCH_TOLERANCE);
 end;
 
 procedure TTestMaterials.TestHatchSpansConcaveShape;

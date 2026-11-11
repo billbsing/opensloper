@@ -34,13 +34,13 @@ uses
 
 const
   // JSON-RPC 2.0's own codes
-  RpcParseError = -32700;
-  RpcInvalidRequest = -32600;
-  RpcMethodNotFound = -32601;
-  RpcInvalidParams = -32602;
-  RpcInternalError = -32603;
+  RPC_PARSE_ERROR = -32700;
+  RPC_INVALID_REQUEST = -32600;
+  RPC_METHOD_NOT_FOUND = -32601;
+  RPC_INVALID_PARAMS = -32602;
+  RPC_INTERNAL_ERROR = -32603;
   // The call was understood and refused
-  RpcRefused = -32000;
+  RPC_REFUSED = -32000;
 
 type
   EApiError = class(Exception)
@@ -203,11 +203,11 @@ uses
   Sloper.Output.LayoutExport, Sloper.Core.Version;
 
 const
-  VariableType = 'variable';
-  PieceType = 'piece';
-  SeamType = 'seam';
-  NoteType = 'note';
-  RenderFormatSVG = 'svg';
+  VARIABLE_TYPE = 'variable';
+  PIECE_TYPE = 'piece';
+  SEAM_TYPE = 'seam';
+  NOTE_TYPE = 'note';
+  RENDER_FORMAT_SVG = 'svg';
 
 constructor EApiError.Create(ACode: integer; const AMessage: string; const AFieldName: string; APosition: integer);
 begin
@@ -220,7 +220,7 @@ end;
 function RequireString(Params: TJSONObject; const AName: string): string;
 begin
   if not Assigned(Params) or not GetJSONString(Params, AName, Result) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
 end;
 
 function OptionalString(Params: TJSONObject; const AName: string): string;
@@ -251,7 +251,7 @@ function BooleanParam(Params: TJSONObject; const AName: string): boolean;
 begin
   Result := False;
   if Assigned(Params.Find(AName)) and not GetJSONBoolean(Params, AName, Result) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
 end;
 
 // A list of strings; anything else in it is refused
@@ -263,18 +263,18 @@ begin
   Result := nil;
   List := Params.Find(AName);
   if List.JSONType <> jtArray then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
   for Index := 0 to List.Count - 1 do
   begin
     if List.Items[Index].JSONType <> jtString then
-      raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
     Insert(List.Items[Index].AsString, Result, Length(Result));
   end;
 end;
 
 function JoinedRoleNames: string;
 begin
-  Result := string.Join(', ', EdgeRoleNames);
+  Result := string.Join(', ', EDGE_ROLE_NAMES);
 end;
 
 // Which of Choices, the first when absent
@@ -289,19 +289,19 @@ begin
   for Result := 0 to High(Choices) do
     if Choices[Result] = Text then
       Exit;
-  raise EApiError.Create(RpcInvalidParams, Format(rsApiBadChoice, [AName, string.Join(', ', Choices)]));
+  raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiBadChoice, [AName, string.Join(', ', Choices)]));
 end;
 
 function PickParam(Params: TJSONObject): integer;
 begin
   Result := 1;
   if Assigned(Params.Find('pick')) and not GetJSONInteger(Params, 'pick', Result) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['pick']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['pick']));
 end;
 
 function RoleParam(Params: TJSONObject): TEdgeRole;
 begin
-  Result := TEdgeRole(ChoiceParam(Params, 'role', EdgeRoleNames));
+  Result := TEdgeRole(ChoiceParam(Params, 'role', EDGE_ROLE_NAMES));
 end;
 
 // Name, type, state and what it computes to, then its formulas with names
@@ -367,16 +367,16 @@ begin
     if Node is TVariable then
     begin
       Result.Add('name', TVariable(Node).Name);
-      Result.Add('type', VariableType);
+      Result.Add('type', VARIABLE_TYPE);
     end
     else
     begin
       Result.Add('name', Node.DisplayName);
       Result.Add('type', PatternObjectTypeName(TDraftObject(Node)));
       if Node is TEdgeObject then
-        Result.Add('role', EdgeRoleNames[TEdgeObject(Node).Role]);
+        Result.Add('role', EDGE_ROLE_NAMES[TEdgeObject(Node).Role]);
       if TDraftObject(Node).Marker <> pmPlain then
-        Result.Add('marker', PointMarkerNames[TDraftObject(Node).Marker]);
+        Result.Add('marker', POINT_MARKER_NAMES[TDraftObject(Node).Marker]);
     end;
     Result.Add('state', StateName(Node.State));
     if Node.State <> esValid then
@@ -405,7 +405,7 @@ begin
         if Assigned(Document.Pattern.MaterialOf(TPieceObject(Node))) then
           Result.Add('material', Document.Pattern.MaterialOf(TPieceObject(Node)).Name);
         Result.Add('fillColor', TPieceObject(Node).FillColor);
-        Result.Add('fillStyle', PieceFillNames[Ord(TPieceObject(Node).FillStyle)]);
+        Result.Add('fillStyle', PIECE_FILL_NAMES[Ord(TPieceObject(Node).FillStyle)]);
       end
       else if Node is TSeamObject then
       begin
@@ -428,10 +428,10 @@ begin
       Result.Add('shownText', TNoteObject(Node).ShownText);
       Result.Add('size', JSONFloat(TNoteObject(Node).Size));
       Result.Add('print', TNoteObject(Node).Print);
-      Result.Add('leader', NoteLeaderNames[TNoteObject(Node).Leader]);
-      Result.Add('align', TextAlignNames[TNoteObject(Node).Align]);
+      Result.Add('leader', NOTE_LEADER_NAMES[TNoteObject(Node).Leader]);
+      Result.Add('align', TEXT_ALIGN_NAMES[TNoteObject(Node).Align]);
       Result.Add('box', TNoteObject(Node).Boxed);
-      Result.Add('anchor', NoteAnchorNames[TNoteObject(Node).Anchor]);
+      Result.Add('anchor', NOTE_ANCHOR_NAMES[TNoteObject(Node).Anchor]);
       if TNoteObject(Node).Anchor <> naFree then
         Result.Add('anchorId', StrToInt(TNoteObject(Node).AnchorKey));
     end;
@@ -470,7 +470,7 @@ begin
   FieldName := FDocument.Pattern.LastErrorField;
   Position := FDocument.Pattern.LastErrorPos;
   FDocument.CancelChange;
-  raise EApiError.Create(RpcRefused, Reason, FieldName, Position);
+  raise EApiError.Create(RPC_REFUSED, Reason, FieldName, Position);
 end;
 
 // The ID of an input given as a number, or as an object's name
@@ -483,10 +483,10 @@ begin
   if GetJSONInteger(Params, AName, Id) then
     Exit(IntToStr(Id));
   if not GetJSONString(Params, AName, TargetName) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, [AName]));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
   Target := FDocument.Pattern.FindObject(TargetName);
   if not Assigned(Target) then
-    raise EApiError.Create(RpcRefused, Format(rsApiUnknownName, [TargetName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiUnknownName, [TargetName]));
   Result := FDocument.Pattern.UsePoint(Target.Key);
 end;
 
@@ -513,16 +513,16 @@ begin
   begin
     Result := FDocument.Pattern.FindNode(IntToStr(Id));
     if not ((Result is TDraftObject) or (Result is TVariable)) then
-      raise EApiError.Create(RpcRefused, Format(rsApiUnknownId, [Id]));
+      raise EApiError.Create(RPC_REFUSED, Format(rsApiUnknownId, [Id]));
     Exit;
   end;
   if not Assigned(Params) or not GetJSONString(Params, 'name', TargetName) then
-    raise EApiError.Create(RpcInvalidParams, rsApiNoTarget);
+    raise EApiError.Create(RPC_INVALID_PARAMS, rsApiNoTarget);
   Result := FDocument.Pattern.FindObject(TargetName);
   if not Assigned(Result) then
     Result := FDocument.Pattern.FindVariable(TargetName);
   if not Assigned(Result) then
-    raise EApiError.Create(RpcRefused, Format(rsApiUnknownName, [TargetName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiUnknownName, [TargetName]));
 end;
 
 function TApiServer.DocumentInfo: TJSONObject;
@@ -532,7 +532,7 @@ begin
     Result.Add('path', FDocument.FileName);
     Result.Add('measurements', FDocument.MeasurementPath);
     // Formulas and variable values are in this unit; reported positions and lengths are mm
-    Result.Add('units', MeasureUnitNames[FDocument.Pattern.Units]);
+    Result.Add('units', MEASURE_UNIT_NAMES[FDocument.Pattern.Units]);
     Result.Add('objects', FDocument.Pattern.ObjectCount);
     Result.Add('variables', FDocument.Pattern.VariableCount);
     Result.Add('modified', FDocument.Modified);
@@ -550,9 +550,9 @@ var
 begin
   Measurements := OptionalString(Params, 'measurements');
   if not FDocument.LoadFromFile(RequireString(Params, 'path'), Err) then
-    raise EApiError.Create(RpcRefused, Err);
+    raise EApiError.Create(RPC_REFUSED, Err);
   if (Measurements <> '') and not FDocument.UseMeasurements(Measurements, Err) then
-    raise EApiError.Create(RpcRefused, Err);
+    raise EApiError.Create(RPC_REFUSED, Err);
   UseSize(OptionalString(Params, 'size'));
   Result := DocumentInfo;
 end;
@@ -560,7 +560,7 @@ end;
 procedure TApiServer.UseSize(const Size: string);
 begin
   if (Size <> '') and not FDocument.SelectMeasurementSize(Size) then
-    raise EApiError.Create(RpcRefused, Format(rsMeasurementUnknownSize, [Size]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsMeasurementUnknownSize, [Size]));
 end;
 
 function TApiServer.DoMissingMeasurements: TJSONData;
@@ -674,7 +674,7 @@ begin
     Request.Edge := Reference(Params, 'edge');
   Replace := ReferenceList(Params, 'replace');
   if not PlanArrange(FDocument.Pattern, Request, Items, Err) then
-    raise EApiError.Create(RpcRefused, Err);
+    raise EApiError.Create(RPC_REFUSED, Err);
   Info := TJSONObject.Create;
   try
     Changed := TJSONArray.Create;
@@ -700,7 +700,7 @@ begin
     if not ApplyArrange(FDocument.Pattern, Request, Replace, Err) then
     begin
       FDocument.CancelChange;
-      raise EApiError.Create(RpcRefused, Err);
+      raise EApiError.Create(RPC_REFUSED, Err);
     end;
     FDocument.Commit(True);
     Result := Info;
@@ -720,7 +720,7 @@ begin
   if not ReadTextFile(Path, Text, Err) or not ParseJSONObject(Text, Root, Err) then
     Exit;
   try
-    Result := GetJSONString(Root, 'format', FormatName) and (FormatName = PatternFormat);
+    Result := GetJSONString(Root, 'format', FormatName) and (FormatName = PATTERN_FORMAT);
   finally
     FreeAndNil(Root);
   end;
@@ -730,10 +730,10 @@ end;
 // .sloper files and replaces only a file that already holds a pattern
 procedure CheckPatternTarget(const Path: string);
 begin
-  if not SameText(ExtractFileExt(Path), PatternFileExt) then
-    raise EApiError.Create(RpcRefused, Format(rsApiSaveExtension, [ExtractFileName(Path)]));
+  if not SameText(ExtractFileExt(Path), PATTERN_FILE_EXT) then
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiSaveExtension, [ExtractFileName(Path)]));
   if FileExists(Path) and not IsPatternFile(Path) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotAPattern, [ExtractFileName(Path)]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAPattern, [ExtractFileName(Path)]));
 end;
 
 function TApiServer.DoSave(Params: TJSONObject): TJSONData;
@@ -744,10 +744,10 @@ begin
   if Path = '' then
     Path := FDocument.FileName;
   if Path = '' then
-    raise EApiError.Create(RpcRefused, rsApiNoFileName);
+    raise EApiError.Create(RPC_REFUSED, rsApiNoFileName);
   CheckPatternTarget(Path);
   if not FDocument.SaveToFile(Path, Err) then
-    raise EApiError.Create(RpcRefused, Err);
+    raise EApiError.Create(RPC_REFUSED, Err);
   Result := DocumentInfo;
 end;
 
@@ -801,7 +801,7 @@ var
 begin
   Key := RequireString(Params, 'key');
   if not GetJSONNumber(Params, 'value', Value) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['value']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['value']));
   UseSize(OptionalString(Params, 'size'));
   Description := '';
   Existing := nil;
@@ -812,7 +812,7 @@ begin
   if Assigned(Params.Find('description')) then
     Description := RequireString(Params, 'description');
   if not FDocument.ChangeMeasurement(Key, Value, Description, Change, Err) then
-    raise EApiError.Create(RpcRefused, Err);
+    raise EApiError.Create(RPC_REFUSED, Err);
   Info := TJSONObject.Create;
   try
     Info.Add('key', Change.Key);
@@ -892,26 +892,26 @@ var
   Reply: TJSONObject;
 begin
   if not Assigned(Params.Find('units')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['units']));
-  ToUnits := TMeasureUnit(ChoiceParam(Params, 'units', MeasureUnitNames));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['units']));
+  ToUnits := TMeasureUnit(ChoiceParam(Params, 'units', MEASURE_UNIT_NAMES));
   if ToUnits = FDocument.Pattern.Units then
-    raise EApiError.Create(RpcRefused, Format(rsConvertSameUnit, [MeasureUnitNames[ToUnits]]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsConvertSameUnit, [MEASURE_UNIT_NAMES[ToUnits]]));
   Marks := nil;
   if Assigned(Params.Find('marks')) then
   begin
     if Params.Find('marks').JSONType <> jtArray then
-      raise EApiError.Create(RpcInvalidParams, rsApiBadMarks);
+      raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadMarks);
     MarkList := TJSONArray(Params.Find('marks'));
     for Index := 0 to MarkList.Count - 1 do
     begin
       if MarkList[Index].JSONType <> jtObject then
-        raise EApiError.Create(RpcInvalidParams, rsApiBadMarks);
+        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadMarks);
       MarkItem := TJSONObject(MarkList[Index]);
       Mark := Default(TUnitMark);
       Mark.NodeKey := FindTarget(MarkItem).Key;
       if not GetJSONString(MarkItem, 'field', Mark.FieldName) or not GetJSONInteger(MarkItem, 'token', Mark.Token) or not
         Assigned(MarkItem.Find('role')) then
-        raise EApiError.Create(RpcInvalidParams, rsApiBadMarks);
+        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadMarks);
       Mark.IsLength := ChoiceParam(MarkItem, 'role', ['length', 'number']) = 0;
       Insert(Mark, Marks, Length(Marks));
     end;
@@ -945,11 +945,11 @@ begin
     if not ConvertPatternUnits(FDocument.Pattern, ToUnits, Analysis.Numbers, Err) then
     begin
       FDocument.CancelChange;
-      raise EApiError.Create(RpcRefused, Err);
+      raise EApiError.Create(RPC_REFUSED, Err);
     end;
     FDocument.EndChange;
     Reply.Add('converted', True);
-    Reply.Add('units', MeasureUnitNames[ToUnits]);
+    Reply.Add('units', MEASURE_UNIT_NAMES[ToUnits]);
     Reply.Add('skipped', Length(Analysis.Skipped));
     Result := Reply;
   except
@@ -1016,14 +1016,14 @@ end;
 function TApiServer.DoUndo: TJSONData;
 begin
   if not FDocument.Undo then
-    raise EApiError.Create(RpcRefused, rsApiNothingToUndo);
+    raise EApiError.Create(RPC_REFUSED, rsApiNothingToUndo);
   Result := DocumentInfo;
 end;
 
 function TApiServer.DoRedo: TJSONData;
 begin
   if not FDocument.Redo then
-    raise EApiError.Create(RpcRefused, rsApiNothingToRedo);
+    raise EApiError.Create(RPC_REFUSED, rsApiNothingToRedo);
   Result := DocumentInfo;
 end;
 
@@ -1037,32 +1037,32 @@ var
   Info: TJSONObject;
 begin
   RenderFormat := OptionalString(Params, 'format');
-  if (RenderFormat <> '') and (RenderFormat <> RenderFormatSVG) then
-    raise EApiError.Create(RpcRefused, Format(rsApiRenderFormat, [RenderFormat]));
+  if (RenderFormat <> '') and (RenderFormat <> RENDER_FORMAT_SVG) then
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiRenderFormat, [RenderFormat]));
   Options := DefaultDraftSVGOptions;
   if Assigned(Params) then
   begin
     GetJSONBoolean(Params, 'labels', Options.Labels);
     if Assigned(Params.Find('hiddenRoles')) and not NamesToRoles(StringListParam(Params, 'hiddenRoles'), Options.HiddenRoles) then
-      raise EApiError.Create(RpcInvalidParams, Format(rsApiBadChoice, ['hiddenRoles', JoinedRoleNames]));
+      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiBadChoice, ['hiddenRoles', JoinedRoleNames]));
     if Assigned(Params.Find('annotations')) then
       Options.HideAnnotations := not BooleanParam(Params, 'annotations');
     Region := Params.Find('region');
     if Assigned(Region) then
     begin
       if Region.JSONType <> jtObject then
-        raise EApiError.Create(RpcInvalidParams, rsApiBadRegion);
+        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadRegion);
       RegionItem := TJSONObject(Region);
       if not GetJSONNumber(RegionItem, 'minX', Options.Region.MinX) or not GetJSONNumber(RegionItem, 'minY', Options.Region.MinY) or
         not GetJSONNumber(RegionItem, 'maxX', Options.Region.MaxX) or not GetJSONNumber(RegionItem, 'maxY', Options.Region.MaxY) or
         (Options.Region.MaxX <= Options.Region.MinX) or (Options.Region.MaxY <= Options.Region.MinY) then
-        raise EApiError.Create(RpcInvalidParams, rsApiBadRegion);
+        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadRegion);
       Options.HasRegion := True;
     end;
   end;
   Info := TJSONObject.Create;
   try
-    Info.Add('format', RenderFormatSVG);
+    Info.Add('format', RENDER_FORMAT_SVG);
     Info.Add('svg', DraftToSVG(FDocument.Pattern, Options));
     Result := Info;
   except
@@ -1078,7 +1078,7 @@ begin
   VariableName := RequireString(Params, 'name');
   Formula := FormulaParam(Params, 'formula');
   Description := OptionalString(Params, 'description');
-  FDocument.BeginChange(Format(rsApiAdd, [VariableType]));
+  FDocument.BeginChange(Format(rsApiAdd, [VARIABLE_TYPE]));
   Result := AddedNode(FDocument.Pattern.AddVariable(VariableName, Formula, Description));
 end;
 
@@ -1182,7 +1182,7 @@ begin
       Added := Pattern.AddProjectPoint(PointName, First, Second, TProjectDirection(Direction), FormulaA, FlagA);
     end;
     else
-      raise EApiError.Create(RpcInvalidParams, Format(rsApiUnknownType,
+      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiUnknownType,
         [TypeName, 'freePoint, offsetPoint, alongEdgePoint, intersectPoint, circleEdgePoint, projectPoint']));
   end;
   Result := AddedNode(Added);
@@ -1241,7 +1241,7 @@ begin
       begin
         Added := Pattern.FindNode(Reference(Params, 'piece'));
         if not (Added is TPieceObject) then
-          raise EApiError.Create(RpcRefused, Format(rsApiNotAPiece, [Added.DisplayName]));
+          raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAPiece, [Added.DisplayName]));
         Piece := TPieceObject(Added);
       end;
       FDocument.BeginChange(Format(rsApiAdd, [TypeName]));
@@ -1277,7 +1277,7 @@ begin
     begin
       Nodes := Params.Find('nodes');
       if not Assigned(Nodes) or (Nodes.JSONType <> jtArray) then
-        raise EApiError.Create(RpcInvalidParams, rsApiBadNodes);
+        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadNodes);
       NodeKeys := nil;
       Angles := nil;
       LengthsIn := nil;
@@ -1289,7 +1289,7 @@ begin
       for Index := 0 to Nodes.Count - 1 do
       begin
         if Nodes.Items[Index].JSONType <> jtObject then
-          raise EApiError.Create(RpcInvalidParams, rsApiBadNodes);
+          raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadNodes);
         Item := TJSONObject(Nodes.Items[Index]);
         NodeKeys[Index] := Reference(Item, 'point');
         Angles[Index] := FormulaParam(Item, 'angle');
@@ -1300,7 +1300,7 @@ begin
       Added := Pattern.AddCurvePath(NodeKeys, Angles, LengthsIn, LengthsOut, Role, EdgeName);
     end;
     else
-      raise EApiError.Create(RpcInvalidParams, Format(rsApiUnknownType, [TypeName, 'line, curve, circle, arc, offsetEdge, curvePath']));
+      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiUnknownType, [TypeName, 'line, curve, circle, arc, offsetEdge, curvePath']));
   end;
   Result := AddedNode(Added);
 end;
@@ -1377,19 +1377,19 @@ var
   Existing: TPieceObject;
 begin
   if not GetJSONNumber(Params, 'x', At.X) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['x']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['x']));
   if not GetJSONNumber(Params, 'y', At.Y) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['y']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['y']));
   PieceName := OptionalString(Params, 'name');
-  Allowance := OptionalFormula(Params, PieceAllowanceField);
+  Allowance := OptionalFormula(Params, PIECE_ALLOWANCE_FIELD);
   if Allowance = '' then
-    Allowance := DefaultPieceAllowance;
+    Allowance := DEFAULT_PIECE_ALLOWANCE;
   if not DetectPiecePath(FDocument.Pattern, At, Path, Reason) then
-    raise EApiError.Create(RpcRefused, Reason);
+    raise EApiError.Create(RPC_REFUSED, Reason);
   Existing := PieceOnPath(FDocument.Pattern, Path);
   if Assigned(Existing) then
-    raise EApiError.Create(RpcRefused, Format(rsApiPieceExists, [Existing.DisplayName]));
-  FDocument.BeginChange(Format(rsApiAdd, [PieceType]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiPieceExists, [Existing.DisplayName]));
+  FDocument.BeginChange(Format(rsApiAdd, [PIECE_TYPE]));
   Result := AddedNode(FDocument.Pattern.AddPiece(PieceName, Path, Allowance));
 end;
 
@@ -1399,7 +1399,7 @@ var
 begin
   Target := FindTarget(Params);
   if not (Target is TPieceObject) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotAPiece, [Target.DisplayName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAPiece, [Target.DisplayName]));
   Result := TPieceObject(Target);
 end;
 
@@ -1418,7 +1418,7 @@ begin
   end;
   Angle := OptionalFormula(Params, 'angle');
   if (Angle = '') and not Assigned(Params.Find('start')) then
-    raise EApiError.Create(RpcInvalidParams, rsApiBadGrainline);
+    raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadGrainline);
   if Angle <> '' then
   begin
     FDocument.BeginChange(rsApiGrainline);
@@ -1452,7 +1452,7 @@ begin
   else
   begin
     if not Assigned(Params.Find('edge')) or not Assigned(Params.Find('position')) then
-      raise EApiError.Create(RpcInvalidParams, rsApiBadNotch);
+      raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadNotch);
     Key := Reference(Params, 'edge');
     Position := FormulaParam(Params, 'position');
     FDocument.BeginChange(rsApiAddNotch);
@@ -1473,7 +1473,7 @@ var
 begin
   Piece := TargetPiece(Params);
   if not Assigned(Params.Find('kind')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['kind']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['kind']));
   // "hole", as before point markers, gives the point a hole marker and
   // puts it on the piece
   if (Params.Find('kind').JSONType = jtString) and (Params.Get('kind', '') = 'hole') then
@@ -1487,7 +1487,7 @@ begin
       RefuseChange;
     Exit(AddedNode(Piece));
   end;
-  Kind := TMarkingKind(ChoiceParam(Params, 'kind', MarkingKindNames));
+  Kind := TMarkingKind(ChoiceParam(Params, 'kind', MARKING_KIND_NAMES));
   case Kind of
     mkPoint:
     begin
@@ -1498,8 +1498,8 @@ begin
     mkStitchHoles:
     begin
       Key := Reference(Params, 'edge');
-      FirstFormula := FormulaParam(Params, MarkingSpacingField);
-      SecondFormula := FormulaParam(Params, MarkingSizeField);
+      FirstFormula := FormulaParam(Params, MARKING_SPACING_FIELD);
+      SecondFormula := FormulaParam(Params, MARKING_SIZE_FIELD);
       FDocument.BeginChange(rsApiAddMarking);
       Done := FDocument.Pattern.AddStitchMarking(Piece, Key, FirstFormula, SecondFormula);
     end;
@@ -1522,7 +1522,7 @@ var
 begin
   Piece := TargetPiece(Params);
   if not GetJSONInteger(Params, 'marking', Index) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['marking']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['marking']));
   FDocument.BeginChange(rsApiRemoveMarking);
   if not FDocument.Pattern.RemoveMarking(Piece, Index - 1) then
     RefuseChange;
@@ -1536,7 +1536,7 @@ var
 begin
   Piece := TargetPiece(Params);
   if not GetJSONInteger(Params, 'notch', Index) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['notch']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['notch']));
   FDocument.BeginChange(rsApiRemoveNotch);
   if not FDocument.Pattern.RemoveNotch(Piece, Index - 1) then
     RefuseChange;
@@ -1554,7 +1554,7 @@ begin
   Count := Piece.CutCount;
   Mirrored := Piece.Mirrored;
   if Assigned(Params.Find('count')) and not GetJSONInteger(Params, 'count', Count) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['count']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['count']));
   if Assigned(Params.Find('mirrored')) then
     Mirrored := BooleanParam(Params, 'mirrored');
   FDocument.BeginChange(rsApiCut);
@@ -1581,7 +1581,7 @@ begin
     Result := FDocument.Pattern.FindMaterialNamed(Text);
   end;
   if not Assigned(Result) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNoMaterial, [Text]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNoMaterial, [Text]));
 end;
 
 function TApiServer.MaterialsToJSON: TJSONData;
@@ -1603,7 +1603,7 @@ begin
       Item.Add('id', StrToIntDef(Material.Key, 0));
       Item.Add('name', Material.Name);
       Item.Add('color', Material.Color);
-      Item.Add('fill', MaterialFillNames[Ord(Material.Fill)]);
+      Item.Add('fill', MATERIAL_FILL_NAMES[Ord(Material.Fill)]);
       if Material.HasAllowance then
         Item.Add('allowance', ReportFloat(Material.Allowance));
     end;
@@ -1622,7 +1622,7 @@ begin
   FDocument.BeginChange(rsApiMaterials);
   Fill := ffTint;
   if Assigned(Params) then
-    Fill := TMaterialFill(ChoiceParam(Params, 'fill', MaterialFillNames));
+    Fill := TMaterialFill(ChoiceParam(Params, 'fill', MATERIAL_FILL_NAMES));
   if not Assigned(FDocument.Pattern.AddMaterial(OptionalString(Params, 'name'), OptionalString(Params, 'color'), Fill)) then
     RefuseChange;
   FDocument.EndChange;
@@ -1651,7 +1651,7 @@ begin
   if Assigned(Params.Find('color')) and not FDocument.Pattern.SetMaterialColor(Material, RequireString(Params, 'color')) then
     RefuseChange;
   if Assigned(Params.Find('fill')) then
-    FDocument.Pattern.SetMaterialFill(Material, TMaterialFill(ChoiceParam(Params, 'fill', MaterialFillNames)));
+    FDocument.Pattern.SetMaterialFill(Material, TMaterialFill(ChoiceParam(Params, 'fill', MATERIAL_FILL_NAMES)));
   if Assigned(Params.Find('allowance')) and not (GetJSONNumber(Params, 'allowance', Allowance) and
     FDocument.Pattern.SetMaterialAllowance(Material, True, Allowance)) then
     RefuseChange;
@@ -1683,7 +1683,7 @@ begin
   if Assigned(Params.Find('material')) then
     Material := FindMaterialParam(Params, 'material')
   else if not (Assigned(Params.Find('none')) and BooleanParam(Params, 'none')) then
-    raise EApiError.Create(RpcInvalidParams, rsApiMaterialOrNone);
+    raise EApiError.Create(RPC_INVALID_PARAMS, rsApiMaterialOrNone);
   FDocument.BeginChange(rsApiPieceMaterial);
   FDocument.Pattern.SetPieceMaterial(Piece, Material);
   Result := AddedNode(Piece);
@@ -1701,7 +1701,7 @@ begin
   if Assigned(Params.Find('color')) then
     Color := RequireString(Params, 'color');
   if Assigned(Params.Find('style')) then
-    Style := TPieceFillStyle(ChoiceParam(Params, 'style', PieceFillNames));
+    Style := TPieceFillStyle(ChoiceParam(Params, 'style', PIECE_FILL_NAMES));
   FDocument.BeginChange(rsApiPieceFill);
   if not FDocument.Pattern.SetPieceFill(Piece, Color, Style) then
     RefuseChange;
@@ -1724,11 +1724,11 @@ begin
   Spec := Default(TTransformSpec);
   Spec.Kind := TTransformKind(ChoiceParam(Params, 'type', ['rotate', 'mirror', 'move']));
   if not Assigned(Params.Find('type')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['type']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['type']));
   Spec.Name := OptionalString(Params, 'name');
   Spec.Suffix := OptionalString(Params, 'suffix');
   if not Assigned(Params.Find('sources')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['sources']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['sources']));
   Spec.Angle := FormulaOr('angle', '0');
   case Spec.Kind of
     tkRotate:
@@ -1737,7 +1737,7 @@ begin
     begin
       Axis := Params.Find('axis');
       if not Assigned(Axis) or (Axis.JSONType <> jtObject) then
-        raise EApiError.Create(RpcInvalidParams, rsApiBadAxis);
+        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadAxis);
       if Assigned(TJSONObject(Axis).Find('edge')) then
         Spec.AxisEdge := Reference(TJSONObject(Axis), 'edge')
       else
@@ -1775,7 +1775,7 @@ begin
   if not BooleanParam(Params, 'none') then
   begin
     if not Assigned(Params.Find('edge')) then
-      raise EApiError.Create(RpcInvalidParams, rsApiBadFold);
+      raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadFold);
     Edge := Reference(Params, 'edge');
   end;
   FDocument.BeginChange(rsApiFold);
@@ -1793,9 +1793,9 @@ var
 begin
   Target := FindTarget(Params);
   if not (Target is TEdgeObject) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotAnEdge, [Target.DisplayName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAnEdge, [Target.DisplayName]));
   if not Assigned(Params) or not Assigned(Params.Find('to')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['to']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['to']));
   ToCurve := ChoiceParam(Params, 'to', ['line', 'curve']) = 1;
   FDocument.BeginChange(rsApiConvertEdge);
   if ToCurve then
@@ -1818,9 +1818,9 @@ var
 begin
   Target := FindTarget(Params);
   if not (Target is TEdgeObject) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotAnEdge, [Target.DisplayName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAnEdge, [Target.DisplayName]));
   if not Assigned(Params.Find('role')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['role']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['role']));
   // Read before the change opens, as a bad role raises
   Role := RoleParam(Params);
   FDocument.BeginChange(rsApiRole);
@@ -1845,8 +1845,8 @@ var
 begin
   Target := FindTarget(Params);
   if not Assigned(Params.Find('marker')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['marker']));
-  Marker := TPointMarker(ChoiceParam(Params, 'marker', PointMarkerNames));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['marker']));
+  Marker := TPointMarker(ChoiceParam(Params, 'marker', POINT_MARKER_NAMES));
   Size := '';
   if Assigned(Params.Find('size')) then
     Size := FormulaParam(Params, 'size');
@@ -1866,7 +1866,7 @@ var
   Points: TStringArray;
 begin
   if not Assigned(Params) or not Assigned(Params.Find('points')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['points']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['points']));
   Points := ReferenceList(Params, 'points');
   FDocument.BeginChange(rsApiMergePoints);
   Result := AddedNode(FDocument.Pattern.MergePoints(Points));
@@ -1884,7 +1884,7 @@ var
 begin
   Target := FindTarget(Params);
   if not (Target is TPointObject) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotAPoint, [Target.DisplayName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotAPoint, [Target.DisplayName]));
   FDocument.BeginChange(rsApiBreakPoint);
   Broken := FDocument.Pattern.BreakPoint(TPointObject(Target));
   if Length(Broken) = 0 then
@@ -1912,10 +1912,10 @@ var
   AName: string;
 begin
   if not Assigned(Params) or not Assigned(Params.Find('objects')) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['objects']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['objects']));
   Copied := CopyFragment(FDocument.Pattern, ReferenceList(Params, 'objects'));
   if Copied.Text = '' then
-    raise EApiError.Create(RpcRefused, Format(rsApiCannotCopy, [string.Join(', ', Copied.LeftOut)]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiCannotCopy, [string.Join(', ', Copied.LeftOut)]));
   Result := TJSONObject.Create;
   try
     TJSONObject(Result).Add('fragment', Copied.Text);
@@ -1937,12 +1937,12 @@ var
   List: TJSONArray;
 begin
   if not Assigned(Params) or not GetJSONString(Params, 'fragment', Text) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['fragment']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['fragment']));
   FDocument.BeginChange(rsApiPaste);
   if not PasteFragment(FDocument.Pattern, Text, Pasted, Reason) then
   begin
     FDocument.CancelChange;
-    raise EApiError.Create(RpcRefused, Reason);
+    raise EApiError.Create(RPC_REFUSED, Reason);
   end;
   FDocument.EndChange;
   Result := TJSONObject.Create;
@@ -1969,12 +1969,12 @@ begin
   Result := nil;
   List := Params.Find(AName);
   if not Assigned(List) or (List.JSONType <> jtArray) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiBadSeamSide, [AName]));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiBadSeamSide, [AName]));
   SetLength(Result, List.Count);
   for Index := 0 to List.Count - 1 do
   begin
     if List.Items[Index].JSONType <> jtObject then
-      raise EApiError.Create(RpcInvalidParams, Format(rsApiBadSeamSide, [AName]));
+      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiBadSeamSide, [AName]));
     Result[Index].PieceKey := Reference(TJSONObject(List.Items[Index]), 'piece');
     Result[Index].EdgeKey := Reference(TJSONObject(List.Items[Index]), 'edge');
   end;
@@ -1987,13 +1987,13 @@ var
 begin
   SideA := SeamSideParam(Params, 'sideA');
   SideB := SeamSideParam(Params, 'sideB');
-  Ease := OptionalFormula(Params, SeamEaseField);
+  Ease := OptionalFormula(Params, SEAM_EASE_FIELD);
   if Ease = '' then
-    Ease := DefaultSeamEase;
-  Tolerance := OptionalFormula(Params, SeamToleranceField);
+    Ease := DEFAULT_SEAM_EASE;
+  Tolerance := OptionalFormula(Params, SEAM_TOLERANCE_FIELD);
   if Tolerance = '' then
-    Tolerance := DefaultSeamTolerance;
-  FDocument.BeginChange(Format(rsApiAdd, [SeamType]));
+    Tolerance := DEFAULT_SEAM_TOLERANCE;
+  FDocument.BeginChange(Format(rsApiAdd, [SEAM_TYPE]));
   Result := AddedNode(FDocument.Pattern.AddSeam(OptionalString(Params, 'name'), SideA, SideB, Ease, Tolerance));
 end;
 
@@ -2003,7 +2003,7 @@ var
 begin
   Target := FindTarget(Params);
   if not (Target is TSeamObject) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotASeam, [Target.DisplayName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotASeam, [Target.DisplayName]));
   FDocument.BeginChange(rsApiFlipSeam);
   TSeamObject(Target).Reversed := not TSeamObject(Target).Reversed;
   Result := AddedNode(Target);
@@ -2032,49 +2032,49 @@ begin
   if Assigned(AnchorData) then
   begin
     if AnchorData.JSONType <> jtObject then
-      raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
+      raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadAnchor);
     AnchorItem := TJSONObject(AnchorData);
     for Kind := naPoint to naPiece do
-      if Assigned(AnchorItem.Find(NoteAnchorNames[Kind])) then
+      if Assigned(AnchorItem.Find(NOTE_ANCHOR_NAMES[Kind])) then
       begin
         if Anchor <> naFree then
-          raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
+          raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadAnchor);
         Anchor := Kind;
       end;
     if Anchor = naFree then
-      raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
-    AnchorKey := Reference(AnchorItem, NoteAnchorNames[Anchor]);
+      raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadAnchor);
+    AnchorKey := Reference(AnchorItem, NOTE_ANCHOR_NAMES[Anchor]);
     if Anchor = naEdge then
     begin
-      if not Assigned(AnchorItem.Find(NotePositionField)) then
-        raise EApiError.Create(RpcInvalidParams, rsApiBadAnchor);
-      Position := FormulaParam(AnchorItem, NotePositionField);
+      if not Assigned(AnchorItem.Find(NOTE_POSITION_FIELD)) then
+        raise EApiError.Create(RPC_INVALID_PARAMS, rsApiBadAnchor);
+      Position := FormulaParam(AnchorItem, NOTE_POSITION_FIELD);
     end;
   end;
   if Anchor = naFree then
   begin
-    First := OptionalFormula(Params, NoteXField);
-    Second := OptionalFormula(Params, NoteYField);
+    First := OptionalFormula(Params, NOTE_X_FIELD);
+    Second := OptionalFormula(Params, NOTE_Y_FIELD);
   end
   else
   begin
-    First := OptionalFormula(Params, NoteDxField);
-    Second := OptionalFormula(Params, NoteDyField);
+    First := OptionalFormula(Params, NOTE_DX_FIELD);
+    Second := OptionalFormula(Params, NOTE_DY_FIELD);
   end;
   if First = '' then
     First := '0';
   if Second = '' then
     Second := '0';
-  Size := DefaultNoteSize;
+  Size := DEFAULT_NOTE_SIZE;
   if Assigned(Params.Find('size')) and not GetJSONNumber(Params, 'size', Size) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['size']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['size']));
   Print := True;
   if Assigned(Params.Find('print')) then
     Print := BooleanParam(Params, 'print');
-  Leader := TNoteLeader(ChoiceParam(Params, 'leader', NoteLeaderNames));
-  Align := TTextAlign(ChoiceParam(Params, 'align', TextAlignNames));
+  Leader := TNoteLeader(ChoiceParam(Params, 'leader', NOTE_LEADER_NAMES));
+  Align := TTextAlign(ChoiceParam(Params, 'align', TEXT_ALIGN_NAMES));
   Boxed := BooleanParam(Params, 'box');
-  FDocument.BeginChange(Format(rsApiAdd, [NoteType]));
+  FDocument.BeginChange(Format(rsApiAdd, [NOTE_TYPE]));
   Note := FDocument.Pattern.AddNote(OptionalString(Params, 'name'), Text, Anchor, AnchorKey, Position, First, Second, Size, Print, Leader);
   if Assigned(Note) then
   begin
@@ -2097,23 +2097,23 @@ var
 begin
   Target := FindTarget(Params);
   if not (Target is TNoteObject) then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotANote, [Target.DisplayName]));
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotANote, [Target.DisplayName]));
   Note := TNoteObject(Target);
   Text := Note.DisplayText(FDocument.Pattern.Resolver);
   if Assigned(Params.Find('text')) then
     Text := RequireString(Params, 'text');
   Size := Note.Size;
   if Assigned(Params.Find('size')) and not GetJSONNumber(Params, 'size', Size) then
-    raise EApiError.Create(RpcInvalidParams, Format(rsApiMissingParam, ['size']));
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['size']));
   Print := Note.Print;
   if Assigned(Params.Find('print')) then
     Print := BooleanParam(Params, 'print');
   Leader := Note.Leader;
   if Assigned(Params.Find('leader')) then
-    Leader := TNoteLeader(ChoiceParam(Params, 'leader', NoteLeaderNames));
+    Leader := TNoteLeader(ChoiceParam(Params, 'leader', NOTE_LEADER_NAMES));
   Align := Note.Align;
   if Assigned(Params.Find('align')) then
-    Align := TTextAlign(ChoiceParam(Params, 'align', TextAlignNames));
+    Align := TTextAlign(ChoiceParam(Params, 'align', TEXT_ALIGN_NAMES));
   Boxed := Note.Boxed;
   if Assigned(Params.Find('box')) then
     Boxed := BooleanParam(Params, 'box');
@@ -2169,14 +2169,14 @@ begin
   LayoutFile := RequireString(Params, 'layout');
   Target := RequireString(Params, 'path');
   if not ExportFormatFor(OptionalString(Params, 'format'), Target, Chosen) then
-    raise EApiError.Create(RpcInvalidParams, rsExportBadFormat);
+    raise EApiError.Create(RPC_INVALID_PARAMS, rsExportBadFormat);
   // So an export cannot be written over a file of another kind
-  if not SameText(ExtractFileExt(Target), ExportExtensions[Chosen]) then
-    raise EApiError.Create(RpcRefused, Format(rsApiExportExtension, [ExportNames[Chosen], ExportExtensions[Chosen]]));
+  if not SameText(ExtractFileExt(Target), EXPORT_EXTENSIONS[Chosen]) then
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiExportExtension, [EXPORT_NAMES[Chosen], EXPORT_EXTENSIONS[Chosen]]));
   Layout := TLayout.Create;
   try
     if not Layout.LoadFromFile(LayoutFile, Err) then
-      raise EApiError.Create(RpcRefused, Err);
+      raise EApiError.Create(RPC_REFUSED, Err);
     Layout.LoadSources;
     Layout.MachineProfiles := UserMachineProfiles;
     Layout.OutputProfiles := UserOutputProfiles;
@@ -2184,7 +2184,7 @@ begin
     if OptionalString(Params, 'profile') <> '' then
       Layout.Output.Profile := OptionalString(Params, 'profile');
     if not ExportLayout(Layout, Chosen, Target, Err) then
-      raise EApiError.Create(RpcRefused, Err);
+      raise EApiError.Create(RPC_REFUSED, Err);
   finally
     FreeAndNil(Layout);
   end;
@@ -2204,8 +2204,8 @@ begin
   Edge := Reference(Params, 'edge');
   PathIndex := TPieceObject(Target).PathIndexOf(Edge);
   if PathIndex < 0 then
-    raise EApiError.Create(RpcRefused, Format(rsApiNotInPiece, [FDocument.Pattern.FindNode(Edge).DisplayName, Target.DisplayName]));
-  Allowance := OptionalFormula(Params, PieceAllowanceField);
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiNotInPiece, [FDocument.Pattern.FindNode(Edge).DisplayName, Target.DisplayName]));
+  Allowance := OptionalFormula(Params, PIECE_ALLOWANCE_FIELD);
   FDocument.BeginChange(rsApiEdgeAllowance);
   if not FDocument.Pattern.SetEdgeAllowance(TPieceObject(Target), PathIndex, Allowance) then
     RefuseChange;
@@ -2270,7 +2270,7 @@ begin
     'export': Result := DoExport(Params);
     'convert_units': Result := DoConvertUnits(Params);
     else
-      raise EApiError.Create(RpcMethodNotFound, Format(rsApiNoMethod, [Method]));
+      raise EApiError.Create(RPC_METHOD_NOT_FOUND, Format(rsApiNoMethod, [Method]));
   end;
 end;
 
@@ -2312,14 +2312,14 @@ var
 begin
   OwnParams := nil;
   if not ParseJSONObject(Line, Request, Err) then
-    Exit(ErrorResponse(nil, RpcParseError, Err, '', 0));
+    Exit(ErrorResponse(nil, RPC_PARSE_ERROR, Err, '', 0));
   try
     Id := Request.Find('id');
     if not GetJSONString(Request, 'method', Method) then
-      Exit(ErrorResponse(Id, RpcInvalidRequest, rsApiNotRequest, '', 0));
+      Exit(ErrorResponse(Id, RPC_INVALID_REQUEST, rsApiNotRequest, '', 0));
     ParamsData := Request.Find('params');
     if Assigned(ParamsData) and (ParamsData.JSONType <> jtObject) then
-      Exit(ErrorResponse(Id, RpcInvalidParams, Format(rsApiMissingParam, ['params']), '', 0));
+      Exit(ErrorResponse(Id, RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['params']), '', 0));
     // Methods read members straight from it, so a request without any gets an empty one
     OwnParams := nil;
     if not Assigned(ParamsData) then
@@ -2348,7 +2348,7 @@ begin
         on Failure: EApiError do
           Result := ErrorResponse(Id, Failure.Code, Failure.Message, Failure.FieldName, Failure.Position);
         on Failure: Exception do
-          Result := ErrorResponse(Id, RpcInternalError, Failure.Message, '', 0);
+          Result := ErrorResponse(Id, RPC_INTERNAL_ERROR, Failure.Message, '', 0);
       end;
     finally
       FreeAndNil(Output);

@@ -30,9 +30,9 @@ type
   TOSTestCase = class(TTestCase)
   protected
     procedure AssertNear(const Msg: string; Expected, Actual: double;
-      Tolerance: double = DefaultTolerance);
+      Tolerance: double = DEFAULT_TOLERANCE);
     procedure AssertPointsNear(const Msg: string; const Expected, Actual: TVec2;
-      Tolerance: double = DefaultTolerance);
+      Tolerance: double = DEFAULT_TOLERANCE);
   end;
 
 implementation

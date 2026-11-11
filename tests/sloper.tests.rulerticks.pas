@@ -98,13 +98,13 @@ var
 begin
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
   begin
-    Scale := MinScale;
-    while Scale <= MaxScale do
+    Scale := MIN_SCALE;
+    while Scale <= MAX_SCALE do
     begin
-      PixelsPerUnit := Scale * MillimetresPerUnit[AUnit];
+      PixelsPerUnit := Scale * MILLIMETRES_PER_UNIT[AUnit];
       Spacing := RulerSpacing(PixelsPerUnit, AUnit);
-      AssertTrue(Format('%s minor at %g', [MeasureUnitNames[AUnit], Scale]), Spacing.Minor * PixelsPerUnit >= MinTickSpacing);
-      AssertTrue(Format('%s labels at %g', [MeasureUnitNames[AUnit], Scale]), Spacing.Labelled * PixelsPerUnit >= MinLabelSpacing);
+      AssertTrue(Format('%s minor at %g', [MEASURE_UNIT_NAMES[AUnit], Scale]), Spacing.Minor * PixelsPerUnit >= MIN_TICK_SPACING);
+      AssertTrue(Format('%s labels at %g', [MEASURE_UNIT_NAMES[AUnit], Scale]), Spacing.Labelled * PixelsPerUnit >= MIN_LABEL_SPACING);
       Scale := Scale * 1.1;
     end;
   end;
@@ -118,12 +118,12 @@ var
 begin
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
   begin
-    Scale := MinScale;
-    while Scale <= MaxScale do
+    Scale := MIN_SCALE;
+    while Scale <= MAX_SCALE do
     begin
-      Spacing := RulerSpacing(Scale * MillimetresPerUnit[AUnit], AUnit);
+      Spacing := RulerSpacing(Scale * MILLIMETRES_PER_UNIT[AUnit], AUnit);
       Ratio := Spacing.Labelled / Spacing.Minor;
-      AssertNear(Format('%s at %g', [MeasureUnitNames[AUnit], Scale]), Round(Ratio), Ratio, 1e-6);
+      AssertNear(Format('%s at %g', [MEASURE_UNIT_NAMES[AUnit], Scale]), Round(Ratio), Ratio, 1e-6);
       Scale := Scale * 1.1;
     end;
   end;
@@ -265,12 +265,12 @@ var
 begin
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
   begin
-    Scale := MinScale;
-    while Scale <= MaxScale do
+    Scale := MIN_SCALE;
+    while Scale <= MAX_SCALE do
     begin
-      PixelsPerUnit := Scale * MillimetresPerUnit[AUnit];
+      PixelsPerUnit := Scale * MILLIMETRES_PER_UNIT[AUnit];
       Spacing := GridSpacing(PixelsPerUnit, 0.1, AUnit);
-      AssertTrue(Format('%s at %g', [MeasureUnitNames[AUnit], Scale]), Spacing.Minor * PixelsPerUnit >= MinGridSpacing);
+      AssertTrue(Format('%s at %g', [MEASURE_UNIT_NAMES[AUnit], Scale]), Spacing.Minor * PixelsPerUnit >= MIN_GRID_SPACING);
       AssertTrue('major is a multiple', Abs(Spacing.Labelled / Spacing.Minor - Round(Spacing.Labelled / Spacing.Minor)) < 1e-9);
       Scale := Scale * 1.1;
     end;

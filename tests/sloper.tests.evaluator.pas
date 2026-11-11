@@ -80,7 +80,14 @@ type
 
 implementation
 
-{ TSumNode }
+const
+  RING_LENGTH = 20000;
+
+  CHAIN_LENGTH = 100000;
+
+  // Padded, so each key sorts after the last and the index adds it at the end
+
+  { TSumNode }
 
 function TSumNode.InputKeys: TStringArray;
 begin
@@ -315,19 +322,17 @@ end;
 // whole cycle for each of its nodes, so a crafted file with a long cycle took
 // minutes to load
 procedure TTestEvaluator.TestLongCycleIsQuick;
-const
-  RingLength = 20000;
 
   function RingKey(I: integer): string;
   begin
-    Result := Format('r%.6d', [I mod RingLength]);
+    Result := Format('r%.6d', [I mod RING_LENGTH]);
   end;
 
 var
   I: integer;
   Started: QWord;
 begin
-  for I := 0 to RingLength - 1 do
+  for I := 0 to RING_LENGTH - 1 do
     Node(RingKey(I), 1, [RingKey(I + 1)]);
   Node('s', 1, ['s']);
   Node('t', 1, [RingKey(0)]);
@@ -335,7 +340,7 @@ begin
   Started := GetTickCount64;
   RunGraph;
   AssertTrue('seconds, not minutes', GetTickCount64 - Started < 5000);
-  for I := 0 to RingLength - 1 do
+  for I := 0 to RING_LENGTH - 1 do
     if N(RingKey(I)).Message <> rsEvalCycle then
       Fail(RingKey(I) + ': ' + N(RingKey(I)).Message);
   AssertTrue('a node reading itself', N('s').State = esError);
@@ -359,10 +364,7 @@ end;
 // A file can hold any number of objects, so following a long chain of
 // dependencies must not overflow the stack
 procedure TTestEvaluator.TestReachesLongChain;
-const
-  ChainLength = 100000;
 
-// Padded, so each key sorts after the last and the index adds it at the end
   function ChainKey(I: integer): string;
   begin
     Result := Format('n%.6d', [I]);
@@ -372,10 +374,10 @@ var
   I: integer;
 begin
   Node(ChainKey(0), 1, []);
-  for I := 1 to ChainLength do
+  for I := 1 to CHAIN_LENGTH do
     Node(ChainKey(I), 1, [ChainKey(I - 1)]);
-  AssertTrue('the end reads the start', TEvaluator.Reaches(N(ChainKey(ChainLength)), N(ChainKey(0)), FContext));
-  AssertFalse('the start does not read the end', TEvaluator.Reaches(N(ChainKey(0)), N(ChainKey(ChainLength)), FContext));
+  AssertTrue('the end reads the start', TEvaluator.Reaches(N(ChainKey(CHAIN_LENGTH)), N(ChainKey(0)), FContext));
+  AssertFalse('the start does not read the end', TEvaluator.Reaches(N(ChainKey(0)), N(ChainKey(CHAIN_LENGTH)), FContext));
 end;
 
 procedure TTestEvaluator.TestRerunClearsOldStates;

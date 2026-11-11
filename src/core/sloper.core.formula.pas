@@ -116,7 +116,7 @@ const
   // Brackets, signs, functions and chained operators a formula may nest, so a
   // formula from a shared file cannot overflow the stack when parsed, evaluated
   // or freed
-  MaxFormulaDepth = 256;
+  MAX_FORMULA_DEPTH = 256;
 
 type
   TFormula = class
@@ -214,11 +214,16 @@ type
     ffAbs, ffMin, ffMax, ffRound);
 
 const
-  FunctionNames: array[TFormulaFunction] of string = ('sin', 'cos', 'tan',
+  FUNCTION_NAMES: array[TFormulaFunction] of string = ('sin', 'cos', 'tan',
     'asin', 'acos', 'atan2', 'sqrt', 'abs', 'min', 'max', 'round');
   // Minimum and maximum number of arguments; -1 means no maximum
-  FunctionMinArgs: array[TFormulaFunction] of integer = (1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 1);
-  FunctionMaxArgs: array[TFormulaFunction] of integer = (1, 1, 1, 1, 1, 2, 1, 1, -1, -1, 1);
+  FUNCTION_MIN_ARGS: array[TFormulaFunction] of integer = (1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 1);
+  FUNCTION_MAX_ARGS: array[TFormulaFunction] of integer = (1, 1, 1, 1, 1, 2, 1, 1, -1, -1, 1);
+  FUNCTION_DESCRIPTIONS: array[TFormulaFunction] of string = (rsFunctionSin, rsFunctionCos, rsFunctionTan, rsFunctionAsin,
+    rsFunctionAcos, rsFunctionAtan2, rsFunctionSqrt, rsFunctionAbs, rsFunctionMin, rsFunctionMax, rsFunctionRound);
+  // Not translated: they read as part of a formula
+  FUNCTION_ARGUMENT_NAMES: array[TFormulaFunction] of string = ('angle', 'angle', 'angle', 'value', 'value', 'dy, dx', 'value',
+    'value', 'a, b, ...', 'a, b, ...', 'value');
 
 type
   // Raised inside evaluation and parsing only; TFormula turns it into an error state
@@ -296,7 +301,7 @@ var
   Candidate: TFormulaFunction;
 begin
   for Candidate := Low(Candidate) to High(Candidate) do
-    if SameText(FunctionNames[Candidate], Name) then
+    if SameText(FUNCTION_NAMES[Candidate], Name) then
     begin
       Func := Candidate;
       Exit(True);
@@ -343,7 +348,7 @@ begin
   Result := Value;
   if Suffix = nsNone then
     Exit;
-  Result := Value * NumberSuffixMillimetres[Suffix];
+  Result := Value * NUMBER_SUFFIX_MILLIMETRES[Suffix];
   if Assigned(Context) then
     Result := Result / Context.LengthScale;
 end;
@@ -427,7 +432,7 @@ begin
     ffAsin, ffAcos:
     begin
       if (Values[0] < -1) or (Values[0] > 1) then
-        raise EFormulaError.Create(Format(rsFormulaOutOfDomain, [FunctionNames[Func]]), Token);
+        raise EFormulaError.Create(Format(rsFormulaOutOfDomain, [FUNCTION_NAMES[Func]]), Token);
       if Func = ffAsin then
         Result := RadToDeg(ArcSin(Values[0]))
       else
@@ -466,12 +471,12 @@ begin
 end;
 
 // Every chained operator, sign and function adds a level, so evaluating and
-// freeing the tree recurse no deeper than MaxFormulaDepth
+// freeing the tree recurse no deeper than MAX_FORMULA_DEPTH
 procedure TFormulaParser.SetDepth(Node: TFormulaNode; ChildDepth: integer);
 begin
   Node.Depth := ChildDepth + 1;
-  if Node.Depth > MaxFormulaDepth then
-    Error(Format(rsFormulaTooDeep, [MaxFormulaDepth]));
+  if Node.Depth > MAX_FORMULA_DEPTH then
+    Error(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]));
 end;
 
 function TFormulaParser.AtOp(AOp: char): boolean;
@@ -553,9 +558,9 @@ var
 begin
   Inc(FNesting);
   try
-    // The formula itself is the first level, so MaxFormulaDepth brackets fit
-    if FNesting > MaxFormulaDepth + 1 then
-      Error(Format(rsFormulaTooDeep, [MaxFormulaDepth]));
+    // The formula itself is the first level, so MAX_FORMULA_DEPTH brackets fit
+    if FNesting > MAX_FORMULA_DEPTH + 1 then
+      Error(Format(rsFormulaTooDeep, [MAX_FORMULA_DEPTH]));
     // In ObjFPC mode a bare ParseUnary here is the result variable; the
     // brackets make it a recursive call
     if AtOp('+') then
@@ -666,7 +671,7 @@ begin
   try
     Inc(FPos);
     if not AtOp('(') then
-      Error(Format(rsFormulaExpectedBracket, [FunctionNames[Func]]));
+      Error(Format(rsFormulaExpectedBracket, [FUNCTION_NAMES[Func]]));
     Inc(FPos);
     repeat
       ArgCount := Length(Node.Args);
@@ -683,13 +688,13 @@ begin
     Inc(FPos);
     SetDepth(Node, Node.Depth);
     ArgCount := Length(Node.Args);
-    if (ArgCount < FunctionMinArgs[Func]) or ((FunctionMaxArgs[Func] >= 0) and (ArgCount > FunctionMaxArgs[Func])) then
+    if (ArgCount < FUNCTION_MIN_ARGS[Func]) or ((FUNCTION_MAX_ARGS[Func] >= 0) and (ArgCount > FUNCTION_MAX_ARGS[Func])) then
     begin
       FPos := NameToken;
-      if FunctionMaxArgs[Func] < 0 then
-        Error(Format(rsFormulaArgCountAtLeast, [FunctionNames[Func], FunctionMinArgs[Func]]))
+      if FUNCTION_MAX_ARGS[Func] < 0 then
+        Error(Format(rsFormulaArgCountAtLeast, [FUNCTION_NAMES[Func], FUNCTION_MIN_ARGS[Func]]))
       else
-        Error(Format(rsFormulaArgCount, [FunctionNames[Func], FunctionMinArgs[Func]]));
+        Error(Format(rsFormulaArgCount, [FUNCTION_NAMES[Func], FUNCTION_MIN_ARGS[Func]]));
     end;
   except
     FreeAndNil(Node);
@@ -1007,12 +1012,6 @@ begin
 end;
 
 function FormulaFunctions: TFormulaFunctionInfoArray;
-const
-  Descriptions: array[TFormulaFunction] of string = (rsFunctionSin, rsFunctionCos, rsFunctionTan, rsFunctionAsin,
-    rsFunctionAcos, rsFunctionAtan2, rsFunctionSqrt, rsFunctionAbs, rsFunctionMin, rsFunctionMax, rsFunctionRound);
-  // Not translated: they read as part of a formula
-  ArgumentNames: array[TFormulaFunction] of string = ('angle', 'angle', 'angle', 'value', 'value', 'dy, dx', 'value',
-    'value', 'a, b, ...', 'a, b, ...', 'value');
 var
   Func: TFormulaFunction;
 begin
@@ -1020,11 +1019,11 @@ begin
   SetLength(Result, Ord(High(TFormulaFunction)) + 1);
   for Func := Low(TFormulaFunction) to High(TFormulaFunction) do
   begin
-    Result[Ord(Func)].Name := FunctionNames[Func];
-    Result[Ord(Func)].MinArgs := FunctionMinArgs[Func];
-    Result[Ord(Func)].MaxArgs := FunctionMaxArgs[Func];
-    Result[Ord(Func)].Arguments := ArgumentNames[Func];
-    Result[Ord(Func)].Description := Descriptions[Func];
+    Result[Ord(Func)].Name := FUNCTION_NAMES[Func];
+    Result[Ord(Func)].MinArgs := FUNCTION_MIN_ARGS[Func];
+    Result[Ord(Func)].MaxArgs := FUNCTION_MAX_ARGS[Func];
+    Result[Ord(Func)].Arguments := FUNCTION_ARGUMENT_NAMES[Func];
+    Result[Ord(Func)].Description := FUNCTION_DESCRIPTIONS[Func];
   end;
 end;
 
@@ -1079,7 +1078,7 @@ var
     else if Node is TFunctionNode then
     begin
       Nodes[Result].Kind := fsFunction;
-      Nodes[Result].FunctionName := FunctionNames[TFunctionNode(Node).Func];
+      Nodes[Result].FunctionName := FUNCTION_NAMES[TFunctionNode(Node).Func];
       for Index := 0 to High(TFunctionNode(Node).Args) do
       begin
         Child := Add(TFunctionNode(Node).Args[Index]);

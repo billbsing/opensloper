@@ -41,13 +41,13 @@ type
 implementation
 
 const
-  Header = 20;
+  HEADER = 20;
 
 procedure TTestAccordionLayout.TestFirstOpen;
 var
   Places: TAccordionPlaces;
 begin
-  Places := PlaceSections(3, 0, Header, 200);
+  Places := PlaceSections(3, 0, HEADER, 200);
   AssertEquals('open header at the top', 0, Places.HeaderTops[0]);
   AssertEquals('section under it', 20, Places.ContentTop);
   AssertEquals('section down to the others', 140, Places.ContentHeight);
@@ -59,7 +59,7 @@ procedure TTestAccordionLayout.TestMiddleOpen;
 var
   Places: TAccordionPlaces;
 begin
-  Places := PlaceSections(4, 1, Header, 200);
+  Places := PlaceSections(4, 1, HEADER, 200);
   AssertEquals(0, Places.HeaderTops[0]);
   AssertEquals('open header under the first', 20, Places.HeaderTops[1]);
   AssertEquals(40, Places.ContentTop);
@@ -72,7 +72,7 @@ procedure TTestAccordionLayout.TestLastOpen;
 var
   Places: TAccordionPlaces;
 begin
-  Places := PlaceSections(3, 2, Header, 200);
+  Places := PlaceSections(3, 2, HEADER, 200);
   AssertEquals(0, Places.HeaderTops[0]);
   AssertEquals(20, Places.HeaderTops[1]);
   AssertEquals(40, Places.HeaderTops[2]);
@@ -84,7 +84,7 @@ procedure TTestAccordionLayout.TestOneSection;
 var
   Places: TAccordionPlaces;
 begin
-  Places := PlaceSections(1, 0, Header, 100);
+  Places := PlaceSections(1, 0, HEADER, 100);
   AssertEquals(0, Places.HeaderTops[0]);
   AssertEquals(20, Places.ContentTop);
   AssertEquals(80, Places.ContentHeight);
@@ -94,7 +94,7 @@ procedure TTestAccordionLayout.TestNoSections;
 var
   Places: TAccordionPlaces;
 begin
-  Places := PlaceSections(0, 0, Header, 100);
+  Places := PlaceSections(0, 0, HEADER, 100);
   AssertEquals(0, Length(Places.HeaderTops));
   AssertEquals(0, Places.ContentHeight);
 end;
@@ -104,7 +104,7 @@ procedure TTestAccordionLayout.TestTooShort;
 var
   Places: TAccordionPlaces;
 begin
-  Places := PlaceSections(4, 0, Header, 50);
+  Places := PlaceSections(4, 0, HEADER, 50);
   AssertEquals(20, Places.ContentTop);
   AssertEquals(0, Places.ContentHeight);
   AssertEquals('straight under the open header', 20, Places.HeaderTops[1]);
@@ -115,9 +115,9 @@ procedure TTestAccordionLayout.TestActiveKeptInRange;
 var
   Places: TAccordionPlaces;
 begin
-  Places := PlaceSections(2, 5, Header, 100);
+  Places := PlaceSections(2, 5, HEADER, 100);
   AssertEquals('the last is open', 40, Places.ContentTop);
-  Places := PlaceSections(2, -1, Header, 100);
+  Places := PlaceSections(2, -1, HEADER, 100);
   AssertEquals('the first is open', 20, Places.ContentTop);
 end;
 

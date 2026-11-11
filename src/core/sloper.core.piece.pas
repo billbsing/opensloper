@@ -31,23 +31,23 @@ uses
 
 const
   // The formula field of the seam allowance, and its member in pattern files
-  PieceAllowanceField = 'allowance';
+  PIECE_ALLOWANCE_FIELD = 'allowance';
   // Asks AddPiece for the starting allowance: the first material's, or the
   // pattern unit's (StartingLengths)
-  DefaultPieceAllowance = '';
-  GrainAngleField = 'grainline.angle';
+  DEFAULT_PIECE_ALLOWANCE = '';
+  GRAIN_ANGLE_FIELD = 'grainline.angle';
   // As written in pattern files and the Automation API
-  DefaultGrainAngle = '90';
+  DEFAULT_GRAIN_ANGLE = '90';
   // A point this close (in mm) to a piece's seam line can carry a notch
-  NotchPointTolerance = 0.05;
+  NOTCH_POINT_TOLERANCE = 0.05;
   // The second part of a marking's fields, after "markingN."
-  MarkingSpacingField = 'spacing';
-  MarkingSizeField = 'size';
+  MARKING_SPACING_FIELD = 'spacing';
+  MARKING_SIZE_FIELD = 'size';
   // As written in pattern files and the Automation API
-  MarkingKindNames: array[0..2] of string = ('point', 'line', 'stitch');
+  MARKING_KIND_NAMES: array[0..2] of string = ('point', 'line', 'stitch');
   // Ends of neighbouring edges this close (in mm) count as joined, so formula
   // rounding cannot open a piece
-  PieceJoinTolerance = 0.01;
+  PIECE_JOIN_TOLERANCE = 0.01;
 
 type
 
@@ -252,20 +252,20 @@ uses
 
 const
   // Share of the piece's span along its grain that the arrow covers
-  GrainShare = 0.6;
-  GrainHeadLength = 10;
-  GrainHeadSpread = 155;
-  NotchLength = 6;
-  FoldDepth = 20;
-  FoldInset = 0.15;
-  FoldHeadLength = 8;
-  FoldHeadWidth = 25;
+  GRAIN_SHARE = 0.6;
+  GRAIN_HEAD_LENGTH = 10;
+  GRAIN_HEAD_SPREAD = 155;
+  NOTCH_LENGTH = 6;
+  FOLD_DEPTH = 20;
+  FOLD_INSET = 0.15;
+  FOLD_HEAD_LENGTH = 8;
+  FOLD_HEAD_WIDTH = 25;
 
 constructor TPieceObject.Create(const AKey: string; const APath: TPiecePath);
 begin
   inherited Create(AKey);
   FPath := Copy(APath);
-  AddField(PieceAllowanceField);
+  AddField(PIECE_ALLOWANCE_FIELD);
   FCutCount := 1;
 end;
 
@@ -336,7 +336,7 @@ end;
 
 function TPieceObject.OverrideField(PathIndex: integer): string;
 begin
-  Result := 'edge' + IntToStr(PathIndex + 1) + '.' + PieceAllowanceField;
+  Result := 'edge' + IntToStr(PathIndex + 1) + '.' + PIECE_ALLOWANCE_FIELD;
 end;
 
 function TPieceObject.HasOverride(PathIndex: integer): boolean;
@@ -358,12 +358,12 @@ end;
 procedure TPieceObject.SetGrainKind(AKind: TGrainKind; const AStartKey, AEndKey: string);
 begin
   if FGrainKind = gkAngle then
-    RemoveField(GrainAngleField);
+    RemoveField(GRAIN_ANGLE_FIELD);
   FGrainKind := AKind;
   FGrainStartKey := AStartKey;
   FGrainEndKey := AEndKey;
   if AKind = gkAngle then
-    AddField(GrainAngleField);
+    AddField(GRAIN_ANGLE_FIELD);
 end;
 
 function TPieceObject.NotchField(Index: integer): string;
@@ -422,8 +422,8 @@ begin
   FMarkings[Result].EdgeKey := AEdgeKey;
   if AKind = mkStitchHoles then
   begin
-    AddField(MarkingField(Result, MarkingSpacingField));
-    AddField(MarkingField(Result, MarkingSizeField));
+    AddField(MarkingField(Result, MARKING_SPACING_FIELD));
+    AddField(MarkingField(Result, MARKING_SIZE_FIELD));
   end;
 end;
 
@@ -435,16 +435,16 @@ var
   begin
     if FMarkings[At].Kind = mkStitchHoles then
     begin
-      RenameField(MarkingField(At, MarkingSpacingField), MarkingField(At - 1, MarkingSpacingField));
-      RenameField(MarkingField(At, MarkingSizeField), MarkingField(At - 1, MarkingSizeField));
+      RenameField(MarkingField(At, MARKING_SPACING_FIELD), MarkingField(At - 1, MARKING_SPACING_FIELD));
+      RenameField(MarkingField(At, MARKING_SIZE_FIELD), MarkingField(At - 1, MARKING_SIZE_FIELD));
     end;
   end;
 
 begin
   if FMarkings[Index].Kind = mkStitchHoles then
   begin
-    RemoveField(MarkingField(Index, MarkingSpacingField));
-    RemoveField(MarkingField(Index, MarkingSizeField));
+    RemoveField(MarkingField(Index, MARKING_SPACING_FIELD));
+    RemoveField(MarkingField(Index, MARKING_SIZE_FIELD));
   end;
   for Later := Index + 1 to High(FMarkings) do
     MoveDown(Later);
@@ -480,7 +480,7 @@ begin
     begin
       // Checked first: a point on the outline can pass the test below or not,
       // and a hole here would have no other half when the piece opens out
-      if (Mark.Marker = pmHole) and OnFold and (Distance(Position, MirrorPoint(Position, Fold.P1, Fold.P2)) < DefaultTolerance) then
+      if (Mark.Marker = pmHole) and OnFold and (Distance(Position, MirrorPoint(Position, Fold.P1, Fold.P2)) < DEFAULT_TOLERANCE) then
         Exit(Fail(esInvalid, Format(rsPieceHoleOnFold, [Node.DisplayName])));
       if not PointInPolygon(Position, Cut) then
         Exit(Fail(esInvalid, Format(rsPieceHoleOutside, [Node.DisplayName])));
@@ -498,14 +498,14 @@ begin
   Edge := TEdgeObject(Node);
   if Marking.Kind = mkLine then
   begin
-    Mark.Line := Edge.Flatten(CoarseFlatness);
+    Mark.Line := Edge.Flatten(COARSE_FLATNESS);
     // An edge that lost its marking role keeps the plainest look
     Mark.Role := erPlacement;
-    if Edge.Role in MarkingRoles then
+    if Edge.Role in MARKING_ROLES then
       Mark.Role := Edge.Role;
     Exit(esValid);
   end;
-  if not EvalLength(Context, MarkingField(Index, MarkingSpacingField), Spacing) or not EvalLength(Context, MarkingField(Index, MarkingSizeField), Size) then
+  if not EvalLength(Context, MarkingField(Index, MARKING_SPACING_FIELD), Spacing) or not EvalLength(Context, MarkingField(Index, MARKING_SIZE_FIELD), Size) then
     Exit(esError);
   if Spacing <= 0 then
     Exit(Fail(esInvalid, rsPieceStitchSpacing));
@@ -600,10 +600,10 @@ begin
     if FPath[Index].EdgeKey = FFoldEdgeKey then
       Width := 0;
     EdgeWidths[Index] := Width;
-    Points := TEdgeObject(Node).Flatten(CoarseFlatness);
+    Points := TEdgeObject(Node).Flatten(COARSE_FLATNESS);
     if FPath[Index].Reversed then
       Points := ReversedPoints(Points);
-    if Assigned(Previous) and not PointsNear(LastEnd, Points[0], PieceJoinTolerance) then
+    if Assigned(Previous) and not PointsNear(LastEnd, Points[0], PIECE_JOIN_TOLERANCE) then
       Exit(Fail(esInvalid, Format(rsPieceGap, [Previous.DisplayName, Node.DisplayName])));
     // Each point of the edge but its last starts a segment of this width
     Added := Length(Outline);
@@ -619,7 +619,7 @@ begin
     if not Assigned(First) then
       First := Previous;
   end;
-  if not PointsNear(LastEnd, Outline[0], PieceJoinTolerance) then
+  if not PointsNear(LastEnd, Outline[0], PIECE_JOIN_TOLERANCE) then
     Exit(Fail(esInvalid, Format(rsPieceGap, [Previous.DisplayName, First.DisplayName])));
   Result := esValid;
 end;
@@ -653,7 +653,7 @@ begin
   case FGrainKind of
     gkAngle:
     begin
-      if not EvalField(Context, GrainAngleField, Angle) then
+      if not EvalField(Context, GRAIN_ANGLE_FIELD, Angle) then
         Exit(esError);
       Centre := ExtentMiddle(Points);
       Direction := PolarPoint(Vec2(0, 0), 1, Angle);
@@ -666,7 +666,7 @@ begin
         Highest := Max(Highest, Along);
       end;
       Centre := Centre + Direction * ((Lowest + Highest) / 2);
-      Along := (Highest - Lowest) * GrainShare / 2;
+      Along := (Highest - Lowest) * GRAIN_SHARE / 2;
       Line := Line2(Centre - Direction * Along, Centre + Direction * Along);
     end;
     gkPoints:
@@ -706,7 +706,7 @@ begin
     Edge := TEdgeObject(Context.FindNode(Notch.EdgeKey));
     if not EvalLength(Context, NotchField(Index), Position) then
       Exit(esError);
-    if (Position < -DefaultTolerance) or (Position > Edge.Length + DefaultTolerance) then
+    if (Position < -DEFAULT_TOLERANCE) or (Position > Edge.Length + DEFAULT_TOLERANCE) then
       Exit(Fail(esInvalid, Format(rsPieceNotchPastEnd, [FormatFloat('0.#', Position), Edge.DisplayName, FormatFloat('0.#', Edge.Length)])));
     Exit(esValid);
   end;
@@ -714,7 +714,7 @@ begin
   if not (Node is TPointObject) then
     Exit(Fail(esError, Format(rsDraftNotAPoint, [Notch.PointKey])));
   Spot := TPointObject(Node).Position;
-  Best := NotchPointTolerance;
+  Best := NOTCH_POINT_TOLERANCE;
   for Entry := 0 to High(FPath) do
   begin
     TEdgeObject(Context.FindNode(FPath[Entry].EdgeKey)).Locate(Spot, Along, Gap);
@@ -770,7 +770,7 @@ begin
   Outwards := OutwardAngle(Edge, PathIndex, Position, Anticlockwise);
   Mark.Seam := Edge.PointAtLength(Position);
   Mark.Cut := PolarPoint(Mark.Seam, EdgeWidths[PathIndex], Outwards);
-  Mark.Tip := PolarPoint(Mark.Cut, NotchLength, Outwards + 180);
+  Mark.Tip := PolarPoint(Mark.Cut, NOTCH_LENGTH, Outwards + 180);
 end;
 
 function TPieceObject.Compute(Context: TEvalContext): TEvalState;
@@ -785,14 +785,14 @@ var
   NewFold: TLine2;
   FoldInwards: double;
 begin
-  if not EvalLength(Context, PieceAllowanceField, Width) then
+  if not EvalLength(Context, PIECE_ALLOWANCE_FIELD, Width) then
     Exit(esError);
   if Width < 0 then
     Exit(Fail(esInvalid, rsPieceNegativeAllowance));
   Result := BuildOutline(Context, Width, Points, Widths, EdgeWidths);
   if Result <> esValid then
     Exit;
-  if Abs(SignedArea(Points)) < PieceJoinTolerance then
+  if Abs(SignedArea(Points)) < PIECE_JOIN_TOLERANCE then
     Exit(Fail(esInvalid, rsPieceNoArea));
   if not OffsetOutline(Points, Widths, Cut) then
     Exit(Fail(esInvalid, rsPieceNoCutLine));
@@ -869,18 +869,18 @@ var
 
   procedure AddHead(const Tip: TVec2);
   begin
-    AddStroke(Tip, PolarPoint(Tip, FoldHeadLength, FFoldInwards + FoldHeadWidth));
-    AddStroke(Tip, PolarPoint(Tip, FoldHeadLength, FFoldInwards - FoldHeadWidth));
+    AddStroke(Tip, PolarPoint(Tip, FOLD_HEAD_LENGTH, FFoldInwards + FOLD_HEAD_WIDTH));
+    AddStroke(Tip, PolarPoint(Tip, FOLD_HEAD_LENGTH, FFoldInwards - FOLD_HEAD_WIDTH));
   end;
 
 begin
   Result := nil;
   if not OnFold then
     Exit;
-  Near1 := FFoldLine.PointAt(FoldInset);
-  Near2 := FFoldLine.PointAt(1 - FoldInset);
-  Far1 := PolarPoint(Near1, FoldDepth, FFoldInwards);
-  Far2 := PolarPoint(Near2, FoldDepth, FFoldInwards);
+  Near1 := FFoldLine.PointAt(FOLD_INSET);
+  Near2 := FFoldLine.PointAt(1 - FOLD_INSET);
+  Far1 := PolarPoint(Near1, FOLD_DEPTH, FFoldInwards);
+  Far2 := PolarPoint(Near2, FOLD_DEPTH, FFoldInwards);
   AddStroke(Far1, Far2);
   AddStroke(Far1, Near1);
   AddStroke(Far2, Near2);
@@ -904,20 +904,20 @@ begin
     Exit;
   Angle := FGrainline.Angle;
   AddStroke(FGrainline.P1, FGrainline.P2);
-  AddStroke(FGrainline.P2, PolarPoint(FGrainline.P2, GrainHeadLength, Angle + GrainHeadSpread));
-  AddStroke(FGrainline.P2, PolarPoint(FGrainline.P2, GrainHeadLength, Angle - GrainHeadSpread));
-  AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GrainHeadLength, Angle + GrainHeadSpread + 180));
-  AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GrainHeadLength, Angle - GrainHeadSpread + 180));
+  AddStroke(FGrainline.P2, PolarPoint(FGrainline.P2, GRAIN_HEAD_LENGTH, Angle + GRAIN_HEAD_SPREAD));
+  AddStroke(FGrainline.P2, PolarPoint(FGrainline.P2, GRAIN_HEAD_LENGTH, Angle - GRAIN_HEAD_SPREAD));
+  AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GRAIN_HEAD_LENGTH, Angle + GRAIN_HEAD_SPREAD + 180));
+  AddStroke(FGrainline.P1, PolarPoint(FGrainline.P1, GRAIN_HEAD_LENGTH, Angle - GRAIN_HEAD_SPREAD + 180));
 end;
 
 // The allowance and its overrides (edge1.allowance), marking spacings and
 // sizes, and notch positions along an edge are lengths; the grainline's is an angle
 function TPieceObject.FieldUnitKind(const AName: string): TFieldUnitKind;
 begin
-  if AName = GrainAngleField then
+  if AName = GRAIN_ANGLE_FIELD then
     Result := fkAngle
-  else if (AName = PieceAllowanceField) or AName.EndsWith('.' + PieceAllowanceField) or AName.EndsWith('.' + MarkingSpacingField) or
-    AName.EndsWith('.' + MarkingSizeField) or AName.EndsWith('.position') then
+  else if (AName = PIECE_ALLOWANCE_FIELD) or AName.EndsWith('.' + PIECE_ALLOWANCE_FIELD) or AName.EndsWith('.' + MARKING_SPACING_FIELD) or
+    AName.EndsWith('.' + MARKING_SIZE_FIELD) or AName.EndsWith('.position') then
     Result := fkLength
   else
     Result := inherited FieldUnitKind(AName);

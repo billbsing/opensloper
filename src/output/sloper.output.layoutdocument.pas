@@ -99,7 +99,7 @@ end;
 procedure TLayoutDocument.NewForPattern(const PatternFile: string);
 begin
   FLayout.Clear;
-  FLayout.FileName := ChangeFileExt(PatternFile, LayoutExtension);
+  FLayout.FileName := ChangeFileExt(PatternFile, LAYOUT_EXTENSION);
   FLayout.Name := ChangeFileExt(ExtractFileName(PatternFile), '');
   FLayout.AddSource(ExtractFileName(PatternFile), '', '');
   FLayout.LoadSources;

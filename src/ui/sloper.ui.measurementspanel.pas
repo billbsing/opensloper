@@ -126,8 +126,8 @@ uses
 
 const
   // Test size steps, in percent either way
-  MaxTestPercent = 20;
-  TestTickPercent = 5;
+  MAX_TEST_PERCENT = 20;
+  TEST_TICK_PERCENT = 5;
 
 constructor TMeasurementsPanel.Create(AOwner: TComponent);
 var
@@ -300,11 +300,11 @@ begin
   FTestSlider.Parent := FTestGroup;
   FTestSlider.Align := alTop;
   FTestSlider.Top := 10000;
-  FTestSlider.Min := -MaxTestPercent;
-  FTestSlider.Max := MaxTestPercent;
-  FTestSlider.Frequency := TestTickPercent;
+  FTestSlider.Min := -MAX_TEST_PERCENT;
+  FTestSlider.Max := MAX_TEST_PERCENT;
+  FTestSlider.Frequency := TEST_TICK_PERCENT;
   FTestSlider.LineSize := 1;
-  FTestSlider.PageSize := TestTickPercent;
+  FTestSlider.PageSize := TEST_TICK_PERCENT;
   FTestSlider.Position := 0;
   FTestSlider.OnChange := @TestChange;
   UpdateTest;

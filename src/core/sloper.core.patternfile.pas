@@ -30,8 +30,8 @@ uses
   SysUtils, Generics.Collections, fpjson, Sloper.Core.Draft, Sloper.Core.Materials, Sloper.Core.Pattern, Sloper.Core.Variables;
 
 const
-  PatternFormat = 'pattern';
-  PatternVersion = 1;
+  PATTERN_FORMAT = 'pattern';
+  PATTERN_VERSION = 1;
 
 type
   // IDs as the model keeps them, as text: the ID in a file to the ID it takes
@@ -91,45 +91,45 @@ uses
   Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.PatternMaterials;
 
 const
-  TypeFreePoint = 'freePoint';
-  TypeOffsetPoint = 'offsetPoint';
-  TypeAlongEdgePoint = 'alongEdgePoint';
-  TypeBetweenPoint = 'betweenPoint';
-  TypeRepeat = 'repeat';
+  TYPE_FREE_POINT = 'freePoint';
+  TYPE_OFFSET_POINT = 'offsetPoint';
+  TYPE_ALONG_EDGE_POINT = 'alongEdgePoint';
+  TYPE_BETWEEN_POINT = 'betweenPoint';
+  TYPE_REPEAT = 'repeat';
   // Only for reports: a repeat's points are saved inside it
-  TypeRepeatPoint = 'repeatPoint';
-  RepeatEndNames: array[0..1] of string = ('include', 'exclude');
-  TypeIntersectPoint = 'intersectPoint';
-  TypeCircleEdgePoint = 'circleEdgePoint';
-  TypeProjectPoint = 'projectPoint';
-  TypeLine = 'line';
-  TypeCurve = 'curve';
-  TypeCircle = 'circle';
-  TypeArc = 'arc';
-  TypeCircleCirclePoint = 'circleCirclePoint';
-  TypeOffsetEdge = 'offsetEdge';
-  TypeCornerArc = 'cornerArc';
-  TypeCornerPoint = 'cornerPoint';
-  OffsetSideNames: array[TOffsetSide] of string = ('left', 'right');
-  TypeCurvePath = 'curvePath';
-  TypeSplitPart = 'splitPart';
-  TypePiece = 'piece';
-  TypeSeam = 'seam';
-  TypeNote = 'note';
-  TypePointCopy = 'pointCopy';
-  TypeEdgeCopy = 'edgeCopy';
-  TransformTypes: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
+  TYPE_REPEAT_POINT = 'repeatPoint';
+  REPEAT_END_NAMES: array[0..1] of string = ('include', 'exclude');
+  TYPE_INTERSECT_POINT = 'intersectPoint';
+  TYPE_CIRCLE_EDGE_POINT = 'circleEdgePoint';
+  TYPE_PROJECT_POINT = 'projectPoint';
+  TYPE_LINE = 'line';
+  TYPE_CURVE = 'curve';
+  TYPE_CIRCLE = 'circle';
+  TYPE_ARC = 'arc';
+  TYPE_CIRCLE_CIRCLE_POINT = 'circleCirclePoint';
+  TYPE_OFFSET_EDGE = 'offsetEdge';
+  TYPE_CORNER_ARC = 'cornerArc';
+  TYPE_CORNER_POINT = 'cornerPoint';
+  OFFSET_SIDE_NAMES: array[TOffsetSide] of string = ('left', 'right');
+  TYPE_CURVE_PATH = 'curvePath';
+  TYPE_SPLIT_PART = 'splitPart';
+  TYPE_PIECE = 'piece';
+  TYPE_SEAM = 'seam';
+  TYPE_NOTE = 'note';
+  TYPE_POINT_COPY = 'pointCopy';
+  TYPE_EDGE_COPY = 'edgeCopy';
+  TRANSFORM_TYPES: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
 
   // Marking kinds as read: older files marked placement and fold lines on
   // the piece, and these become the edge's role; and holes, which become
   // the point's marker
-  ReadMarkingKindNames: array[0..5] of string = ('point', 'line', 'stitch', 'placement', 'fold', 'hole');
-  OldMarkingRoles: array[3..4] of TEdgeRole = (erPlacement, erFold);
-  OldHoleKind = 5;
-  OffsetModeNames: array[TOffsetMode] of string = ('polar', 'cartesian');
-  AlongModeNames: array[TAlongMode] of string = ('length', 'ratio');
-  DirectionNames: array[TProjectDirection] of string = ('perpendicular', 'angle');
-  EdgeEndNames: array[boolean] of string = ('start', 'end');
+  READ_MARKING_KIND_NAMES: array[0..5] of string = ('point', 'line', 'stitch', 'placement', 'fold', 'hole');
+  OLD_MARKING_ROLES: array[3..4] of TEdgeRole = (erPlacement, erFold);
+  OLD_HOLE_KIND = 5;
+  OFFSET_MODE_NAMES: array[TOffsetMode] of string = ('polar', 'cartesian');
+  ALONG_MODE_NAMES: array[TAlongMode] of string = ('length', 'ratio');
+  DIRECTION_NAMES: array[TProjectDirection] of string = ('perpendicular', 'angle');
+  EDGE_END_NAMES: array[boolean] of string = ('start', 'end');
 
 type
   TPatternLoader = class
@@ -188,55 +188,55 @@ type
 function PatternObjectTypeName(DraftObject: TDraftObject): string;
 begin
   if DraftObject is TFreePoint then
-    Result := TypeFreePoint
+    Result := TYPE_FREE_POINT
   else if DraftObject is TOffsetPoint then
-    Result := TypeOffsetPoint
+    Result := TYPE_OFFSET_POINT
   else if DraftObject is TAlongEdgePoint then
-    Result := TypeAlongEdgePoint
+    Result := TYPE_ALONG_EDGE_POINT
   else if DraftObject is TBetweenPoint then
-    Result := TypeBetweenPoint
+    Result := TYPE_BETWEEN_POINT
   else if DraftObject is TRepeatObject then
-    Result := TypeRepeat
+    Result := TYPE_REPEAT
   else if DraftObject is TRepeatPoint then
-    Result := TypeRepeatPoint
+    Result := TYPE_REPEAT_POINT
   else if DraftObject is TIntersectPoint then
-    Result := TypeIntersectPoint
+    Result := TYPE_INTERSECT_POINT
   else if DraftObject is TCircleEdgePoint then
-    Result := TypeCircleEdgePoint
+    Result := TYPE_CIRCLE_EDGE_POINT
   else if DraftObject is TProjectPoint then
-    Result := TypeProjectPoint
+    Result := TYPE_PROJECT_POINT
   else if DraftObject is TLineObject then
-    Result := TypeLine
+    Result := TYPE_LINE
   else if DraftObject is TCurveObject then
-    Result := TypeCurve
+    Result := TYPE_CURVE
   else if DraftObject is TCircleObject then
-    Result := TypeCircle
+    Result := TYPE_CIRCLE
   else if DraftObject is TOffsetEdge then
-    Result := TypeOffsetEdge
+    Result := TYPE_OFFSET_EDGE
   else if DraftObject is TCornerArc then
-    Result := TypeCornerArc
+    Result := TYPE_CORNER_ARC
   else if DraftObject is TCornerPoint then
-    Result := TypeCornerPoint
+    Result := TYPE_CORNER_POINT
   else if DraftObject is TArcObject then
-    Result := TypeArc
+    Result := TYPE_ARC
   else if DraftObject is TCircleCirclePoint then
-    Result := TypeCircleCirclePoint
+    Result := TYPE_CIRCLE_CIRCLE_POINT
   else if DraftObject is TCurvePathObject then
-    Result := TypeCurvePath
+    Result := TYPE_CURVE_PATH
   else if DraftObject is TSplitPart then
-    Result := TypeSplitPart
+    Result := TYPE_SPLIT_PART
   else if DraftObject is TPieceObject then
-    Result := TypePiece
+    Result := TYPE_PIECE
   else if DraftObject is TSeamObject then
-    Result := TypeSeam
+    Result := TYPE_SEAM
   else if DraftObject is TNoteObject then
-    Result := TypeNote
+    Result := TYPE_NOTE
   else if DraftObject is TTransformObject then
-    Result := TransformTypes[TTransformObject(DraftObject).Kind]
+    Result := TRANSFORM_TYPES[TTransformObject(DraftObject).Kind]
   else if DraftObject is TPointCopy then
-    Result := TypePointCopy
+    Result := TYPE_POINT_COPY
   else if DraftObject is TEdgeCopy then
-    Result := TypeEdgeCopy
+    Result := TYPE_EDGE_COPY
   else
     raise Exception.CreateFmt('No file type for %s', [DraftObject.ClassName]);
 end;
@@ -323,7 +323,7 @@ begin
       Item.Add('edge', JSONId(Piece.Path[Index].EdgeKey));
       Item.Add('reversed', Piece.Path[Index].Reversed);
       if Piece.HasOverride(Index) then
-        Item.Add(PieceAllowanceField, Piece.Field(Piece.OverrideField(Index)).StoredText);
+        Item.Add(PIECE_ALLOWANCE_FIELD, Piece.Field(Piece.OverrideField(Index)).StoredText);
     end;
   except
     FreeAndNil(Result);
@@ -365,7 +365,7 @@ begin
   if Transform.PivotKey <> '' then
     Into.Add('pivot', JSONId(Transform.PivotKey));
   if Transform.Kind = tkMove then
-    Into.Add('mode', OffsetModeNames[TOffsetMode(Ord(not Transform.Polar))]);
+    Into.Add('mode', OFFSET_MODE_NAMES[TOffsetMode(Ord(not Transform.Polar))]);
   if Transform.Kind <> tkMirror then
     Exit;
   Axis := TJSONObject.Create;
@@ -383,7 +383,7 @@ begin
   Result := TJSONObject.Create;
   try
     if Piece.GrainKind = gkAngle then
-      Result.Add('angle', Piece.Field(GrainAngleField).StoredText)
+      Result.Add('angle', Piece.Field(GRAIN_ANGLE_FIELD).StoredText)
     else
     begin
       Result.Add('start', JSONId(Piece.GrainStartKey));
@@ -402,7 +402,7 @@ begin
     if Piece.FillColor <> '' then
       Result.Add('color', Piece.FillColor);
     if Piece.FillStyle <> pfMaterial then
-      Result.Add('style', PieceFillNames[Ord(Piece.FillStyle)]);
+      Result.Add('style', PIECE_FILL_NAMES[Ord(Piece.FillStyle)]);
   except
     FreeAndNil(Result);
     raise;
@@ -440,15 +440,15 @@ begin
       Marking := Piece.Markings[Index];
       Item := TJSONObject.Create;
       Result.Add(Item);
-      Item.Add('kind', MarkingKindNames[Ord(Marking.Kind)]);
+      Item.Add('kind', MARKING_KIND_NAMES[Ord(Marking.Kind)]);
       if Marking.PointKey <> '' then
         Item.Add('point', JSONId(Marking.PointKey))
       else
         Item.Add('edge', JSONId(Marking.EdgeKey));
       if Marking.Kind = mkStitchHoles then
       begin
-        AddPart(MarkingSpacingField);
-        AddPart(MarkingSizeField);
+        AddPart(MARKING_SPACING_FIELD);
+        AddPart(MARKING_SIZE_FIELD);
       end;
     end;
   except
@@ -496,9 +496,9 @@ begin
     Into.Add('b', JSONId(ARepeat.LastPoint));
   end;
   if ARepeat.IncludeEnds then
-    Into.Add('ends', RepeatEndNames[0])
+    Into.Add('ends', REPEAT_END_NAMES[0])
   else
-    Into.Add('ends', RepeatEndNames[1]);
+    Into.Add('ends', REPEAT_END_NAMES[1]);
   if Length(ARepeat.UsedItems) = 0 then
     Exit;
   List := TJSONArray.Create;
@@ -525,9 +525,9 @@ begin
   begin
     Anchor := TJSONObject.Create;
     Into.Add('anchor', Anchor);
-    Anchor.Add(NoteAnchorNames[Note.Anchor], JSONId(Note.AnchorKey));
+    Anchor.Add(NOTE_ANCHOR_NAMES[Note.Anchor], JSONId(Note.AnchorKey));
     if Note.Anchor = naEdge then
-      Anchor.Add(NotePositionField, Note.Field(NotePositionField).StoredText);
+      Anchor.Add(NOTE_POSITION_FIELD, Note.Field(NOTE_POSITION_FIELD).StoredText);
   end;
   for FieldName in Note.PlaceFields do
     Into.Add(FieldName, Note.Field(FieldName).StoredText);
@@ -536,9 +536,9 @@ begin
   Into.Add('print', Note.Print);
   // Each left out at its plain value
   if Note.Leader <> nlNone then
-    Into.Add('leader', NoteLeaderNames[Note.Leader]);
+    Into.Add('leader', NOTE_LEADER_NAMES[Note.Leader]);
   if Note.Align <> taLeft then
-    Into.Add('align', TextAlignNames[Note.Align]);
+    Into.Add('align', TEXT_ALIGN_NAMES[Note.Align]);
   if Note.Boxed then
     Into.Add('box', True);
 end;
@@ -566,21 +566,21 @@ begin
     begin
       Offset := TOffsetPoint(DraftObject);
       Result.Add('base', JSONId(Offset.Base));
-      Result.Add('mode', OffsetModeNames[Offset.Mode]);
+      Result.Add('mode', OFFSET_MODE_NAMES[Offset.Mode]);
     end
     else if DraftObject is TAlongEdgePoint then
     begin
       Along := TAlongEdgePoint(DraftObject);
       Result.Add('edge', JSONId(Along.Edge));
-      Result.Add('from', EdgeEndNames[Along.FromEnd]);
-      Result.Add('mode', AlongModeNames[Along.Mode]);
+      Result.Add('from', EDGE_END_NAMES[Along.FromEnd]);
+      Result.Add('mode', ALONG_MODE_NAMES[Along.Mode]);
     end
     else if DraftObject is TBetweenPoint then
     begin
       Between := TBetweenPoint(DraftObject);
       Result.Add('a', JSONId(Between.PointA));
       Result.Add('b', JSONId(Between.PointB));
-      Result.Add('mode', AlongModeNames[Between.Mode]);
+      Result.Add('mode', ALONG_MODE_NAMES[Between.Mode]);
     end
     else if DraftObject is TRepeatObject then
       SaveRepeat(TRepeatObject(DraftObject), Result)
@@ -611,7 +611,7 @@ begin
         Result.Add('edge', JSONId(TOffsetEdge(DraftObject).Source))
       else
         Result.Add('edges', SaveRun(TOffsetEdge(DraftObject).Run));
-      Result.Add('side', OffsetSideNames[TOffsetEdge(DraftObject).Side]);
+      Result.Add('side', OFFSET_SIDE_NAMES[TOffsetEdge(DraftObject).Side]);
     end
     else if DraftObject is TRoundEdge then
       Result.Add('centre', JSONId(TRoundEdge(DraftObject).Centre))
@@ -634,7 +634,7 @@ begin
       Project := TProjectPoint(DraftObject);
       Result.Add('point', JSONId(Project.Source));
       Result.Add('edge', JSONId(Project.Edge));
-      Result.Add('direction', DirectionNames[Project.Direction]);
+      Result.Add('direction', DIRECTION_NAMES[Project.Direction]);
       Result.Add('extend', Project.Extend);
     end
     else if DraftObject is TSplitPart then
@@ -675,7 +675,7 @@ begin
     else if DraftObject is TPieceObject then
     begin
       Result.Add('path', SavePiecePath(TPieceObject(DraftObject)));
-      Result.Add(PieceAllowanceField, DraftObject.Field(PieceAllowanceField).StoredText);
+      Result.Add(PIECE_ALLOWANCE_FIELD, DraftObject.Field(PIECE_ALLOWANCE_FIELD).StoredText);
       if TPieceObject(DraftObject).GrainKind <> gkNone then
         Result.Add('grainline', SaveGrainline(TPieceObject(DraftObject)));
       if Length(TPieceObject(DraftObject).Notches) > 0 then
@@ -697,9 +697,9 @@ begin
         Result.Add(DraftObject.Fields[Index].Name, DraftObject.Fields[Index].Formula.StoredText);
 
     if DraftObject is TEdgeObject then
-      Result.Add('role', EdgeRoleNames[TEdgeObject(DraftObject).Role]);
+      Result.Add('role', EDGE_ROLE_NAMES[TEdgeObject(DraftObject).Role]);
     if DraftObject.Marker <> pmPlain then
-      Result.Add('marker', PointMarkerNames[DraftObject.Marker]);
+      Result.Add('marker', POINT_MARKER_NAMES[DraftObject.Marker]);
   except
     FreeAndNil(Result);
     raise;
@@ -720,7 +720,7 @@ begin
       Item.Add('id', JSONId(Pattern.Materials[Index].Key));
       Item.Add('name', Pattern.Materials[Index].Name);
       Item.Add('color', Pattern.Materials[Index].Color);
-      Item.Add('fill', MaterialFillNames[Ord(Pattern.Materials[Index].Fill)]);
+      Item.Add('fill', MATERIAL_FILL_NAMES[Ord(Pattern.Materials[Index].Fill)]);
       if Pattern.Materials[Index].HasAllowance then
         Item.Add('allowance', JSONFloat(Pattern.Materials[Index].Allowance));
     end;
@@ -791,7 +791,7 @@ begin
     for Index := 0 to List.Count - 1 do
       if List.Items[Index].JSONType = jtString then
         for Role := Low(TEdgeRole) to High(TEdgeRole) do
-          if (EdgeRoleNames[Role] = List.Items[Index].AsString) and (Role in HideableRoles) then
+          if (EDGE_ROLE_NAMES[Role] = List.Items[Index].AsString) and (Role in HIDEABLE_ROLES) then
             Pattern.View.HiddenRoles := Pattern.View.HiddenRoles + [Role];
   if GetJSONBoolean(Root, 'hideAnnotations', Hide) then
     Pattern.View.HideAnnotations := Hide;
@@ -831,9 +831,9 @@ var
 begin
   Root := TJSONObject.Create;
   try
-    Root.Add('format', PatternFormat);
-    Root.Add('version', PatternVersion);
-    Root.Add('units', MeasureUnitNames[Pattern.Units]);
+    Root.Add('format', PATTERN_FORMAT);
+    Root.Add('version', PATTERN_VERSION);
+    Root.Add('units', MEASURE_UNIT_NAMES[Pattern.Units]);
     Root.Add('notes', Pattern.Notes);
     Root.Add('measurementFile', Pattern.MeasurementFile);
     if Pattern.Identity <> '' then
@@ -1204,7 +1204,7 @@ begin
   if Assigned(Grain.Find('angle')) then
   begin
     Piece.SetGrainKind(gkAngle);
-    Exit(ReadFormula(Grain, 'angle', Piece, GrainAngleField));
+    Exit(ReadFormula(Grain, 'angle', Piece, GRAIN_ANGLE_FIELD));
   end;
   if not ReadInput(Grain, 'start', False, First) or not ReadInput(Grain, 'end', False, Second) then
     Exit(False);
@@ -1236,9 +1236,9 @@ begin
     Marking := TJSONObject(Data.Items[Index]);
     if not Assigned(Marking.Find('kind')) then
       Exit(Missing('kind'));
-    if not ReadChoice(Marking, 'kind', ReadMarkingKindNames, Choice) then
+    if not ReadChoice(Marking, 'kind', READ_MARKING_KIND_NAMES, Choice) then
       Exit(False);
-    if Choice = OldHoleKind then
+    if Choice = OLD_HOLE_KIND then
       Kind := mkPoint
     else if Choice > Ord(High(TMarkingKind)) then
       Kind := mkLine
@@ -1251,10 +1251,10 @@ begin
       Target := FPattern.FindNode(Key);
       // An older file's hole gives its point the marker, with the first
       // diameter it finds; the size is a formula of the point now
-      if (Choice = OldHoleKind) and (TDraftObject(Target).Marker = pmPlain) then
+      if (Choice = OLD_HOLE_KIND) and (TDraftObject(Target).Marker = pmPlain) then
       begin
         TDraftObject(Target).SetMarker(pmHole);
-        if not ReadFormula(Marking, 'diameter', Target, MarkerSizeField) then
+        if not ReadFormula(Marking, 'diameter', Target, MARKER_SIZE_FIELD) then
           Exit(False);
       end;
       if Piece.PointMarkingOf(Key) < 0 then
@@ -1266,10 +1266,10 @@ begin
     // A construction line marked by an older file takes the marking's role
     if (Choice > Ord(High(TMarkingKind))) and (FPattern.FindNode(Key) is TEdgeObject) and
       (TEdgeObject(FPattern.FindNode(Key)).Role = erConstruction) then
-      TEdgeObject(FPattern.FindNode(Key)).Role := OldMarkingRoles[Choice];
+      TEdgeObject(FPattern.FindNode(Key)).Role := OLD_MARKING_ROLES[Choice];
     Added := Piece.AddMarking(Kind, '', Key);
-    if (Kind = mkStitchHoles) and (not ReadFormula(Marking, MarkingSpacingField, Piece, Piece.MarkingField(Added, MarkingSpacingField)) or
-      not ReadFormula(Marking, MarkingSizeField, Piece, Piece.MarkingField(Added, MarkingSizeField))) then
+    if (Kind = mkStitchHoles) and (not ReadFormula(Marking, MARKING_SPACING_FIELD, Piece, Piece.MarkingField(Added, MARKING_SPACING_FIELD)) or
+      not ReadFormula(Marking, MARKING_SIZE_FIELD, Piece, Piece.MarkingField(Added, MARKING_SIZE_FIELD))) then
       Exit(False);
   end;
   Result := True;
@@ -1370,7 +1370,7 @@ begin
   end;
   if Assigned(Fill.Find('style')) then
   begin
-    if not ReadChoice(Fill, 'style', PieceFillNames, Choice) then
+    if not ReadChoice(Fill, 'style', PIECE_FILL_NAMES, Choice) then
       Exit(False);
     Piece.FillStyle := TPieceFillStyle(Choice);
   end;
@@ -1434,7 +1434,7 @@ begin
   end;
   Piece := TPieceObject.Create(FId, Path);
   Result := Piece;
-  if not ReadFormula(Item, PieceAllowanceField, Piece, PieceAllowanceField) then
+  if not ReadFormula(Item, PIECE_ALLOWANCE_FIELD, Piece, PIECE_ALLOWANCE_FIELD) then
   begin
     FreeAndNil(Result);
     Exit;
@@ -1442,10 +1442,10 @@ begin
   for Index := 0 to High(Path) do
   begin
     Entry := TJSONObject(Entries.Items[Index]);
-    if not Assigned(Entry.Find(PieceAllowanceField)) then
+    if not Assigned(Entry.Find(PIECE_ALLOWANCE_FIELD)) then
       Continue;
     Piece.AddOverride(Index);
-    if not ReadFormula(Entry, PieceAllowanceField, Piece, Piece.OverrideField(Index)) then
+    if not ReadFormula(Entry, PIECE_ALLOWANCE_FIELD, Piece, Piece.OverrideField(Index)) then
     begin
       FreeAndNil(Result);
       Exit;
@@ -1521,12 +1521,12 @@ begin
     Anchor := TJSONObject(Data);
     Count := 0;
     for Kind := naPoint to naPiece do
-      if Assigned(Anchor.Find(NoteAnchorNames[Kind])) then
+      if Assigned(Anchor.Find(NOTE_ANCHOR_NAMES[Kind])) then
       begin
         Inc(Count);
         Found := Kind;
       end;
-    if (Count <> 1) or not GetJSONInteger(Anchor, NoteAnchorNames[Found], Id) or (Id < 1) then
+    if (Count <> 1) or not GetJSONInteger(Anchor, NOTE_ANCHOR_NAMES[Found], Id) or (Id < 1) then
     begin
       Missing('anchor');
       Exit;
@@ -1546,12 +1546,12 @@ begin
     end;
     if not Fits then
     begin
-      Problem(Format(rsPatternNoteAnchor, [NodeLabel(Node), NoteAnchorNames[Found]]));
+      Problem(Format(rsPatternNoteAnchor, [NodeLabel(Node), NOTE_ANCHOR_NAMES[Found]]));
       Exit;
     end;
   end;
   Result := TNoteObject.Create(FId, Found, Key);
-  if (Found = naEdge) and not ReadFormula(Anchor, NotePositionField, Result, NotePositionField) then
+  if (Found = naEdge) and not ReadFormula(Anchor, NOTE_POSITION_FIELD, Result, NOTE_POSITION_FIELD) then
     FreeAndNil(Result);
 end;
 
@@ -1572,7 +1572,7 @@ begin
   Note.SetStoredText(Text);
   if Assigned(Item.Find('size')) then
   begin
-    if not GetJSONNumber(Item, 'size', Size) or (Size <= 0) or (Size > MaxNoteSize) then
+    if not GetJSONNumber(Item, 'size', Size) or (Size <= 0) or (Size > MAX_NOTE_SIZE) then
       Exit(Missing('size'));
     Note.Size := Size;
   end;
@@ -1582,12 +1582,12 @@ begin
       Exit(Missing('print'));
     Note.Print := Print;
   end;
-  if not ReadChoice(Item, 'leader', NoteLeaderNames, Choice) then
+  if not ReadChoice(Item, 'leader', NOTE_LEADER_NAMES, Choice) then
     Exit(False);
   if (Note.Anchor = naFree) and (TNoteLeader(Choice) <> nlNone) then
     Exit(Problem(rsPatternCalloutFree));
   Note.Leader := TNoteLeader(Choice);
-  if not ReadChoice(Item, 'align', TextAlignNames, Choice) or not ReadBoolean(Item, 'box', Boxed) then
+  if not ReadChoice(Item, 'align', TEXT_ALIGN_NAMES, Choice) or not ReadBoolean(Item, 'box', Boxed) then
     Exit(False);
   Note.Align := TTextAlign(Choice);
   Note.Boxed := Boxed;
@@ -1665,7 +1665,7 @@ begin
         FreeAndNil(Result);
         Exit;
       end;
-      if ReadChoice(Item, 'mode', OffsetModeNames, Mode) then
+      if ReadChoice(Item, 'mode', OFFSET_MODE_NAMES, Mode) then
         Transform.UseMove(TOffsetMode(Mode) = omPolar, First)
       else
         FreeAndNil(Result);
@@ -1730,22 +1730,22 @@ var
   Run: TRunEdgeArray;
 begin
   Result := nil;
-  if TypeText = TypeFreePoint then
+  if TypeText = TYPE_FREE_POINT then
     Result := TFreePoint.Create(FId)
-  else if TypeText = TypeOffsetPoint then
+  else if TypeText = TYPE_OFFSET_POINT then
   begin
-    if ReadInput(Item, 'base', False, First) and ReadChoice(Item, 'mode', OffsetModeNames, Choice) then
+    if ReadInput(Item, 'base', False, First) and ReadChoice(Item, 'mode', OFFSET_MODE_NAMES, Choice) then
       Result := TOffsetPoint.Create(FId, First, TOffsetMode(Choice));
   end
-  else if TypeText = TypeAlongEdgePoint then
+  else if TypeText = TYPE_ALONG_EDGE_POINT then
   begin
-    if ReadInput(Item, 'edge', True, First) and ReadChoice(Item, 'from', EdgeEndNames, EndChoice) and
-      ReadChoice(Item, 'mode', AlongModeNames, Choice) then
+    if ReadInput(Item, 'edge', True, First) and ReadChoice(Item, 'from', EDGE_END_NAMES, EndChoice) and
+      ReadChoice(Item, 'mode', ALONG_MODE_NAMES, Choice) then
       Result := TAlongEdgePoint.Create(FId, First, EndChoice = 1, TAlongMode(Choice));
   end
-  else if TypeText = TypeRepeat then
+  else if TypeText = TYPE_REPEAT then
   begin
-    if not ReadChoice(Item, 'ends', RepeatEndNames, Choice) then
+    if not ReadChoice(Item, 'ends', REPEAT_END_NAMES, Choice) then
       Exit;
     if Assigned(Item.Find('edge')) then
     begin
@@ -1755,12 +1755,12 @@ begin
     else if ReadInput(Item, 'a', False, First) and ReadInput(Item, 'b', False, Second) then
       Result := TRepeatObject.CreateBetween(FId, First, Second, Choice = 0);
   end
-  else if TypeText = TypeBetweenPoint then
+  else if TypeText = TYPE_BETWEEN_POINT then
   begin
-    if ReadInput(Item, 'a', False, First) and ReadInput(Item, 'b', False, Second) and ReadChoice(Item, 'mode', AlongModeNames, Choice) then
+    if ReadInput(Item, 'a', False, First) and ReadInput(Item, 'b', False, Second) and ReadChoice(Item, 'mode', ALONG_MODE_NAMES, Choice) then
       Result := TBetweenPoint.Create(FId, First, Second, TAlongMode(Choice));
   end
-  else if TypeText = TypeIntersectPoint then
+  else if TypeText = TYPE_INTERSECT_POINT then
   begin
     if ReadInput(Item, 'edgeA', True, First) and ReadInput(Item, 'edgeB', True, Second) and
       ReadBoolean(Item, 'extendA', FlagA) and ReadBoolean(Item, 'extendB', FlagB) and ReadPick(Item, Pick) then
@@ -1769,39 +1769,39 @@ begin
       else
         Result := TIntersectPoint.Create(FId, First, Second, FlagA, FlagB, Pick);
   end
-  else if TypeText = TypeCircleEdgePoint then
+  else if TypeText = TYPE_CIRCLE_EDGE_POINT then
   begin
     if ReadInput(Item, 'centre', False, First) and ReadInput(Item, 'edge', True, Second) and
       ReadBoolean(Item, 'extend', FlagA) and ReadPick(Item, Pick) then
       Result := TCircleEdgePoint.Create(FId, First, Second, FlagA, Pick);
   end
-  else if TypeText = TypeProjectPoint then
+  else if TypeText = TYPE_PROJECT_POINT then
   begin
     if ReadInput(Item, 'point', False, First) and ReadInput(Item, 'edge', True, Second) and
-      ReadChoice(Item, 'direction', DirectionNames, Choice) and ReadBoolean(Item, 'extend', FlagA) then
+      ReadChoice(Item, 'direction', DIRECTION_NAMES, Choice) and ReadBoolean(Item, 'extend', FlagA) then
       Result := TProjectPoint.Create(FId, First, Second, TProjectDirection(Choice), FlagA);
   end
-  else if TypeText = TypeLine then
+  else if TypeText = TYPE_LINE then
   begin
     if ReadInput(Item, 'start', False, First) and ReadInput(Item, 'end', False, Second) then
       Result := TLineObject.Create(FId, First, Second);
   end
-  else if TypeText = TypeCurve then
+  else if TypeText = TYPE_CURVE then
   begin
     if ReadInput(Item, 'start', False, First) and ReadInput(Item, 'end', False, Second) then
       Result := TCurveObject.Create(FId, First, Second);
   end
-  else if TypeText = TypeOffsetEdge then
+  else if TypeText = TYPE_OFFSET_EDGE then
   begin
-    if ReadRun(Item, Run) and ReadChoice(Item, 'side', OffsetSideNames, Choice) then
+    if ReadRun(Item, Run) and ReadChoice(Item, 'side', OFFSET_SIDE_NAMES, Choice) then
       Result := TOffsetEdge.Create(FId, Run, RunStartKey(Run), RunEndKey(Run), TOffsetSide(Choice));
   end
-  else if TypeText = TypeCornerArc then
+  else if TypeText = TYPE_CORNER_ARC then
   begin
     if ReadInput(Item, 'vertex', False, First) and ReadInput(Item, 'edgeA', True, Second) and ReadInput(Item, 'edgeB', True, Third) then
       Result := TCornerArc.Create(FId, First, Second, Third);
   end
-  else if TypeText = TypeCornerPoint then
+  else if TypeText = TYPE_CORNER_POINT then
   begin
     if ReadInput(Item, 'arc', True, First) then
       if not GetJSONInteger(Item, 'end', Pick) or (Pick < 1) or (Pick > 2) then
@@ -1809,17 +1809,17 @@ begin
       else
         Result := TCornerPoint.Create(FId, First, Pick);
   end
-  else if TypeText = TypeCircle then
+  else if TypeText = TYPE_CIRCLE then
   begin
     if ReadInput(Item, 'centre', False, First) then
       Result := TCircleObject.Create(FId, First);
   end
-  else if TypeText = TypeArc then
+  else if TypeText = TYPE_ARC then
   begin
     if ReadInput(Item, 'centre', False, First) then
       Result := TArcObject.Create(FId, First);
   end
-  else if TypeText = TypeCircleCirclePoint then
+  else if TypeText = TYPE_CIRCLE_CIRCLE_POINT then
   begin
     if ReadInput(Item, 'centreA', False, First) and ReadInput(Item, 'centreB', False, Second) and ReadPick(Item, Pick) then
       if Pick > 2 then
@@ -1827,25 +1827,25 @@ begin
       else
         Result := TCircleCirclePoint.Create(FId, First, Second, Pick);
   end
-  else if TypeText = TypeCurvePath then
+  else if TypeText = TYPE_CURVE_PATH then
     Result := CreateCurvePath(Item)
-  else if TypeText = TypePiece then
+  else if TypeText = TYPE_PIECE then
     Result := CreatePiece(Item)
-  else if TypeText = TypeSeam then
+  else if TypeText = TYPE_SEAM then
     Result := CreateSeam(Item)
-  else if TypeText = TypeNote then
+  else if TypeText = TYPE_NOTE then
     Result := CreateNote(Item)
-  else if TypeText = TransformTypes[tkRotate] then
+  else if TypeText = TRANSFORM_TYPES[tkRotate] then
     Result := CreateTransform(Item, tkRotate)
-  else if TypeText = TransformTypes[tkMirror] then
+  else if TypeText = TRANSFORM_TYPES[tkMirror] then
     Result := CreateTransform(Item, tkMirror)
-  else if TypeText = TransformTypes[tkMove] then
+  else if TypeText = TRANSFORM_TYPES[tkMove] then
     Result := CreateTransform(Item, tkMove)
-  else if TypeText = TypePointCopy then
+  else if TypeText = TYPE_POINT_COPY then
     Result := CreatePointCopy(Item)
-  else if TypeText = TypeEdgeCopy then
+  else if TypeText = TYPE_EDGE_COPY then
     Result := CreateEdgeCopy(Item)
-  else if TypeText = TypeSplitPart then
+  else if TypeText = TYPE_SPLIT_PART then
   begin
     if ReadInput(Item, 'edge', True, First) and ReadInput(Item, 'point', False, Second) then
       if not GetJSONInteger(Item, 'part', Part) or (Part < 1) or (Part > 2) then
@@ -1911,7 +1911,7 @@ begin
       Exit(Fail(Format(rsPatternMaterialProblem, [Id, Format(rsPatternMaterialBadColor, [Color])])));
     FId := Id;
     Choice := 0;
-    if Assigned(Item.Find('fill')) and not ReadChoice(Item, 'fill', MaterialFillNames, Choice) then
+    if Assigned(Item.Find('fill')) and not ReadChoice(Item, 'fill', MATERIAL_FILL_NAMES, Choice) then
       Exit(False);
     Material := TPatternMaterial.Create;
     Material.Key := Id;
@@ -1986,7 +1986,7 @@ begin
     // The marker comes first, as it adds the size field read below
     if ((DraftObject is TPointObject) or (DraftObject is TRepeatObject)) and Assigned(Item.Find('marker')) then
     begin
-      if not ReadChoice(Item, 'marker', PointMarkerNames, Choice) then
+      if not ReadChoice(Item, 'marker', POINT_MARKER_NAMES, Choice) then
         Exit(False);
       DraftObject.SetMarker(TPointMarker(Choice));
     end;
@@ -2001,7 +2001,7 @@ begin
           Exit(False);
     if DraftObject is TEdgeObject then
     begin
-      if not ReadChoice(Item, 'role', EdgeRoleNames, Choice) then
+      if not ReadChoice(Item, 'role', EDGE_ROLE_NAMES, Choice) then
         Exit(False);
       TEdgeObject(DraftObject).Role := TEdgeRole(Choice);
       // The derived name is set once every object is loaded
@@ -2050,9 +2050,9 @@ begin
   if not ParseJSONObject(Text, Root, FError) then
     Exit(False);
   try
-    if not GetJSONString(Root, 'format', TextValue) or (TextValue <> PatternFormat) or not GetJSONInteger(Root, 'version', Version) then
+    if not GetJSONString(Root, 'format', TextValue) or (TextValue <> PATTERN_FORMAT) or not GetJSONInteger(Root, 'version', Version) then
       Exit(Fail(rsPatternFileWrongFormat));
-    if Version > PatternVersion then
+    if Version > PATTERN_VERSION then
       Exit(Fail(Format(rsPatternFileNewerVersion, [Version])));
     if GetJSONString(Root, 'units', TextValue) then
     begin

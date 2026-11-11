@@ -104,28 +104,32 @@ uses
 
 const
   // How strongly a material's colour shows under the lines
-  MaterialTintAlpha = 60;
-  MaterialHatchAlpha = 130;
-  MaterialHatchPixels = 8;
+  MATERIAL_TINT_ALPHA = 60;
+  MATERIAL_HATCH_ALPHA = 130;
+  MATERIAL_HATCH_PIXELS = 8;
   // Screen pixels
-  MarkingLineWidth = 1.5;
-  PointRadius = 3.5;
-  SmallPointRadius = 2.5;
-  HandleRadius = 4;
+  MARKING_LINE_WIDTH = 1.5;
+  POINT_RADIUS = 3.5;
+  SMALL_POINT_RADIUS = 2.5;
+  HANDLE_RADIUS = 4;
   // How far apart lines in the same place are drawn, in pixels
-  CoincidentGap = 3;
-  FlattenPixels = 0.25;
-  LabelFontHeight = 13;
-  SnapMarkerSize = 6;
-  ChevronSize = 7;
-  ChevronSpread = 150;
-  SeamLineWidth = 4;
+  COINCIDENT_GAP = 3;
+  FLATTEN_PIXELS = 0.25;
+  LABEL_FONT_HEIGHT = 13;
+  SNAP_MARKER_SIZE = 6;
+  CHEVRON_SIZE = 7;
+  CHEVRON_SPREAD = 150;
+  SEAM_LINE_WIDTH = 4;
   // A copied point's diamond reaches this many dot radii from its centre, a
   // little larger than a dot so that its corners show past the lines through it
-  DiamondScale = 1.6;
-  SourceHaloWidth = 8;
+  DIAMOND_SCALE = 1.6;
+  // The line from a copy to its source, and the halo lighting the source, in pixels
+  COPY_LINK_WIDTH = 1.5;
+  SOURCE_HALO_WIDTH = 8;
+  SOURCE_HALO_GROW = 5;
   // Text smaller than this many pixels is drawn as a faint bar
-  MinNotePixels = 3;
+  MIN_NOTE_PIXELS = 3;
+  DASH_PIXELS_PER_MILLIMETRE = 2.5;
 
 function Paper: TBGRAPixel;
 begin
@@ -240,7 +244,7 @@ begin
   if (FBitmap.Width <> Width) or (FBitmap.Height <> Height) then
     FBitmap.SetSize(Width, Height);
   FBitmap.Fill(Paper);
-  FBitmap.FontHeight := LabelFontHeight;
+  FBitmap.FontHeight := LABEL_FONT_HEIGHT;
   FBitmap.FontQuality := fqFineAntialiasing;
 end;
 
@@ -269,8 +273,8 @@ var
   TopLeft, BottomRight: TVec2;
   LineColor: TBGRAPixel;
 begin
-  Spacing := GridSpacing(FState.View.Scale * MillimetresPerUnit[GridUnit], Step, GridUnit);
-  StepMm := Spacing.Minor * MillimetresPerUnit[GridUnit];
+  Spacing := GridSpacing(FState.View.Scale * MILLIMETRES_PER_UNIT[GridUnit], Step, GridUnit);
+  StepMm := Spacing.Minor * MILLIMETRES_PER_UNIT[GridUnit];
   PerMajor := Max(1, Round(Spacing.Labelled / Spacing.Minor));
   TopLeft := FState.View.ToModel(Vec2(0, 0));
   BottomRight := FState.View.ToModel(Vec2(FBitmap.Width, FBitmap.Height));
@@ -310,11 +314,11 @@ begin
   if not FState.ShowPieceFills or not Look.Filled then
     Exit;
   if Look.Fill = ffTint then
-    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, MaterialTintAlpha))
+    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, MATERIAL_TINT_ALPHA))
   else
-    for Stroke in HatchLines(Points, MaterialHatchPixels, Look.HatchAngle) do
+    for Stroke in HatchLines(Points, MATERIAL_HATCH_PIXELS, Look.HatchAngle) do
       FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.Red, Look.Color.Green,
-        Look.Color.Blue, MaterialHatchAlpha), 1);
+        Look.Color.Blue, MATERIAL_HATCH_ALPHA), 1);
 end;
 
 // The cutting line, filled with its material; the seam line is the edges drawn over it
@@ -355,10 +359,10 @@ var
   Tip, WingA, WingB: TVec2;
   Size: double;
 begin
-  Size := FState.View.PixelsToMM(ChevronSize);
+  Size := FState.View.PixelsToMM(CHEVRON_SIZE);
   Tip := FState.View.ToScreen(Position);
-  WingA := FState.View.ToScreen(PolarPoint(Position, Size, Angle + ChevronSpread));
-  WingB := FState.View.ToScreen(PolarPoint(Position, Size, Angle - ChevronSpread));
+  WingA := FState.View.ToScreen(PolarPoint(Position, Size, Angle + CHEVRON_SPREAD));
+  WingB := FState.View.ToScreen(PolarPoint(Position, Size, Angle - CHEVRON_SPREAD));
   FBitmap.DrawPolyLineAntialias([PointF(WingA.X, WingA.Y), PointF(Tip.X, Tip.Y), PointF(WingB.X, WingB.Y)], AColor, 2);
 end;
 
@@ -380,12 +384,12 @@ var
 begin
   for Entry in Side do
   begin
-    Model := EdgePolyline(TEdgeObject(FPattern.FindNode(Entry.EdgeKey)), FState.View.PixelsToMM(FlattenPixels));
+    Model := EdgePolyline(TEdgeObject(FPattern.FindNode(Entry.EdgeKey)), FState.View.PixelsToMM(FLATTEN_PIXELS));
     Screen := nil;
     SetLength(Screen, Length(Model));
     for Index := 0 to High(Model) do
       Screen[Index] := ScreenPoint(FState.View.ToScreen(Model[Index]));
-    FBitmap.DrawPolyLineAntialias(Screen, AColor, SeamLineWidth);
+    FBitmap.DrawPolyLineAntialias(Screen, AColor, SEAM_LINE_WIDTH);
   end;
 end;
 
@@ -448,7 +452,7 @@ begin
   Result := Vec2(0, 0);
   for Slot in FEdgeSlots do
     if Slot.Key = Key then
-      Exit(Slot.Normal * (Slot.Slot * CoincidentGap));
+      Exit(Slot.Normal * (Slot.Slot * COINCIDENT_GAP));
 end;
 
 procedure TPatternPainter.DrawEdge(Edge: TEdgeObject);
@@ -460,7 +464,7 @@ var
   LineColor: TBGRAPixel;
   LineWidth: single;
 begin
-  Model := EdgePolyline(Edge, FState.View.PixelsToMM(FlattenPixels));
+  Model := EdgePolyline(Edge, FState.View.PixelsToMM(FLATTEN_PIXELS));
   if Length(Model) < 2 then
     Exit;
   Shift := EdgeShift(Edge.Key);
@@ -482,8 +486,8 @@ begin
     end;
     else
     begin
-      LineColor := StrToBGRA(RoleColors[Edge.Role]);
-      LineWidth := MarkingLineWidth;
+      LineColor := StrToBGRA(ROLE_COLORS[Edge.Role]);
+      LineWidth := MARKING_LINE_WIDTH;
     end;
   end;
   LineColor := Faded(StateInk(Edge.State, LineColor), Edge.State);
@@ -497,8 +501,8 @@ begin
   end;
   if Edge.Role = erConstruction then
     FBitmap.PenStyle := psDash
-  else if RoleDashes[Edge.Role][0] > 0 then
-    FBitmap.CustomPenStyle := ScreenDashes(RoleDashes[Edge.Role], LineWidth);
+  else if ROLE_DASHES[Edge.Role][0] > 0 then
+    FBitmap.CustomPenStyle := ScreenDashes(ROLE_DASHES[Edge.Role], LineWidth);
   FBitmap.DrawPolyLineAntialias(Screen, LineColor, LineWidth);
   FBitmap.PenStyle := psSolid;
 end;
@@ -506,8 +510,6 @@ end;
 // The paper dashes at a fixed size on screen, whatever the zoom, in the pen
 // widths BGRABitmap counts in
 function ScreenDashes(const Dashes: TDashPattern; LineWidth: single): TBGRAPenStyle;
-const
-  PixelsPerMillimetre = 2.5;
 var
   Index, Count: integer;
 begin
@@ -518,7 +520,7 @@ begin
       Inc(Count);
   SetLength(Result, Count);
   for Index := 0 to Count - 1 do
-    Result[Index] := Dashes[Index] * PixelsPerMillimetre / LineWidth;
+    Result[Index] := Dashes[Index] * DASH_PIXELS_PER_MILLIMETRE / LineWidth;
 end;
 
 procedure TPatternPainter.DrawPoint(Point: TPointObject);
@@ -530,9 +532,9 @@ begin
   Screen := FState.View.ToScreen(Point.Position);
   InkColor := Faded(StateInk(Point.State, Ink), Point.State);
   if FState.SmallPoints then
-    Radius := SmallPointRadius
+    Radius := SMALL_POINT_RADIUS
   else
-    Radius := PointRadius;
+    Radius := POINT_RADIUS;
   if Point.Key = FState.HoverKey then
     FBitmap.FillEllipseAntialias(Screen.X, Screen.Y, Radius + 5, Radius + 5, HoverHalo);
   if IsSelected(Point.Key) or IsSelected(CopyTransformKey(Point)) then
@@ -544,7 +546,7 @@ begin
   // without looking locked or failing
   if Point is TPointCopy then
   begin
-    Radius := Radius * DiamondScale;
+    Radius := Radius * DIAMOND_SCALE;
     FBitmap.FillPolyAntialias([PointF(Screen.X, Screen.Y - Radius), PointF(Screen.X + Radius, Screen.Y),
       PointF(Screen.X, Screen.Y + Radius), PointF(Screen.X - Radius, Screen.Y)], InkColor);
   end
@@ -568,17 +570,17 @@ begin
     if Node is TPointObject then
     begin
       Spot := FState.View.ToScreen(TPointObject(Node).Position);
-      FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, PointRadius + 5, PointRadius + 5, HoverHalo);
+      FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, POINT_RADIUS + SOURCE_HALO_GROW, POINT_RADIUS + SOURCE_HALO_GROW, HoverHalo);
     end
     else if (Node is TEdgeObject) and not FPattern.IsHidden(TEdgeObject(Node)) then
     begin
-      Model := EdgePolyline(TEdgeObject(Node), FState.View.PixelsToMM(FlattenPixels));
+      Model := EdgePolyline(TEdgeObject(Node), FState.View.PixelsToMM(FLATTEN_PIXELS));
       Shift := EdgeShift(Node.Key);
       Screen := nil;
       SetLength(Screen, Length(Model));
       for Index := 0 to High(Model) do
         Screen[Index] := ScreenPoint(FState.View.ToScreen(Model[Index]) + Shift);
-      FBitmap.DrawPolyLineAntialias(Screen, HoverHalo, SourceHaloWidth);
+      FBitmap.DrawPolyLineAntialias(Screen, HoverHalo, SOURCE_HALO_WIDTH);
     end;
   end;
 end;
@@ -594,7 +596,7 @@ begin
   begin
     First := FState.View.ToScreen(Link.CopyAt);
     Last := FState.View.ToScreen(Link.SourceAt);
-    FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, CopyLinkInk, 1.5);
+    FBitmap.DrawLineAntialias(First.X, First.Y, Last.X, Last.Y, CopyLinkInk, COPY_LINK_WIDTH);
   end;
   FBitmap.PenStyle := psSolid;
 end;
@@ -692,7 +694,7 @@ begin
       if Note.Leader = nlDot then
       begin
         Spot := FState.View.ToScreen(Tip);
-        FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, Max(1.5, LeaderDotRadius * FState.View.Scale), Max(1.5, LeaderDotRadius * FState.View.Scale), InkColor);
+        FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, Max(1.5, LEADER_DOT_RADIUS * FState.View.Scale), Max(1.5, LEADER_DOT_RADIUS * FState.View.Scale), InkColor);
       end;
     end
     else if Selected and (Note.Anchor <> naFree) then
@@ -707,7 +709,7 @@ begin
     if Selected and (Note.Leader <> nlNone) and FState.TipHandles then
     begin
       Spot := FState.View.ToScreen(Tip);
-      FBitmap.EllipseAntialias(Spot.X, Spot.Y, HandleRadius, HandleRadius, SelectedInk, 1.5, Paper);
+      FBitmap.EllipseAntialias(Spot.X, Spot.Y, HANDLE_RADIUS, HANDLE_RADIUS, SelectedInk, 1.5, Paper);
     end;
     if Note.Boxed then
     begin
@@ -717,9 +719,9 @@ begin
     end;
     if (Note.Key = FState.HoverKey) or Selected then
       FBitmap.FillRectAntialias(TopLeft.X - 2, TopLeft.Y - 1, BottomRight.X + 2, BottomRight.Y + 1, PieceHoverTint);
-    EmPixels := Note.Size * PointsToMM * FState.View.Scale;
+    EmPixels := Note.Size * POINTS_TO_MM * FState.View.Scale;
     LinePixels := LineHeight(Note.Size) * FState.View.Scale;
-    if EmPixels < MinNotePixels then
+    if EmPixels < MIN_NOTE_PIXELS then
     begin
       FBitmap.FillRectAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, BGRA(InkColor.red, InkColor.green, InkColor.blue, 40));
       Continue;
@@ -733,7 +735,7 @@ begin
       FBitmap.TextOut(Spot.X, Spot.Y, Lines[LineIndex], InkColor);
     end;
   end;
-  FBitmap.FontHeight := LabelFontHeight;
+  FBitmap.FontHeight := LABEL_FONT_HEIGHT;
 end;
 
 procedure TPatternPainter.DrawMarker(DraftObject: TDraftObject);
@@ -771,7 +773,7 @@ begin
     Anchor := FState.View.ToScreen(Item.Anchor);
     Tip := FState.View.ToScreen(Item.Position);
     FBitmap.DrawLineAntialias(Anchor.X, Anchor.Y, Tip.X, Tip.Y, SelectedInk, 1);
-    Radius := HandleRadius;
+    Radius := HANDLE_RADIUS;
     if (Item.LengthField = HoverField) and (Item.EdgeKey = HoverEdge) then
       Radius := Radius + 1.5;
     if CanDragHandle(TEdgeObject(FPattern.FindNode(Item.EdgeKey)), Item, Reason) then
@@ -796,13 +798,13 @@ begin
     if Node is TPointObject then
     begin
       Screen := FState.View.ToScreen(TPointObject(Node).Position);
-      Screen := Vec2(Screen.X + 6, Screen.Y - LabelFontHeight - 2);
+      Screen := Vec2(Screen.X + 6, Screen.Y - LABEL_FONT_HEIGHT - 2);
     end
     else if Node is TPieceObject then
       Screen := FState.View.ToScreen(PieceMiddle(TPieceObject(Node)))
     else if Node is TEdgeObject then
     begin
-      Model := EdgePolyline(TEdgeObject(Node), FState.View.PixelsToMM(FlattenPixels));
+      Model := EdgePolyline(TEdgeObject(Node), FState.View.PixelsToMM(FLATTEN_PIXELS));
       if Length(Model) = 0 then
         Continue;
       Screen := FState.View.ToScreen(PolylineMiddle(Model));
@@ -828,7 +830,7 @@ var
   Size: single;
 begin
   Screen := FState.View.ToScreen(Snap.Position);
-  Size := SnapMarkerSize;
+  Size := SNAP_MARKER_SIZE;
   if Preview <> spNone then
   begin
     Start := FState.View.ToScreen(StartAt);

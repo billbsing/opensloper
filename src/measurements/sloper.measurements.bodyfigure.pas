@@ -72,14 +72,15 @@ uses
   Math;
 
 const
-  HitPixels = 5;
-  OverlayWidth = 1.5;
-  HighlightWidth = 3;
-  OutlineWidth = 1.2;
-  CaptionHeight = 13;
-  CaptionGap = 2;
+  HIT_PIXELS = 5;
+  OVERLAY_WIDTH = 1.5;
+  HIGHLIGHT_WIDTH = 3;
+  OUTLINE_WIDTH = 1.2;
+  CAPTION_HEIGHT = 13;
+  CAPTION_GAP = 2;
   // Kept clear below the figures, with room for the text's descent
-  CaptionRoom = CaptionHeight + 3 * CaptionGap;
+  CAPTION_ROOM = CAPTION_HEIGHT + 3 * CAPTION_GAP;
+  VIEW_CAPTIONS: array[TCatalogueView] of string = (rsViewFront, rsViewBack, rsViewSide);
 
 var
   Desk, BodyFill, BodyEdge, OverlayInk, HighlightInk: TBGRAPixel;
@@ -122,7 +123,7 @@ var
   Index: integer;
   Spot: TVec2;
 begin
-  Layout := LayoutFigures(ClientWidth, ClientHeight - CaptionRoom);
+  Layout := LayoutFigures(ClientWidth, ClientHeight - CAPTION_ROOM);
   Result := nil;
   SetLength(Result, Length(Path));
   for Index := 0 to High(Path) do
@@ -138,19 +139,17 @@ begin
 end;
 
 procedure TBodyFigure.DrawView(View: TCatalogueView);
-const
-  Captions: array[TCatalogueView] of string = (rsViewFront, rsViewBack, rsViewSide);
 var
   Path: TFigurePath;
   Layout: TFigureLayout;
   Middle: TVec2;
 begin
   for Path in FCatalogue.Figures[View] do
-    FBitmap.DrawPolygonAntialias(FBitmap.ComputeClosedSpline(ScreenPoints(View, Path), ssCrossing), BodyEdge, OutlineWidth, BodyFill);
-  Layout := LayoutFigures(ClientWidth, ClientHeight - CaptionRoom);
-  Middle := FigureToScreen(Layout, View, Vec2(FigureWidth / 2, FigureHeight));
-  FBitmap.FontHeight := CaptionHeight;
-  FBitmap.TextOut(Middle.X, Middle.Y + CaptionGap, Captions[View], BodyEdge, taCenter);
+    FBitmap.DrawPolygonAntialias(FBitmap.ComputeClosedSpline(ScreenPoints(View, Path), ssCrossing), BodyEdge, OUTLINE_WIDTH, BodyFill);
+  Layout := LayoutFigures(ClientWidth, ClientHeight - CAPTION_ROOM);
+  Middle := FigureToScreen(Layout, View, Vec2(FIGURE_WIDTH / 2, FIGURE_HEIGHT));
+  FBitmap.FontHeight := CAPTION_HEIGHT;
+  FBitmap.TextOut(Middle.X, Middle.Y + CAPTION_GAP, VIEW_CAPTIONS[View], BodyEdge, taCenter);
 end;
 
 procedure TBodyFigure.Paint;
@@ -172,11 +171,11 @@ begin
     begin
       Entry := FCatalogue.Find(Key);
       if Assigned(Entry) then
-        DrawOverlay(Entry, OverlayInk, OverlayWidth);
+        DrawOverlay(Entry, OverlayInk, OVERLAY_WIDTH);
     end;
     Entry := FCatalogue.Find(FHighlight);
     if Assigned(Entry) then
-      DrawOverlay(Entry, HighlightInk, HighlightWidth);
+      DrawOverlay(Entry, HighlightInk, HIGHLIGHT_WIDTH);
   end;
   FBitmap.Draw(Canvas, 0, 0, True);
 end;
@@ -191,10 +190,10 @@ begin
   Result := '';
   if not Assigned(FCatalogue) then
     Exit;
-  Layout := LayoutFigures(ClientWidth, ClientHeight - CaptionRoom);
+  Layout := LayoutFigures(ClientWidth, ClientHeight - CAPTION_ROOM);
   if not ScreenToFigure(Layout, Vec2(X, Y), View, OnFigure) then
     Exit;
-  Entry := FCatalogue.OverlayAt(View, OnFigure, HitPixels / Layout.Scale, FKeys);
+  Entry := FCatalogue.OverlayAt(View, OnFigure, HIT_PIXELS / Layout.Scale, FKeys);
   if Assigned(Entry) then
     Result := Entry.Key;
 end;

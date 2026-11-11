@@ -53,13 +53,13 @@ uses
   SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Graphics, ButtonPanel, Sloper.Core.Evaluator, Sloper.UI.ObjectList, Sloper.UI.Spacing;
 
 const
-  DialogWidth = 640;
-  DialogHeight = 480;
-  ChoiceWidth = 120;
+  DIALOG_WIDTH = 640;
+  DIALOG_HEIGHT = 480;
+  CHOICE_WIDTH = 120;
   // Marks the number in its formula
-  NumberOpen = '«';
-  NumberClose = '»';
-  UnitCaptions: array[TMeasureUnit] of string = (rsConvertMillimetres, rsConvertCentimetres, rsConvertInches);
+  NUMBER_OPEN = '«';
+  NUMBER_CLOSE = '»';
+  UNIT_CAPTIONS: array[TMeasureUnit] of string = (rsConvertMillimetres, rsConvertCentimetres, rsConvertInches);
 
 type
   TConvertDialog = class(TForm)
@@ -118,8 +118,8 @@ begin
   Formula := Node.Field(Number.FieldName).DisplayText(Pattern.Resolver);
   if Node.Field(Number.FieldName).DisplayTokenSpan(Pattern.Resolver, Number.Token, At, Len) then
   begin
-    Insert(NumberClose, Formula, At + Len);
-    Insert(NumberOpen, Formula, At);
+    Insert(NUMBER_CLOSE, Formula, At + Len);
+    Insert(NUMBER_OPEN, Formula, At);
   end;
   Result := Format(rsConvertRow, [Node.DisplayName, FieldCaption(Number.FieldName), Formula]);
 end;
@@ -135,14 +135,14 @@ begin
   Caption := rsConvertTitle;
   Position := poOwnerFormCenter;
   BorderStyle := bsSizeable;
-  Width := DialogWidth;
-  Height := DialogHeight;
+  Width := DIALOG_WIDTH;
+  Height := DIALOG_HEIGHT;
   FButtons := TButtonPanel.Create(Self);
   FButtons.Parent := Self;
   FButtons.ShowButtons := [pbOK, pbCancel];
   SpaceButtons(FButtons);
   FButtons.OKButton.Caption := rsConvertButton;
-  AddLabel(Self, Format(rsConvertFrom, [MeasureUnitNames[APattern.Units]]));
+  AddLabel(Self, Format(rsConvertFrom, [MEASURE_UNIT_NAMES[APattern.Units]]));
   FUnitBox := TComboBox.Create(Self);
   FUnitBox.Parent := Self;
   StackBelow(FUnitBox);
@@ -153,7 +153,7 @@ begin
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
     if AUnit <> APattern.Units then
     begin
-      FUnitBox.Items.Add(UnitCaptions[AUnit]);
+      FUnitBox.Items.Add(UNIT_CAPTIONS[AUnit]);
       Insert(AUnit, FUnits, Length(FUnits));
     end;
   FUnitBox.ItemIndex := 0;
@@ -198,7 +198,7 @@ begin
   FChoices[Index] := TComboBox.Create(Self);
   FChoices[Index].Parent := Row;
   FChoices[Index].Align := alRight;
-  FChoices[Index].Width := ChoiceWidth;
+  FChoices[Index].Width := CHOICE_WIDTH;
   FChoices[Index].Style := csDropDownList;
   FChoices[Index].Items.Add(rsConvertChoose);
   FChoices[Index].Items.Add(rsConvertLength);

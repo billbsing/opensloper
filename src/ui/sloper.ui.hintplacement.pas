@@ -35,7 +35,7 @@ uses
 
 const
   // Space between the hint and the pointer's tip, at 96 dpi
-  HintGap96 = 4;
+  HINT_GAP96 = 4;
 
 type
   THintPlacer = class(TComponent)
@@ -60,7 +60,7 @@ begin
     FMeasure := THintWindowClass(HintInfo.HintWindowClass).Create(Self);
   HintRect := FMeasure.CalcHintRect(HintInfo.HintMaxWidth, HintStr, HintInfo.HintData);
   Pointer := Mouse.CursorPos;
-  Top := Pointer.Y - HintRect.Height - Round(HintGap96 * Screen.PixelsPerInch / 96);
+  Top := Pointer.Y - HintRect.Height - Round(HINT_GAP96 * Screen.PixelsPerInch / 96);
   Monitor := Screen.MonitorFromPoint(Pointer);
   if not Assigned(Monitor) or (Top >= Monitor.WorkareaRect.Top) then
     HintInfo.HintPos.Y := Top;

@@ -130,14 +130,14 @@ resourcestring
       Measurements := TMeasurementSet.Create;
       Pattern := TPattern.Create;
       if not CheckFileExists(PatternFile) then
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       if not LoadPatternFromFile(Pattern, PatternFile, Err) then
       begin
         WriteLn(StdErr, Format(rsLoadFailed, [PatternFile, Err]));
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       if not UseMeasurements(Pattern, Measurements, PatternFile, MeasurementOption, SizeOption, MeasurementPath) then
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       if MeasurementPath <> '' then
       begin
         Title := Format(rsCheckWith, [ExtractFileName(PatternFile), ExtractFileName(MeasurementPath)]);
@@ -167,7 +167,7 @@ resourcestring
           WriteLn('  ', Format(rsCheckBlocked, [BlockedCount]));
       end;
       if (Length(Problems) > 0) or (BlockedCount > 0) then
-        Result := ExitProblems
+        Result := EXIT_PROBLEMS
       else
         Result := 0;
     finally
@@ -218,16 +218,16 @@ resourcestring
       Measurements := TMeasurementSet.Create;
       Pattern := TPattern.Create;
       if not CheckFileExists(PatternFile) then
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       if not LoadPatternFromFile(Pattern, PatternFile, Err) then
       begin
         WriteLn(StdErr, Format(rsLoadFailed, [PatternFile, Err]));
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       if not UseMeasurements(Pattern, Measurements, PatternFile, MeasurementOption, SizeOption, MeasurementPath) then
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       if (UpTo <> '') and not KeepUpTo(Pattern, UpTo) then
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       Pattern.Evaluate;
       Options := DefaultDraftSVGOptions;
       Options.Labels := WithLabels;
@@ -239,7 +239,7 @@ resourcestring
       if not WriteTextFile(Target, DraftToSVG(Pattern, Options), Err) then
       begin
         WriteLn(StdErr, Err);
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       WriteLn(Format(rsWroteFile, [Target]));
       for Problem in PatternProblems(Pattern, BlockedCount) do
@@ -260,7 +260,7 @@ resourcestring
   begin
     Target := OutputOption;
     if Target = '' then
-      Target := ChangeFileExt(PatternFile, LayoutExtension);
+      Target := ChangeFileExt(PatternFile, LAYOUT_EXTENSION);
     Layout := TLayout.Create;
     try
       Layout.FileName := Target;
@@ -272,7 +272,7 @@ resourcestring
       if not Layout.SaveToFile(Target, Err) then
       begin
         WriteLn(StdErr, Err);
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       WriteLn(Format(rsWroteFile, [Target]));
       for Problem in Layout.Problems do
@@ -289,31 +289,31 @@ resourcestring
     Outcome: TPackResult;
     Err: string;
   begin
-    if ExtractFileExt(LayoutFile) <> LayoutExtension then
+    if ExtractFileExt(LayoutFile) <> LAYOUT_EXTENSION then
     begin
-      WriteLn(StdErr, Format(rsExportNeedsLayout, [LayoutExtension]));
-      Exit(ExitFailure);
+      WriteLn(StdErr, Format(rsExportNeedsLayout, [LAYOUT_EXTENSION]));
+      Exit(EXIT_FAILURE);
     end;
     if not CheckFileExists(LayoutFile) then
-      Exit(ExitFailure);
+      Exit(EXIT_FAILURE);
     Layout := TLayout.Create;
     try
       if not Layout.LoadFromFile(LayoutFile, Err) then
       begin
         WriteLn(StdErr, Format(rsLoadFailed, [LayoutFile, Err]));
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       Layout.LoadSources;
       Outcome := PackLayout(Layout);
       if not Outcome.Done then
       begin
         WriteLn(StdErr, Outcome.Reason);
-        Exit(ExitProblems);
+        Exit(EXIT_PROBLEMS);
       end;
       if not Layout.SaveToFile(LayoutFile, Err) then
       begin
         WriteLn(StdErr, Err);
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       if Layout.Output.Kind = okTiled then
         WriteLn(Format(rsPackedPages, [Outcome.Count, Outcome.Pages, LayoutFile]))
@@ -334,27 +334,27 @@ resourcestring
     Problem: TLayoutProblem;
     Chosen: TExportFormat;
   begin
-    if ExtractFileExt(LayoutFile) <> LayoutExtension then
+    if ExtractFileExt(LayoutFile) <> LAYOUT_EXTENSION then
     begin
-      WriteLn(StdErr, Format(rsExportNeedsLayout, [LayoutExtension]));
-      Exit(ExitFailure);
+      WriteLn(StdErr, Format(rsExportNeedsLayout, [LAYOUT_EXTENSION]));
+      Exit(EXIT_FAILURE);
     end;
     if not CheckFileExists(LayoutFile) then
-      Exit(ExitFailure);
+      Exit(EXIT_FAILURE);
     if not ExportFormatFor(FormatOption, OutputOption, Chosen) then
     begin
       WriteLn(StdErr, rsExportBadFormat);
-      Exit(ExitFailure);
+      Exit(EXIT_FAILURE);
     end;
     Target := OutputOption;
     if Target = '' then
-      Target := ChangeFileExt(LayoutFile, ExportExtensions[Chosen]);
+      Target := ChangeFileExt(LayoutFile, EXPORT_EXTENSIONS[Chosen]);
     Layout := TLayout.Create;
     try
       if not Layout.LoadFromFile(LayoutFile, Err) then
       begin
         WriteLn(StdErr, Format(rsLoadFailed, [LayoutFile, Err]));
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       Layout.LoadSources;
       Layout.MachineProfiles := UserMachineProfiles;
@@ -365,7 +365,7 @@ resourcestring
       if not ExportLayout(Layout, Chosen, Target, Err) then
       begin
         WriteLn(StdErr, Err);
-        Exit(ExitProblems);
+        Exit(EXIT_PROBLEMS);
       end;
       for Problem in Layout.Problems do
         WriteLn(StdErr, Format(rsWarning, [Problem.Text]));
@@ -394,11 +394,11 @@ resourcestring
     Measurements := TMeasurementSet.Create;
     try
       if not LoadMeasurements(FileName, Measurements) then
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       if (SizeOption <> '') and not Measurements.SelectSize(SizeOption) then
       begin
         WriteLn(StdErr, Format(rsMeasurementUnknownSize, [SizeOption]));
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       if AsJSON then
         Write(Measurements.SaveToText)
@@ -419,14 +419,14 @@ resourcestring
     if not ParseMeasure(ValueText, muMillimetre, Value) then
     begin
       WriteLn(StdErr, rsMeasurementBadNumber);
-      Exit(ExitFailure);
+      Exit(EXIT_FAILURE);
     end;
     if not CheckFileExists(FileName) then
-      Exit(ExitFailure);
+      Exit(EXIT_FAILURE);
     if not ChangeMeasurementInFile(FileName, Key, Value, Description, Change, Err, SizeOption, KeepDescription) then
     begin
       WriteLn(StdErr, Err);
-      Exit(ExitFailure);
+      Exit(EXIT_FAILURE);
     end;
     if Change.Added then
       WriteLn(Format(rsMeasurementAdded, [Change.Key, FormatJSONFloat(Change.Value), ExtractFileName(FileName)]))
@@ -448,11 +448,11 @@ resourcestring
     Measurements := TMeasurementSet.Create;
     try
       if not LoadMeasurements(FileName, Measurements) or not CheckFileExists(PatternFile) then
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       if not ReadPatternMeasurementKeys(PatternFile, Keys, Err) then
       begin
         WriteLn(StdErr, Format(rsLoadFailed, [PatternFile, Err]));
-        Exit(ExitFailure);
+        Exit(EXIT_FAILURE);
       end;
       Lacking := MissingMeasurements(Keys, Measurements);
       if Length(Lacking) = 0 then
@@ -466,7 +466,7 @@ resourcestring
           WriteLn(Format(rsMissingKey, [Item.Key]))
         else
           WriteLn(Format(rsMissingSizes, [Item.Key, string.Join(', ', Item.Sizes)]));
-      Result := ExitProblems;
+      Result := EXIT_PROBLEMS;
     finally
       FreeAndNil(Measurements);
     end;
@@ -505,26 +505,26 @@ resourcestring
   begin
     if Topic = '' then
     begin
-      for Name in DocTopics do
+      for Name in DOC_TOPICS do
         WriteLn(Output, Name);
-      Exit(ExitSuccess);
+      Exit(EXIT_SUCCESS);
     end;
     if not ReferencePage(Topic, Markdown) then
     begin
-      WriteLn(StdErr, Format(rsUnknownTopic, [Topic, string.Join(', ', DocTopics)]));
-      Exit(ExitFailure);
+      WriteLn(StdErr, Format(rsUnknownTopic, [Topic, string.Join(', ', DOC_TOPICS)]));
+      Exit(EXIT_FAILURE);
     end;
     if OutputFile = '' then
     begin
       Write(Output, Markdown);
-      Exit(ExitSuccess);
+      Exit(EXIT_SUCCESS);
     end;
     if not WriteTextFile(OutputFile, Markdown, Err) then
     begin
       WriteLn(StdErr, Err);
-      Exit(ExitFailure);
+      Exit(EXIT_FAILURE);
     end;
-    Result := ExitSuccess;
+    Result := EXIT_SUCCESS;
   end;
 
 var
@@ -543,7 +543,7 @@ begin
       end;
       if Parser.IsOption('version') then
       begin
-        WriteLn(AppName, ' ', AppVersion);
+        WriteLn(APP_NAME, ' ', APP_VERSION);
         Exit;
       end;
       Parser.Validate;
@@ -551,7 +551,7 @@ begin
       on Failure: EArgumentParserException do
       begin
         WriteLn(StdErr, Failure.Message);
-        ExitCode := ExitFailure;
+        ExitCode := EXIT_FAILURE;
         Exit;
       end;
     end;
@@ -579,7 +579,7 @@ begin
       else
       begin
         WriteLn(StdErr, rsMeasurementsUsage);
-        ExitCode := ExitFailure;
+        ExitCode := EXIT_FAILURE;
       end;
       Exit;
     end;
@@ -591,7 +591,7 @@ begin
     if PatternFile = '' then
     begin
       WriteLn(StdErr, Format(rsNeedPattern, [CommandName]));
-      ExitCode := ExitFailure;
+      ExitCode := EXIT_FAILURE;
       Exit;
     end;
     if CommandName = 'check' then

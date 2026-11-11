@@ -57,9 +57,9 @@ type
   TFormulaTokenArray = array of TFormulaToken;
 
 const
-  NumberSuffixNames: array[TNumberSuffix] of string = ('', 'mm', 'cm', 'in');
+  NUMBER_SUFFIX_NAMES: array[TNumberSuffix] of string = ('', 'mm', 'cm', 'in');
   // Millimetres in one of each suffix's unit; a plain number is left as it is
-  NumberSuffixMillimetres: array[TNumberSuffix] of double = (1, 1, 10, 25.4);
+  NUMBER_SUFFIX_MILLIMETRES: array[TNumberSuffix] of double = (1, 1, 10, 25.4);
 
 // Splits Text into tokens. On failure ErrorMessage and ErrorPos (1-based)
 // describe the first problem.
@@ -199,7 +199,7 @@ var
     Start := Position;
     Written := ReadName;
     for Candidate := Succ(nsNone) to High(TNumberSuffix) do
-      if SameText(Written, NumberSuffixNames[Candidate]) then
+      if SameText(Written, NUMBER_SUFFIX_NAMES[Candidate]) then
       begin
         Suffix := Candidate;
         Exit;

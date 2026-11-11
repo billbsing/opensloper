@@ -203,7 +203,7 @@ end;
 
 procedure TTestPropertyText.TestPieceAllowanceIsNoEdgeCaption;
 begin
-  AssertEquals('', EdgeAllowanceCaption(FPattern, Panel, PieceAllowanceField));
+  AssertEquals('', EdgeAllowanceCaption(FPattern, Panel, PIECE_ALLOWANCE_FIELD));
 end;
 
 procedure TTestPropertyText.TestEdgeAllowanceCaption;

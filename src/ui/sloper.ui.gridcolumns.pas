@@ -25,10 +25,6 @@ unit Sloper.UI.GridColumns;
 
 interface
 
-const
-  // U+2026 as UTF-8 bytes, so the constant stays a plain string
-  Ellipsis = #$E2#$80#$A6;
-
 type
   TTextWidthFunc = function(const Text: string): integer of object;
 
@@ -45,6 +41,10 @@ implementation
 uses
   Math, SysUtils, Sloper.Core.Settings;
 
+const
+  // U+2026 as UTF-8 bytes, so the constant stays a plain string
+  ELLIPSIS = #$E2#$80#$A6;
+
 function NameColumnWidth(Available, MinColumn: integer; Share: double): integer;
 begin
   if Available < 2 * MinColumn then
@@ -55,7 +55,7 @@ end;
 function NameShareAt(Position, Available, MinColumn: integer): double;
 begin
   if (Available <= 0) or (Available < 2 * MinColumn) then
-    Exit(DefaultNameColumnShare);
+    Exit(DEFAULT_NAME_COLUMN_SHARE);
   Result := EnsureRange(Position, MinColumn, Available - MinColumn) / Available;
 end;
 
@@ -85,7 +85,7 @@ var
 
   function Cut(Characters: integer): string;
   begin
-    Result := TrimRight(Copy(Text, 1, Ends[Characters - 1])) + Ellipsis;
+    Result := TrimRight(Copy(Text, 1, Ends[Characters - 1])) + ELLIPSIS;
   end;
 
 begin
@@ -104,7 +104,7 @@ begin
       High := Middle - 1;
   end;
   if Low = 0 then
-    Exit(Ellipsis);
+    Exit(ELLIPSIS);
   Result := Cut(Low);
 end;
 

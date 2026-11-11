@@ -30,11 +30,11 @@ uses
   SysUtils, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Bezier, Sloper.Core.Draft;
 
 const
-  FieldAngle = 'angle';
-  FieldLength = 'length';
-  FieldDX = 'dx';
-  FieldDY = 'dy';
-  FieldRotate = 'rotate';
+  FIELD_ANGLE = 'angle';
+  FIELD_LENGTH = 'length';
+  FIELD_DX = 'dx';
+  FIELD_DY = 'dy';
+  FIELD_ROTATE = 'rotate';
 
 type
   TTransformKind = (tkRotate, tkMirror, tkMove);
@@ -124,6 +124,9 @@ resourcestring
 
 implementation
 
+const
+  TRANSFORM_TYPE_NAMES: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
+
 constructor TTransformObject.Create(const AKey: string; AKind: TTransformKind; const ASources: TStringArray; const ASuffix: string);
 begin
   inherited Create(AKey);
@@ -136,7 +139,7 @@ end;
 procedure TTransformObject.UseRotate(const APivotKey: string);
 begin
   FPivotKey := APivotKey;
-  AddField(FieldAngle);
+  AddField(FIELD_ANGLE);
 end;
 
 procedure TTransformObject.UseAxisEdge(const AEdgeKey: string);
@@ -153,7 +156,7 @@ end;
 procedure TTransformObject.UseAxisAngle(const AKeyA: string);
 begin
   FAxisAKey := AKeyA;
-  AddField(FieldAngle);
+  AddField(FIELD_ANGLE);
 end;
 
 procedure TTransformObject.UseMove(APolar: boolean; const APivotKey: string);
@@ -162,16 +165,16 @@ begin
   FPivotKey := APivotKey;
   if APolar then
   begin
-    AddField(FieldLength);
-    AddField(FieldAngle);
+    AddField(FIELD_LENGTH);
+    AddField(FIELD_ANGLE);
   end
   else
   begin
-    AddField(FieldDX);
-    AddField(FieldDY);
+    AddField(FIELD_DX);
+    AddField(FIELD_DY);
   end;
   if APivotKey <> '' then
-    AddField(FieldRotate);
+    AddField(FIELD_ROTATE);
 end;
 
 function TTransformObject.InputKeys: TStringArray;
@@ -199,10 +202,8 @@ begin
 end;
 
 function TTransformObject.TypeName: string;
-const
-  Names: array[TTransformKind] of string = ('rotate', 'mirror', 'move');
 begin
-  Result := Names[FKind];
+  Result := TRANSFORM_TYPE_NAMES[FKind];
 end;
 
 function TTransformObject.HasProperty(const Prop: string): boolean;
@@ -233,7 +234,7 @@ var
 begin
   if not PointAtKey(Context, FPivotKey, Pivot) then
     Exit(Fail(esError, Format(rsDraftNotAPoint, [FPivotKey])));
-  if not EvalField(Context, FieldAngle, Angle) then
+  if not EvalField(Context, FIELD_ANGLE, Angle) then
     Exit(esError);
   FMap := AffineTurnAbout(Pivot, Angle);
   Result := esValid;
@@ -266,7 +267,7 @@ begin
     end
     else
     begin
-      if not EvalField(Context, FieldAngle, Angle) then
+      if not EvalField(Context, FIELD_ANGLE, Angle) then
         Exit(esError);
       Second := PolarPoint(First, 1, Angle);
     end;
@@ -285,13 +286,13 @@ var
 begin
   if FPolar then
   begin
-    if not EvalLength(Context, FieldLength, First) or not EvalField(Context, FieldAngle, Second) then
+    if not EvalLength(Context, FIELD_LENGTH, First) or not EvalField(Context, FIELD_ANGLE, Second) then
       Exit(esError);
     Offset := PolarPoint(Vec2(0, 0), First, Second);
   end
   else
   begin
-    if not EvalLength(Context, FieldDX, First) or not EvalLength(Context, FieldDY, Second) then
+    if not EvalLength(Context, FIELD_DX, First) or not EvalLength(Context, FIELD_DY, Second) then
       Exit(esError);
     Offset := Vec2(First, Second);
   end;
@@ -300,7 +301,7 @@ begin
   begin
     if not PointAtKey(Context, FPivotKey, Pivot) then
       Exit(Fail(esError, Format(rsDraftNotAPoint, [FPivotKey])));
-    if not EvalField(Context, FieldRotate, Turn) then
+    if not EvalField(Context, FIELD_ROTATE, Turn) then
       Exit(esError);
     Movement := AffineThen(Movement, AffineTurnAbout(Pivot, Turn));
   end;
@@ -384,12 +385,12 @@ end;
 
 function TEdgeCopy.HasProperty(const Prop: string): boolean;
 begin
-  Result := (inherited HasProperty(Prop)) or (FStraight and (Prop = FieldAngle));
+  Result := (inherited HasProperty(Prop)) or (FStraight and (Prop = FIELD_ANGLE));
 end;
 
 function TEdgeCopy.PropertyValue(const Prop: string): double;
 begin
-  if Prop = FieldAngle then
+  if Prop = FIELD_ANGLE then
     Result := StartDirection
   else
     Result := inherited PropertyValue(Prop);

@@ -157,8 +157,8 @@ var
 begin
   View := DefaultView;
   Before := View.ToModel(Vec2(250, 180));
-  View.ZoomAt(ZoomStep, Vec2(250, 180));
-  AssertNear('scale', DefaultView.Scale * ZoomStep, View.Scale);
+  View.ZoomAt(ZOOM_STEP, Vec2(250, 180));
+  AssertNear('scale', DefaultView.Scale * ZOOM_STEP, View.Scale);
   AssertPointsNear('same model point under the cursor', Before, View.ToModel(Vec2(250, 180)));
 end;
 
@@ -168,9 +168,9 @@ var
 begin
   View := DefaultView;
   View.ZoomAt(1e9, Vec2(0, 0));
-  AssertNear('max', MaxScale, View.Scale);
+  AssertNear('max', MAX_SCALE, View.Scale);
   View.ZoomAt(1e-12, Vec2(0, 0));
-  AssertNear('min', MinScale, View.Scale);
+  AssertNear('min', MIN_SCALE, View.Scale);
 end;
 
 procedure TTestCanvasModel.TestFit;
@@ -265,10 +265,10 @@ begin
   FPattern.Evaluate;
   AssertTrue('a line', ObjectsBounds(FPattern, ['4'], Bounds));
   AssertNear('line width', 100, Bounds.MaxX - Bounds.MinX);
-  AssertNear('thin side grown', MinFocusSize, Bounds.MaxY - Bounds.MinY);
+  AssertNear('thin side grown', MIN_FOCUS_SIZE, Bounds.MaxY - Bounds.MinY);
   AssertTrue('a point', ObjectsBounds(FPattern, ['2'], Bounds));
   AssertNear('centred on the point', 100, (Bounds.MinX + Bounds.MaxX) / 2);
-  AssertNear('point area', MinFocusSize, Bounds.MaxX - Bounds.MinX);
+  AssertNear('point area', MIN_FOCUS_SIZE, Bounds.MaxX - Bounds.MinX);
   AssertFalse('unknown key', ObjectsBounds(FPattern, ['99'], Bounds));
   AssertFalse('nothing', ObjectsBounds(FPattern, nil, Bounds));
 end;

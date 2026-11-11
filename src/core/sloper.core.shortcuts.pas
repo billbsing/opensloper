@@ -64,12 +64,12 @@ type
 
 const
   // The keys known by name; any other key is one letter or digit
-  ShortcutKeyNames: array[0..12] of string = ('Comma', 'Plus', 'Minus', 'Delete', 'Escape', 'Enter', 'Tab', 'Space', 'Left',
+  SHORTCUT_KEY_NAMES: array[0..12] of string = ('Comma', 'Plus', 'Minus', 'Delete', 'Escape', 'Enter', 'Tab', 'Space', 'Left',
     'Right', 'Up', 'Down', 'F2');
 
 // Every key and mouse action, in the order the page lists them
 function ShortcutInfo(Command: TKeyCommand): TShortcutInfo;
-// Keys as one key press: the key, a letter, digit or one of ShortcutKeyNames,
+// Keys as one key press: the key, a letter, digit or one of SHORTCUT_KEY_NAMES,
 // and the modifiers held; False when they are not, such as Arrows
 function ParseShortcut(const Keys: string; out Key: string; out Modifiers: TShortcutModifiers): boolean;
 
@@ -137,6 +137,9 @@ implementation
 uses
   SysUtils, StrUtils;
 
+const
+  ALL_APPS = [saDesign, saMeasurements, saPublish];
+
 function Info(const AKeys: string; AKind: TShortcutKind; AGroup: TShortcutGroup; AApps: TShortcutApps;
   const ADescription: string): TShortcutInfo;
 begin
@@ -148,26 +151,24 @@ begin
 end;
 
 function ShortcutInfo(Command: TKeyCommand): TShortcutInfo;
-const
-  AllApps = [saDesign, saMeasurements, saPublish];
 begin
   case Command of
     kcNew: Result := Info('Mod+N', skCommand, sgFile, [saDesign, saMeasurements], rsKeyNew);
-    kcOpen: Result := Info('Mod+O', skCommand, sgFile, AllApps, rsKeyOpen);
-    kcSave: Result := Info('Mod+S', skCommand, sgFile, AllApps, rsKeySave);
-    kcSaveAs: Result := Info('Mod+Shift+S', skCommand, sgFile, AllApps, rsKeySaveAs);
+    kcOpen: Result := Info('Mod+O', skCommand, sgFile, ALL_APPS, rsKeyOpen);
+    kcSave: Result := Info('Mod+S', skCommand, sgFile, ALL_APPS, rsKeySave);
+    kcSaveAs: Result := Info('Mod+Shift+S', skCommand, sgFile, ALL_APPS, rsKeySaveAs);
     kcImport: Result := Info('Mod+I', skCommand, sgFile, [saMeasurements], rsKeyImport);
     kcExportMeasurements: Result := Info('Mod+E', skCommand, sgFile, [saMeasurements], rsKeyExportMeasurements);
     kcExportPDF: Result := Info('Mod+E', skCommand, sgFile, [saPublish], rsKeyExportPDF);
     kcOpenMeasurements: Result := Info('Mod+M', skCommand, sgFile, [saDesign], rsKeyOpenMeasurements);
     kcPublish: Result := Info('Mod+P', skCommand, sgFile, [saDesign], rsKeyPublish);
-    kcQuit: Result := Info('Mod+Q', skCommand, sgFile, AllApps, rsKeyQuit);
-    kcUndo: Result := Info('Mod+Z', skCommand, sgEdit, AllApps, rsKeyUndo);
-    kcRedo: Result := Info('Mod+Shift+Z', skCommand, sgEdit, AllApps, rsKeyRedo);
+    kcQuit: Result := Info('Mod+Q', skCommand, sgFile, ALL_APPS, rsKeyQuit);
+    kcUndo: Result := Info('Mod+Z', skCommand, sgEdit, ALL_APPS, rsKeyUndo);
+    kcRedo: Result := Info('Mod+Shift+Z', skCommand, sgEdit, ALL_APPS, rsKeyRedo);
     kcCut: Result := Info('Mod+X', skCommand, sgEdit, [saDesign], rsKeyCut);
     kcCopy: Result := Info('Mod+C', skCommand, sgEdit, [saDesign], rsKeyCopy);
     kcPaste: Result := Info('Mod+V', skCommand, sgEdit, [saDesign], rsKeyPaste);
-    kcPreferences: Result := Info('Mod+Comma', skCommand, sgEdit, AllApps, rsKeyPreferences);
+    kcPreferences: Result := Info('Mod+Comma', skCommand, sgEdit, ALL_APPS, rsKeyPreferences);
     kcZoomIn: Result := Info('Mod+Plus', skCommand, sgView, [saDesign], rsKeyZoomIn);
     kcZoomOut: Result := Info('Mod+Minus', skCommand, sgView, [saDesign], rsKeyZoomOut);
     kcFit: Result := Info('Mod+0', skCommand, sgView, [saDesign, saPublish], rsKeyFit);
@@ -224,7 +225,7 @@ begin
       Include(Modifiers, smShift)
     else if (Part = 'Alt') and not (smAlt in Modifiers) then
       Include(Modifiers, smAlt)
-    else if (Key = '') and (((Length(Part) = 1) and (Part[1] in ['A'..'Z', '0'..'9'])) or (IndexStr(Part, ShortcutKeyNames) >= 0)) then
+    else if (Key = '') and (((Length(Part) = 1) and (Part[1] in ['A'..'Z', '0'..'9'])) or (IndexStr(Part, SHORTCUT_KEY_NAMES) >= 0)) then
       Key := Part
     else
       Exit(False);

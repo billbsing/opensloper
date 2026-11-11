@@ -63,21 +63,22 @@ uses
   SysUtils, Sloper.Core.Version;
 
 const
-  PortableFileName = 'portable.ini';
-  SettingsFileName = 'settings.json';
-  RecentFilesFileName = 'recent-files.json';
-  PublishFolder = 'publish';
-  MeasurementsFolder = 'measurements';
-  DataFolder = 'data';
-  CatalogueFileName = 'measurement-catalogue.json';
-  IconFolder = 'icons';
+  PORTABLE_FILE_NAME = 'portable.ini';
+  SETTINGS_FILE_NAME = 'settings.json';
+  RECENT_FILES_FILE_NAME = 'recent-files.json';
+  PUBLISH_FOLDER = 'publish';
+  MEASUREMENTS_FOLDER = 'measurements';
+  DATA_FOLDER = 'data';
+  CATALOGUE_FILE_NAME = 'measurement-catalogue.json';
+  ICON_FOLDER = 'icons';
   {$IFDEF WINDOWS}
-  PublishFileName = 'opensloper-publish.exe';
-  MeasurementsFileName = 'opensloper-measurements.exe';
+  PUBLISH_FILE_NAME = 'opensloper-publish.exe';
+  MEASUREMENTS_FILE_NAME = 'opensloper-measurements.exe';
   {$ELSE}
-  PublishFileName = 'opensloper-publish';
-  MeasurementsFileName = 'opensloper-measurements';
+  PUBLISH_FILE_NAME = 'opensloper-publish';
+  MEASUREMENTS_FILE_NAME = 'opensloper-measurements';
   {$ENDIF}
+  DATA_UP_LEVELS: array[0..2] of string = ('', '..', '..' + PathDelim + '..');
 
 function HomeDir: string;
 begin
@@ -97,7 +98,7 @@ end;
 {$IFDEF WINDOWS}
 function WinDir(const EnvName: string; const Extra: array of string): string;
 begin
-  Result := ConcatPaths([GetEnvironmentVariable(EnvName), AppName]);
+  Result := ConcatPaths([GetEnvironmentVariable(EnvName), APP_NAME]);
   if Length(Extra) > 0 then
     Result := ConcatPaths([Result, ConcatPaths(Extra)]);
 end;
@@ -106,7 +107,7 @@ end;
 {$IFDEF DARWIN}
 function MacDir(const Sub: string): string;
 begin
-  Result := ConcatPaths([HomeDir, 'Library', Sub, AppName]);
+  Result := ConcatPaths([HomeDir, 'Library', Sub, APP_NAME]);
 end;
 {$ENDIF}
 
@@ -114,7 +115,7 @@ end;
 function XdgDir(const EnvName, Fallback: string): string;
 begin
   Result := ConcatPaths([TAppPaths.ResolveXdgDir(GetEnvironmentVariable(EnvName),
-    HomeDir, Fallback), AppNameLower]);
+    HomeDir, Fallback), APP_NAME_LOWER]);
 end;
 {$ENDIF}
 
@@ -174,17 +175,17 @@ class function TAppPaths.DefaultDocumentsDir: string;
 begin
   if IsPortable then
     Exit(PortableDir('documents'));
-  Result := ConcatPaths([HomeDir, 'Documents', AppName]);
+  Result := ConcatPaths([HomeDir, 'Documents', APP_NAME]);
 end;
 
 class function TAppPaths.SettingsFile: string;
 begin
-  Result := ConcatPaths([ConfigDir, SettingsFileName]);
+  Result := ConcatPaths([ConfigDir, SETTINGS_FILE_NAME]);
 end;
 
 class function TAppPaths.RecentFilesFile: string;
 begin
-  Result := ConcatPaths([StateDir, RecentFilesFileName]);
+  Result := ConcatPaths([StateDir, RECENT_FILES_FILE_NAME]);
 end;
 
 // Beside this program when installed; in the source tree in its own folder,
@@ -205,14 +206,12 @@ end;
 // Path in data beside Folder when installed, or in the data folder of the
 // source tree: one folder up from tests and cli, two up from src/<app>
 function DataPathIn(const Folder, Path: string; WantDir: boolean): string;
-const
-  UpLevels: array[0..2] of string = ('', '..', '..' + PathDelim + '..');
 var
   Up: string;
 begin
-  for Up in UpLevels do
+  for Up in DATA_UP_LEVELS do
   begin
-    Result := ExpandFileName(ConcatPaths([Folder, Up, DataFolder, Path]));
+    Result := ExpandFileName(ConcatPaths([Folder, Up, DATA_FOLDER, Path]));
     if (WantDir and DirectoryExists(Result)) or (not WantDir and FileExists(Result)) then
       Exit;
   end;
@@ -226,7 +225,7 @@ end;
 
 class function TAppPaths.PublishProgramIn(const Folder: string): string;
 begin
-  Result := CompanionIn(Folder, PublishFolder, PublishFileName);
+  Result := CompanionIn(Folder, PUBLISH_FOLDER, PUBLISH_FILE_NAME);
 end;
 
 class function TAppPaths.CatalogueFile: string;
@@ -236,7 +235,7 @@ end;
 
 class function TAppPaths.CatalogueFileIn(const Folder: string): string;
 begin
-  Result := DataPathIn(Folder, CatalogueFileName, False);
+  Result := DataPathIn(Folder, CATALOGUE_FILE_NAME, False);
 end;
 
 class function TAppPaths.IconDir: string;
@@ -246,7 +245,7 @@ end;
 
 class function TAppPaths.IconDirIn(const Folder: string): string;
 begin
-  Result := DataPathIn(Folder, IconFolder, True);
+  Result := DataPathIn(Folder, ICON_FOLDER, True);
 end;
 
 class function TAppPaths.MeasurementsProgram: string;
@@ -256,12 +255,12 @@ end;
 
 class function TAppPaths.MeasurementsProgramIn(const Folder: string): string;
 begin
-  Result := CompanionIn(Folder, MeasurementsFolder, MeasurementsFileName);
+  Result := CompanionIn(Folder, MEASUREMENTS_FOLDER, MEASUREMENTS_FILE_NAME);
 end;
 
 class function TAppPaths.IsPortable: boolean;
 begin
-  Result := FileExists(ConcatPaths([ExeDir, PortableFileName]));
+  Result := FileExists(ConcatPaths([ExeDir, PORTABLE_FILE_NAME]));
 end;
 
 class function TAppPaths.ForceDir(const Dir: string): string;

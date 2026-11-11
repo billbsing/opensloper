@@ -62,23 +62,23 @@ uses
   Sloper.Core.Note, Sloper.Core.TextFields;
 
 const
-  CoordinateDecimals = 3;
+  COORDINATE_DECIMALS = 3;
   // Of the longer side, so a drawing reads the same at any size
-  LineShare = 0.0015;
-  ConstructionShare = 0.0008;
-  PointShare = 0.003;
-  FontShare = 0.014;
-  MarginShare = 0.05;
-  MinimumExtent = 10;
-  EmptyExtent = 100;
-  InkColor = '#202020';
-  ConstructionColor = '#808080';
-  ErrorColor = '#c02020';
-  BlockedColor = '#e08000';
+  LINE_SHARE = 0.0015;
+  CONSTRUCTION_SHARE = 0.0008;
+  POINT_SHARE = 0.003;
+  FONT_SHARE = 0.014;
+  MARGIN_SHARE = 0.05;
+  MINIMUM_EXTENT = 10;
+  EMPTY_EXTENT = 100;
+  INK_COLOR = '#202020';
+  CONSTRUCTION_COLOR = '#808080';
+  ERROR_COLOR = '#c02020';
+  BLOCKED_COLOR = '#e08000';
   // Share of the view's size between hatching lines
-  HatchShare = 0.012;
+  HATCH_SHARE = 0.012;
   // A callout's leader, in mm, as printed
-  NoteLineWidth = 0.25;
+  NOTE_LINE_WIDTH = 0.25;
 
 type
   TDraftView = record
@@ -92,7 +92,7 @@ end;
 
 function SVGNumber(Value: double): string;
 begin
-  Result := RoundedText(Value, CoordinateDecimals);
+  Result := RoundedText(Value, COORDINATE_DECIMALS);
 end;
 
 function Num(Value: double): string;
@@ -117,8 +117,8 @@ end;
 function StateColor(State: TEvalState; const Normal: string): string;
 begin
   case State of
-    esError, esInvalid: Result := ErrorColor;
-    esBlocked: Result := BlockedColor;
+    esError, esInvalid: Result := ERROR_COLOR;
+    esBlocked: Result := BLOCKED_COLOR;
     else
       Result := Normal;
   end;
@@ -164,13 +164,13 @@ begin
   if not Found then
   begin
     Bounds := Default(TRect2);
-    Bounds.MaxX := EmptyExtent;
-    Bounds.MaxY := EmptyExtent;
+    Bounds.MaxX := EMPTY_EXTENT;
+    Bounds.MaxY := EMPTY_EXTENT;
   end;
-  Result.Extent := Max(Max(Bounds.MaxX - Bounds.MinX, Bounds.MaxY - Bounds.MinY), MinimumExtent);
+  Result.Extent := Max(Max(Bounds.MaxX - Bounds.MinX, Bounds.MaxY - Bounds.MinY), MINIMUM_EXTENT);
   Margin := 0;
   if not Options.HasRegion then
-    Margin := Result.Extent * MarginShare;
+    Margin := Result.Extent * MARGIN_SHARE;
   Result.Left := Bounds.MinX - Margin;
   Result.Top := Bounds.MinY - Margin;
   Result.Width := Bounds.MaxX - Bounds.MinX + 2 * Margin;
@@ -193,22 +193,22 @@ begin
   case Edge.Role of
     erOutline:
     begin
-      Color := InkColor;
-      Stroke := Extent * LineShare;
+      Color := INK_COLOR;
+      Stroke := Extent * LINE_SHARE;
     end;
     erConstruction:
     begin
-      Color := ConstructionColor;
-      Stroke := Extent * ConstructionShare;
+      Color := CONSTRUCTION_COLOR;
+      Stroke := Extent * CONSTRUCTION_SHARE;
       Dash := Format(' stroke-dasharray="%s %s"', [Num(Stroke * 4), Num(Stroke * 3)]);
     end;
     else
     begin
       // A marking line in its role's colour, dashed as on paper but scaled
       // with the drawing, like the other lines
-      Color := RoleColors[Edge.Role];
-      Stroke := Extent * LineShare * 0.75;
-      for Length in RoleDashes[Edge.Role] do
+      Color := ROLE_COLORS[Edge.Role];
+      Stroke := Extent * LINE_SHARE * 0.75;
+      for Length in ROLE_DASHES[Edge.Role] do
         if Length > 0 then
           Dash := Dash + ' ' + Num(Length * Stroke * 2);
       if Dash <> '' then
@@ -240,15 +240,15 @@ begin
     else
       PathText := PathText + ' L ' + Coord(Piece.CutLine[Index]);
   Result := Format('<path data-id="%s" data-name="%s" d="%s Z" fill="%s" stroke="%s" stroke-width="%s"/>',
-    [Piece.Key, EscapeXML(Piece.DisplayName), PathText, FillText, StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
+    [Piece.Key, EscapeXML(Piece.DisplayName), PathText, FillText, StateColor(Piece.State, INK_COLOR), Num(Extent * LINE_SHARE)]) + #10;
   if not Look.Filled or (Look.Fill <> ffHatch) then
     Exit;
   HatchText := '';
-  for Stroke in HatchLines(Piece.CutLine, Extent * HatchShare, Look.HatchAngle) do
+  for Stroke in HatchLines(Piece.CutLine, Extent * HATCH_SHARE, Look.HatchAngle) do
     HatchText := HatchText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
   if HatchText <> '' then
     Result := Result + Format('<path data-id="%s" data-hatch="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
-      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(HatchText), LowerCase(MaterialColorText(Look.Color)), Num(Extent * LineShare)]) + #10;
+      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(HatchText), LowerCase(MaterialColorText(Look.Color)), Num(Extent * LINE_SHARE)]) + #10;
 end;
 
 // The grainline and notches, over the edges
@@ -266,7 +266,7 @@ begin
   Result := '';
   if PathText <> '' then
     Result := Format('<path data-id="%s" data-marks="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
-      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(PathText), StateColor(Piece.State, InkColor), Num(Extent * LineShare)]) + #10;
+      [Piece.Key, EscapeXML(Piece.DisplayName), Trim(PathText), StateColor(Piece.State, INK_COLOR), Num(Extent * LINE_SHARE)]) + #10;
 end;
 
 function PieceLabelElement(Pattern: TPattern; Piece: TPieceObject; Extent: double): string;
@@ -275,22 +275,22 @@ var
 begin
   Middle := Piece.Middle;
   Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
-    [Num(Middle.X), Num(Middle.Y), Num(Extent * FontShare), StateColor(Piece.State, InkColor), EscapeXML(Pattern.PieceCaption(Piece))]) + #10;
+    [Num(Middle.X), Num(Middle.Y), Num(Extent * FONT_SHARE), StateColor(Piece.State, INK_COLOR), EscapeXML(Pattern.PieceCaption(Piece))]) + #10;
 end;
 
 function LabelElement(const At: TVec2; Extent: double; const Color, Text: string): string;
 var
   Offset: double;
 begin
-  Offset := Extent * PointShare * 1.5;
+  Offset := Extent * POINT_SHARE * 1.5;
   Result := Format('<text x="%s" y="%s" font-family="sans-serif" font-size="%s" fill="%s">%s</text>',
-    [Num(At.X + Offset), Num(At.Y - Offset), Num(Extent * FontShare), Color, EscapeXML(Text)]) + #10;
+    [Num(At.X + Offset), Num(At.Y - Offset), Num(Extent * FONT_SHARE), Color, EscapeXML(Text)]) + #10;
 end;
 
 // Halfway along the edge, where the canvas puts its name
 function EdgeLabelElement(Edge: TEdgeObject; Extent: double): string;
 begin
-  Result := LabelElement(Edge.PointAtLength(Edge.Length / 2), Extent, StateColor(Edge.State, InkColor), Edge.DisplayName);
+  Result := LabelElement(Edge.PointAtLength(Edge.Length / 2), Extent, StateColor(Edge.State, INK_COLOR), Edge.DisplayName);
 end;
 
 function PointElement(Point: TPointObject; Extent: double; Labels: boolean): string;
@@ -298,8 +298,8 @@ var
   Radius: double;
   Color: string;
 begin
-  Radius := Extent * PointShare;
-  Color := StateColor(Point.State, InkColor);
+  Radius := Extent * POINT_SHARE;
+  Color := StateColor(Point.State, INK_COLOR);
   Result := Format('<circle data-id="%s" data-name="%s" cx="%s" cy="%s" r="%s" fill="%s"/>',
     [Point.Key, EscapeXML(Point.DisplayName), Num(Point.Position.X), Num(Point.Position.Y), Num(Radius), Color]) + #10;
   if Labels then
@@ -321,8 +321,8 @@ begin
   Result := '';
   if PathText <> '' then
     Result := Format('<path data-id="%s" data-marker="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
-      [DraftObject.Key, PointMarkerNames[DraftObject.Marker], Trim(PathText), StateColor(DraftObject.State, InkColor),
-      Num(Extent * LineShare)]) + #10;
+      [DraftObject.Key, POINT_MARKER_NAMES[DraftObject.Marker], Trim(PathText), StateColor(DraftObject.State, INK_COLOR),
+      Num(Extent * LINE_SHARE)]) + #10;
 end;
 
 // At its true printed size over everything else: a callout's leader, a white
@@ -337,7 +337,7 @@ var
   Stroke: TLine2;
 begin
   Result := '';
-  Color := StateColor(Note.State, InkColor);
+  Color := StateColor(Note.State, INK_COLOR);
   Box := NoteBox(Note, Values);
   Frame := NoteFrame(Note, Values);
   if (Note.Leader <> nlNone) and LeaderStart(Frame, Note.AnchorPosition, Start) then
@@ -346,10 +346,10 @@ begin
     for Stroke in LeaderStrokes(Start, Note.AnchorPosition, Note.Leader) do
       PathText := PathText + 'M ' + Coord(Stroke.P1) + ' L ' + Coord(Stroke.P2) + ' ';
     Result := Result + Format('<path data-id="%s" d="%s" fill="none" stroke="%s" stroke-width="%s"/>',
-      [Note.Key, Trim(PathText), Color, Num(NoteLineWidth)]) + #10;
+      [Note.Key, Trim(PathText), Color, Num(NOTE_LINE_WIDTH)]) + #10;
     if Note.Leader = nlDot then
       Result := Result + Format('<circle data-id="%s" cx="%s" cy="%s" r="%s" fill="%s"/>',
-        [Note.Key, Num(Note.AnchorPosition.X), Num(Note.AnchorPosition.Y), Num(LeaderDotRadius), Color]) + #10;
+        [Note.Key, Num(Note.AnchorPosition.X), Num(Note.AnchorPosition.Y), Num(LEADER_DOT_RADIUS), Color]) + #10;
   end;
   if Note.Boxed then
     Result := Result + Format('<rect data-id="%s" x="%s" y="%s" width="%s" height="%s" fill="#ffffff"/>',
@@ -358,7 +358,7 @@ begin
   for Index := 0 to High(Lines) do
     Result := Result + Format('<text data-id="%s" x="%s" y="%s" font-family="Helvetica, Arial, sans-serif" font-size="%s" fill="%s">%s</text>',
       [Note.Key, Num(AlignedLeft(Box.MinX, Box.MaxX - Box.MinX, TextWidth(Lines[Index], Note.Size), Note.Align)),
-      Num(Note.Position.Y + (Index + 1) * LineHeight(Note.Size)), Num(Note.Size * PointsToMM), Color, EscapeXML(Lines[Index])]) + #10;
+      Num(Note.Position.Y + (Index + 1) * LineHeight(Note.Size)), Num(Note.Size * POINTS_TO_MM), Color, EscapeXML(Lines[Index])]) + #10;
 end;
 
 function AllObjects(Pattern: TPattern): TDraftObjectArray;

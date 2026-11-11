@@ -30,15 +30,13 @@ uses
   Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.TextFields, Sloper.Output.Layout;
 
 const
-  LayerCut = '1';
-  LayerNotch = '4';
-  LayerFold = '6';
-  LayerGrain = '7';
-  LayerInternal = '8';
-  LayerHole = '13';
-  LayerSeam = '14';
-  // The default layer has to be in the table too
-  DXFLayers: array[0..7] of string = ('0', LayerCut, LayerNotch, LayerFold, LayerGrain, LayerInternal, LayerHole, LayerSeam);
+  LAYER_CUT = '1';
+  LAYER_NOTCH = '4';
+  LAYER_FOLD = '6';
+  LAYER_GRAIN = '7';
+  LAYER_INTERNAL = '8';
+  LAYER_HOLE = '13';
+  LAYER_SEAM = '14';
 
 // The DXF, whatever problems the layout has; callers check first
 function LayoutToDXF(Layout: TLayout): string;
@@ -63,13 +61,17 @@ uses
   Sloper.Core.Materials, Sloper.Core.Pattern;
 
 const
-  NumberDecimals = 3;
-  TextHeight = 2.5;
-  TextSpacing = 1.5;
-  ClosedPolyline = '1';
-  ReferencedBlock = '64';
+  // The default layer has to be in the table too
+  DXF_LAYERS: array[0..7] of string = ('0', LAYER_CUT, LAYER_NOTCH, LAYER_FOLD, LAYER_GRAIN, LAYER_INTERNAL, LAYER_HOLE, LAYER_SEAM);
+  NUMBER_DECIMALS = 3;
+  TEXT_HEIGHT = 2.5;
+  TEXT_SPACING = 1.5;
+  CLOSED_POLYLINE = '1';
+  REFERENCED_BLOCK = '64';
   // AutoCAD's colour for lines that show against the background
-  DXFInk = 7;
+  DXF_INK = 7;
+  PLAIN_DXF_COLORS: array[0..7, 0..3] of integer = ((255, 0, 0, 1), (255, 255, 0, 2), (0, 255, 0, 3), (0, 255, 255, 4), (0, 0, 255, 5),
+    (255, 0, 255, 6), (0, 0, 0, DXF_INK), (255, 255, 255, DXF_INK));
 
 type
   TKeySet = specialize THashSet<string>;
@@ -128,7 +130,7 @@ end;
 
 procedure TDXFWriter.Number(Code: integer; Value: double);
 begin
-  Pair(Code, RoundedText(Value, NumberDecimals));
+  Pair(Code, RoundedText(Value, NUMBER_DECIMALS));
 end;
 
 procedure TDXFWriter.Place(const Point: TVec2; Z: double);
@@ -187,7 +189,7 @@ begin
   Pair(41, '1');
   Pair(50, '0');
   Pair(71, '0');
-  Number(42, TextHeight);
+  Number(42, TEXT_HEIGHT);
   Pair(3, 'txt');
   Pair(4, '');
   Pair(0, 'ENDTAB');
@@ -208,9 +210,9 @@ end;
 procedure TDXFWriter.StartBlock(const AName: string);
 begin
   Pair(0, 'BLOCK');
-  Pair(8, LayerCut);
+  Pair(8, LAYER_CUT);
   Pair(2, AName);
-  Pair(70, ReferencedBlock);
+  Pair(70, REFERENCED_BLOCK);
   Place(Vec2(0, 0));
   Pair(3, AName);
 end;
@@ -218,13 +220,13 @@ end;
 procedure TDXFWriter.EndBlock;
 begin
   Pair(0, 'ENDBLK');
-  Pair(8, LayerCut);
+  Pair(8, LAYER_CUT);
 end;
 
 procedure TDXFWriter.Insert(const AName: string);
 begin
   Pair(0, 'INSERT');
-  Pair(8, LayerCut);
+  Pair(8, LAYER_CUT);
   Pair(2, AName);
   Place(Vec2(0, 0));
 end;
@@ -237,7 +239,7 @@ begin
   Pair(8, Layer);
   Pair(66, '1');
   Place(Vec2(0, 0));
-  Pair(70, ClosedPolyline);
+  Pair(70, CLOSED_POLYLINE);
   for Point in Points do
   begin
     Pair(0, 'VERTEX');
@@ -261,7 +263,7 @@ end;
 procedure TDXFWriter.Notch(const Cut: TVec2; NotchLength, Angle: double);
 begin
   Pair(0, 'POINT');
-  Pair(8, LayerNotch);
+  Pair(8, LAYER_NOTCH);
   Place(Cut, NotchLength);
   Number(50, Angle);
 end;
@@ -286,7 +288,7 @@ begin
   Pair(0, 'TEXT');
   Pair(8, Layer);
   Place(At);
-  Number(40, TextHeight);
+  Number(40, TEXT_HEIGHT);
   Pair(1, AText);
 end;
 
@@ -328,13 +330,13 @@ var
 
   procedure AddLine(const AText: string);
   begin
-    Writer.TextAt(LayerCut, At, AText);
-    At.Y := At.Y - TextHeight - TextSpacing;
+    Writer.TextAt(LAYER_CUT, At, AText);
+    At.Y := At.Y - TEXT_HEIGHT - TEXT_SPACING;
   end;
 
 begin
   Values := Layout.FieldValues('', '');
-  At := Vec2(0, -TextHeight);
+  At := Vec2(0, -TEXT_HEIGHT);
   AddLine(Format(rsDXFStyleName, [Values.PatternName]));
   AddLine(Format(rsDXFCreationDate, [Values.Date]));
   AddLine(rsDXFUnits);
@@ -355,8 +357,8 @@ var
 
   procedure AddText(const AText: string);
   begin
-    Writer.TextAt(LayerCut, At, AText);
-    At.Y := At.Y - TextHeight - TextSpacing;
+    Writer.TextAt(LAYER_CUT, At, AText);
+    At.Y := At.Y - TEXT_HEIGHT - TEXT_SPACING;
   end;
 
   // The model is y down and DXF y up
@@ -383,17 +385,17 @@ var
 begin
   Writer.StartBlock(BlockName);
   if Profile.Allowance = apNone then
-    Writer.ClosedPath(LayerCut, UpAll(Piece.Outline))
+    Writer.ClosedPath(LAYER_CUT, UpAll(Piece.Outline))
   else
   begin
-    Writer.ClosedPath(LayerCut, UpAll(Piece.CutLine));
+    Writer.ClosedPath(LAYER_CUT, UpAll(Piece.CutLine));
     if pkSeamLine in Profile.PieceMarks then
-      Writer.ClosedPath(LayerSeam, UpAll(Piece.Outline));
+      Writer.ClosedPath(LAYER_SEAM, UpAll(Piece.Outline));
   end;
   if (Piece.GrainKind <> gkNone) and (pkGrainline in Profile.PieceMarks) then
-    Writer.Line(LayerGrain, UpLine(Piece.Grainline));
+    Writer.Line(LAYER_GRAIN, UpLine(Piece.Grainline));
   if Piece.OnFold and (pkFoldBracket in Profile.PieceMarks) then
-    Writer.Line(LayerFold, UpLine(Piece.FoldLine));
+    Writer.Line(LAYER_FOLD, UpLine(Piece.FoldLine));
   // An angle as seen on screen is already DXF's anticlockwise angle; cut on
   // the seam line, a notch starts there
   if pkNotches in Profile.PieceMarks then
@@ -416,12 +418,12 @@ begin
           Continue;
     end;
     for Index := 1 to High(Marking.Line) do
-      Writer.Line(LayerInternal, UpLine(Line2(Marking.Line[Index - 1], Marking.Line[Index])));
+      Writer.Line(LAYER_INTERNAL, UpLine(Line2(Marking.Line[Index - 1], Marking.Line[Index])));
     for Hole in Marking.Holes do
-      Writer.PointAt(LayerHole, Up(Hole));
+      Writer.PointAt(LAYER_HOLE, Up(Hole));
     for Hole in Marking.Centres do
       for Stroke in MarkerStrokes(Marking.Marker, Hole, Marking.HoleSize) do
-        Writer.Line(LayerInternal, UpLine(Stroke));
+        Writer.Line(LAYER_INTERNAL, UpLine(Stroke));
   end;
   At := Up(Piece.Middle);
   AddText(Format(rsDXFPieceName, [Piece.DisplayName]));
@@ -439,11 +441,11 @@ var
   Index: integer;
 begin
   Result := nil;
-  SetLength(Result, Length(DXFLayers));
-  for Index := 0 to High(DXFLayers) do
+  SetLength(Result, Length(DXF_LAYERS));
+  for Index := 0 to High(DXF_LAYERS) do
   begin
-    Result[Index].Name := DXFLayers[Index];
-    Result[Index].Color := DXFInk;
+    Result[Index].Name := DXF_LAYERS[Index];
+    Result[Index].Color := DXF_INK;
   end;
 end;
 
@@ -464,7 +466,7 @@ begin
   try
     Seen := TKeySet.Create;
     Names := TKeySet.Create;
-    Writer.StartFile(AAMALayers, LayerCut);
+    Writer.StartFile(AAMALayers, LAYER_CUT);
     Writer.StartSection('BLOCKS');
     for Placement in Layout.Placements do
     begin
@@ -498,24 +500,21 @@ end;
 
 // The nearest of the seven plain DXF colours; black and white are both ink
 function NearestDXFColor(const Color: string): integer;
-const
-  Plain: array[0..7, 0..3] of integer = ((255, 0, 0, 1), (255, 255, 0, 2), (0, 255, 0, 3), (0, 255, 255, 4), (0, 0, 255, 5),
-    (255, 0, 255, 6), (0, 0, 0, DXFInk), (255, 255, 255, DXFInk));
 var
   Red, Green, Blue, Index, Gap, Best: integer;
 begin
   Red := StrToInt('$' + Copy(Color, 2, 2));
   Green := StrToInt('$' + Copy(Color, 4, 2));
   Blue := StrToInt('$' + Copy(Color, 6, 2));
-  Result := DXFInk;
+  Result := DXF_INK;
   Best := MaxInt;
-  for Index := Low(Plain) to High(Plain) do
+  for Index := Low(PLAIN_DXF_COLORS) to High(PLAIN_DXF_COLORS) do
   begin
-    Gap := Sqr(Red - Plain[Index, 0]) + Sqr(Green - Plain[Index, 1]) + Sqr(Blue - Plain[Index, 2]);
+    Gap := Sqr(Red - PLAIN_DXF_COLORS[Index, 0]) + Sqr(Green - PLAIN_DXF_COLORS[Index, 1]) + Sqr(Blue - PLAIN_DXF_COLORS[Index, 2]);
     if Gap < Best then
     begin
       Best := Gap;
-      Result := Plain[Index, 3];
+      Result := PLAIN_DXF_COLORS[Index, 3];
     end;
   end;
 end;
@@ -531,7 +530,7 @@ begin
   Seen := TKeySet.Create;
   try
     Layer.Name := '0';
-    Layer.Color := DXFInk;
+    Layer.Color := DXF_INK;
     Seen.Add(Layer.Name);
     Insert(Layer, Result, 0);
     for Kind := Low(TLineType) to High(TLineType) do
@@ -579,7 +578,7 @@ var
   Layer: string;
   Hole: TPlacedHole;
 begin
-  for Kind in MachineOrder do
+  for Kind in MACHINE_ORDER do
   begin
     if not Profile.Lines[Kind].Enabled then
       Continue;

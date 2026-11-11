@@ -146,7 +146,7 @@ uses
   Sloper.Core.JSON, Sloper.Core.PatternCheck;
 
 const
-  NewKeyStem = 'measurement';
+  NEW_KEY_STEM = 'measurement';
 
 constructor TMeasurementDocument.Create;
 begin
@@ -477,12 +477,12 @@ function TMeasurementDocument.FreeKey: string;
 var
   Number: integer;
 begin
-  Result := NewKeyStem;
+  Result := NEW_KEY_STEM;
   Number := 1;
   while Assigned(FSet.Find(Result)) do
   begin
     Inc(Number);
-    Result := NewKeyStem + IntToStr(Number);
+    Result := NEW_KEY_STEM + IntToStr(Number);
   end;
 end;
 

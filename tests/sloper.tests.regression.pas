@@ -46,9 +46,9 @@ uses
   Sloper.Core.PatternCheck;
 
 const
-  ExpectedSuffix = '.expected.json';
+  EXPECTED_SUFFIX = '.expected.json';
   // Reports are rounded to 1e-6 mm, so allow a little more than that
-  ReportTolerance = 1e-5;
+  REPORT_TOLERANCE = 1e-5;
 
 function TTestRegression.PatternsDir: string;
 begin
@@ -79,7 +79,7 @@ begin
       AssertNotNull(ItemContext + ' has ' + MemberName, ActualValue);
       if ExpectedItem.Items[MemberIndex].JSONType = jtNumber then
         AssertNear(ItemContext + ' ' + MemberName, ExpectedItem.Items[MemberIndex].AsFloat, ActualValue.AsFloat,
-          ReportTolerance)
+          REPORT_TOLERANCE)
       else
         AssertEquals(ItemContext + ' ' + MemberName, ExpectedItem.Items[MemberIndex].AsJSON, ActualValue.AsJSON);
     end;
@@ -95,7 +95,7 @@ var
   Expected, Actual: TJSONObject;
 begin
   CaseName := ExtractFileName(ExpectedFile);
-  CaseName := Copy(CaseName, 1, Length(CaseName) - Length(ExpectedSuffix));
+  CaseName := Copy(CaseName, 1, Length(CaseName) - Length(EXPECTED_SUFFIX));
   Dot := Pos('.', CaseName);
   AssertTrue(CaseName + ': name is <pattern>.<set>', Dot > 1);
   PatternName := Copy(CaseName, 1, Dot - 1) + '.sloper';
@@ -135,7 +135,7 @@ var
 begin
   Files := TStringList.Create;
   try
-    if FindFirst(ConcatPaths([PatternsDir, '*' + ExpectedSuffix]), faAnyFile, Search) = 0 then
+    if FindFirst(ConcatPaths([PatternsDir, '*' + EXPECTED_SUFFIX]), faAnyFile, Search) = 0 then
     try
       repeat
         Files.Add(ConcatPaths([PatternsDir, Search.Name]));

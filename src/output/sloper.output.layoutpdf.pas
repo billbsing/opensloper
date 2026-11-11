@@ -52,36 +52,36 @@ uses
   Sloper.Output.PDFWriter, Sloper.Output.Tiling;
 
 const
-  CoverMargin = 15;
-  TestSquareSide = MetricTestSquareSide;
-  LetterTestSquareSide = InchTestSquareSide;
-  MapCell = 12;
-  CaptionSize = 9;
-  PieceLabelSize = 11;
-  TitleSize = 16;
-  BodySize = 10;
-  CutLineWidth = 0.35;
-  SeamLineWidth = 0.18;
-  MarkLineWidth = 0.25;
-  SeamDash = 2;
-  OverlapDash = 1.5;
-  DiamondSize = 3;
+  COVER_MARGIN = 15;
+  TEST_SQUARE_SIDE = METRIC_TEST_SQUARE_SIDE;
+  LETTER_TEST_SQUARE_SIDE = INCH_TEST_SQUARE_SIDE;
+  MAP_CELL = 12;
+  CAPTION_SIZE = 9;
+  PIECE_LABEL_SIZE = 11;
+  TITLE_SIZE = 16;
+  BODY_SIZE = 10;
+  CUT_LINE_WIDTH = 0.35;
+  SEAM_LINE_WIDTH = 0.18;
+  MARK_LINE_WIDTH = 0.25;
+  SEAM_DASH = 2;
+  OVERLAP_DASH = 1.5;
+  DIAMOND_SIZE = 3;
   // Light enough that lines and text stay clear on it
-  HatchSpacing = 6;
-  HatchGray = 0.6;
-  HalfCircleSteps = 16;
-  CheckSquareTop = 27;
-  TitleGap = 10;
-  TitleTextSize = 9;
-  TitlePadding = 2;
-  ProjectorCutWidth = 1.5;
-  ProjectorSeamWidth = 0.7;
-  ProjectorMarkWidth = 1;
-  ProjectorLabelSize = 28;
+  HATCH_SPACING = 6;
+  HATCH_GRAY = 0.6;
+  HALF_CIRCLE_STEPS = 16;
+  CHECK_SQUARE_TOP = 27;
+  TITLE_GAP = 10;
+  TITLE_TEXT_SIZE = 9;
+  TITLE_PADDING = 2;
+  PROJECTOR_CUT_WIDTH = 1.5;
+  PROJECTOR_SEAM_WIDTH = 0.7;
+  PROJECTOR_MARK_WIDTH = 1;
+  PROJECTOR_LABEL_SIZE = 28;
   // Room for the header, when there is little or nothing below it
-  MinProjectorWidth = 130;
+  MIN_PROJECTOR_WIDTH = 130;
   // Room for the title, reminder and test square above a large sheet
-  LargeHeaderHeight = 140;
+  LARGE_HEADER_HEIGHT = 140;
 
 type
   TLayoutPrinter = class
@@ -150,13 +150,13 @@ var
 begin
   for Index := 0 to High(FPages) do
   begin
-    Cell.MinX := CoverMargin + FPages[Index].Column * MapCell;
-    Cell.MinY := Top + FPages[Index].Row * MapCell;
-    Cell.MaxX := Cell.MinX + MapCell;
-    Cell.MaxY := Cell.MinY + MapCell;
+    Cell.MinX := COVER_MARGIN + FPages[Index].Column * MAP_CELL;
+    Cell.MinY := Top + FPages[Index].Row * MAP_CELL;
+    Cell.MaxX := Cell.MinX + MAP_CELL;
+    Cell.MaxY := Cell.MinY + MAP_CELL;
     FWriter.Rectangle(Cell);
     if not FPages[Index].Blank then
-      FWriter.Text(Cell.MinX + 2, Cell.MinY + 7, CaptionSize, FPages[Index].Caption);
+      FWriter.Text(Cell.MinX + 2, Cell.MinY + 7, CAPTION_SIZE, FPages[Index].Caption);
     if FPages[Index].Excluded then
       FWriter.Line(Vec2(Cell.MinX, Cell.MinY), Vec2(Cell.MaxX, Cell.MaxY));
   end;
@@ -170,27 +170,27 @@ var
   Square: TRect2;
   Width: string;
 begin
-  FWriter.Text(Left, Top + 6, TitleSize, FLayout.Name);
+  FWriter.Text(Left, Top + 6, TITLE_SIZE, FLayout.Name);
   if FLayout.Output.Kind = okProjector then
-    FWriter.Text(Left, Top + 15, BodySize, rsPDFProjectorZoom)
+    FWriter.Text(Left, Top + 15, BODY_SIZE, rsPDFProjectorZoom)
   else
-    FWriter.Text(Left, Top + 15, BodySize, rsPDFPrintFullSize);
+    FWriter.Text(Left, Top + 15, BODY_SIZE, rsPDFPrintFullSize);
   if FLayout.Output.Paper = 'Letter' then
   begin
-    Side := LetterTestSquareSide;
+    Side := LETTER_TEST_SQUARE_SIDE;
     Width := '4 in';
   end
   else
   begin
-    Side := TestSquareSide;
+    Side := TEST_SQUARE_SIDE;
     Width := '10 cm';
   end;
   if FLayout.Output.Kind = okProjector then
-    FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFProjectorFit, [Width]))
+    FWriter.Text(Left, Top + 22, BODY_SIZE, Format(rsPDFProjectorFit, [Width]))
   else
-    FWriter.Text(Left, Top + 22, BodySize, Format(rsPDFCheckSquare, [Width]));
+    FWriter.Text(Left, Top + 22, BODY_SIZE, Format(rsPDFCheckSquare, [Width]));
   Square.MinX := Left;
-  Square.MinY := Top + CheckSquareTop;
+  Square.MinY := Top + CHECK_SQUARE_TOP;
   Square.MaxX := Square.MinX + Side * FLayout.Calibration.X;
   Square.MaxY := Square.MinY + Side * FLayout.Calibration.Y;
   FWriter.Rectangle(Square);
@@ -204,8 +204,8 @@ var
   Page: TTilePage;
 begin
   FWriter.BeginPage(FLayout.Output.Tiles.PaperWidth, FLayout.Output.Tiles.PaperHeight);
-  FWriter.SetLineWidth(MarkLineWidth);
-  Bottom := DrawCheckBlock(CoverMargin, CoverMargin);
+  FWriter.SetLineWidth(MARK_LINE_WIDTH);
+  Bottom := DrawCheckBlock(COVER_MARGIN, COVER_MARGIN);
   Printed := 0;
   Blank := 0;
   Excluded := 0;
@@ -216,9 +216,9 @@ begin
       Inc(Excluded)
     else
       Inc(Printed);
-  FWriter.Text(CoverMargin, Bottom + 10, BodySize, Format(rsPDFPages, [Printed, Blank, Excluded]));
+  FWriter.Text(COVER_MARGIN, Bottom + 10, BODY_SIZE, Format(rsPDFPages, [Printed, Blank, Excluded]));
   DrawMap(Bottom + 15);
-  DrawTitleInCorner(FLayout.Output.Tiles.PaperWidth, FLayout.Output.Tiles.PaperHeight, CoverMargin);
+  DrawTitleInCorner(FLayout.Output.Tiles.PaperWidth, FLayout.Output.Tiles.PaperHeight, COVER_MARGIN);
 end;
 
 // One sheet: the check block across the top, then the layout, as long as it
@@ -233,7 +233,7 @@ var
 begin
   Margin := FLayout.Output.Tiles.Margin;
   Page := FPages[0];
-  Bottom := Margin + LargeHeaderHeight;
+  Bottom := Margin + LARGE_HEADER_HEIGHT;
   SheetWidth := OneSheetWidth(FLayout, Page.Area.MaxX - Page.Area.MinX);
   SheetLength := LargeSheetLength(FLayout, Page.Area.MaxY - Page.Area.MinY);
   FWriter.BeginPage(SheetWidth, SheetLength);
@@ -249,7 +249,7 @@ begin
   FWriter.SetLineWidth(FMarkWidth);
   DrawCheckBlock(Margin, Margin);
   // Beside the test square, clear of the pieces
-  DrawTitle(Margin + LetterTestSquareSide * FLayout.Calibration.X + TitleGap, Margin + CheckSquareTop, False);
+  DrawTitle(Margin + LETTER_TEST_SQUARE_SIDE * FLayout.Calibration.X + TITLE_GAP, Margin + CHECK_SQUARE_TOP, False);
   FOrigin := Vec2(Margin, Bottom);
   Printable.MinX := Margin;
   Printable.MinY := Bottom;
@@ -275,9 +275,9 @@ begin
   Lines := FLayout.TitleLines(PageValues);
   AWidth := 0;
   for Line in Lines do
-    AWidth := Max(AWidth, TextWidth(Line, TitleTextSize));
-  AWidth := AWidth + 2 * TitlePadding;
-  AHeight := Length(Lines) * LineHeight(TitleTextSize) + 2 * TitlePadding;
+    AWidth := Max(AWidth, TextWidth(Line, TITLE_TEXT_SIZE));
+  AWidth := AWidth + 2 * TITLE_PADDING;
+  AHeight := Length(Lines) * LineHeight(TITLE_TEXT_SIZE) + 2 * TITLE_PADDING;
 end;
 
 // Boxed clears what is under it, for a corner of a tile
@@ -305,13 +305,13 @@ begin
     FWriter.SetGray(0);
   end;
   FWriter.SetDash(0);
-  FWriter.SetLineWidth(MarkLineWidth);
+  FWriter.SetLineWidth(MARK_LINE_WIDTH);
   FWriter.Rectangle(Box);
-  Baseline := Top + TitlePadding;
+  Baseline := Top + TITLE_PADDING;
   for Index := 0 to High(Lines) do
   begin
-    Baseline := Baseline + LineHeight(TitleTextSize);
-    FWriter.Text(Left + TitlePadding, Baseline, TitleTextSize, Lines[Index]);
+    Baseline := Baseline + LineHeight(TITLE_TEXT_SIZE);
+    FWriter.Text(Left + TITLE_PADDING, Baseline, TITLE_TEXT_SIZE, Lines[Index]);
   end;
 end;
 
@@ -421,8 +421,8 @@ begin
     begin
       FWriter.SetDash(0);
       FWriter.SetLineWidth(FMarkWidth);
-      FWriter.SetGray(HatchGray);
-      for Stroke in HatchLines(Shape.CutLine, HatchSpacing, Shape.Look.HatchAngle) do
+      FWriter.SetGray(HATCH_GRAY);
+      for Stroke in HatchLines(Shape.CutLine, HATCH_SPACING, Shape.Look.HatchAngle) do
         FWriter.Line(PagePoint(Page, Stroke.P1), PagePoint(Page, Stroke.P2));
       FWriter.SetGray(0);
     end;
@@ -447,7 +447,7 @@ begin
   FWriter.Polyline(PagePoints(Page, Shape.CutLine), True);
   if Length(Shape.SeamLine) > 0 then
   begin
-    FWriter.SetDash(SeamDash);
+    FWriter.SetDash(SEAM_DASH);
     FWriter.SetLineWidth(FSeamWidth);
     FWriter.Polyline(PagePoints(Page, Shape.SeamLine), True);
   end;
@@ -466,7 +466,7 @@ begin
     end
     else
     begin
-      FWriter.SetDashPattern(RoleDashes[Line.Role]);
+      FWriter.SetDashPattern(ROLE_DASHES[Line.Role]);
       if Line.Role = erCut then
         FWriter.SetLineWidth(FCutWidth)
       else
@@ -492,10 +492,10 @@ begin
   Spot := PagePoint(Page, Centre);
   Points := nil;
   SetLength(Points, 4);
-  Points[0] := Spot + Vec2(0, -DiamondSize);
-  Points[1] := Spot + Vec2(DiamondSize, 0);
-  Points[2] := Spot + Vec2(0, DiamondSize);
-  Points[3] := Spot + Vec2(-DiamondSize, 0);
+  Points[0] := Spot + Vec2(0, -DIAMOND_SIZE);
+  Points[1] := Spot + Vec2(DIAMOND_SIZE, 0);
+  Points[2] := Spot + Vec2(0, DIAMOND_SIZE);
+  Points[3] := Spot + Vec2(-DIAMOND_SIZE, 0);
   FWriter.Polyline(Points, True);
 end;
 
@@ -509,9 +509,9 @@ var
 begin
   Spot := PagePoint(Page, Centre);
   Points := nil;
-  SetLength(Points, HalfCircleSteps + 1);
-  for Index := 0 to HalfCircleSteps do
-    Points[Index] := PolarPoint(Spot, DiamondSize, Inward - 90 + 180 * Index / HalfCircleSteps);
+  SetLength(Points, HALF_CIRCLE_STEPS + 1);
+  for Index := 0 to HALF_CIRCLE_STEPS do
+    Points[Index] := PolarPoint(Spot, DIAMOND_SIZE, Inward - 90 + 180 * Index / HALF_CIRCLE_STEPS);
   FWriter.Polyline(Points, True);
 end;
 
@@ -536,7 +536,7 @@ begin
   MiddleX := (Page.Area.MinX + Page.Area.MaxX) / 2;
   MiddleY := (Page.Area.MinY + Page.Area.MaxY) / 2;
   FWriter.SetDash(0);
-  FWriter.SetLineWidth(MarkLineWidth);
+  FWriter.SetLineWidth(MARK_LINE_WIDTH);
   if Page.Column > 0 then
     DrawMark(Page, Vec2(Page.Area.MinX + Overlap / 2, MiddleY), 0);
   if Page.Column < FColumnCount - 1 then
@@ -559,11 +559,11 @@ begin
   Printable.MinY := Tiles.Margin;
   Printable.MaxX := Tiles.PaperWidth - Tiles.Margin;
   Printable.MaxY := Tiles.PaperHeight - Tiles.Margin;
-  FWriter.SetDash(OverlapDash);
-  FWriter.SetLineWidth(SeamLineWidth);
+  FWriter.SetDash(OVERLAP_DASH);
+  FWriter.SetLineWidth(SEAM_LINE_WIDTH);
   FWriter.Rectangle(Printable);
   FWriter.SetDash(0);
-  FWriter.Text(Tiles.Margin + 1, Tiles.Margin + 4, CaptionSize, Page.Caption);
+  FWriter.Text(Tiles.Margin + 1, Tiles.Margin + 4, CAPTION_SIZE, Page.Caption);
   FWriter.PushClip(Printable);
   for Shape in FShapes do
     if PolygonTouches(Shape.CutLine, Page.Area) then
@@ -572,7 +572,7 @@ begin
   DrawNotes(Page);
   FWriter.PopClip;
   if FLayout.Title.EveryPage then
-    DrawTitleInCorner(Tiles.PaperWidth, Tiles.PaperHeight, Tiles.Margin + TitlePadding);
+    DrawTitleInCorner(Tiles.PaperWidth, Tiles.PaperHeight, Tiles.Margin + TITLE_PADDING);
 end;
 
 procedure TLayoutPrinter.Print;
@@ -583,16 +583,16 @@ begin
   FPages := FLayout.Pages(FShapes, FRowCount, FColumnCount);
   FPageCount := 1;
   FPageNumber := 1;
-  FCutWidth := CutLineWidth;
-  FSeamWidth := SeamLineWidth;
-  FMarkWidth := MarkLineWidth;
-  FLabelSize := PieceLabelSize;
+  FCutWidth := CUT_LINE_WIDTH;
+  FSeamWidth := SEAM_LINE_WIDTH;
+  FMarkWidth := MARK_LINE_WIDTH;
+  FLabelSize := PIECE_LABEL_SIZE;
   if FLayout.Output.Kind = okProjector then
   begin
-    FCutWidth := ProjectorCutWidth;
-    FSeamWidth := ProjectorSeamWidth;
-    FMarkWidth := ProjectorMarkWidth;
-    FLabelSize := ProjectorLabelSize;
+    FCutWidth := PROJECTOR_CUT_WIDTH;
+    FSeamWidth := PROJECTOR_SEAM_WIDTH;
+    FMarkWidth := PROJECTOR_MARK_WIDTH;
+    FLabelSize := PROJECTOR_LABEL_SIZE;
   end;
   if FLayout.Output.Kind <> okTiled then
   begin
@@ -619,12 +619,12 @@ begin
   else if Layout.Output.Kind = okMaterial then
     Result := Layout.Output.MaterialWidth + 2 * Layout.Output.Tiles.Margin
   else
-    Result := Max(MinProjectorWidth, 2 * Layout.Output.Tiles.Margin + PageWidth * Layout.Calibration.X);
+    Result := Max(MIN_PROJECTOR_WIDTH, 2 * Layout.Output.Tiles.Margin + PageWidth * Layout.Calibration.X);
 end;
 
 function LargeSheetLength(Layout: TLayout; const PageHeight: double): double;
 begin
-  Result := 2 * Layout.Output.Tiles.Margin + LargeHeaderHeight + PageHeight * Layout.Calibration.Y;
+  Result := 2 * Layout.Output.Tiles.Margin + LARGE_HEADER_HEIGHT + PageHeight * Layout.Calibration.Y;
 end;
 
 function LayoutToPDF(Layout: TLayout): rawbytestring;

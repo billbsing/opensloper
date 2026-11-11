@@ -249,25 +249,26 @@ uses
   Sloper.UI.About, Sloper.UI.IconSet, Sloper.UI.Preferences, Sloper.UI.Spacing;
 
 const
-  SideWidth = 430;
-  CatalogueHeight = 410;
-  EntryInfoHeight = 120;
-  MissingHeight = 150;
-  PatternExtension = '.sloper';
-  ReportWidth = 640;
-  ReportHeight = 480;
-  GroupNames: array[0..High(CatalogueGroups)] of string = (rsGroupHeights, rsGroupCircumferences, rsGroupWidths, rsGroupArm, rsGroupLeg,
+  SIDE_WIDTH = 430;
+  CATALOGUE_HEIGHT = 410;
+  ENTRY_INFO_HEIGHT = 120;
+  MISSING_HEIGHT = 150;
+  PATTERN_EXTENSION = '.sloper';
+  REPORT_WIDTH = 640;
+  REPORT_HEIGHT = 480;
+  GROUP_NAMES: array[0..High(CATALOGUE_GROUPS)] of string = (rsGroupHeights, rsGroupCircumferences, rsGroupWidths, rsGroupArm, rsGroupLeg,
     rsGroupCrotch, rsGroupHead, rsGroupHand, rsGroupFoot);
-  LabelWidth = 50;
-  KeyColumnWidth = 190;
-  ValueColumnWidth = 80;
-  DescriptionColumnWidth = 320;
-  WatchMilliseconds = 1000;
-  OutOfRangeColour = $B8E6FF;
-  MeasurementExtension = 'slm';
+  LABEL_WIDTH = 50;
+  KEY_COLUMN_WIDTH = 190;
+  VALUE_COLUMN_WIDTH = 80;
+  DESCRIPTION_COLUMN_WIDTH = 320;
+  WATCH_MILLISECONDS = 1000;
+  OUT_OF_RANGE_COLOUR = $B8E6FF;
+  MEASUREMENT_EXTENSION = 'slm';
   // The key is the first column and the values follow
-  KeyColumn = 0;
-  FirstValueColumn = 1;
+  KEY_COLUMN = 0;
+  FIRST_VALUE_COLUMN = 1;
+  MODIFIED_MARK: array[boolean] of string = ('', '*');
 
 constructor TMeasurementsForm.Create(AOwner: TComponent);
 begin
@@ -299,7 +300,7 @@ begin
   LoadCatalogue;
   RefreshAll;
   FWatch := TTimer.Create(Self);
-  FWatch.Interval := WatchMilliseconds;
+  FWatch.Interval := WATCH_MILLISECONDS;
   FWatch.OnTimer := @WatchTick;
   OpenArguments;
 end;
@@ -389,7 +390,7 @@ var
     Title.Left := Row.ControlCount * 1000;
     Title.Layout := tlCenter;
     Title.AutoSize := False;
-    Title.Width := LabelWidth;
+    Title.Width := LABEL_WIDTH;
     Result := TEdit.Create(Self);
     Result.Parent := Row;
     Result.Align := alLeft;
@@ -452,7 +453,7 @@ begin
   FUnitBox.Style := csDropDownList;
   FUnitBox.Width := 70;
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
-    FUnitBox.Items.Add(MeasureUnitNames[AUnit]);
+    FUnitBox.Items.Add(MEASURE_UNIT_NAMES[AUnit]);
   FUnitBox.ItemIndex := Ord(FUnit);
   FUnitBox.OnChange := @UnitChange;
   Title := TLabel.Create(Self);
@@ -488,7 +489,7 @@ begin
   Side := TPanel.Create(Self);
   Side.Parent := Self;
   Side.Align := alRight;
-  Side.Width := SideWidth;
+  Side.Width := SIDE_WIDTH;
   Side.BevelOuter := bvNone;
   // Its left is the table column's right edge, so only the other edges get the gap
   SpaceBetween(Side);
@@ -496,7 +497,7 @@ begin
   Browser := TGroupBox.Create(Self);
   Browser.Parent := Side;
   Browser.Align := alBottom;
-  Browser.Height := CatalogueHeight;
+  Browser.Height := CATALOGUE_HEIGHT;
   Browser.BorderSpacing.Right := ControlGap;
   Browser.Caption := rsCatalogueTitle;
   SpaceChildren(Browser);
@@ -506,7 +507,7 @@ begin
   FGroupBox.Top := 100;
   FGroupBox.Style := csDropDownList;
   FGroupBox.Items.Add(rsAllGroups);
-  for Group in GroupNames do
+  for Group in GROUP_NAMES do
     FGroupBox.Items.Add(Group);
   FGroupBox.ItemIndex := 0;
   FGroupBox.OnChange := @FilterChange;
@@ -531,7 +532,7 @@ begin
   FEntryInfo := TMemo.Create(Self);
   FEntryInfo.Parent := Browser;
   FEntryInfo.Align := alBottom;
-  FEntryInfo.Height := EntryInfoHeight;
+  FEntryInfo.Height := ENTRY_INFO_HEIGHT;
   FEntryInfo.ReadOnly := True;
   FEntryInfo.WordWrap := True;
   FEntryInfo.ScrollBars := ssAutoVertical;
@@ -555,7 +556,7 @@ begin
   FMissingPanel := TGroupBox.Create(Self);
   FMissingPanel.Parent := FTableColumn;
   FMissingPanel.Align := alBottom;
-  FMissingPanel.Height := MissingHeight;
+  FMissingPanel.Height := MISSING_HEIGHT;
   FMissingPanel.Caption := rsMissingTitle;
   SpaceChildren(FMissingPanel);
   FMissingPanel.Visible := False;
@@ -628,7 +629,7 @@ begin
     Exit;
   Item := FMissing[FMissingList.ItemIndex];
   if Length(Item.Sizes) > 0 then
-    SelectCell(FDocument.Measurements.IndexOf(Item.Key), FirstValueColumn + FDocument.Measurements.IndexOfSize(Item.Sizes[0]))
+    SelectCell(FDocument.Measurements.IndexOf(Item.Key), FIRST_VALUE_COLUMN + FDocument.Measurements.IndexOfSize(Item.Sizes[0]))
   else
   begin
     Description := '';
@@ -640,7 +641,7 @@ begin
       ShowRefusal(Reason);
       Exit;
     end;
-    SelectCell(FDocument.Measurements.IndexOf(Item.Key), FirstValueColumn);
+    SelectCell(FDocument.Measurements.IndexOf(Item.Key), FIRST_VALUE_COLUMN);
   end;
   ShowEntry(Item.Key);
   FGrid.SetFocus;
@@ -658,7 +659,7 @@ begin
     Path := ParamStr(Index);
     if not FileExists(Path) then
       Continue;
-    if LowerCase(ExtractFileExt(Path)) = PatternExtension then
+    if LowerCase(ExtractFileExt(Path)) = PATTERN_EXTENSION then
       UsePatternPath(Path)
     else if SeamlyFileKind(Path, IsMultiSize) then
       ImportPath(Path)
@@ -717,7 +718,7 @@ var
 begin
   Group := '';
   if FGroupBox.ItemIndex > 0 then
-    Group := CatalogueGroups[FGroupBox.ItemIndex - 1];
+    Group := CATALOGUE_GROUPS[FGroupBox.ItemIndex - 1];
   FListed := nil;
   Lines := TStringList.Create;
   try
@@ -771,7 +772,7 @@ begin
     FEntryInfo.Lines.Add(Entry.Name);
     FEntryInfo.Lines.Add(Entry.Description);
     FEntryInfo.Lines.Add(Entry.HowTo);
-    FEntryInfo.Lines.Add(Format(rsTypicalRange, [FormatMeasure(Entry.RangeMin, FUnit), FormatMeasure(Entry.RangeMax, FUnit), MeasureUnitNames[FUnit]]));
+    FEntryInfo.Lines.Add(Format(rsTypicalRange, [FormatMeasure(Entry.RangeMin, FUnit), FormatMeasure(Entry.RangeMax, FUnit), MEASURE_UNIT_NAMES[FUnit]]));
   finally
     FEntryInfo.Lines.EndUpdate;
   end;
@@ -785,7 +786,7 @@ begin
   Entry := FCatalogue.Find(FDocument.Measurements[Index].Key);
   Result := Assigned(Entry) and not Entry.InRange(Value);
   if Result then
-    ShowStatus(Format(rsOutsideRange, [Entry.Key, FormatMeasure(Entry.RangeMin, FUnit), FormatMeasure(Entry.RangeMax, FUnit), MeasureUnitNames[FUnit]]));
+    ShowStatus(Format(rsOutsideRange, [Entry.Key, FormatMeasure(Entry.RangeMin, FUnit), FormatMeasure(Entry.RangeMax, FUnit), MEASURE_UNIT_NAMES[FUnit]]));
 end;
 
 procedure TMeasurementsForm.GridSelection(Sender: TObject; aCol, aRow: integer);
@@ -833,12 +834,12 @@ begin
   Measurement := FDocument.Measurements[Index];
   Entry := FCatalogue.Find(Measurement.Key);
   if Assigned(Entry) and Measurement.HasValueFor(Size) and not Entry.InRange(Measurement.ValueFor(Size)) then
-    FGrid.Canvas.Brush.Color := OutOfRangeColour;
+    FGrid.Canvas.Brush.Color := OUT_OF_RANGE_COLOUR;
 end;
 
 procedure TMeasurementsForm.FigurePick(Sender: TObject; const Key: string);
 begin
-  SelectCell(FDocument.Measurements.IndexOf(Key), FirstValueColumn);
+  SelectCell(FDocument.Measurements.IndexOf(Key), FIRST_VALUE_COLUMN);
   ShowEntry(Key);
   FGrid.SetFocus;
 end;
@@ -875,7 +876,7 @@ begin
   begin
     // Or the next line slides under the mouse, ready to be added by mistake
     FEntryList.ItemIndex := -1;
-    SelectCell(FDocument.Measurements.IndexOf(Entry.Key), FirstValueColumn);
+    SelectCell(FDocument.Measurements.IndexOf(Entry.Key), FIRST_VALUE_COLUMN);
     ShowEntry(Entry.Key);
     FGrid.SetFocus;
   end
@@ -890,7 +891,7 @@ end;
 
 function TMeasurementsForm.DescriptionColumn: integer;
 begin
-  Result := FirstValueColumn + ValueColumns;
+  Result := FIRST_VALUE_COLUMN + ValueColumns;
 end;
 
 function TMeasurementsForm.RowIndex(Row: integer): integer;
@@ -902,7 +903,7 @@ end;
 
 function TMeasurementsForm.ColumnSize(Column: integer): integer;
 begin
-  Result := Column - FirstValueColumn;
+  Result := Column - FIRST_VALUE_COLUMN;
   if (Result < 0) or (Result >= ValueColumns) then
     Result := -1;
 end;
@@ -921,7 +922,7 @@ var
 begin
   Measurement := FDocument.Measurements[Row];
   Size := ColumnSize(Column);
-  if Column = KeyColumn then
+  if Column = KEY_COLUMN then
     Result := Measurement.Key
   else if Column = DescriptionColumn then
     Result := Measurement.Description
@@ -942,17 +943,17 @@ begin
     FGrid.EditorMode := False;
     FGrid.ColCount := DescriptionColumn + 1;
     FGrid.RowCount := FGrid.FixedRows + Max(Table.Count, 0);
-    FGrid.ColWidths[KeyColumn] := KeyColumnWidth;
-    FGrid.Cells[KeyColumn, 0] := rsColumnKey;
+    FGrid.ColWidths[KEY_COLUMN] := KEY_COLUMN_WIDTH;
+    FGrid.Cells[KEY_COLUMN, 0] := rsColumnKey;
     for Size := 0 to ValueColumns - 1 do
     begin
-      FGrid.ColWidths[FirstValueColumn + Size] := ValueColumnWidth;
+      FGrid.ColWidths[FIRST_VALUE_COLUMN + Size] := VALUE_COLUMN_WIDTH;
       if Table.SizeCount > 0 then
-        FGrid.Cells[FirstValueColumn + Size, 0] := Table.Sizes[Size]
+        FGrid.Cells[FIRST_VALUE_COLUMN + Size, 0] := Table.Sizes[Size]
       else
-        FGrid.Cells[FirstValueColumn + Size, 0] := rsColumnValue;
+        FGrid.Cells[FIRST_VALUE_COLUMN + Size, 0] := rsColumnValue;
     end;
-    FGrid.ColWidths[DescriptionColumn] := DescriptionColumnWidth;
+    FGrid.ColWidths[DescriptionColumn] := DESCRIPTION_COLUMN_WIDTH;
     FGrid.Cells[DescriptionColumn, 0] := rsColumnDescription;
     for Row := 0 to Table.Count - 1 do
       for Column := 0 to DescriptionColumn do
@@ -963,8 +964,6 @@ begin
 end;
 
 procedure TMeasurementsForm.RefreshAll;
-const
-  ModifiedMark: array[boolean] of string = ('', '*');
 var
   FileTitle: string;
 begin
@@ -992,7 +991,7 @@ begin
   FileTitle := ExtractFileName(FDocument.FileName);
   if FileTitle = '' then
     FileTitle := rsUntitled;
-  Caption := Format(rsMeasurementsTitleFile, [FileTitle, ModifiedMark[FDocument.Modified]]);
+  Caption := Format(rsMeasurementsTitleFile, [FileTitle, MODIFIED_MARK[FDocument.Modified]]);
 end;
 
 // A change made while the grid is finishing an edit is drawn once it has
@@ -1023,7 +1022,7 @@ var
 begin
   Reason := '';
   Result := True;
-  if Column = KeyColumn then
+  if Column = KEY_COLUMN then
   begin
     OldKey := FDocument.Measurements[Index].Key;
     Result := FDocument.RenameKey(Index, Trim(NewText), Reason);
@@ -1073,7 +1072,7 @@ var
   Reason: string;
 begin
   Index := RowIndex(ARow);
-  if FRefreshing or (Index < 0) or (ACol <> KeyColumn) then
+  if FRefreshing or (Index < 0) or (ACol <> KEY_COLUMN) then
     Exit;
   if FDocument.Measurements.CheckKey(Trim(Value), FDocument.Measurements[Index], Reason) then
     ShowStatus('')
@@ -1241,7 +1240,7 @@ begin
   Dialog := TSaveDialog.Create(Self);
   try
     Dialog.Filter := rsFilter;
-    Dialog.DefaultExt := MeasurementExtension;
+    Dialog.DefaultExt := MEASUREMENT_EXTENSION;
     Dialog.FileName := FDocument.FileName;
     Dialog.Options := Dialog.Options + [ofOverwritePrompt];
     if Dialog.Execute then
@@ -1261,8 +1260,8 @@ begin
   Window := TForm.CreateNew(Self);
   try
     Window.Caption := ATitle;
-    Window.Width := ReportWidth;
-    Window.Height := ReportHeight;
+    Window.Width := REPORT_WIDTH;
+    Window.Height := REPORT_HEIGHT;
     Window.Position := poOwnerFormCenter;
     SpaceChildren(Window);
     Button := TButton.Create(Window);
@@ -1401,7 +1400,7 @@ end;
 procedure TMeasurementsForm.AddClick(Sender: TObject);
 begin
   FDocument.AddMeasurement;
-  SelectCell(FDocument.Measurements.Count - 1, KeyColumn);
+  SelectCell(FDocument.Measurements.Count - 1, KEY_COLUMN);
   FGrid.SetFocus;
 end;
 

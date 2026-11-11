@@ -47,6 +47,12 @@ uses
   SysUtils, Classes, fpjson, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note, Sloper.API.Server,
   Sloper.API.Methods;
 
+const
+  PARAMETER_CONSTANTS: array[0..9, 0..1] of string = ((PIECE_ALLOWANCE_FIELD, 'PIECE_ALLOWANCE_FIELD'),
+    (MARKING_SPACING_FIELD, 'MARKING_SPACING_FIELD'), (MARKING_SIZE_FIELD, 'MARKING_SIZE_FIELD'), (SEAM_EASE_FIELD, 'SEAM_EASE_FIELD'),
+    (SEAM_TOLERANCE_FIELD, 'SEAM_TOLERANCE_FIELD'), (NOTE_X_FIELD, 'NOTE_X_FIELD'), (NOTE_Y_FIELD, 'NOTE_Y_FIELD'),
+    (NOTE_DX_FIELD, 'NOTE_DX_FIELD'), (NOTE_DY_FIELD, 'NOTE_DY_FIELD'), (NOTE_POSITION_FIELD, 'NOTE_POSITION_FIELD'));
+
 procedure TTestApiMethods.SetUp;
 var
   Err: string;
@@ -70,7 +76,7 @@ begin
         '", "params": {}}'), Reply, Err));
       try
         AssertFalse(Method.Name + ' is listed but not answered',
-          Assigned(Reply.Find('error')) and (TJSONObject(Reply.Find('error')).Get('code', 0) = RpcMethodNotFound));
+          Assigned(Reply.Find('error')) and (TJSONObject(Reply.Find('error')).Get('code', 0) = RPC_METHOD_NOT_FOUND));
       finally
         FreeAndNil(Reply);
       end;
@@ -116,11 +122,6 @@ end;
 
 // Each name appears quoted in the server, or is a field-name constant it uses
 procedure TTestApiMethods.TestEveryParameterRead;
-const
-  Constants: array[0..9, 0..1] of string = ((PieceAllowanceField, 'PieceAllowanceField'),
-    (MarkingSpacingField, 'MarkingSpacingField'), (MarkingSizeField, 'MarkingSizeField'), (SeamEaseField, 'SeamEaseField'),
-    (SeamToleranceField, 'SeamToleranceField'), (NoteXField, 'NoteXField'), (NoteYField, 'NoteYField'),
-    (NoteDxField, 'NoteDxField'), (NoteDyField, 'NoteDyField'), (NotePositionField, 'NotePositionField'));
 var
   Method: TApiMethod;
   Param: TApiParam;
@@ -138,10 +139,10 @@ begin
       while LastDelimiter('.', Last) > 0 do
         Last := Copy(Last, LastDelimiter('.', Last) + 1, MaxInt);
       Found := Pos('''' + Last + '''', FSource) > 0;
-      for Index := 0 to High(Constants) do
-        Found := Found or ((Constants[Index, 0] = Last) and (Pos(Constants[Index, 1], FSource) > 0));
-      // The anchor's kinds are read by their names in NoteAnchorNames
-      Found := Found or ((Method.Name = 'add_note') and Param.Name.StartsWith('anchor.') and (Pos('NoteAnchorNames', FSource) > 0));
+      for Index := 0 to High(PARAMETER_CONSTANTS) do
+        Found := Found or ((PARAMETER_CONSTANTS[Index, 0] = Last) and (Pos(PARAMETER_CONSTANTS[Index, 1], FSource) > 0));
+      // The anchor's kinds are read by their names in NOTE_ANCHOR_NAMES
+      Found := Found or ((Method.Name = 'add_note') and Param.Name.StartsWith('anchor.') and (Pos('NOTE_ANCHOR_NAMES', FSource) > 0));
       AssertTrue(Method.Name + ': the server never reads "' + Param.Name + '"', Found);
     end;
 end;

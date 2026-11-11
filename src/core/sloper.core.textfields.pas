@@ -30,15 +30,13 @@ uses
 
 const
   // The fields a title block can show; also usable as {pattern.name} in text
-  FieldPatternName = 'pattern.name';
-  FieldMeasurementsName = 'measurements.name';
-  FieldLayoutName = 'layout.name';
-  FieldDate = 'date';
-  FieldPage = 'page';
-  FieldPages = 'pages';
-  FieldCutList = 'cutlist';
-  FieldMaterials = 'materials';
-  PointsToMM = 25.4 / 72;
+  FIELD_PATTERN_NAME = 'pattern.name';
+  FIELD_MEASUREMENTS_NAME = 'measurements.name';
+  FIELD_LAYOUT_NAME = 'layout.name';
+  FIELD_DATE = 'date';
+  FIELD_CUT_LIST = 'cutlist';
+  FIELD_MATERIALS = 'materials';
+  POINTS_TO_MM = 25.4 / 72;
 
 type
   // What fields stand for in text; an empty value leaves the field as typed
@@ -70,8 +68,11 @@ implementation
 
 const
   // Line spacing, and the average width of a Helvetica letter, as shares of its size
-  LineSpacing = 1.25;
-  LetterWidth = 0.52;
+  LINE_SPACING = 1.25;
+  LETTER_WIDTH = 0.52;
+  // The title block fields only this unit fills in: the sheet's number and count
+  FIELD_PAGE = 'page';
+  FIELD_PAGES = 'pages';
 
 function ExpandFields(const Text: string; const Values: TFieldValues): string;
 
@@ -83,14 +84,14 @@ function ExpandFields(const Text: string; const Values: TFieldValues): string;
 
 begin
   Result := Text;
-  Fill(FieldPatternName, Values.PatternName);
-  Fill(FieldMeasurementsName, Values.MeasurementsName);
-  Fill(FieldLayoutName, Values.LayoutName);
-  Fill(FieldDate, Values.Date);
-  Fill(FieldPage, Values.Page);
-  Fill(FieldPages, Values.Pages);
-  Fill(FieldCutList, Values.CutList);
-  Fill(FieldMaterials, Values.Materials);
+  Fill(FIELD_PATTERN_NAME, Values.PatternName);
+  Fill(FIELD_MEASUREMENTS_NAME, Values.MeasurementsName);
+  Fill(FIELD_LAYOUT_NAME, Values.LayoutName);
+  Fill(FIELD_DATE, Values.Date);
+  Fill(FIELD_PAGE, Values.Page);
+  Fill(FIELD_PAGES, Values.Pages);
+  Fill(FIELD_CUT_LIST, Values.CutList);
+  Fill(FIELD_MATERIALS, Values.Materials);
 end;
 
 function TextLines(const Text: string): TStringArray;
@@ -112,12 +113,12 @@ end;
 
 function TextWidth(const Text: string; Size: double): double;
 begin
-  Result := Length(UTF8Decode(Text)) * Size * LetterWidth * PointsToMM;
+  Result := Length(UTF8Decode(Text)) * Size * LETTER_WIDTH * POINTS_TO_MM;
 end;
 
 function LineHeight(Size: double): double;
 begin
-  Result := Size * LineSpacing * PointsToMM;
+  Result := Size * LINE_SPACING * POINTS_TO_MM;
 end;
 
 function FieldDateText: string;

@@ -30,9 +30,9 @@ uses
   Sloper.Core.Geometry, Sloper.Core.TextFields, Sloper.Output.Layout, Sloper.Output.Tiling;
 
 const
-  PreviewZoomStep = 1.25;
+  PREVIEW_ZOOM_STEP = 1.25;
   // Placements land on this grid, in mm
-  PlacementStep = 0.5;
+  PLACEMENT_STEP = 0.5;
 
 type
   TPreviewView = record
@@ -65,8 +65,8 @@ uses
   Math;
 
 const
-  MinPreviewScale = 0.02;
-  MaxPreviewScale = 20;
+  MIN_PREVIEW_SCALE = 0.02;
+  MAX_PREVIEW_SCALE = 20;
 
 function DefaultPreviewView: TPreviewView;
 begin
@@ -90,7 +90,7 @@ var
   Held: TVec2;
 begin
   Held := ToLayout(Anchor);
-  Scale := EnsureRange(Scale * Factor, MinPreviewScale, MaxPreviewScale);
+  Scale := EnsureRange(Scale * Factor, MIN_PREVIEW_SCALE, MAX_PREVIEW_SCALE);
   OriginX := Anchor.X - Held.X * Scale;
   OriginY := Anchor.Y - Held.Y * Scale;
 end;
@@ -107,7 +107,7 @@ var
 begin
   AreaWidth := Max(Area.MaxX - Area.MinX, 1);
   AreaHeight := Max(Area.MaxY - Area.MinY, 1);
-  Scale := EnsureRange(Min((Width - 2 * Margin) / AreaWidth, (Height - 2 * Margin) / AreaHeight), MinPreviewScale, MaxPreviewScale);
+  Scale := EnsureRange(Min((Width - 2 * Margin) / AreaWidth, (Height - 2 * Margin) / AreaHeight), MIN_PREVIEW_SCALE, MAX_PREVIEW_SCALE);
   OriginX := (Width - AreaWidth * Scale) / 2 - Area.MinX * Scale;
   OriginY := (Height - AreaHeight * Scale) / 2 - Area.MinY * Scale;
 end;
@@ -165,7 +165,7 @@ end;
 
 function RoundToStep(Value: double): double;
 begin
-  Result := Round(Value / PlacementStep) * PlacementStep;
+  Result := Round(Value / PLACEMENT_STEP) * PLACEMENT_STEP;
 end;
 
 end.

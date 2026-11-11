@@ -69,6 +69,9 @@ implementation
 uses
   SysUtils, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.OutputProfiles;
 
+const
+  NEWER_SETTINGS = '{"format": "opensloper-settings", "version": 999}';
+
 procedure TTestSettings.SetUp;
 begin
   FSettings := TAppSettings.Create;
@@ -81,7 +84,7 @@ end;
 
 procedure TTestSettings.TestDefaults;
 begin
-  AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertNear('share', DEFAULT_NAME_COLUMN_SHARE, FSettings.NameColumnShare);
   AssertTrue('label mode', FSettings.LabelMode = lmContextual);
   AssertTrue('side panel', FSettings.ShowSidePanel);
   AssertTrue('rulers', FSettings.ShowRulers);
@@ -183,7 +186,7 @@ var
 begin
   FSettings.LabelMode := lmNone;
   AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "labelMode": "some"}', Err));
-  AssertTrue(FSettings.LabelMode = DefaultLabelMode);
+  AssertTrue(FSettings.LabelMode = DEFAULT_LABEL_MODE);
 end;
 
 procedure TTestSettings.TestTextRoundTrip;
@@ -231,7 +234,7 @@ var
 begin
   AssertTrue('a first run is not an error',
     FSettings.LoadFromFile(ConcatPaths([GetTempDir, 'opensloper-no-such-settings.json']), Err));
-  AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertNear('share', DEFAULT_NAME_COLUMN_SHARE, FSettings.NameColumnShare);
 end;
 
 procedure TTestSettings.TestBrokenTextKeepsDefaults;
@@ -240,7 +243,7 @@ var
 begin
   AssertFalse(FSettings.LoadFromText('{ not json', Err));
   AssertTrue('reports why', Err <> '');
-  AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertNear('share', DEFAULT_NAME_COLUMN_SHARE, FSettings.NameColumnShare);
 end;
 
 procedure TTestSettings.TestWrongFormatKeepsDefaults;
@@ -249,7 +252,7 @@ var
 begin
   AssertFalse(FSettings.LoadFromText('{"format": "other", "version": 1, "nameColumnShare": 0.3}', Err));
   AssertTrue('reports why', Err <> '');
-  AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertNear('share', DEFAULT_NAME_COLUMN_SHARE, FSettings.NameColumnShare);
 end;
 
 procedure TTestSettings.TestNewerVersionKeepsDefaults;
@@ -257,7 +260,7 @@ var
   Err: string;
 begin
   AssertFalse(FSettings.LoadFromText('{"format": "opensloper-settings", "version": 999, "nameColumnShare": 0.3}', Err));
-  AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertNear('share', DEFAULT_NAME_COLUMN_SHARE, FSettings.NameColumnShare);
 end;
 
 procedure TTestSettings.TestOutOfRangeShareIsIgnored;
@@ -265,7 +268,7 @@ var
   Err: string;
 begin
   AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "nameColumnShare": 7}', Err));
-  AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertNear('share', DEFAULT_NAME_COLUMN_SHARE, FSettings.NameColumnShare);
 end;
 
 procedure TTestSettings.TestMissingShareIsDefault;
@@ -274,7 +277,7 @@ var
 begin
   FSettings.NameColumnShare := 0.3;
   AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1}', Err));
-  AssertNear('share', DefaultNameColumnShare, FSettings.NameColumnShare);
+  AssertNear('share', DEFAULT_NAME_COLUMN_SHARE, FSettings.NameColumnShare);
 end;
 
 procedure TTestSettings.TestPreferenceDefaults;
@@ -283,7 +286,7 @@ var
 begin
   AssertTrue('unit', FSettings.Preferences.MeasureUnit = muMillimetre);
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
-    AssertNear(MeasureUnitNames[AUnit], DefaultGridSteps[AUnit], FSettings.Preferences.GridSteps[AUnit]);
+    AssertNear(MEASURE_UNIT_NAMES[AUnit], DEFAULT_GRID_STEPS[AUnit], FSettings.Preferences.GridSteps[AUnit]);
   AssertNear('across', 1, FSettings.Preferences.Calibration.X);
   AssertNear('down', 1, FSettings.Preferences.Calibration.Y);
 end;
@@ -320,8 +323,8 @@ begin
   AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "measureUnit": "furlong",' +
     ' "gridSteps": {"mm": -1, "cm": 500, "in": 0.5}, "calibrationX": 1.02}', Err));
   AssertTrue('unit', FSettings.Preferences.MeasureUnit = muMillimetre);
-  AssertNear('negative', DefaultGridSteps[muMillimetre], FSettings.Preferences.GridSteps[muMillimetre]);
-  AssertNear('too large', DefaultGridSteps[muCentimetre], FSettings.Preferences.GridSteps[muCentimetre]);
+  AssertNear('negative', DEFAULT_GRID_STEPS[muMillimetre], FSettings.Preferences.GridSteps[muMillimetre]);
+  AssertNear('too large', DEFAULT_GRID_STEPS[muCentimetre], FSettings.Preferences.GridSteps[muCentimetre]);
   AssertNear('usable', 0.5, FSettings.Preferences.GridSteps[muInch]);
   AssertNear('only one factor', 1, FSettings.Preferences.Calibration.X);
   AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "calibrationX": 0, "calibrationY": 1}', Err));
@@ -353,18 +356,16 @@ begin
 end;
 
 procedure TTestSettings.TestSavingPreferencesLeavesUnreadableFile;
-const
-  Newer = '{"format": "opensloper-settings", "version": 999}';
 var
   FileName, Err, Text: string;
 begin
   FileName := GetTempFileName(GetTempDir, 'oss');
   try
-    AssertTrue(Err, WriteTextFile(FileName, Newer, Err));
+    AssertTrue(Err, WriteTextFile(FileName, NEWER_SETTINGS, Err));
     AssertFalse('refused', SavePreferencesToFile(FileName, DefaultPreferences, Err));
     AssertTrue('says why', Err <> '');
     AssertTrue(Err, ReadTextFile(FileName, Text, Err));
-    AssertEquals('untouched', Newer, Text);
+    AssertEquals('untouched', NEWER_SETTINGS, Text);
   finally
     DeleteFile(FileName);
   end;
@@ -494,7 +495,7 @@ begin
   AssertTrue(FindOutputProfile(nil, 'Plotter or laser cutter', Found));
   AssertTrue(Found.Roles = [erCut]);
   AssertFalse('unknown', FindOutputProfile(nil, 'Nothing like it', Found));
-  AssertTrue('falls back to everything', Found.Roles = MarkingRoles);
+  AssertTrue('falls back to everything', Found.Roles = MARKING_ROLES);
 end;
 
 // A copy must take a new name; one under a built-in name is left out
@@ -519,7 +520,7 @@ begin
     '{"name": "Odd", "styles": {"stitch": {"color": "blue", "width": 1}, "fold": {"color": "#000000", "width": 0.2, "dash": [3, -1]}}}]}', Err));
   AssertFalse(FSettings.OutputProfiles[0].Styles[erStitch].Custom);
   AssertFalse(FSettings.OutputProfiles[0].Styles[erFold].Custom);
-  AssertTrue('everything when not listed', FSettings.OutputProfiles[0].Roles = MarkingRoles);
+  AssertTrue('everything when not listed', FSettings.OutputProfiles[0].Roles = MARKING_ROLES);
 end;
 
 initialization

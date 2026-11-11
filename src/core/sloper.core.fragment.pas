@@ -33,10 +33,8 @@ uses
   SysUtils, Sloper.Core.Pattern;
 
 const
-  FragmentFormat = 'opensloperFragment';
-  FragmentVersion = 1;
   // The clipboard format the apps register for a fragment
-  FragmentMimeType = 'application/x-opensloper-fragment';
+  FRAGMENT_MIME_TYPE = 'application/x-opensloper-fragment';
 
 type
   TFragmentCopy = record
@@ -81,8 +79,10 @@ uses
   Sloper.Core.Variables, Sloper.Core.Transform, Sloper.Core.Units, Sloper.Core.Names, Sloper.Core.PatternFile;
 
 const
+  FRAGMENT_FORMAT = 'opensloperFragment';
+  FRAGMENT_VERSION = 1;
   // Decimals for a transform copy's position and handles
-  CopyDecimals = 4;
+  COPY_DECIMALS = 4;
 
 type
   TKeySet = specialize THashSet<string>;
@@ -105,7 +105,7 @@ end;
 
 function NumberText(Value: double): string;
 begin
-  Result := FormatJSONFloat(RoundTo(Value, -CopyDecimals));
+  Result := FormatJSONFloat(RoundTo(Value, -COPY_DECIMALS));
 end;
 
 // A transform copy as a plain object at its last good place, written as a
@@ -119,8 +119,8 @@ begin
   if Node is TPointCopy then
   begin
     Plain := TFreePoint.Create(Node.Key);
-    Plain.Field('x').ParseStored(LengthFormulaText(TPointObject(Node).Position.X, Pattern.Units, CopyDecimals));
-    Plain.Field('y').ParseStored(LengthFormulaText(TPointObject(Node).Position.Y, Pattern.Units, CopyDecimals));
+    Plain.Field('x').ParseStored(LengthFormulaText(TPointObject(Node).Position.X, Pattern.Units, COPY_DECIMALS));
+    Plain.Field('y').ParseStored(LengthFormulaText(TPointObject(Node).Position.Y, Pattern.Units, COPY_DECIMALS));
   end
   else
   begin
@@ -132,9 +132,9 @@ begin
       Plain := TCurveObject.Create(Edge.Key, Edge.StartKey, Edge.EndKey);
       Curve := Edge.Segments[0].Curve;
       Plain.Field('angle1').ParseStored(NumberText(AngleBetween(Curve.P0, Curve.P1)));
-      Plain.Field('length1').ParseStored(LengthFormulaText(Distance(Curve.P0, Curve.P1), Pattern.Units, CopyDecimals));
+      Plain.Field('length1').ParseStored(LengthFormulaText(Distance(Curve.P0, Curve.P1), Pattern.Units, COPY_DECIMALS));
       Plain.Field('angle2').ParseStored(NumberText(AngleBetween(Curve.P3, Curve.P2)));
-      Plain.Field('length2').ParseStored(LengthFormulaText(Distance(Curve.P3, Curve.P2), Pattern.Units, CopyDecimals));
+      Plain.Field('length2').ParseStored(LengthFormulaText(Distance(Curve.P3, Curve.P2), Pattern.Units, COPY_DECIMALS));
     end;
     TEdgeObject(Plain).Role := Edge.Role;
     TEdgeObject(Plain).NameIsDerived := Edge.NameIsDerived;
@@ -301,10 +301,10 @@ begin
     Exit;
   Root := TJSONObject.Create;
   try
-    Root.Add('format', FragmentFormat);
-    Root.Add('version', FragmentVersion);
+    Root.Add('format', FRAGMENT_FORMAT);
+    Root.Add('version', FRAGMENT_VERSION);
     Root.Add('identity', FPattern.Identity);
-    Root.Add('units', MeasureUnitNames[FPattern.Units]);
+    Root.Add('units', MEASURE_UNIT_NAMES[FPattern.Units]);
     List := TJSONArray.Create;
     Root.Add('selection', List);
     for Key in FSelected do
@@ -346,7 +346,7 @@ begin
   if (Text = '') or not ParseJSONObject(Text, Root, Reason) then
     Exit(False);
   try
-    Result := GetJSONString(Root, 'format', FormatName) and (FormatName = FragmentFormat);
+    Result := GetJSONString(Root, 'format', FormatName) and (FormatName = FRAGMENT_FORMAT);
   finally
     FreeAndNil(Root);
   end;
@@ -458,14 +458,14 @@ var
   Units: TMeasureUnit;
   Needs: TJSONData;
 begin
-  if not GetJSONString(FRoot, 'format', Text) or (Text <> FragmentFormat) or not GetJSONInteger(FRoot, 'version', Version) then
+  if not GetJSONString(FRoot, 'format', Text) or (Text <> FRAGMENT_FORMAT) or not GetJSONInteger(FRoot, 'version', Version) then
     Exit(Fail(rsFragmentNotFragment));
-  if Version > FragmentVersion then
+  if Version > FRAGMENT_VERSION then
     Exit(Fail(rsFragmentNewerVersion));
   if not GetJSONString(FRoot, 'units', Text) or not MeasureUnitFromName(Text, Units) then
     Exit(Fail(rsFragmentNotFragment));
   if Units <> FPattern.Units then
-    Exit(Fail(Format(rsFragmentUnits, [MeasureUnitNames[Units], MeasureUnitNames[FPattern.Units]])));
+    Exit(Fail(Format(rsFragmentUnits, [MEASURE_UNIT_NAMES[Units], MEASURE_UNIT_NAMES[FPattern.Units]])));
   GetJSONString(FRoot, 'identity', Identity);
   FSamePattern := (Identity <> '') and (Identity = FPattern.Identity);
   Needs := FRoot.Find('needs');

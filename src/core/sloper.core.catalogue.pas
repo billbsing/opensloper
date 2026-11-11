@@ -29,11 +29,9 @@ uses
   SysUtils, Generics.Collections, fpjson, Sloper.Core.Geometry;
 
 const
-  CatalogueFormat = 'measurement-catalogue';
-  CatalogueVersion = 1;
   // Name of the Seamly2D and Valentina format in "translations"
-  FormatSeamly2D = 'seamly2d';
-  CatalogueGroups: array[0..8] of string = ('heights', 'circumferences', 'widths', 'arm', 'leg', 'crotch', 'head', 'hand', 'foot');
+  FORMAT_SEAMLY2D = 'seamly2d';
+  CATALOGUE_GROUPS: array[0..8] of string = ('heights', 'circumferences', 'widths', 'arm', 'leg', 'crotch', 'head', 'hand', 'foot');
 
 type
   TCatalogueView = (cvFront, cvBack, cvSide);
@@ -107,8 +105,8 @@ type
 
 const
   // Figure coordinates run down from the top of the head; each view is this big
-  FigureWidth = 500;
-  FigureHeight = 1000;
+  FIGURE_WIDTH = 500;
+  FIGURE_HEIGHT = 1000;
 
 function LayoutFigures(AWidth, AHeight: double): TFigureLayout;
 function FigureToScreen(const Layout: TFigureLayout; View: TCatalogueView; const Point: TVec2): TVec2;
@@ -136,7 +134,9 @@ uses
   Math, Sloper.Core.JSON, Sloper.Core.Names;
 
 const
-  ViewNames: array[TCatalogueView] of string = ('front', 'back', 'side');
+  CATALOGUE_FORMAT = 'measurement-catalogue';
+  CATALOGUE_VERSION = 1;
+  VIEW_NAMES: array[TCatalogueView] of string = ('front', 'back', 'side');
 
 function TCatalogueEntry.InRange(Value: double): boolean;
 begin
@@ -311,17 +311,17 @@ begin
   end;
   for View := Low(TCatalogueView) to High(TCatalogueView) do
   begin
-    Paths := TJSONObject(Views).Find(ViewNames[View]);
+    Paths := TJSONObject(Views).Find(VIEW_NAMES[View]);
     if not Assigned(Paths) or (Paths.JSONType <> jtArray) or (Paths.Count = 0) then
     begin
-      ErrorMessage := Format(rsCatalogueBadFigure, [ViewNames[View]]);
+      ErrorMessage := Format(rsCatalogueBadFigure, [VIEW_NAMES[View]]);
       Exit(False);
     end;
     SetLength(FFigures[View], Paths.Count);
     for Index := 0 to Paths.Count - 1 do
       if not ReadPath(Paths.Items[Index], 3, FFigures[View][Index]) then
       begin
-        ErrorMessage := Format(rsCatalogueBadFigure, [ViewNames[View]]);
+        ErrorMessage := Format(rsCatalogueBadFigure, [VIEW_NAMES[View]]);
         Exit(False);
       end;
   end;
@@ -342,7 +342,7 @@ function TCatalogue.LoadEntry(Item: TJSONObject; out ErrorMessage: string): bool
   begin
     View := cvFront;
     for Candidate := Low(TCatalogueView) to High(TCatalogueView) do
-      if ViewNames[Candidate] = ViewName then
+      if VIEW_NAMES[Candidate] = ViewName then
       begin
         View := Candidate;
         Exit(True);
@@ -383,7 +383,7 @@ begin
   if Assigned(Find(Key)) then
     Exit(Fail(Format(rsCatalogueDuplicate, [Key])));
   Known := False;
-  for Candidate in CatalogueGroups do
+  for Candidate in CATALOGUE_GROUPS do
     Known := Known or (Candidate = GroupName);
   if not Known then
     Exit(Fail(Format(rsCatalogueBadGroup, [Key, GroupName])));
@@ -446,9 +446,9 @@ begin
   if not ParseJSONObject(Text, Obj, ErrorMessage) then
     Exit(False);
   try
-    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> CatalogueFormat) or not GetJSONInteger(Obj, 'version', Version) then
+    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> CATALOGUE_FORMAT) or not GetJSONInteger(Obj, 'version', Version) then
       Exit(Fail(rsCatalogueWrongFormat));
-    if Version > CatalogueVersion then
+    if Version > CATALOGUE_VERSION then
       Exit(Fail(Format(rsCatalogueNewerVersion, [Version])));
     if not LoadFigures(Obj, TextValue) then
       Exit(Fail(TextValue));
@@ -484,11 +484,11 @@ var
   View: TCatalogueView;
   Across, Margin: double;
 begin
-  Across := FigureWidth * (Ord(High(TCatalogueView)) + 1);
-  Result.Scale := Max(Min(AWidth / Across, AHeight / FigureHeight), 1e-6);
+  Across := FIGURE_WIDTH * (Ord(High(TCatalogueView)) + 1);
+  Result.Scale := Max(Min(AWidth / Across, AHeight / FIGURE_HEIGHT), 1e-6);
   Margin := (AWidth - Across * Result.Scale) / 2;
   for View := Low(TCatalogueView) to High(TCatalogueView) do
-    Result.Origins[View] := Vec2(Margin + Ord(View) * FigureWidth * Result.Scale, (AHeight - FigureHeight * Result.Scale) / 2);
+    Result.Origins[View] := Vec2(Margin + Ord(View) * FIGURE_WIDTH * Result.Scale, (AHeight - FIGURE_HEIGHT * Result.Scale) / 2);
 end;
 
 function FigureToScreen(const Layout: TFigureLayout; View: TCatalogueView; const Point: TVec2): TVec2;
@@ -505,7 +505,7 @@ begin
   for Candidate := Low(TCatalogueView) to High(TCatalogueView) do
   begin
     OnFigure := Vec2((Point.X - Layout.Origins[Candidate].X) / Layout.Scale, (Point.Y - Layout.Origins[Candidate].Y) / Layout.Scale);
-    if (OnFigure.X >= 0) and (OnFigure.X < FigureWidth) and (OnFigure.Y >= 0) and (OnFigure.Y < FigureHeight) then
+    if (OnFigure.X >= 0) and (OnFigure.X < FIGURE_WIDTH) and (OnFigure.Y >= 0) and (OnFigure.Y < FIGURE_HEIGHT) then
     begin
       View := Candidate;
       Exit(True);

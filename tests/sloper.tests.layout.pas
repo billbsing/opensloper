@@ -178,6 +178,10 @@ uses
   Sloper.Output.LayoutDocument, Sloper.Output.LayoutPDF, Sloper.Output.PDFWriter, Sloper.Output.Preview, Sloper.Output.LayoutSVG,
   Sloper.Core.Note;
 
+const
+  SIZED_TABLE = '{"format": "measurements", "version": 1, "name": "Block", "sizes": ["36", "38"], ' +
+    '"measurements": [{"key": "width", "values": [100, %s]}]}';
+
 function CountOf(const Part, Text: rawbytestring): integer;
 var
   Position: integer;
@@ -252,7 +256,7 @@ begin
     AssertTrue(Reason, LoadPatternFromFile(Pattern, FPatternPath, Reason));
     Piece := TPieceObject(Pattern.FindObject('Front'));
     AssertNotNull(Pattern.AddNote('', 'Hello', naPiece, Piece.Key, '', '0', '0'));
-    AssertNotNull(Pattern.AddNote('', 'Private', naPiece, Piece.Key, '', '0', '20', DefaultNoteSize, False));
+    AssertNotNull(Pattern.AddNote('', 'Private', naPiece, Piece.Key, '', '0', '20', DEFAULT_NOTE_SIZE, False));
     AssertNotNull(Pattern.AddNote('', 'Loose', naFree, '', '', '500', '500'));
     AssertTrue(Reason, SavePatternToFile(Pattern, FPatternPath, Reason));
   finally
@@ -625,7 +629,7 @@ begin
   AssertEquals('Main', Values.Materials);
   AssertEquals(Values.CutList + ' / Main', ExpandFields('{cutlist} / {materials}', Values));
   FLayout.Title.Fields := nil;
-  Insert(FieldCutList, FLayout.Title.Fields, 0);
+  Insert(FIELD_CUT_LIST, FLayout.Title.Fields, 0);
   AssertEquals(Format(rsTitleCutList, [Values.CutList]), FLayout.TitleLines(Values)[0]);
 end;
 
@@ -749,7 +753,7 @@ begin
   Shapes := FLayout.PlacedPieces;
   AssertEquals('only the printing note on the piece', 1, Length(Shapes[0].Notes));
   AssertEquals('Hello', Shapes[0].Notes[0].Text);
-  AssertNear('size kept', DefaultNoteSize, Shapes[0].Notes[0].Size);
+  AssertNear('size kept', DEFAULT_NOTE_SIZE, Shapes[0].Notes[0].Size);
   // At the piece's middle, where its label goes
   AssertNear('x', Shapes[0].LabelAt.X, Shapes[0].Notes[0].X);
   AssertNear('y', Shapes[0].LabelAt.Y, Shapes[0].Notes[0].Y);
@@ -764,8 +768,8 @@ begin
   WriteNotedPattern;
   Prepare;
   FLayout.PlaceNewPieces;
-  Width := TextWidth('Hello', DefaultNoteSize);
-  Height := LineHeight(DefaultNoteSize);
+  Width := TextWidth('Hello', DEFAULT_NOTE_SIZE);
+  Height := LineHeight(DEFAULT_NOTE_SIZE);
   FLayout.Placements[0].Rotation := 180;
   Shapes := FLayout.PlacedPieces;
   AssertNear('half turn x', Shapes[0].LabelAt.X - Width, Shapes[0].Notes[0].X);
@@ -809,7 +813,7 @@ begin
   try
     AssertTrue(Reason, LoadPatternFromFile(Pattern, FPatternPath, Reason));
     Piece := TPieceObject(Pattern.FindObject('Front'));
-    Note := Pattern.AddNote('', 'Hem {=Front.holes}', naPiece, Piece.Key, '', '20', '20', DefaultNoteSize, True, nlArrow);
+    Note := Pattern.AddNote('', 'Hem {=Front.holes}', naPiece, Piece.Key, '', '20', '20', DEFAULT_NOTE_SIZE, True, nlArrow);
     AssertNotNull(Pattern.LastError, Note);
     Pattern.SetNoteBoxed(Note, True);
     AssertTrue(Reason, SavePatternToFile(Pattern, FPatternPath, Reason));
@@ -1059,9 +1063,6 @@ end;
 
 // A square as wide as @width, from a table with sizes 36 and 38
 procedure TTestLayout.WriteSizedPattern(const Width38: string);
-const
-  Table = '{"format": "measurements", "version": 1, "name": "Block", "sizes": ["36", "38"], ' +
-    '"measurements": [{"key": "width", "values": [100, %s]}]}';
 var
   Pattern: TPattern;
   Measurements: TMeasurementSet;
@@ -1071,7 +1072,7 @@ begin
   Pattern := nil;
   Measurements := TMeasurementSet.Create;
   try
-    AssertTrue(Reason, Measurements.LoadFromText(Format(Table, [Width38]), Reason));
+    AssertTrue(Reason, Measurements.LoadFromText(Format(SIZED_TABLE, [Width38]), Reason));
     AssertTrue(Reason, Measurements.SaveToFile(ConcatPaths([FFolder, 'sizes.slm']), Reason));
     Pattern := TPattern.Create;
     Pattern.Measurements := Measurements;
@@ -1400,7 +1401,7 @@ begin
     Document.NewForPattern(FPatternPath);
     AssertEquals('named after it', 'front', Document.Layout.Name);
     AssertEquals('copies placed', 2, Length(Document.Layout.Placements));
-    AssertEquals('beside it', ChangeFileExt(FPatternPath, LayoutExtension), Document.Layout.FileName);
+    AssertEquals('beside it', ChangeFileExt(FPatternPath, LAYOUT_EXTENSION), Document.Layout.FileName);
     AssertTrue('not saved yet', Document.Modified);
   finally
     FreeAndNil(Document);

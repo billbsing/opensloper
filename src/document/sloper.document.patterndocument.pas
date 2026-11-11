@@ -36,11 +36,6 @@ interface
 uses
   SysUtils, Generics.Collections, Sloper.Core.Measurements, Sloper.Core.Pattern, Sloper.Core.Units;
 
-const
-  DefaultUndoLimit = 500;
-  // Changes with the same merge key this close together become one step
-  DefaultMergeSeconds = 1.0;
-
 type
   EDocumentError = class(Exception);
 
@@ -216,6 +211,11 @@ implementation
 uses
   Sloper.Core.JSON, Sloper.Core.PatternFile;
 
+const
+  DEFAULT_UNDO_LIMIT = 500;
+  // Changes with the same merge key this close together become one step
+  DEFAULT_MERGE_SECONDS = 1.0;
+
   { TCommand }
 
 constructor TCommand.Create(const ADescription: string);
@@ -254,8 +254,8 @@ begin
   FPattern.Identity := NewPatternIdentity;
   FUndo := TCommandList.Create;
   FRedo := TCommandList.Create;
-  FUndoLimit := DefaultUndoLimit;
-  FMergeSeconds := DefaultMergeSeconds;
+  FUndoLimit := DEFAULT_UNDO_LIMIT;
+  FMergeSeconds := DEFAULT_MERGE_SECONDS;
 end;
 
 destructor TPatternDocument.Destroy;

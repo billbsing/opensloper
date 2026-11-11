@@ -101,7 +101,7 @@ uses
   SysUtils, Sloper.Core.PatternFile;
 
 const
-  AreaTolerance = 0.5;
+  AREA_TOLERANCE = 0.5;
 
 function Outline(const Coordinates: array of double): TVec2Array;
 var
@@ -204,7 +204,7 @@ var
   Cut: TVec2Array;
 begin
   AssertTrue(OffsetOutline(Outline([0, 0, 100, 0, 100, 100, 0, 100]), Widths([10, 10, 10, 10]), Cut));
-  AssertNear('area', 120 * 120, Abs(SignedArea(Cut)), AreaTolerance);
+  AssertNear('area', 120 * 120, Abs(SignedArea(Cut)), AREA_TOLERANCE);
   AssertTrue('clockwise', IsClockwise(Cut));
   AssertTrue('mitred corner', HasPoint(Cut, 110, 110));
 end;
@@ -226,7 +226,7 @@ var
 begin
   AssertTrue(OffsetOutline(Outline([0, 0, 100, 0, 100, 100, 0, 100]), Widths([30, 10, 10, 10]), Cut));
   // Hem of 30 along the bottom, 10 elsewhere
-  AssertNear('area', 120 * 140, Abs(SignedArea(Cut)), AreaTolerance);
+  AssertNear('area', 120 * 140, Abs(SignedArea(Cut)), AREA_TOLERANCE);
   AssertTrue('corner meets the wider edge', HasPoint(Cut, 110, -30));
   AssertTrue('corner meets the wider edge', HasPoint(Cut, -10, -30));
 end;
@@ -236,7 +236,7 @@ var
   Cut: TVec2Array;
 begin
   AssertTrue(OffsetOutline(Outline([0, 0, 100, 0, 100, 100, 0, 100]), Widths([10, 10, 10, 0]), Cut));
-  AssertNear('area', 110 * 120, Abs(SignedArea(Cut)), AreaTolerance);
+  AssertNear('area', 110 * 120, Abs(SignedArea(Cut)), AREA_TOLERANCE);
   AssertTrue('nothing beyond the fold', HasPoint(Cut, 0, -10));
 end;
 
@@ -436,7 +436,7 @@ begin
   Piece := SquarePiece('10');
   AssertNear('area', 10000, Piece.Area);
   AssertNear('perimeter', 400, Piece.Perimeter);
-  AssertNear('cut area', 14400, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('cut area', 14400, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
 end;
 
 procedure TTestPiece.TestPieceFollowsMeasurementChange;
@@ -457,7 +457,7 @@ var
 begin
   FPattern.AddVariable('seam', '15');
   Piece := SquarePiece('#seam * 2');
-  AssertNear('cut area', 160 * 160, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('cut area', 160 * 160, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
 end;
 
 procedure TTestPiece.TestPieceEdgeAllowance;
@@ -467,13 +467,13 @@ begin
   Piece := SquarePiece('10');
   AssertTrue(FPattern.LastError, FPattern.SetEdgeAllowance(Piece, 0, '30'));
   FPattern.Evaluate;
-  AssertNear('one edge wider', 120 * 140, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('one edge wider', 120 * 140, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
   AssertFalse('a bad formula is refused', FPattern.SetEdgeAllowance(Piece, 1, '1 +'));
   AssertFalse('and leaves no field', Piece.HasOverride(1));
   AssertTrue(FPattern.SetEdgeAllowance(Piece, 0, ''));
   AssertFalse(Piece.HasOverride(0));
   FPattern.Evaluate;
-  AssertNear('back to the default', 14400, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('back to the default', 14400, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
 end;
 
 procedure TTestPiece.TestPieceGapIsInvalid;
@@ -516,11 +516,11 @@ var
   Piece: TPieceObject;
 begin
   Piece := SquarePiece('10');
-  AssertTrue(FPattern.SetFormula(Piece, PieceAllowanceField, '-1'));
+  AssertTrue(FPattern.SetFormula(Piece, PIECE_ALLOWANCE_FIELD, '-1'));
   FPattern.Evaluate;
   AssertTrue(Piece.State = esInvalid);
   AssertEquals(rsPieceNegativeAllowance, Piece.Message);
-  AssertNear('keeps its last good line', 14400, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('keeps its last good line', 14400, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
 end;
 
 procedure TTestPiece.TestPieceChecks;
@@ -531,7 +531,7 @@ begin
   Square(100, A, B, C, D);
   Path := Detect(50, 50);
   AssertNull('bad formula', FPattern.AddPiece('', Path, '1 +'));
-  AssertEquals(PieceAllowanceField, FPattern.LastErrorField);
+  AssertEquals(PIECE_ALLOWANCE_FIELD, FPattern.LastErrorField);
   AssertNull('bad name', FPattern.AddPiece('1x', Path, '10'));
   AssertNull('name taken', FPattern.AddPiece('A', Path, '10'));
   Path[1] := Path[0];
@@ -581,7 +581,7 @@ begin
     Piece := TPieceObject(Loaded.FindObject('Front'));
     AssertTrue(Piece.Message, Piece.State = esValid);
     AssertTrue(Piece.HasOverride(2));
-    AssertNear('cut area', 120 * 135, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+    AssertNear('cut area', 120 * 135, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
   finally
     FreeAndNil(Loaded);
   end;
@@ -645,7 +645,7 @@ begin
   FPattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
   AssertPointsNear('start', Vec2(10, 10), Piece.Grainline.P1);
-  AssertNull('the angle field went', Piece.Field(GrainAngleField));
+  AssertNull('the angle field went', Piece.Field(GRAIN_ANGLE_FIELD));
   AssertFalse('a point in use', FPattern.Delete(FPattern.FindObject('G1')));
 end;
 
@@ -860,7 +860,7 @@ begin
   AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, FPattern.FindObject('Line_D_A').Key));
   FPattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
-  AssertNear('nothing added at the fold', 110 * 120, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('nothing added at the fold', 110 * 120, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
   AssertTrue('the cut runs along the fold', HasPoint(Piece.CutLine, 0, -10));
 end;
 
@@ -874,10 +874,10 @@ begin
   AssertTrue(FPattern.SetEdgeAllowance(Piece, Piece.PathIndexOf(Fold), '25'));
   AssertTrue(FPattern.SetFoldEdge(Piece, Fold));
   FPattern.Evaluate;
-  AssertNear('still none', 110 * 120, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('still none', 110 * 120, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
   AssertTrue('clearing it brings the allowance back', FPattern.SetFoldEdge(Piece, ''));
   FPattern.Evaluate;
-  AssertNear('the override', 135 * 120, Abs(SignedArea(Piece.CutLine)), AreaTolerance);
+  AssertNear('the override', 135 * 120, Abs(SignedArea(Piece.CutLine)), AREA_TOLERANCE);
 end;
 
 procedure TTestPiece.TestFoldNotchAtFoldLine;

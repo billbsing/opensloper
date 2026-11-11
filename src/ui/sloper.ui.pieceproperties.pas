@@ -111,11 +111,11 @@ uses
   Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.UI.MaterialGrid, Sloper.UI.ObjectList, Sloper.UI.PropertyText;
 
 const
-  MaxCutCount = 99;
+  MAX_CUT_COUNT = 99;
   // The changes that add or remove rows, so they are queued
-  QueuedAddAllowance = 0;
-  QueuedRemoveAllowance = 1;
-  QueuedGrain = 2;
+  QUEUED_ADD_ALLOWANCE = 0;
+  QUEUED_REMOVE_ALLOWANCE = 1;
+  QUEUED_GRAIN = 2;
 
 procedure TPieceSection.Build(Node: TEvalNode; Place: TSectionPlace);
 begin
@@ -135,7 +135,7 @@ begin
   Pattern := Panel.Document.Pattern;
   FCutEdit := TSpinEdit.Create(Panel);
   FCutEdit.MinValue := 1;
-  FCutEdit.MaxValue := MaxCutCount;
+  FCutEdit.MaxValue := MAX_CUT_COUNT;
   FCutEdit.OnChange := @CutChange;
   Panel.AddRow(rsPropCut, FCutEdit);
   FMirrorBox := TCheckBox.Create(Panel);
@@ -177,7 +177,7 @@ end;
 // The grainline's angle goes under the grainline, not with the other fields
 function TPieceSection.OwnsField(Node: TEvalNode; const FieldName: string): boolean;
 begin
-  Result := FieldName = GrainAngleField;
+  Result := FieldName = GRAIN_ANGLE_FIELD;
 end;
 
 // An edge's own allowance is named after its edge, which its field is not
@@ -195,15 +195,15 @@ begin
   PathIndex := TPieceObject(Node).OverridePathIndex(FieldName);
   Result := (Trim(AText) = '') and (PathIndex >= 0);
   if Result then
-    Panel.QueueChange(Self, QueuedRemoveAllowance, PathIndex);
+    Panel.QueueChange(Self, QUEUED_REMOVE_ALLOWANCE, PathIndex);
 end;
 
 procedure TPieceSection.QueuedChangeDue(Change, Data: integer);
 begin
   case Change of
-    QueuedAddAllowance: AddEdgeAllowance(Data);
-    QueuedRemoveAllowance: RemoveEdgeAllowance(Data);
-    QueuedGrain: ChangeGrain(TGrainKind(Data));
+    QUEUED_ADD_ALLOWANCE: AddEdgeAllowance(Data);
+    QUEUED_REMOVE_ALLOWANCE: RemoveEdgeAllowance(Data);
+    QUEUED_GRAIN: ChangeGrain(TGrainKind(Data));
   end;
 end;
 
@@ -351,7 +351,7 @@ procedure TPieceSection.AllowanceChange(Sender: TObject);
 begin
   if FAllowanceBox.ItemIndex <= 0 then
     Exit;
-  Panel.QueueChange(Self, QueuedAddAllowance, FAllowanceIndexes[FAllowanceBox.ItemIndex - 1]);
+  Panel.QueueChange(Self, QUEUED_ADD_ALLOWANCE, FAllowanceIndexes[FAllowanceBox.ItemIndex - 1]);
 end;
 
 // Starts at the piece's own allowance, with its row ready to type in. The
@@ -370,7 +370,7 @@ begin
   Piece := TPieceObject(Node);
   APanel.Document.BeginChange(rsPropAddEdgeAllowance);
   APanel.Document.Commit(APanel.Document.Pattern.SetEdgeAllowance(Piece, PathIndex, APanel.Document.Pattern.FormulaText(Piece,
-    PieceAllowanceField)));
+    PIECE_ALLOWANCE_FIELD)));
   // The commit may have replaced the piece
   Node := APanel.SelectedNode;
   if Node is TPieceObject then
@@ -397,8 +397,8 @@ begin
   // In the order of TGrainKind
   FGrainBox := Panel.AddChoiceRow(rsPropGrainline, [rsPropGrainNone, rsPropGrainAngle, rsPropGrainPoints], @GrainChange);
   for Index := 0 to Piece.FieldCount - 1 do
-    if Piece.Fields[Index].Name = GrainAngleField then
-      Panel.AddEditRow(FieldCaption(GrainAngleField), frFormula, GrainAngleField);
+    if Piece.Fields[Index].Name = GRAIN_ANGLE_FIELD then
+      Panel.AddEditRow(FieldCaption(GRAIN_ANGLE_FIELD), frFormula, GRAIN_ANGLE_FIELD);
   PointNames := nil;
   Insert(rsPropGrainChoose, PointNames, 0);
   Insert('', FGrainPointKeys, 0);
@@ -450,7 +450,7 @@ begin
   FGrainEndBox.Enabled := Points;
   if Points and ((FGrainStartBox.ItemIndex <= 0) or (FGrainEndBox.ItemIndex <= 0)) then
     Exit;
-  Panel.QueueChange(Self, QueuedGrain, FGrainBox.ItemIndex);
+  Panel.QueueChange(Self, QUEUED_GRAIN, FGrainBox.ItemIndex);
 end;
 
 // The commit may rebuild the panel, which frees this section, so only the
@@ -481,7 +481,7 @@ begin
       if Piece.GrainKind = gkAngle then
         Done := True
       else
-        Done := Pattern.SetGrainAngle(Piece, DefaultGrainAngle);
+        Done := Pattern.SetGrainAngle(Piece, DEFAULT_GRAIN_ANGLE);
     else
       Done := Pattern.SetGrainPoints(Piece, FGrainPointKeys[FGrainStartBox.ItemIndex], FGrainPointKeys[FGrainEndBox.ItemIndex]);
   end;

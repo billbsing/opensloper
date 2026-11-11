@@ -24,10 +24,6 @@ unit Sloper.Core.TextHistory;
 
 interface
 
-const
-  // Steps with the same merge key this close together become one
-  HistoryMergeSeconds = 1.0;
-
 type
   TTextHistory = class
   private
@@ -42,7 +38,7 @@ type
     // Stops the next step joining the last
     procedure EndMerging;
     // Before is the text ahead of a change. A step that matches the last one's
-    // non-empty key, within HistoryMergeSeconds, joins it.
+    // non-empty key, within HISTORY_MERGE_SECONDS, joins it.
     procedure Add(const Before, Description, MergeKey: string);
     // Current is the text now. Returns the text to go back or forward to.
     function Undo(const Current: string): string;
@@ -56,6 +52,10 @@ implementation
 
 uses
   SysUtils, DateUtils;
+
+const
+  // Steps with the same merge key this close together become one
+  HISTORY_MERGE_SECONDS = 1.0;
 
 procedure TTextHistory.Clear;
 begin
@@ -92,7 +92,7 @@ procedure TTextHistory.Add(const Before, Description, MergeKey: string);
 var
   Merges: boolean;
 begin
-  Merges := (MergeKey <> '') and (MergeKey = FLastKey) and CanUndo and (SecondSpan(Now, FLastTime) <= HistoryMergeSeconds);
+  Merges := (MergeKey <> '') and (MergeKey = FLastKey) and CanUndo and (SecondSpan(Now, FLastTime) <= HISTORY_MERGE_SECONDS);
   if not Merges then
   begin
     Insert(Before, FUndo, Length(FUndo));

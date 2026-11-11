@@ -30,8 +30,8 @@ uses
   SysUtils, Generics.Collections, fpjson, Sloper.Core.Units;
 
 const
-  MeasurementFormat = 'measurements';
-  MeasurementVersion = 1;
+  MEASUREMENT_FORMAT = 'measurements';
+  MEASUREMENT_VERSION = 1;
 
 type
   EMeasurementError = class(Exception);
@@ -210,8 +210,8 @@ uses
 
 const
   // Enough places to tell 0.1 mm apart in each unit
-  MeasureFormats: array[TMeasureUnit] of string = ('0.######', '0.####', '0.####');
-  MaxMeasure = 1e12;
+  MEASURE_FORMATS: array[TMeasureUnit] of string = ('0.######', '0.####', '0.####');
+  MAX_MEASURE = 1e12;
 
 function TMeasurement.GetValue: double;
 begin
@@ -508,8 +508,8 @@ var
 begin
   Result := TJSONObject.Create;
   try
-    Result.Add('format', MeasurementFormat);
-    Result.Add('version', MeasurementVersion);
+    Result.Add('format', MEASUREMENT_FORMAT);
+    Result.Add('version', MEASUREMENT_VERSION);
     Result.Add('units', 'mm');
     Result.Add('name', Name);
     Result.Add('notes', Notes);
@@ -642,11 +642,11 @@ begin
   if not ParseJSONObject(Text, Obj, ErrorMessage) then
     Exit(False);
   try
-    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> MeasurementFormat) then
+    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> MEASUREMENT_FORMAT) then
       Exit(Fail(rsMeasurementWrongFormat));
     if not GetJSONInteger(Obj, 'version', Version) then
       Exit(Fail(rsMeasurementWrongFormat));
-    if Version > MeasurementVersion then
+    if Version > MEASUREMENT_VERSION then
       Exit(Fail(Format(rsMeasurementNewerVersion, [Version])));
     if GetJSONString(Obj, 'units', TextValue) and (TextValue <> 'mm') then
       Exit(Fail(Format(rsMeasurementUnits, [TextValue])));
@@ -856,7 +856,7 @@ var
 begin
   Settings := DefaultFormatSettings;
   Settings.DecimalSeparator := '.';
-  Result := FormatFloat(MeasureFormats[AUnit], Millimetres / MillimetresPerUnit[AUnit], Settings);
+  Result := FormatFloat(MEASURE_FORMATS[AUnit], Millimetres / MILLIMETRES_PER_UNIT[AUnit], Settings);
 end;
 
 function ParseMeasure(const Text: string; AUnit: TMeasureUnit; out Millimetres: double): boolean;
@@ -867,9 +867,9 @@ begin
   Millimetres := 0;
   Settings := DefaultFormatSettings;
   Settings.DecimalSeparator := '.';
-  Result := TryStrToFloat(StringReplace(Trim(Text), ',', '.', []), Value, Settings) and (Abs(Value) < MaxMeasure);
+  Result := TryStrToFloat(StringReplace(Trim(Text), ',', '.', []), Value, Settings) and (Abs(Value) < MAX_MEASURE);
   if Result then
-    Millimetres := Value * MillimetresPerUnit[AUnit];
+    Millimetres := Value * MILLIMETRES_PER_UNIT[AUnit];
 end;
 
 // All a side says about a key, to see whether it changed; '' when it has none

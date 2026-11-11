@@ -43,12 +43,12 @@ uses
 
 const
   // Coefficients smaller than this, relative to the largest, count as zero
-  RelativeZero = 1e-12;
+  RELATIVE_ZERO = 1e-12;
   // Five-point Gauss-Legendre nodes and weights on [-1, 1]
-  GLNodes: array[0..4] of double = (0, -0.5384693101056831, 0.5384693101056831, -0.9061798459386640, 0.9061798459386640);
-  GLWeights: array[0..4] of double = (0.5688888888888889, 0.4786286704993665,
+  GL_NODES: array[0..4] of double = (0, -0.5384693101056831, 0.5384693101056831, -0.9061798459386640, 0.9061798459386640);
+  GL_WEIGHTS: array[0..4] of double = (0.5688888888888889, 0.4786286704993665,
     0.4786286704993665, 0.2369268850561891, 0.2369268850561891);
-  MaxIntegrateDepth = 30;
+  MAX_INTEGRATE_DEPTH = 30;
 
 procedure AddRoot(var Roots: TDoubleArray; X: double);
 var
@@ -93,16 +93,16 @@ begin
   Scale := Max(Abs(A), Max(Abs(B), Abs(C)));
   if Scale = 0 then
     Exit;
-  if Abs(A) <= RelativeZero * Scale then
+  if Abs(A) <= RELATIVE_ZERO * Scale then
   begin
-    if Abs(B) > RelativeZero * Scale then
+    if Abs(B) > RELATIVE_ZERO * Scale then
       AddRoot(Result, -C / B);
     Exit;
   end;
   Disc := B * B - 4 * A * C;
-  if Disc < -RelativeZero * B * B then
+  if Disc < -RELATIVE_ZERO * B * B then
     Exit;
-  if Disc <= RelativeZero * B * B then
+  if Disc <= RELATIVE_ZERO * B * B then
     AddRoot(Result, -B / (2 * A))
   else
   begin
@@ -144,7 +144,7 @@ begin
   Scale := Max(Max(Abs(A), Abs(B)), Max(Abs(C), Abs(D)));
   if Scale = 0 then
     Exit;
-  if Abs(A) <= RelativeZero * Scale then
+  if Abs(A) <= RELATIVE_ZERO * Scale then
     Exit(SolveQuadratic(B, C, D));
 
   // Depressed cubic t³ + P t + Q = 0 with x = t - B / 3A
@@ -191,8 +191,8 @@ begin
   Mid := (Lo + Hi) / 2;
   Half := (Hi - Lo) / 2;
   Result := 0;
-  for I := 0 to High(GLNodes) do
-    Result := Result + GLWeights[I] * F(Mid + Half * GLNodes[I]);
+  for I := 0 to High(GL_NODES) do
+    Result := Result + GL_WEIGHTS[I] * F(Mid + Half * GL_NODES[I]);
   Result := Result * Half;
 end;
 
@@ -203,7 +203,7 @@ begin
   Mid := (Lo + Hi) / 2;
   Left := GaussLegendre(F, Lo, Mid);
   Right := GaussLegendre(F, Mid, Hi);
-  if (Depth >= MaxIntegrateDepth) or (Abs(Left + Right - Whole) <= Tolerance) then
+  if (Depth >= MAX_INTEGRATE_DEPTH) or (Abs(Left + Right - Whole) <= Tolerance) then
     Exit(Left + Right);
   Result := IntegrateRange(F, Lo, Mid, Left, Tolerance / 2, Depth + 1) + IntegrateRange(F, Mid, Hi, Right, Tolerance / 2, Depth + 1);
 end;

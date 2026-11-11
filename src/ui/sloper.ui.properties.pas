@@ -413,20 +413,20 @@ end;
 
 const
   // At 96 pixels per inch
-  DividerWidth96 = 8;
-  MinColumn96 = 48;
+  DIVIDER_WIDTH96 = 8;
+  MIN_COLUMN96 = 48;
   // A note's text field, at 96 pixels per inch
-  NoteTextHeight96 = 64;
-  NoteSizeStep = 1;
+  NOTE_TEXT_HEIGHT96 = 64;
+  NOTE_SIZE_STEP = 1;
   // The edge and marker sections' queued changes
-  QueuedConvertType = 0;
-  QueuedMarker = 1;
+  QUEUED_CONVERT_TYPE = 0;
+  QUEUED_MARKER = 1;
 
 // A note's draft value field: value1, value2
 function IsNoteValue(const FieldName: string): boolean;
 begin
-  Result := (Copy(FieldName, 1, Length(NoteValueField)) = NoteValueField) and
-    (StrToIntDef(Copy(FieldName, Length(NoteValueField) + 1, MaxInt), 0) > 0);
+  Result := (Copy(FieldName, 1, Length(NOTE_VALUE_FIELD)) = NOTE_VALUE_FIELD) and
+    (StrToIntDef(Copy(FieldName, Length(NOTE_VALUE_FIELD) + 1, MaxInt), 0) > 0);
 end;
 
 function SameNames(const First, Second: TStringArray): boolean;
@@ -549,7 +549,7 @@ constructor TPropertiesPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   BorderStyle := bsNone;
-  FNameShare := DefaultNameColumnShare;
+  FNameShare := DEFAULT_NAME_COLUMN_SHARE;
   HorzScrollBar.Visible := False;
   FSections := TPropertySectionList.Create(True);
   Rebuild;
@@ -896,7 +896,7 @@ end;
 
 function TPropertiesPanel.MinColumn: integer;
 begin
-  Result := Scale96ToForm(MinColumn96);
+  Result := Scale96ToForm(MIN_COLUMN96);
 end;
 
 procedure TPropertiesPanel.PositionDivider;
@@ -959,7 +959,7 @@ begin
       Exit;
     end;
     FDivider := TColumnDivider.Create(Self);
-    FDivider.Width := Scale96ToForm(DividerWidth96);
+    FDivider.Width := Scale96ToForm(DIVIDER_WIDTH96);
     FDivider.Parent := Self;
     FDivider.OnDrag := @DividerDrag;
     AddSections(Node);
@@ -1209,7 +1209,7 @@ begin
   for Index := 0 to Node.FieldCount - 1 do
   begin
     FieldName := Node.Fields[Index].Name;
-    if (FieldName = MarkerSizeField) or Panel.SectionOwnsField(Node, FieldName) then
+    if (FieldName = MARKER_SIZE_FIELD) or Panel.SectionOwnsField(Node, FieldName) then
       Continue;
     Caption := '';
     for Section in Panel.FSections do
@@ -1296,12 +1296,12 @@ end;
 // Changing type replaces the object and rebuilds the panel, box and all
 procedure TEdgeSection.TypeChange(Sender: TObject);
 begin
-  Panel.QueueChange(Self, QueuedConvertType, FTypeBox.ItemIndex);
+  Panel.QueueChange(Self, QUEUED_CONVERT_TYPE, FTypeBox.ItemIndex);
 end;
 
 procedure TEdgeSection.QueuedChangeDue(Change, Data: integer);
 begin
-  if Change = QueuedConvertType then
+  if Change = QUEUED_CONVERT_TYPE then
     ConvertType(Data);
 end;
 
@@ -1361,14 +1361,14 @@ begin
   // In the order of TPointMarker
   FMarkerBox := Panel.AddChoiceRow(rsPropMarker, [rsPropMarkerPlain, rsPropMarkerHole, rsPropMarkerButton, rsPropMarkerMatch], @MarkerChange);
   for Index := 0 to Node.FieldCount - 1 do
-    if Node.Fields[Index].Name = MarkerSizeField then
-      Panel.AddEditRow(FieldCaption(MarkerSizeField), frFormula, MarkerSizeField);
+    if Node.Fields[Index].Name = MARKER_SIZE_FIELD then
+      Panel.AddEditRow(FieldCaption(MARKER_SIZE_FIELD), frFormula, MARKER_SIZE_FIELD);
   FMarkedOnText := Panel.AddTextRow(rsPropMarkedOn, '');
 end;
 
 function TMarkerSection.OwnsField(Node: TEvalNode; const FieldName: string): boolean;
 begin
-  Result := FieldName = MarkerSizeField;
+  Result := FieldName = MARKER_SIZE_FIELD;
 end;
 
 procedure TMarkerSection.Refresh(Node: TEvalNode);
@@ -1386,12 +1386,12 @@ begin
   Node := Panel.SelectedNode;
   if not (Node is TDraftObject) or (FMarkerBox.ItemIndex < 0) or (Ord(TDraftObject(Node).Marker) = FMarkerBox.ItemIndex) then
     Exit;
-  Panel.QueueChange(Self, QueuedMarker, FMarkerBox.ItemIndex);
+  Panel.QueueChange(Self, QUEUED_MARKER, FMarkerBox.ItemIndex);
 end;
 
 procedure TMarkerSection.QueuedChangeDue(Change, Data: integer);
 begin
-  if Change = QueuedMarker then
+  if Change = QUEUED_MARKER then
     ChangeMarker(TPointMarker(Data));
 end;
 
@@ -1535,7 +1535,7 @@ end;
 procedure TNoteSection.AddTextRow;
 begin
   FNoteText := TMemo.Create(Panel);
-  FNoteText.Height := Panel.Scale96ToForm(NoteTextHeight96);
+  FNoteText.Height := Panel.Scale96ToForm(NOTE_TEXT_HEIGHT96);
   FNoteText.ScrollBars := ssAutoVertical;
   FNoteText.WantReturns := True;
   FNoteText.WordWrap := False;
@@ -1555,9 +1555,9 @@ var
   FreeButton: TButton;
 begin
   FNoteSize := TFloatSpinEdit.Create(Panel);
-  FNoteSize.MinValue := NoteSizeStep;
-  FNoteSize.MaxValue := MaxNoteSize;
-  FNoteSize.Increment := NoteSizeStep;
+  FNoteSize.MinValue := NOTE_SIZE_STEP;
+  FNoteSize.MaxValue := MAX_NOTE_SIZE;
+  FNoteSize.Increment := NOTE_SIZE_STEP;
   FNoteSize.DecimalPlaces := 1;
   FNoteSize.OnChange := @SizeChange;
   Panel.AddRow(rsPropNoteSize, FNoteSize);

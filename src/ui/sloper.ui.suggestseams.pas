@@ -38,8 +38,8 @@ uses
   SysUtils, Sloper.UI.ObjectList, Sloper.UI.Spacing;
 
 const
-  DialogWidth = 560;
-  DialogHeight = 400;
+  DIALOG_WIDTH = 560;
+  DIALOG_HEIGHT = 400;
 
 function ChooseSeams(AOwner: TComponent; Pattern: TPattern; const Suggestions: TSeamSuggestionArray): TSeamSuggestionArray;
 var
@@ -54,8 +54,8 @@ begin
     Dialog.Caption := rsSuggestSeamsTitle;
     Dialog.Position := poOwnerFormCenter;
     Dialog.BorderStyle := bsSizeable;
-    Dialog.Width := DialogWidth;
-    Dialog.Height := DialogHeight;
+    Dialog.Width := DIALOG_WIDTH;
+    Dialog.Height := DIALOG_HEIGHT;
     Buttons := TButtonPanel.Create(Dialog);
     Buttons.Parent := Dialog;
     Buttons.ShowButtons := [pbOK, pbCancel];

@@ -58,7 +58,7 @@ implementation
 
 const
   // Closed-form arc length of the parabola below
-  ParabolaLength = 147.89428575445976;
+  PARABOLA_LENGTH = 147.89428575445976;
 
 // x = 100t, y = 200t(1 - t): a parabola from (0, 0) over (50, 50) to (100, 0),
 // written as a cubic (the quadratic with control point (50, 100), elevated)
@@ -124,8 +124,8 @@ end;
 
 procedure TTestBezier.TestParabolaLength;
 begin
-  AssertNear('length', ParabolaLength, Parabola.Length, 1e-6);
-  AssertNear('half', ParabolaLength / 2, Parabola.LengthBetween(0, 0.5), 1e-6);
+  AssertNear('length', PARABOLA_LENGTH, Parabola.Length, 1e-6);
+  AssertNear('half', PARABOLA_LENGTH / 2, Parabola.LengthBetween(0, 0.5), 1e-6);
 end;
 
 procedure TTestBezier.TestParamAtLength;
@@ -133,10 +133,10 @@ var
   C: TCubicBezier;
 begin
   C := Parabola;
-  AssertNear('half way is the apex', 0.5, C.ParamAtLength(ParabolaLength / 2), 1e-9);
-  AssertNear('quarter', 0.19463065852097, C.ParamAtLength(ParabolaLength / 4), 1e-9);
+  AssertNear('half way is the apex', 0.5, C.ParamAtLength(PARABOLA_LENGTH / 2), 1e-9);
+  AssertNear('quarter', 0.19463065852097, C.ParamAtLength(PARABOLA_LENGTH / 4), 1e-9);
   AssertPointsNear('quarter point', Vec2(19.463065852097, 31.34991305693271),
-    C.PointAtLength(ParabolaLength / 4));
+    C.PointAtLength(PARABOLA_LENGTH / 4));
 end;
 
 procedure TTestBezier.TestPointAtLengthClamps;
@@ -145,7 +145,7 @@ var
 begin
   C := Parabola;
   AssertPointsNear('negative', C.P0, C.PointAtLength(-5));
-  AssertPointsNear('past the end', C.P3, C.PointAtLength(ParabolaLength + 5));
+  AssertPointsNear('past the end', C.P3, C.PointAtLength(PARABOLA_LENGTH + 5));
 end;
 
 procedure TTestBezier.TestSplit;
@@ -213,10 +213,10 @@ var
 begin
   C := Parabola;
   R := C.Rotated(Vec2(10, 10), 37);
-  AssertNear('rotated length', ParabolaLength, R.Length, 1e-6);
+  AssertNear('rotated length', PARABOLA_LENGTH, R.Length, 1e-6);
   AssertPointsNear('rotated start', RotatePoint(C.P0, Vec2(10, 10), 37), R.P0);
   AssertNear('rotated angle1', NormalizeAngle(C.StartAngle + 37), R.StartAngle);
-  AssertNear('moved length', ParabolaLength, C.Translated(Vec2(5, -7)).Length, 1e-6);
+  AssertNear('moved length', PARABOLA_LENGTH, C.Translated(Vec2(5, -7)).Length, 1e-6);
   AssertPointsNear('moved apex', Vec2(55, 43), C.Translated(Vec2(5, -7)).PointAt(0.5));
 end;
 
@@ -228,7 +228,7 @@ begin
   // Mirror in the x axis: the parabola now dips below
   M := C.Mirrored(Vec2(0, 0), Vec2(1, 0));
   AssertPointsNear('apex', Vec2(50, -50), M.PointAt(0.5));
-  AssertNear('length', ParabolaLength, M.Length, 1e-6);
+  AssertNear('length', PARABOLA_LENGTH, M.Length, 1e-6);
   AssertPointsNear('reversed start', C.P3, C.Reversed.P0);
 end;
 

@@ -71,13 +71,14 @@ uses
   Sloper.Core.Units, Sloper.UI.Spacing;
 
 const
-  DialogWidth = 560;
-  DialogHeight = 500;
-  CalibrationDecimals = 4;
-  MeasuredDecimals: array[TMeasureUnit] of integer = (1, 2, 3);
-  GridDecimals: array[TMeasureUnit] of integer = (1, 2, 4);
-  GridIncrements: array[TMeasureUnit] of double = (1, 0.1, 0.0625);
-  CalibrationIncrement = 0.001;
+  DIALOG_WIDTH = 560;
+  DIALOG_HEIGHT = 500;
+  CALIBRATION_DECIMALS = 4;
+  MEASURED_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 3);
+  GRID_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 4);
+  GRID_INCREMENTS: array[TMeasureUnit] of double = (1, 0.1, 0.0625);
+  CALIBRATION_INCREMENT = 0.001;
+  UNIT_CAPTIONS: array[TMeasureUnit] of string = (rsPreferencesUnitMillimetre, rsPreferencesUnitCentimetre, rsPreferencesUnitInch);
 
 type
   // Holds the controls while the dialog is open
@@ -118,8 +119,8 @@ begin
   Caption := rsPreferencesTitle;
   Position := poOwnerFormCenter;
   BorderStyle := bsDialog;
-  Width := Scale96ToForm(DialogWidth);
-  Height := Scale96ToForm(DialogHeight);
+  Width := Scale96ToForm(DIALOG_WIDTH);
+  Height := Scale96ToForm(DIALOG_HEIGHT);
   Buttons := TButtonPanel.Create(Self);
   Buttons.Parent := Self;
   Buttons.ShowButtons := [pbOK, pbCancel];
@@ -223,8 +224,6 @@ begin
 end;
 
 procedure TPreferencesDialog.BuildDesignTab;
-const
-  Captions: array[TMeasureUnit] of string = (rsPreferencesUnitMillimetre, rsPreferencesUnitCentimetre, rsPreferencesUnitInch);
 var
   Group: TGroupBox;
   Rows: TPanel;
@@ -234,9 +233,9 @@ begin
   Rows := AddRows(Group);
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
   begin
-    FGridEdits[AUnit] := NewSpin(IntPower(10, -GridDecimals[AUnit]), MaxGridStep / MillimetresPerUnit[AUnit], GridIncrements[AUnit],
-      GridDecimals[AUnit]);
-    AddRow(Rows, Captions[AUnit], FGridEdits[AUnit]);
+    FGridEdits[AUnit] := NewSpin(IntPower(10, -GRID_DECIMALS[AUnit]), MAX_GRID_STEP / MILLIMETRES_PER_UNIT[AUnit], GRID_INCREMENTS[AUnit],
+      GRID_DECIMALS[AUnit]);
+    AddRow(Rows, UNIT_CAPTIONS[AUnit], FGridEdits[AUnit]);
   end;
   AddNote(Group, rsPreferencesGridNote);
 end;
@@ -251,9 +250,9 @@ begin
   Sheet := AddTab(rsPreferencesPublish);
   Group := AddGroup(Sheet, rsPreferencesCalibration);
   Rows := AddRows(Group);
-  FCalibrationXEdit := NewSpin(MinCalibration, MaxCalibration, CalibrationIncrement, CalibrationDecimals);
+  FCalibrationXEdit := NewSpin(MIN_CALIBRATION, MAX_CALIBRATION, CALIBRATION_INCREMENT, CALIBRATION_DECIMALS);
   AddRow(Rows, rsPreferencesCalibrationX, FCalibrationXEdit);
-  FCalibrationYEdit := NewSpin(MinCalibration, MaxCalibration, CalibrationIncrement, CalibrationDecimals);
+  FCalibrationYEdit := NewSpin(MIN_CALIBRATION, MAX_CALIBRATION, CALIBRATION_INCREMENT, CALIBRATION_DECIMALS);
   AddRow(Rows, rsPreferencesCalibrationY, FCalibrationYEdit);
   AddNote(Group, rsPreferencesCalibrationNote);
   Group := AddGroup(Sheet, rsPreferencesTestPrint);
@@ -289,7 +288,7 @@ begin
   FSquareBox.ItemIndex := 0;
   FMeasuredUnit := Preferences.MeasureUnit;
   ShowMeasuredUnit;
-  FMeasuredXEdit.Value := ExpectedSide / MillimetresPerUnit[FMeasuredUnit];
+  FMeasuredXEdit.Value := ExpectedSide / MILLIMETRES_PER_UNIT[FMeasuredUnit];
   FMeasuredYEdit.Value := FMeasuredXEdit.Value;
 end;
 
@@ -313,20 +312,20 @@ end;
 function TPreferencesDialog.ExpectedSide: double;
 begin
   if FSquareBox.ItemIndex = 1 then
-    Result := InchTestSquareSide
+    Result := INCH_TEST_SQUARE_SIDE
   else
-    Result := MetricTestSquareSide;
+    Result := METRIC_TEST_SQUARE_SIDE;
 end;
 
 procedure TPreferencesDialog.ShowMeasuredUnit;
 begin
-  FMeasuredXLabel.Caption := Format(rsPreferencesMeasuredX, [MeasureUnitNames[FMeasuredUnit]]);
-  FMeasuredYLabel.Caption := Format(rsPreferencesMeasuredY, [MeasureUnitNames[FMeasuredUnit]]);
-  FMeasuredXEdit.DecimalPlaces := MeasuredDecimals[FMeasuredUnit];
-  FMeasuredYEdit.DecimalPlaces := MeasuredDecimals[FMeasuredUnit];
-  FMeasuredXEdit.Increment := IntPower(10, -MeasuredDecimals[FMeasuredUnit]);
+  FMeasuredXLabel.Caption := Format(rsPreferencesMeasuredX, [MEASURE_UNIT_NAMES[FMeasuredUnit]]);
+  FMeasuredYLabel.Caption := Format(rsPreferencesMeasuredY, [MEASURE_UNIT_NAMES[FMeasuredUnit]]);
+  FMeasuredXEdit.DecimalPlaces := MEASURED_DECIMALS[FMeasuredUnit];
+  FMeasuredYEdit.DecimalPlaces := MEASURED_DECIMALS[FMeasuredUnit];
+  FMeasuredXEdit.Increment := IntPower(10, -MEASURED_DECIMALS[FMeasuredUnit]);
   FMeasuredYEdit.Increment := FMeasuredXEdit.Increment;
-  FMeasuredXEdit.MaxValue := 2 * InchTestSquareSide / MillimetresPerUnit[FMeasuredUnit];
+  FMeasuredXEdit.MaxValue := 2 * INCH_TEST_SQUARE_SIDE / MILLIMETRES_PER_UNIT[FMeasuredUnit];
   FMeasuredYEdit.MaxValue := FMeasuredXEdit.MaxValue;
 end;
 
@@ -337,18 +336,18 @@ var
 begin
   if FUnitBox.ItemIndex < 0 then
     Exit;
-  Across := FMeasuredXEdit.Value * MillimetresPerUnit[FMeasuredUnit];
-  Down := FMeasuredYEdit.Value * MillimetresPerUnit[FMeasuredUnit];
+  Across := FMeasuredXEdit.Value * MILLIMETRES_PER_UNIT[FMeasuredUnit];
+  Down := FMeasuredYEdit.Value * MILLIMETRES_PER_UNIT[FMeasuredUnit];
   FMeasuredUnit := TMeasureUnit(FUnitBox.ItemIndex);
   ShowMeasuredUnit;
-  FMeasuredXEdit.Value := Across / MillimetresPerUnit[FMeasuredUnit];
-  FMeasuredYEdit.Value := Down / MillimetresPerUnit[FMeasuredUnit];
+  FMeasuredXEdit.Value := Across / MILLIMETRES_PER_UNIT[FMeasuredUnit];
+  FMeasuredYEdit.Value := Down / MILLIMETRES_PER_UNIT[FMeasuredUnit];
 end;
 
 // Starts the measured sizes at the square's own, so only what differs is typed
 procedure TPreferencesDialog.SquareChange(Sender: TObject);
 begin
-  FMeasuredXEdit.Value := ExpectedSide / MillimetresPerUnit[FMeasuredUnit];
+  FMeasuredXEdit.Value := ExpectedSide / MILLIMETRES_PER_UNIT[FMeasuredUnit];
   FMeasuredYEdit.Value := FMeasuredXEdit.Value;
 end;
 
@@ -356,7 +355,7 @@ procedure TPreferencesDialog.WorkOutClick(Sender: TObject);
 var
   Scale: double;
 begin
-  Scale := MillimetresPerUnit[FMeasuredUnit];
+  Scale := MILLIMETRES_PER_UNIT[FMeasuredUnit];
   FCalibrationXEdit.Value := CorrectedCalibration(FCalibrationXEdit.Value, ExpectedSide, FMeasuredXEdit.Value * Scale);
   FCalibrationYEdit.Value := CorrectedCalibration(FCalibrationYEdit.Value, ExpectedSide, FMeasuredYEdit.Value * Scale);
   // The new factors would print the square true, so the next print starts afresh

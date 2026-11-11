@@ -32,10 +32,10 @@ uses
 
 const
   // Closest ticks and numbers may come, in pixels
-  MinTickSpacing = 6;
-  MinLabelSpacing = 50;
+  MIN_TICK_SPACING = 6;
+  MIN_LABEL_SPACING = 50;
   // Closest grid lines may come, in pixels
-  MinGridSpacing = 10;
+  MIN_GRID_SPACING = 10;
 
 type
   TRulerTickKind = (rtMinor, rtMiddle, rtLabelled);
@@ -78,10 +78,15 @@ uses
 const
   // Steps beyond the last are its multiples by ten
   // 1, 2 and 5 times a power of ten, from a hundredth up
-  MetricSteps: array[0..2] of double = (1, 2, 5);
-  MetricFirstPower = -2;
-  InchSteps: array[0..7] of double = (1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 5, 10);
-  Tolerance = 1e-9;
+  METRIC_STEPS: array[0..2] of double = (1, 2, 5);
+  METRIC_FIRST_POWER = -2;
+  INCH_STEPS: array[0..7] of double = (1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 5, 10);
+  TOLERANCE = 1e-9;
+  // Far beyond the smallest zoom, so the loops always end
+  RULER_MAX_STEPS = 60;
+  DEFAULT_MAJOR_COUNT = 10;
+  // Far beyond the smallest zoom, so the loop always ends
+  GRID_MAX_LEVELS = 20;
 
 // The Index-th step of the unit's series, which runs on by tens
 function StepAt(AUnit: TMeasureUnit; Index: integer): double;
@@ -90,43 +95,38 @@ var
 begin
   if AUnit = muInch then
   begin
-    if Index <= High(InchSteps) then
-      Exit(InchSteps[Index]);
-    Count := Index - High(InchSteps) + 2;
-    Result := InchSteps[High(InchSteps) - 2 + Count mod 3] * IntPower(10, Count div 3);
+    if Index <= High(INCH_STEPS) then
+      Exit(INCH_STEPS[Index]);
+    Count := Index - High(INCH_STEPS) + 2;
+    Result := INCH_STEPS[High(INCH_STEPS) - 2 + Count mod 3] * IntPower(10, Count div 3);
   end
   else
-    Result := MetricSteps[Index mod Length(MetricSteps)] * IntPower(10, Index div Length(MetricSteps) + MetricFirstPower);
+    Result := METRIC_STEPS[Index mod Length(METRIC_STEPS)] * IntPower(10, Index div Length(METRIC_STEPS) + METRIC_FIRST_POWER);
 end;
 
 function IsWholeMultiple(Value, Step: double): boolean;
 begin
-  Result := Abs(Value / Step - Round(Value / Step)) < Tolerance;
+  Result := Abs(Value / Step - Round(Value / Step)) < TOLERANCE;
 end;
 
 function RulerSpacing(PixelsPerUnit: double; AUnit: TMeasureUnit): TRulerSpacing;
-const
-  // Far beyond the smallest zoom, so the loops always end
-  MaxSteps = 60;
 var
   Index: integer;
 begin
   Index := 0;
-  while (Index < MaxSteps) and (StepAt(AUnit, Index) * PixelsPerUnit < MinTickSpacing) do
+  while (Index < RULER_MAX_STEPS) and (StepAt(AUnit, Index) * PixelsPerUnit < MIN_TICK_SPACING) do
     Inc(Index);
   Result.Minor := StepAt(AUnit, Index);
-  while (Index < MaxSteps) and ((StepAt(AUnit, Index) * PixelsPerUnit < MinLabelSpacing) or not IsWholeMultiple(StepAt(AUnit, Index), Result.Minor)) do
+  while (Index < RULER_MAX_STEPS) and ((StepAt(AUnit, Index) * PixelsPerUnit < MIN_LABEL_SPACING) or not IsWholeMultiple(StepAt(AUnit, Index), Result.Minor)) do
     Inc(Index);
   Result.Labelled := StepAt(AUnit, Index);
 end;
 
 function GridMajorCount(Step: double; AUnit: TMeasureUnit): integer;
-const
-  DefaultCount = 10;
 var
   PerInch: double;
 begin
-  Result := DefaultCount;
+  Result := DEFAULT_MAJOR_COUNT;
   if (AUnit <> muInch) or (Step <= 0) or (Step >= 1) then
     Exit;
   PerInch := 1 / Step;
@@ -135,16 +135,13 @@ begin
 end;
 
 function GridSpacing(PixelsPerUnit, Step: double; AUnit: TMeasureUnit): TRulerSpacing;
-const
-  // Far beyond the smallest zoom, so the loop always ends
-  MaxLevels = 20;
 var
   Level, Count: integer;
 begin
   Result.Minor := Step;
   Count := GridMajorCount(Step, AUnit);
   Level := 0;
-  while (Level < MaxLevels) and (Result.Minor * PixelsPerUnit < MinGridSpacing) do
+  while (Level < GRID_MAX_LEVELS) and (Result.Minor * PixelsPerUnit < MIN_GRID_SPACING) do
   begin
     // An even fraction of an inch doubles towards the whole inch
     if (AUnit = muInch) and (Result.Minor < 1) and IsWholeMultiple(1 / Result.Minor, 2) then
@@ -165,7 +162,7 @@ var
   Tick: TRulerTick;
 begin
   Result := nil;
-  PixelsPerUnit := View.Scale * MillimetresPerUnit[AUnit];
+  PixelsPerUnit := View.Scale * MILLIMETRES_PER_UNIT[AUnit];
   if (PixelsPerUnit <= 0) or (Length <= 0) then
     Exit;
   Spacing := RulerSpacing(PixelsPerUnit, AUnit);
@@ -178,8 +175,8 @@ begin
   Low := -Origin / PixelsPerUnit;
   High := (Length - Origin) / PixelsPerUnit;
   // Counted in whole steps, so long rulers gather no rounding
-  First := Ceil64(Low / Spacing.Minor - Tolerance);
-  Last := Floor64(High / Spacing.Minor + Tolerance);
+  First := Ceil64(Low / Spacing.Minor - TOLERANCE);
+  Last := Floor64(High / Spacing.Minor + TOLERANCE);
   SetLength(Result, Max(Last - First + 1, 0));
   Count := 0;
   for Index := First to Last do
@@ -207,7 +204,7 @@ begin
     Inc(Decimals);
   Rounded := RoundTo(Value, -Decimals);
   // No "-0" at the origin
-  if Abs(Rounded) < Tolerance then
+  if Abs(Rounded) < TOLERANCE then
     Rounded := 0;
   Result := FloatToStrF(Rounded, ffFixed, 15, Decimals);
 end;

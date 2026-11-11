@@ -41,7 +41,7 @@ type
     aiText, aiAnnotations, aiCallout);
 
 const
-  AppIconNames: array[TAppIcon] of string = ('file-plus', 'folder-open', 'device-floppy', 'file-pencil',
+  APP_ICON_NAMES: array[TAppIcon] of string = ('file-plus', 'folder-open', 'device-floppy', 'file-pencil',
     'ruler-measure', 'printer', 'file-type-svg', 'logout',
     'arrow-back-up', 'arrow-forward-up', 'cut', 'copy', 'clipboard', 'trash',
     'zoom-in', 'zoom-out', 'zoom-scan', 'zoom-reset', 'layout-sidebar-right', 'tag', 'bucket', 'info-circle',
@@ -66,7 +66,7 @@ uses
 
 function IconFileName(const Dir: string; Icon: TAppIcon): string;
 begin
-  Result := ConcatPaths([Dir, AppIconNames[Icon] + '.svg']);
+  Result := ConcatPaths([Dir, APP_ICON_NAMES[Icon] + '.svg']);
 end;
 
 function TintedSVG(const Text, Color: string): string;

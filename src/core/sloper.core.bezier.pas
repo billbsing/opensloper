@@ -31,7 +31,7 @@ uses
 
 const
   // Flattening tolerance used to find intersections before refining, in mm
-  CoarseFlatness = 0.05;
+  COARSE_FLATNESS = 0.05;
 
 type
   TCurveSample = record
@@ -86,11 +86,11 @@ uses
   Math, Sloper.Core.Numeric;
 
 const
-  LengthTolerance = 1e-9;
-  MaxFlattenDepth = 18;
-  NewtonIterations = 30;
+  LENGTH_TOLERANCE = 1e-9;
+  MAX_FLATTEN_DEPTH = 18;
+  NEWTON_ITERATIONS = 30;
   // Parameter tolerance when merging duplicate crossings
-  MergeParamTolerance = 1e-7;
+  MERGE_PARAM_TOLERANCE = 1e-7;
 
   { TCubicBezier }
 
@@ -132,7 +132,7 @@ function TCubicBezier.LengthBetween(T0, T1: double): double;
   end;
 
 begin
-  Result := Integrate(@Speed, T0, T1, LengthTolerance);
+  Result := Integrate(@Speed, T0, T1, LENGTH_TOLERANCE);
 end;
 
 function TCubicBezier.ParamAtLength(S: double): double;
@@ -141,17 +141,17 @@ var
   I: integer;
 begin
   Total := Length;
-  if (S <= 0) or (Total < Epsilon) then
+  if (S <= 0) or (Total < EPSILON) then
     Exit(0);
   if S >= Total then
     Exit(1);
   Lo := 0;
   Hi := 1;
   T := S / Total;
-  for I := 1 to NewtonIterations do
+  for I := 1 to NEWTON_ITERATIONS do
   begin
     F := LengthBetween(0, T) - S;
-    if Abs(F) <= LengthTolerance * 10 then
+    if Abs(F) <= LENGTH_TOLERANCE * 10 then
       Break;
     if F > 0 then
       Hi := T
@@ -159,7 +159,7 @@ begin
       Lo := T;
     // Newton step on arc length, falling back to bisection
     D := DerivativeAt(T).Length;
-    if D > Epsilon then
+    if D > EPSILON then
       Next := T - F / D
     else
       Next := (Lo + Hi) / 2;
@@ -178,9 +178,9 @@ end;
 function TCubicBezier.StartAngle: double;
 begin
   // A zero-length handle has no direction; use the next control point
-  if not PointsNear(P1, P0, Epsilon) then
+  if not PointsNear(P1, P0, EPSILON) then
     Result := AngleBetween(P0, P1)
-  else if not PointsNear(P2, P0, Epsilon) then
+  else if not PointsNear(P2, P0, EPSILON) then
     Result := AngleBetween(P0, P2)
   else
     Result := AngleBetween(P0, P3);
@@ -188,9 +188,9 @@ end;
 
 function TCubicBezier.EndAngle: double;
 begin
-  if not PointsNear(P2, P3, Epsilon) then
+  if not PointsNear(P2, P3, EPSILON) then
     Result := AngleBetween(P3, P2)
-  else if not PointsNear(P1, P3, Epsilon) then
+  else if not PointsNear(P1, P3, EPSILON) then
     Result := AngleBetween(P3, P1)
   else
     Result := AngleBetween(P3, P0);
@@ -268,7 +268,7 @@ var
   begin
     Chord := Line2(C.P0, C.P3);
     Flat := (Distance(Chord.ClosestPoint(C.P1, False), C.P1) <= Tolerance) and (Distance(Chord.ClosestPoint(C.P2, False), C.P2) <= Tolerance);
-    if Flat or (Depth >= MaxFlattenDepth) then
+    if Flat or (Depth >= MAX_FLATTEN_DEPTH) then
       Add(T1, C.P3)
     else
     begin
@@ -294,7 +294,7 @@ var
   Seg: TLine2;
   Q, D1: TVec2;
 begin
-  Samples := Flatten(CoarseFlatness);
+  Samples := Flatten(COARSE_FLATNESS);
   BestT := 0;
   BestDist := Distance(P, P0);
   for I := 1 to High(Samples) do
@@ -311,13 +311,13 @@ begin
 
   // Newton on (B(t) - P) . B'(t) = 0
   T := BestT;
-  for J := 1 to NewtonIterations do
+  for J := 1 to NEWTON_ITERATIONS do
   begin
     Q := PointAt(T) - P;
     D1 := DerivativeAt(T);
     F := Dot(Q, D1);
     DF := Dot(D1, D1) + Dot(Q, SecondDerivativeAt(T));
-    if Abs(DF) < Epsilon then
+    if Abs(DF) < EPSILON then
       Break;
     T := EnsureRange(T - F / DF, 0, 1);
     if Abs(F / DF) < 1e-12 then
@@ -382,7 +382,7 @@ begin
       // A curve can pass through the same point twice at different
       // parameters, so a near point alone is not a duplicate
       DT := Abs(Hits[I].T1 - Hits[N - 1].T1);
-      Duplicate := (DT <= MergeParamTolerance) or ((DT <= 1e-4) and PointsNear(Hits[I].Point, Hits[N - 1].Point, DefaultTolerance / 10));
+      Duplicate := (DT <= MERGE_PARAM_TOLERANCE) or ((DT <= 1e-4) and PointsNear(Hits[I].Point, Hits[N - 1].Point, DEFAULT_TOLERANCE / 10));
     end;
     if not Duplicate then
     begin
@@ -402,7 +402,7 @@ var
 begin
   Result := nil;
   Dir := L.P2 - L.P1;
-  if Dir.Length < Epsilon then
+  if Dir.Length < EPSILON then
     Exit;
   Dir := Dir * (1 / Dir.Length);
   // Signed distances of the control points from the line; the curve's own
@@ -411,12 +411,12 @@ begin
   D1 := Cross(Dir, C.P1 - L.P1);
   D2 := Cross(Dir, C.P2 - L.P1);
   D3 := Cross(Dir, C.P3 - L.P1);
-  if Max(Max(Abs(D0), Abs(D1)), Max(Abs(D2), Abs(D3))) < Epsilon then
+  if Max(Max(Abs(D0), Abs(D1)), Max(Abs(D2), Abs(D3))) < EPSILON then
     Exit; // the curve lies along the line
   Roots := SolveCubic(-D0 + 3 * D1 - 3 * D2 + D3, 3 * D0 - 6 * D1 + 3 * D2, -3 * D0 + 3 * D1, D0);
 
-  CurveTol := DefaultTolerance / Max(C.Length, Epsilon);
-  LineTol := DefaultTolerance / L.Length;
+  CurveTol := DEFAULT_TOLERANCE / Max(C.Length, EPSILON);
+  LineTol := DEFAULT_TOLERANCE / L.Length;
   for T in Roots do
   begin
     if (T < -CurveTol) or (T > 1 + CurveTol) then
@@ -436,7 +436,7 @@ var
   F, DA, DB, NegF, NegDB: TVec2;
   Det, DS, DT: double;
 begin
-  for I := 1 to NewtonIterations do
+  for I := 1 to NEWTON_ITERATIONS do
   begin
     F := A.PointAt(S) - B.PointAt(T);
     if F.Length < 1e-10 then
@@ -447,7 +447,7 @@ begin
     NegDB := -DB;
     // Solve DA*dS - DB*dT = -F by Cramer's rule
     Det := Cross(DA, NegDB);
-    if Abs(Det) < Epsilon then
+    if Abs(Det) < EPSILON then
       Exit(False);
     DS := Cross(NegF, NegDB) / Det;
     DT := Cross(DA, NegF) / Det;
@@ -456,8 +456,8 @@ begin
     if (S < -0.5) or (S > 1.5) or (T < -0.5) or (T > 1.5) then
       Exit(False);
   end;
-  Result := (S >= -MergeParamTolerance) and (S <= 1 + MergeParamTolerance) and (T >= -MergeParamTolerance) and
-    (T <= 1 + MergeParamTolerance) and (Distance(A.PointAt(EnsureRange(S, 0, 1)), B.PointAt(EnsureRange(T, 0, 1))) <= DefaultTolerance / 10);
+  Result := (S >= -MERGE_PARAM_TOLERANCE) and (S <= 1 + MERGE_PARAM_TOLERANCE) and (T >= -MERGE_PARAM_TOLERANCE) and
+    (T <= 1 + MERGE_PARAM_TOLERANCE) and (Distance(A.PointAt(EnsureRange(S, 0, 1)), B.PointAt(EnsureRange(T, 0, 1))) <= DEFAULT_TOLERANCE / 10);
   S := EnsureRange(S, 0, 1);
   T := EnsureRange(T, 0, 1);
 end;
@@ -471,8 +471,8 @@ var
 begin
   Result := nil;
   // Find crossings of the two polylines, then refine each on the curves
-  SA := A.Flatten(CoarseFlatness);
-  SB := B.Flatten(CoarseFlatness);
+  SA := A.Flatten(COARSE_FLATNESS);
+  SB := B.Flatten(COARSE_FLATNESS);
   for I := 1 to High(SA) do
     for J := 1 to High(SB) do
       if IntersectLines(Line2(SA[I - 1].Point, SA[I].Point), Line2(SB[J - 1].Point, SB[J].Point), False, False, Hit) then
@@ -494,7 +494,7 @@ var
   Q, D1: TVec2;
 begin
   Result := nil;
-  Samples := C.Flatten(CoarseFlatness);
+  Samples := C.Flatten(COARSE_FLATNESS);
   for I := 1 to High(Samples) do
   begin
     SegHits := IntersectLineCircle(Line2(Samples[I - 1].Point, Samples[I].Point), False, Centre, Radius);
@@ -502,19 +502,19 @@ begin
     begin
       T := Samples[I - 1].T + (Samples[I].T - Samples[I - 1].T) * EnsureRange(SegHits[J].T1, 0, 1);
       // Newton on |B(t) - centre|² - r² = 0
-      for K := 1 to NewtonIterations do
+      for K := 1 to NEWTON_ITERATIONS do
       begin
         Q := C.PointAt(T) - Centre;
         D1 := C.DerivativeAt(T);
         G := Dot(Q, Q) - Radius * Radius;
         DG := 2 * Dot(Q, D1);
-        if Abs(DG) < Epsilon then
+        if Abs(DG) < EPSILON then
           Break;
         T := EnsureRange(T - G / DG, 0, 1);
         if Abs(G / DG) < 1e-12 then
           Break;
       end;
-      if Abs(Distance(C.PointAt(T), Centre) - Radius) <= DefaultTolerance / 10 then
+      if Abs(Distance(C.PointAt(T), Centre) - Radius) <= DEFAULT_TOLERANCE / 10 then
         AddIntersection(Result, C.PointAt(T), T, 0);
     end;
   end;

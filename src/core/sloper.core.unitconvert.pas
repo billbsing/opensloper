@@ -98,7 +98,7 @@ uses
   Sloper.Core.Materials, Sloper.Core.Variables;
 
 const
-  Tolerance = 1e-9;
+  TOLERANCE = 1e-9;
 
 type
   TTerm = record
@@ -271,7 +271,7 @@ begin
         for Row := Rank + 1 to Group.Count - 1 do
           if Abs(Matrix[Row][Col]) > Abs(Matrix[Best][Col]) then
             Best := Row;
-        if Abs(Matrix[Best][Col]) < Tolerance then
+        if Abs(Matrix[Best][Col]) < TOLERANCE then
           Continue;
         for Other := 0 to Width do
         begin
@@ -283,7 +283,7 @@ begin
         for Other := 0 to Width do
           Matrix[Rank][Other] := Matrix[Rank][Other] / Pivot;
         for Row := 0 to Group.Count - 1 do
-          if (Row <> Rank) and (Abs(Matrix[Row][Col]) >= Tolerance) then
+          if (Row <> Rank) and (Abs(Matrix[Row][Col]) >= TOLERANCE) then
           begin
             Factor := Matrix[Row][Col];
             for Other := 0 to Width do
@@ -295,7 +295,7 @@ begin
       // A row of zeros with a constant left means the equations disagree
       Consistent := True;
       for Row := Rank to Group.Count - 1 do
-        if Abs(Matrix[Row][Width]) >= Tolerance then
+        if Abs(Matrix[Row][Width]) >= TOLERANCE then
           Consistent := False;
       if not Consistent then
         Continue;
@@ -306,7 +306,7 @@ begin
           Continue;
         Clean := True;
         for Other := 0 to Width - 1 do
-          if (Other <> Col) and (Abs(Matrix[Row][Other]) >= Tolerance) then
+          if (Other <> Col) and (Abs(Matrix[Row][Other]) >= TOLERANCE) then
             Clean := False;
         if Clean then
         begin
@@ -569,7 +569,7 @@ var
     if not Tried.Determined[UnknownIndex] then
       Exit(False);
     for Other := 0 to FUnknownCount - 1 do
-      if (FNumberOf[Other] >= 0) and Tried.Determined[Other] and (Tried.Values[Other] < -Tolerance) then
+      if (FNumberOf[Other] >= 0) and Tried.Determined[Other] and (Tried.Values[Other] < -TOLERANCE) then
         Exit(False);
     Result := True;
   end;
@@ -677,9 +677,9 @@ function ConvertedNumber(Value, LengthPower: double; FromUnits, ToUnits: TMeasur
 var
   Decimals: integer;
 begin
-  Result := Value * Power(MillimetresPerUnit[FromUnits] / MillimetresPerUnit[ToUnits], LengthPower);
+  Result := Value * Power(MILLIMETRES_PER_UNIT[FromUnits] / MILLIMETRES_PER_UNIT[ToUnits], LengthPower);
   if SameValue(LengthPower, 1) then
-    Decimals := DragUnitDecimals[ToUnits]
+    Decimals := DRAG_UNIT_DECIMALS[ToUnits]
   else
     Decimals := 6;
   if (RoundToPlaces(Result, Decimals) = 0) and (Result <> 0) then
@@ -711,7 +711,7 @@ begin
   FromUnits := Pattern.Units;
   if FromUnits = ToUnits then
   begin
-    ErrorMessage := Format(rsConvertSameUnit, [MeasureUnitNames[ToUnits]]);
+    ErrorMessage := Format(rsConvertSameUnit, [MEASURE_UNIT_NAMES[ToUnits]]);
     Exit(False);
   end;
   if UndecidedCount(Numbers) > 0 then

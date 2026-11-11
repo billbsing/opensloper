@@ -28,17 +28,12 @@ interface
 uses
   SysUtils, fpjson, Sloper.Core.EvalTypes, Sloper.Core.Pattern;
 
-const
-  // Reported values are rounded to this many decimals of a millimetre: far
-  // finer than drafting needs, and it keeps reports readable and stable
-  ReportDecimals = 6;
-
 // The measurement keys the pattern's formulas use, in order
 function PatternMeasurementKeys(Pattern: TPattern): TStringArray;
 // The same, from a pattern file; needs no measurement set
 function ReadPatternMeasurementKeys(const FileName: string; out Keys: TStringArray; out ErrorMessage: string): boolean;
 
-// Value rounded to ReportDecimals
+// Value rounded to REPORT_DECIMALS
 function ReportFloat(Value: double): TJSONData;
 // The state as written in reports; not translated
 function StateName(State: TEvalState): string;
@@ -69,6 +64,12 @@ implementation
 uses
   Classes, Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry,
   Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note;
+
+const
+  // Reported values are rounded to this many decimals of a millimetre: far
+  // finer than drafting needs, and it keeps reports readable and stable
+  REPORT_DECIMALS = 6;
+  SEAM_FORMAT = '0.#';
 
 function StateName(State: TEvalState): string;
 begin
@@ -130,7 +131,7 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    IsLine := (DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in MarkingRoles);
+    IsLine := (DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in MARKING_ROLES);
     if not IsLine and not (((DraftObject is TPointObject) or (DraftObject is TRepeatObject)) and (DraftObject.Marker <> pmPlain)) then
       Continue;
     if DraftObject.State <> esValid then
@@ -148,8 +149,6 @@ begin
 end;
 
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
-const
-  SeamFormat = '0.#';
 var
   Node: TEvalNode;
   StateText: string;
@@ -181,8 +180,8 @@ begin
       if not Seam.OutOfTolerance then
         Continue;
       SetLength(Result, Length(Result) + 1);
-      Result[High(Result)] := Format(rsCheckSeam, [Seam.DisplayName, FormatFloat(SeamFormat, Seam.LengthA), FormatFloat(SeamFormat, Seam.LengthB),
-        FormatFloat(SeamFormat, Seam.Mismatch), FormatFloat(SeamFormat, Seam.Ease)]);
+      Result[High(Result)] := Format(rsCheckSeam, [Seam.DisplayName, FormatFloat(SEAM_FORMAT, Seam.LengthA), FormatFloat(SEAM_FORMAT, Seam.LengthB),
+        FormatFloat(SEAM_FORMAT, Seam.Mismatch), FormatFloat(SEAM_FORMAT, Seam.Ease)]);
     end;
   for Index := 0 to Pattern.ObjectCount - 1 do
     if (Pattern.Objects[Index] is TPieceObject) and not Assigned(Pattern.MaterialOf(TPieceObject(Pattern.Objects[Index]))) then
@@ -201,7 +200,7 @@ function ReportFloat(Value: double): TJSONData;
 var
   Scale, Rounded: double;
 begin
-  Scale := IntPower(10, ReportDecimals);
+  Scale := IntPower(10, REPORT_DECIMALS);
   Rounded := Round(Value * Scale) / Scale;
   // No "-0" in reports
   if Rounded = 0 then

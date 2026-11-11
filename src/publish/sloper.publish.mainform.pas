@@ -287,24 +287,26 @@ uses
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 const
-  SideWidth = 340;
-  NewNoteSize = 12;
-  NewNoteGap = 10;
-  MaxNoteSize = 200;
-  NoteMemoHeight = 110;
+  SIDE_WIDTH = 340;
+  NEW_NOTE_SIZE = 12;
+  NEW_NOTE_GAP = 10;
+  MAX_NOTE_SIZE = 200;
+  NOTE_MEMO_HEIGHT = 110;
   // In the order of FFieldBoxes
-  TitleFields: array[0..5] of string = (FieldPatternName, FieldMeasurementsName, FieldLayoutName, FieldDate, FieldCutList, FieldMaterials);
-  SideRowStep = 100;
-  ProblemsHeight = 110;
-  WatchMilliseconds = 1000;
-  SpinDecimals = 1;
-  MaxMillimetres = 100;
-  MaxRollWidth = 2000;
-  PatternExtension = '.sloper';
+  TITLE_FIELDS: array[0..5] of string = (FIELD_PATTERN_NAME, FIELD_MEASUREMENTS_NAME, FIELD_LAYOUT_NAME, FIELD_DATE, FIELD_CUT_LIST, FIELD_MATERIALS);
+  SIDE_ROW_STEP = 100;
+  PROBLEMS_HEIGHT = 110;
+  WATCH_MILLISECONDS = 1000;
+  SPIN_DECIMALS = 1;
+  MAX_MILLIMETRES = 100;
+  MAX_ROLL_WIDTH = 2000;
+  PATTERN_EXTENSION = '.sloper';
   // The last is the size typed in
-  PaperNames: array[0..3] of string = ('A4', 'A3', 'Letter', CustomPaper);
-  PatternListHeight = 120;
-  MaxPaperSide = 2000;
+  PAPER_NAMES: array[0..3] of string = ('A4', 'A3', 'Letter', CUSTOM_PAPER);
+  PATTERN_LIST_HEIGHT = 120;
+  MAX_PAPER_SIDE = 2000;
+  NOTE_FIELD_CAPTIONS: array[0..5] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldMaterials);
+  MODIFIED_MARK: array[boolean] of string = ('', '*');
 
 constructor TPublishForm.Create(AOwner: TComponent);
 var
@@ -327,7 +329,7 @@ begin
   FColumn := TPanel.Create(Self);
   FColumn.Parent := Self;
   FColumn.Align := alRight;
-  FColumn.Width := SideWidth;
+  FColumn.Width := SIDE_WIDTH;
   FColumn.BevelOuter := bvNone;
   ProblemsGroup := TGroupBox.Create(Self);
   ProblemsGroup.Parent := FColumn;
@@ -338,7 +340,7 @@ begin
   FProblems := TListBox.Create(Self);
   FProblems.Parent := ProblemsGroup;
   FProblems.Align := alTop;
-  FProblems.Height := ProblemsHeight;
+  FProblems.Height := PROBLEMS_HEIGHT;
   FProblems.ShowHint := True;
   FProblems.BorderSpacing.Around := ControlGap;
   // One tab open at a time, as in the design app's side panel
@@ -368,7 +370,7 @@ begin
   FTabs.ActiveKey := UserPublishTab;
   RefreshControls;
   FWatch := TTimer.Create(Self);
-  FWatch.Interval := WatchMilliseconds;
+  FWatch.Interval := WATCH_MILLISECONDS;
   FWatch.OnTimer := @WatchTick;
   if (ParamCount >= 1) and FileExists(ParamStr(1)) then
     OpenPath(ParamStr(1));
@@ -457,7 +459,7 @@ end;
 
 procedure TPublishForm.PlaceRow(Row: TControl);
 begin
-  Inc(FNextRowTop, SideRowStep);
+  Inc(FNextRowTop, SIDE_ROW_STEP);
   Row.Top := FNextRowTop;
   Row.Align := alTop;
   Row.BorderSpacing.Left := ControlGap;
@@ -498,15 +500,13 @@ begin
 end;
 
 procedure TPublishForm.BuildNotesTab;
-const
-  FieldCaptions: array[0..5] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldMaterials);
 var
   Index: integer;
 begin
   BeginGroup(rsTitleBlock);
   FTitleBox := AddCheck(rsShowTitleBlock);
   for Index := 0 to High(FFieldBoxes) do
-    FFieldBoxes[Index] := AddCheck(FieldCaptions[Index]);
+    FFieldBoxes[Index] := AddCheck(NOTE_FIELD_CAPTIONS[Index]);
   FEveryPageBox := AddCheck(rsEveryPage);
   AddLabel(rsCorner);
   FCornerBox := TComboBox.Create(Self);
@@ -521,11 +521,11 @@ begin
   AddButton(rsAddNote, @AddNoteClick);
   AddLabel(rsSheetNote);
   FNoteMemo := TMemo.Create(Self);
-  FNoteMemo.Height := NoteMemoHeight;
+  FNoteMemo.Height := NOTE_MEMO_HEIGHT;
   FNoteMemo.OnChange := @NoteChange;
   PlaceRow(FNoteMemo);
   AddLabel(rsNoteHelp).WordWrap := True;
-  FNoteSizeEdit := AddSpin(rsNoteSize, MaxNoteSize, 1, 0);
+  FNoteSizeEdit := AddSpin(rsNoteSize, MAX_NOTE_SIZE, 1, 0);
   FNoteSizeEdit.MinValue := 1;
   FNoteSizeEdit.OnChange := @NoteChange;
   AddLabel(rsNoteAlign);
@@ -560,7 +560,7 @@ begin
   begin
     Shown := False;
     for Field in Layout.Title.Fields do
-      Shown := Shown or (Field = TitleFields[Index]);
+      Shown := Shown or (Field = TITLE_FIELDS[Index]);
     FFieldBoxes[Index].Checked := Shown;
     FFieldBoxes[Index].Enabled := Layout.Title.Enabled;
   end;
@@ -595,7 +595,7 @@ begin
   Title.Corner := TTitleCorner(FCornerBox.ItemIndex);
   for Index := 0 to High(FFieldBoxes) do
     if FFieldBoxes[Index].Checked then
-      Insert(TitleFields[Index], Title.Fields, Length(Title.Fields));
+      Insert(TITLE_FIELDS[Index], Title.Fields, Length(Title.Fields));
   FDocument.BeginChange(rsChangeTitle);
   FDocument.Layout.Title := Title;
   FDocument.EndChange;
@@ -626,9 +626,9 @@ var
 begin
   Lowest := 0;
   for Shape in FDocument.Layout.PlacedPieces do
-    Lowest := Max(Lowest, Shape.Bounds.MaxY + NewNoteGap);
+    Lowest := Max(Lowest, Shape.Bounds.MaxY + NEW_NOTE_GAP);
   FDocument.BeginChange(rsAddNoteChange);
-  Added := FDocument.Layout.AddNote(rsNewNote, 0, Lowest, NewNoteSize);
+  Added := FDocument.Layout.AddNote(rsNewNote, 0, Lowest, NEW_NOTE_SIZE);
   FDocument.EndChange;
   FPreview.SelectedNote := Added;
   FNoteMemo.SetFocus;
@@ -693,9 +693,9 @@ begin
   FKindBox.Items.Add(rsOutputProjector);
   FKindBox.Items.Add(rsOutputMaterial);
   FKindBox.OnChange := @SettingChange;
-  FRollEdit := AddSpin(rsRollWidth, MaxRollWidth, 1, 0);
-  FMaterialWidthEdit := AddSpin(rsMaterialWidth, MaxRollWidth, 1, 0);
-  FMaterialLengthEdit := AddSpin(rsMaterialLength, MaxRollWidth, 1, 0);
+  FRollEdit := AddSpin(rsRollWidth, MAX_ROLL_WIDTH, 1, 0);
+  FMaterialWidthEdit := AddSpin(rsMaterialWidth, MAX_ROLL_WIDTH, 1, 0);
+  FMaterialLengthEdit := AddSpin(rsMaterialLength, MAX_ROLL_WIDTH, 1, 0);
   FAllowTurnsBox := TCheckBox.Create(Self);
   FAllowTurnsBox.Caption := rsAllowTurns;
   PlaceRow(FAllowTurnsBox);
@@ -704,16 +704,16 @@ begin
   FPaperBox := TComboBox.Create(Self);
   PlaceRow(FPaperBox);
   FPaperBox.Style := csDropDownList;
-  for Index := 0 to High(PaperNames) - 1 do
-    FPaperBox.Items.Add(PaperNames[Index]);
+  for Index := 0 to High(PAPER_NAMES) - 1 do
+    FPaperBox.Items.Add(PAPER_NAMES[Index]);
   FPaperBox.Items.Add(rsPaperCustom);
   FPaperBox.OnChange := @SettingChange;
-  FPaperWidthEdit := AddSpin(rsPaperWidth, MaxPaperSide, 1, SpinDecimals);
-  FPaperHeightEdit := AddSpin(rsPaperHeight, MaxPaperSide, 1, SpinDecimals);
+  FPaperWidthEdit := AddSpin(rsPaperWidth, MAX_PAPER_SIDE, 1, SPIN_DECIMALS);
+  FPaperHeightEdit := AddSpin(rsPaperHeight, MAX_PAPER_SIDE, 1, SPIN_DECIMALS);
   FPaperWidthEdit.OnExit := @PaperEditExit;
   FPaperHeightEdit.OnExit := @PaperEditExit;
-  FMarginEdit := AddSpin(rsMargin, MaxMillimetres, 1, SpinDecimals);
-  FOverlapEdit := AddSpin(rsOverlap, MaxMillimetres, 1, SpinDecimals);
+  FMarginEdit := AddSpin(rsMargin, MAX_MILLIMETRES, 1, SPIN_DECIMALS);
+  FOverlapEdit := AddSpin(rsOverlap, MAX_MILLIMETRES, 1, SPIN_DECIMALS);
   FMarksBox := AddChoice(rsMarks);
   // In the order of TLayoutMarks
   FMarksBox.Items.Add(rsMarksDiamond);
@@ -741,7 +741,7 @@ begin
   BeginGroup(rsPatternsLabel);
   FSourceBox := TListBox.Create(Self);
   PlaceRow(FSourceBox);
-  FSourceBox.Height := PatternListHeight;
+  FSourceBox.Height := PATTERN_LIST_HEIGHT;
   FSourceBox.OnClick := @SourceSelected;
   AddButton(rsAddPattern, @AddSourceClick);
   FRemoveSourceButton := AddButton(rsRemovePattern, @RemoveSourceClick);
@@ -775,7 +775,7 @@ begin
   Layout := FDocument.Layout;
   FProfileBox.Items.Clear;
   FProfileBox.Items.Add(rsProfileNone);
-  FProfileBox.Items.Add(StandardProfileName);
+  FProfileBox.Items.Add(STANDARD_PROFILE_NAME);
   for Profile in Layout.MachineProfiles do
     if FProfileBox.Items.IndexOf(Profile.Name) < 0 then
       FProfileBox.Items.Add(Profile.Name);
@@ -1063,7 +1063,7 @@ begin
     Exit;
   end;
   FDocument.BeginChange(rsPlaceOne);
-  Placed := FDocument.Layout.PlaceCopyAt(Item, FPreview.LayoutAt(X, Y), PlacementStep);
+  Placed := FDocument.Layout.PlaceCopyAt(Item, FPreview.LayoutAt(X, Y), PLACEMENT_STEP);
   FDocument.EndChange;
   FPreview.Selected := Placed;
 end;
@@ -1093,8 +1093,6 @@ begin
 end;
 
 procedure TPublishForm.RefreshControls;
-const
-  ModifiedMark: array[boolean] of string = ('', '*');
 var
   Layout: TLayout;
   Pages: TTilePageArray;
@@ -1110,12 +1108,12 @@ begin
     FPaperBox.Enabled := Layout.Output.Kind = okTiled;
     FOverlapEdit.Enabled := Layout.Output.Kind = okTiled;
     FPaperBox.ItemIndex := FPaperBox.Items.Count - 1;
-    for Index := 0 to High(PaperNames) do
-      if PaperNames[Index] = Layout.Output.Paper then
+    for Index := 0 to High(PAPER_NAMES) do
+      if PAPER_NAMES[Index] = Layout.Output.Paper then
         FPaperBox.ItemIndex := Index;
     FPaperWidthEdit.Value := Layout.Output.Tiles.PaperWidth;
     FPaperHeightEdit.Value := Layout.Output.Tiles.PaperHeight;
-    FPaperWidthEdit.Enabled := (Layout.Output.Kind = okTiled) and (FPaperBox.ItemIndex = High(PaperNames));
+    FPaperWidthEdit.Enabled := (Layout.Output.Kind = okTiled) and (FPaperBox.ItemIndex = High(PAPER_NAMES));
     FPaperHeightEdit.Enabled := FPaperWidthEdit.Enabled;
     FMarksBox.ItemIndex := Ord(Layout.Output.Marks);
     FMarksBox.Enabled := Layout.Output.Kind = okTiled;
@@ -1148,7 +1146,7 @@ begin
   SetActionHint(FUndoAction);
   FRedoAction.Enabled := FDocument.CanRedo;
   if Layout.FileName <> '' then
-    Caption := Format(rsPublishTitleFile, [ExtractFileName(Layout.FileName), ModifiedMark[FDocument.Modified]])
+    Caption := Format(rsPublishTitleFile, [ExtractFileName(Layout.FileName), MODIFIED_MARK[FDocument.Modified]])
   else
     Caption := rsPublishTitle;
   RefreshProblems;
@@ -1184,8 +1182,8 @@ begin
   Before := Output;
   Output.Kind := TOutputKind(FKindBox.ItemIndex);
   Output.RollWidth := FRollEdit.Value;
-  Output.Paper := PaperNames[FPaperBox.ItemIndex];
-  if FPaperBox.ItemIndex = High(PaperNames) then
+  Output.Paper := PAPER_NAMES[FPaperBox.ItemIndex];
+  if FPaperBox.ItemIndex = High(PAPER_NAMES) then
   begin
     Output.Tiles.PaperWidth := FPaperWidthEdit.Value;
     Output.Tiles.PaperHeight := FPaperHeightEdit.Value;
@@ -1241,7 +1239,7 @@ var
   Reason: string;
 begin
   // A pattern starts a new layout, which is remembered once it is saved
-  if ExtractFileExt(Path) = PatternExtension then
+  if ExtractFileExt(Path) = PATTERN_EXTENSION then
     FDocument.NewForPattern(Path)
   else if FDocument.Open(Path, Reason) then
     FRecent.Remember(Path)
@@ -1317,7 +1315,7 @@ begin
   Dialog := TSaveDialog.Create(Self);
   try
     Dialog.Filter := rsFilterLayout;
-    Dialog.DefaultExt := LayoutExtension;
+    Dialog.DefaultExt := LAYOUT_EXTENSION;
     Dialog.FileName := FDocument.Layout.FileName;
     if Dialog.Execute then
       SaveLayout(Dialog.FileName);
@@ -1341,8 +1339,8 @@ begin
   Dialog := TSaveDialog.Create(Self);
   try
     Dialog.Filter := Filters[Chosen];
-    Dialog.DefaultExt := ExportExtensions[Chosen];
-    Dialog.FileName := ChangeFileExt(FDocument.Layout.FileName, ExportExtensions[Chosen]);
+    Dialog.DefaultExt := EXPORT_EXTENSIONS[Chosen];
+    Dialog.FileName := ChangeFileExt(FDocument.Layout.FileName, EXPORT_EXTENSIONS[Chosen]);
     if not Dialog.Execute then
       Exit;
     if ExportLayout(FDocument.Layout, Chosen, Dialog.FileName, Reason) then

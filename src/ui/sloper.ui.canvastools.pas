@@ -155,7 +155,7 @@ resourcestring
 
 const
   // Screen pixels around the pointer that a tool snaps to or picks from
-  SnapRadius = 8;
+  SNAP_RADIUS = 8;
 
 implementation
 
@@ -164,9 +164,10 @@ uses
 
 const
   // A line or curve shorter than this (mm) is ignored
-  MinEdgeLength = 0.05;
+  MIN_EDGE_LENGTH = 0.05;
   // Curve handles start this fraction of the way along the chord
-  HandleFraction = 1 / 3;
+  HANDLE_FRACTION = 1 / 3;
+  SEAM_SIDE_NAMES: array[boolean] of string = ('A', 'B');
 
 type
   // Selecting and dragging are the canvas's own gestures
@@ -440,7 +441,7 @@ begin
   // A line lines up with its start first, once that start is a point
   if FHasStart and (FStart.Kind = snPoint) then
     AnchorKey := FStart.PointKey;
-  FSnap := FindSnap(Host.Document.Pattern, ModelAt(X, Y), Host.View.PixelsToMM(SnapRadius), AnchorKey);
+  FSnap := FindSnap(Host.Document.Pattern, ModelAt(X, Y), Host.View.PixelsToMM(SNAP_RADIUS), AnchorKey);
   FSnapClick := ModelAt(X, Y);
   FSnapShown := True;
   Host.ShowMessage(SnapMessage);
@@ -586,7 +587,7 @@ begin
   StartPos := FStart.Position;
   EndPos := FSnap.Position;
   Chord := Distance(StartPos, EndPos);
-  if Chord < MinEdgeLength then
+  if Chord < MIN_EDGE_LENGTH then
     Exit;
   if FCurve then
     Description := rsToolAddCurve
@@ -600,9 +601,9 @@ begin
     EndKey := PointFromSnap(Pattern, FSnap);
   if (EndKey <> '') and (EndKey <> StartKey) then
     if FCurve then
-      Edge := Pattern.AddCurve(StartKey, EndKey, RoundedText(AngleBetween(StartPos, EndPos), DragAngleDecimals),
-        RoundLengthFormulaText(Chord * HandleFraction, Pattern.Units), RoundedText(AngleBetween(EndPos, StartPos), DragAngleDecimals),
-        RoundLengthFormulaText(Chord * HandleFraction, Pattern.Units), Host.DrawRole)
+      Edge := Pattern.AddCurve(StartKey, EndKey, RoundedText(AngleBetween(StartPos, EndPos), DRAG_ANGLE_DECIMALS),
+        RoundLengthFormulaText(Chord * HANDLE_FRACTION, Pattern.Units), RoundedText(AngleBetween(EndPos, StartPos), DRAG_ANGLE_DECIMALS),
+        RoundLengthFormulaText(Chord * HANDLE_FRACTION, Pattern.Units), Host.DrawRole)
     else
       Edge := Pattern.AddLine(StartKey, EndKey, Host.DrawRole);
   Reason := Pattern.LastError;
@@ -635,7 +636,7 @@ var
 begin
   Document := Host.Document;
   Pattern := Document.Pattern;
-  if Distance(FStart.Position, FSnap.Position) < MinEdgeLength then
+  if Distance(FStart.Position, FSnap.Position) < MIN_EDGE_LENGTH then
     Exit;
   Node := Pattern.FindNode(FLastEdge);
   if not (Node is TEdgeObject) then
@@ -888,7 +889,7 @@ begin
     Exit;
   end;
   Document.BeginChange(rsToolAddPiece);
-  Piece := Document.Pattern.AddPiece('', Path, DefaultPieceAllowance);
+  Piece := Document.Pattern.AddPiece('', Path, DEFAULT_PIECE_ALLOWANCE);
   Key := '';
   if Assigned(Piece) then
     Key := Piece.Key;
@@ -960,7 +961,7 @@ begin
     Exit;
   Document := Host.Document;
   At := ModelAt(X, Y);
-  Radius := Host.View.PixelsToMM(SnapRadius);
+  Radius := Host.View.PixelsToMM(SNAP_RADIUS);
   Document.BeginChange(rsToolRemoveNotch);
   if Document.Commit(RemoveNotchesAt(At, Radius)) then
     Exit;
@@ -989,8 +990,6 @@ begin
 end;
 
 procedure TSeamTool.ShowProgress;
-const
-  SideNames: array[boolean] of string = ('A', 'B');
 var
   Pattern: TPattern;
   LengthA, LengthB: double;
@@ -998,7 +997,7 @@ begin
   Pattern := Host.Document.Pattern;
   LengthA := SeamSideLength(Pattern, FSideA);
   LengthB := SeamSideLength(Pattern, FSideB);
-  Host.ShowMessage(Format(rsToolSeamProgress, [SideNames[FOnB], LengthWithUnit(LengthA, Pattern.Units), LengthWithUnit(LengthB, Pattern.Units),
+  Host.ShowMessage(Format(rsToolSeamProgress, [SEAM_SIDE_NAMES[FOnB], LengthWithUnit(LengthA, Pattern.Units), LengthWithUnit(LengthB, Pattern.Units),
     LengthWithUnit(LengthB - LengthA, Pattern.Units)]));
 end;
 
@@ -1012,7 +1011,7 @@ begin
   if Button <> cbLeft then
     Exit;
   Pattern := Host.Document.Pattern;
-  if not SeamEntryAt(Pattern, ModelAt(X, Y), Host.View.PixelsToMM(SnapRadius), Entry) then
+  if not SeamEntryAt(Pattern, ModelAt(X, Y), Host.View.PixelsToMM(SNAP_RADIUS), Entry) then
   begin
     Host.ShowMessage(rsToolNoSeam);
     Exit;

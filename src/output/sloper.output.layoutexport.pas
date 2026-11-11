@@ -31,10 +31,10 @@ type
   TExportFormat = (efPDF, efSVG, efDXF, efMachineDXF);
 
 const
-  ExportNames: array[TExportFormat] of string = ('pdf', 'svg', 'dxf', 'machine-dxf');
-  ExportExtensions: array[TExportFormat] of string = ('.pdf', '.svg', '.dxf', '.dxf');
+  EXPORT_NAMES: array[TExportFormat] of string = ('pdf', 'svg', 'dxf', 'machine-dxf');
+  EXPORT_EXTENSIONS: array[TExportFormat] of string = ('.pdf', '.svg', '.dxf', '.dxf');
 
-// By FormatName (one of ExportNames) when there is one, then by FileName's
+// By FormatName (one of EXPORT_NAMES) when there is one, then by FileName's
 // extension, where .dxf means DXF-AAMA, and PDF when there is no file name.
 // False when neither is known.
 function ExportFormatFor(const FormatName, FileName: string; out AFormat: TExportFormat): boolean;
@@ -59,7 +59,7 @@ begin
     Exit(True);
   Wanted := LowerCase(ExtractFileExt(FileName));
   for Candidate := Low(TExportFormat) to High(TExportFormat) do
-    if ((FormatName <> '') and SameText(ExportNames[Candidate], FormatName)) or ((FormatName = '') and (ExportExtensions[Candidate] = Wanted)) then
+    if ((FormatName <> '') and SameText(EXPORT_NAMES[Candidate], FormatName)) or ((FormatName = '') and (EXPORT_EXTENSIONS[Candidate] = Wanted)) then
     begin
       AFormat := Candidate;
       Exit(True);

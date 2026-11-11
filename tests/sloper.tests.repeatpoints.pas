@@ -100,6 +100,11 @@ uses
   Sloper.Document.PatternDocument,
   Sloper.UI.ObjectList, Sloper.UI.Scene;
 
+const
+  REPEAT_PATTERN_HEAD = '{"format": "pattern", "version": 1, "units": "mm", "objects": [' +
+    '{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, {"id": 2, "type": "freePoint", "name": "B", "x": "9", "y": "0"}, ' +
+    '{"id": 3, "type": "repeat", "name": "R", "a": 1, "b": 2, "ends": "include", "count": "3", "points": [';
+
 procedure TTestRepeat.SetUp;
 begin
   FPattern := TPattern.Create;
@@ -597,20 +602,16 @@ begin
 end;
 
 procedure TTestRepeat.TestBadRepeatPointsRefused;
-const
-  Head = '{"format": "pattern", "version": 1, "units": "mm", "objects": [' +
-    '{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, {"id": 2, "type": "freePoint", "name": "B", "x": "9", "y": "0"}, ' +
-    '{"id": 3, "type": "repeat", "name": "R", "a": 1, "b": 2, "ends": "include", "count": "3", "points": [';
 var
   Loaded: TPattern;
   Err: string;
 begin
   Loaded := TPattern.Create;
   try
-    AssertFalse('an ID taken', LoadPatternFromText(Loaded, Head + '{"index": 1, "id": 1}]}]}', Err));
-    AssertFalse('an index twice', LoadPatternFromText(Loaded, Head + '{"index": 1, "id": 4}, {"index": 1, "id": 5}]}]}', Err));
-    AssertFalse('an index of 0', LoadPatternFromText(Loaded, Head + '{"index": 0, "id": 4}]}]}', Err));
-    AssertTrue(Err, LoadPatternFromText(Loaded, Head + '{"index": 2, "id": 4}]}]}', Err));
+    AssertFalse('an ID taken', LoadPatternFromText(Loaded, REPEAT_PATTERN_HEAD + '{"index": 1, "id": 1}]}]}', Err));
+    AssertFalse('an index twice', LoadPatternFromText(Loaded, REPEAT_PATTERN_HEAD + '{"index": 1, "id": 4}, {"index": 1, "id": 5}]}]}', Err));
+    AssertFalse('an index of 0', LoadPatternFromText(Loaded, REPEAT_PATTERN_HEAD + '{"index": 0, "id": 4}]}]}', Err));
+    AssertTrue(Err, LoadPatternFromText(Loaded, REPEAT_PATTERN_HEAD + '{"index": 2, "id": 4}]}]}', Err));
   finally
     FreeAndNil(Loaded);
   end;

@@ -45,12 +45,12 @@ uses
 
 const
   // Clipper2 rounds to this many decimals of a millimetre
-  CutLineDecimals = 3;
+  CUT_LINE_DECIMALS = 3;
   // A corner sharper than this, as a multiple of the wider allowance, is cut
   // off rather than running out to a long spike
-  MitreLimit = 4;
+  MITRE_LIMIT = 4;
   // Sine of the turn below which two segments count as one straight line
-  StraightTurn = 1e-9;
+  STRAIGHT_TURN = 1e-9;
 
 function UnitVector(const From, Target: TVec2): TVec2;
 begin
@@ -86,11 +86,11 @@ begin
   // Positive for a turn to the left on screen; with y down the plain cross
   // product has the opposite sign
   Turn := -Cross(Incoming, Outgoing);
-  if Turn > StraightTurn then
+  if Turn > STRAIGHT_TURN then
   begin
     // A convex corner: the two offset lines meet at a point
     Mitre := Before + Incoming * (Cross(After - Before, Outgoing) / Cross(Incoming, Outgoing));
-    if Distance(Mitre, Vertex) <= MitreLimit * Max(WidthIn, WidthOut) then
+    if Distance(Mitre, Vertex) <= MITRE_LIMIT * Max(WidthIn, WidthOut) then
       Add(Mitre)
     else
     begin
@@ -98,7 +98,7 @@ begin
       Add(After);
     end;
   end
-  else if Turn < -StraightTurn then
+  else if Turn < -STRAIGHT_TURN then
   begin
     // A concave corner: going through the vertex keeps the winding right, so
     // the union drops the overlap
@@ -176,7 +176,7 @@ begin
 
   // Clipper counts winding in y-up axes, where a path anticlockwise on screen
   // winds negatively; the loops at concave corners wind the other way
-  Cleaned := LargestPath(Union(Raw, frNegative, CutLineDecimals));
+  Cleaned := LargestPath(Union(Raw, frNegative, CUT_LINE_DECIMALS));
   Result := Length(Cleaned) >= 3;
   if not Result then
     Exit;

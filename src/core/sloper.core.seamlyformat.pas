@@ -32,10 +32,6 @@ interface
 uses
   SysUtils, Sloper.Core.Catalogue, Sloper.Core.Measurements;
 
-const
-  // How many sizes either side of a multi-size file's base become columns
-  ImportSizeSpan = 3;
-
 type
   TImportReport = record
     // Lines of the form "waist_circ -> waist_circumference"
@@ -90,6 +86,11 @@ implementation
 uses
   Classes, Math, Generics.Collections, DOM, XMLRead, Sloper.Core.JSON, Sloper.Core.Names;
 
+const
+  // How many sizes either side of a multi-size file's base become columns
+  IMPORT_SIZE_SPAN = 3;
+  FORMULA_OPERATORS = ['+', '-', '*', '/', '(', ')'];
+
 type
   TValueMap = specialize TDictionary<string, double>;
 
@@ -100,21 +101,21 @@ type
   end;
 
 const
-  MillimetresPerInch = 25.4;
-  SizeStep = 2;
-  MinSize = 22;
-  MaxSize = 72;
+  MILLIMETRES_PER_INCH = 25.4;
+  SIZE_STEP = 2;
+  MIN_SIZE = 22;
+  MAX_SIZE = 72;
   // Written when a set has no height to go by
-  DefaultHeight = 176;
+  DEFAULT_HEIGHT = 176;
   // How far a value may stray from the line before it is reported
-  LineTolerance = 0.5;
-  CustomMark = '@';
-  VersionIndividual = '0.3.4';
-  VersionIndividualOld = '0.3.3';
-  VersionMultiSize = '0.4.5';
-  VersionMultiSizeOld = '0.4.4';
-  OldestIndividual = '0.3.0';
-  OldestMultiSize = '0.4.0';
+  LINE_TOLERANCE = 0.5;
+  CUSTOM_MARK = '@';
+  VERSION_INDIVIDUAL = '0.3.4';
+  VERSION_INDIVIDUAL_OLD = '0.3.3';
+  VERSION_MULTI_SIZE = '0.4.5';
+  VERSION_MULTI_SIZE_OLD = '0.4.4';
+  OLDEST_INDIVIDUAL = '0.3.0';
+  OLDEST_MULTI_SIZE = '0.4.0';
 
 procedure AddLine(var Lines: TStringArray; const Line: string);
 begin
@@ -219,7 +220,7 @@ begin
   Description := AttributeOf(Item, 'description');
   if Description = '' then
     Description := AttributeOf(Item, 'full_name');
-  Entry := Catalogue.FindTranslated(FormatSeamly2D, Name);
+  Entry := Catalogue.FindTranslated(FORMAT_SEAMLY2D, Name);
   if Assigned(Entry) then
   begin
     Wanted := Entry.Key;
@@ -229,8 +230,8 @@ begin
   else
   begin
     Custom := Name;
-    if Copy(Custom, 1, Length(CustomMark)) = CustomMark then
-      Delete(Custom, 1, Length(CustomMark));
+    if Copy(Custom, 1, Length(CUSTOM_MARK)) = CUSTOM_MARK then
+      Delete(Custom, 1, Length(CUSTOM_MARK));
     Wanted := CleanKey(Custom);
     if not CheckName(Wanted, Reason) then
       Wanted := 'm_' + Wanted;
@@ -253,7 +254,7 @@ begin
   if AUnit = 'cm' then
     Result := Value * 10
   else if AUnit = 'inch' then
-    Result := Value * MillimetresPerInch
+    Result := Value * MILLIMETRES_PER_INCH
   else
     Result := Value;
 end;
@@ -261,8 +262,6 @@ end;
 // Arithmetic on numbers and the file's other values. False for anything else,
 // such as a function, or a name with no value yet.
 function CalculateFormula(const Text: string; Values: TValueMap; out Value: double): boolean;
-const
-  Operators = ['+', '-', '*', '/', '(', ')'];
 var
   Position: integer;
 
@@ -289,7 +288,7 @@ var
   begin
     SkipSpaces;
     Start := Position;
-    while (Position <= Length(Text)) and not (Text[Position] in Operators + [' ', #9]) do
+    while (Position <= Length(Text)) and not (Text[Position] in FORMULA_OPERATORS + [' ', #9]) do
     begin
       // The sign of an exponent belongs to the number
       if (Text[Position] in ['e', 'E']) and (Position > Start) and (Text[Start] in ['0'..'9', '.']) and (Position < Length(Text)) and
@@ -472,13 +471,13 @@ begin
   BaseSize := BaseSize / UnitsPerCentimetre;
   BaseHeight := BaseHeight / UnitsPerCentimetre;
   Measurements.Notes := ChildText(Root, 'notes');
-  First := Max(Round(BaseSize) - ImportSizeSpan * SizeStep, MinSize);
-  Last := Min(Round(BaseSize) + ImportSizeSpan * SizeStep, MaxSize);
+  First := Max(Round(BaseSize) - IMPORT_SIZE_SPAN * SIZE_STEP, MIN_SIZE);
+  Last := Min(Round(BaseSize) + IMPORT_SIZE_SPAN * SIZE_STEP, MAX_SIZE);
   Size := First;
   while Size <= Last do
   begin
     Measurements.AddSize(IntToStr(Size));
-    Inc(Size, SizeStep);
+    Inc(Size, SIZE_STEP);
   end;
   Item := Root.FindNode('body-measurements');
   if not Assigned(Item) then
@@ -501,7 +500,7 @@ begin
         Increase := 0;
       for Index := 0 to Measurements.SizeCount - 1 do
       begin
-        Steps := (StrToInt(Measurements.Sizes[Index]) - BaseSize) / SizeStep;
+        Steps := (StrToInt(Measurements.Sizes[Index]) - BaseSize) / SIZE_STEP;
         Measurement.SetValueFor(Index, ToMillimetres(Base + Steps * Increase, AUnit));
       end;
     end;
@@ -527,12 +526,12 @@ begin
     Exit;
   end;
   Version := ChildText(Root, 'version');
-  Oldest := OldestIndividual;
-  Newest := VersionIndividual;
+  Oldest := OLDEST_INDIVIDUAL;
+  Newest := VERSION_INDIVIDUAL;
   if MultiSize then
   begin
-    Oldest := OldestMultiSize;
-    Newest := VersionMultiSize;
+    Oldest := OLDEST_MULTI_SIZE;
+    Newest := VERSION_MULTI_SIZE;
   end;
   if CompareVersions(Version, Oldest) < 0 then
   begin
@@ -629,19 +628,19 @@ begin
   Entry := Catalogue.Find(Measurement.Key);
   Result := '';
   if Assigned(Entry) then
-    Result := Entry.NameIn(FormatSeamly2D)
-  else if Catalogue.IsKnownName(FormatSeamly2D, Measurement.Key) then
+    Result := Entry.NameIn(FORMAT_SEAMLY2D)
+  else if Catalogue.IsKnownName(FORMAT_SEAMLY2D, Measurement.Key) then
     Result := Measurement.Key;
   Custom := Result = '';
   if Custom then
   begin
-    Result := CustomMark + Measurement.Key;
+    Result := CUSTOM_MARK + Measurement.Key;
     AddLine(Notes, Format(rsSeamlyCustom, [Measurement.Key, Measurement.Key]));
   end;
   for Taken in Used do
     if Taken = Result then
     begin
-      Result := CustomMark + Measurement.Key;
+      Result := CUSTOM_MARK + Measurement.Key;
       AddLine(Notes, Format(rsSeamlyNameTaken, [Measurement.Key, Measurement.Key]));
       Break;
     end;
@@ -724,8 +723,8 @@ begin
   if First < 0 then
     Exit;
   if Last > First then
-    Increase := (Measurement.ValueFor(Last) - Measurement.ValueFor(First)) / ((SizeNumbers[Last] - SizeNumbers[First]) / SizeStep);
-  Base := Measurement.ValueFor(First) + (BaseSize - SizeNumbers[First]) / SizeStep * Increase;
+    Increase := (Measurement.ValueFor(Last) - Measurement.ValueFor(First)) / ((SizeNumbers[Last] - SizeNumbers[First]) / SIZE_STEP);
+  Base := Measurement.ValueFor(First) + (BaseSize - SizeNumbers[First]) / SIZE_STEP * Increase;
 end;
 
 function ReadSizeNumbers(Measurements: TMeasurementSet; out SizeNumbers: TSizeNumbers; out ErrorMessage: string): boolean;
@@ -736,7 +735,7 @@ begin
   SizeNumbers := nil;
   SetLength(SizeNumbers, Measurements.SizeCount);
   for Index := 0 to High(SizeNumbers) do
-    if not TryStrToInt(Measurements.Sizes[Index], SizeNumbers[Index]) or (SizeNumbers[Index] < MinSize) or (SizeNumbers[Index] > MaxSize) or
+    if not TryStrToInt(Measurements.Sizes[Index], SizeNumbers[Index]) or (SizeNumbers[Index] < MIN_SIZE) or (SizeNumbers[Index] > MAX_SIZE) or
       Odd(SizeNumbers[Index]) then
     begin
       ErrorMessage := Format(rsSeamlyBadSizes, [Measurements.Sizes[Index]]);
@@ -777,7 +776,7 @@ begin
     Lines.Add('    <unit>mm</unit>');
     Lines.Add('    <pm_system>998</pm_system>');
     Lines.Add('    <size base="' + IntToStr(BaseSize * 10) + '"/>');
-    Lines.Add('    <height base="' + IntToStr(DefaultHeight * 10) + '"/>');
+    Lines.Add('    <height base="' + IntToStr(DEFAULT_HEIGHT * 10) + '"/>');
     Lines.Add('    <body-measurements>');
     for Index := 0 to Measurements.Count - 1 do
     begin
@@ -785,8 +784,8 @@ begin
       for SizeIndex := 0 to High(SizeNumbers) do
         if Measurements[Index].HasValueFor(SizeIndex) then
         begin
-          OnLine := Base + (SizeNumbers[SizeIndex] - BaseSize) / SizeStep * Increase;
-          if Abs(OnLine - Measurements[Index].ValueFor(SizeIndex)) > LineTolerance then
+          OnLine := Base + (SizeNumbers[SizeIndex] - BaseSize) / SIZE_STEP * Increase;
+          if Abs(OnLine - Measurements[Index].ValueFor(SizeIndex)) > LINE_TOLERANCE then
             AddLine(Notes, Format(rsSeamlyNotStraight, [Measurements[Index].Key, Measurements.Sizes[SizeIndex], FormatNumber(RoundTo(OnLine, -1)),
               FormatNumber(Measurements[Index].ValueFor(SizeIndex))]));
         end
@@ -822,13 +821,13 @@ begin
   Old := (Extension = '.vit') or (Extension = '.vst');
   Result := True;
   if MultiSize and Old then
-    Result := MultiSizeText(Measurements, Catalogue, 'vst', VersionMultiSizeOld, Text, Notes, ErrorMessage)
+    Result := MultiSizeText(Measurements, Catalogue, 'vst', VERSION_MULTI_SIZE_OLD, Text, Notes, ErrorMessage)
   else if MultiSize then
-    Result := MultiSizeText(Measurements, Catalogue, 'smms', VersionMultiSize, Text, Notes, ErrorMessage)
+    Result := MultiSizeText(Measurements, Catalogue, 'smms', VERSION_MULTI_SIZE, Text, Notes, ErrorMessage)
   else if Old then
-    Text := IndividualText(Measurements, Catalogue, 'vit', VersionIndividualOld, Notes)
+    Text := IndividualText(Measurements, Catalogue, 'vit', VERSION_INDIVIDUAL_OLD, Notes)
   else
-    Text := IndividualText(Measurements, Catalogue, 'smis', VersionIndividual, Notes);
+    Text := IndividualText(Measurements, Catalogue, 'smis', VERSION_INDIVIDUAL, Notes);
   if Result then
     Result := WriteTextFileAtomic(FileName, Text, ErrorMessage);
 end;

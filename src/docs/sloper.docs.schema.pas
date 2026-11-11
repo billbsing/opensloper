@@ -27,8 +27,7 @@ unit Sloper.Docs.Schema;
 interface
 
 const
-  SchemaSuffix = '.schema.json';
-  SchemaBaseURL = 'https://billbsing.github.io/opensloper/reference/schemas/';
+  SCHEMA_SUFFIX = '.schema.json';
 
 // The schema of the file whose "format" is FormatName, as text; False when
 // there is no such format
@@ -45,7 +44,8 @@ uses
   SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.OperationInfo, Sloper.Core.FileInfo;
 
 const
-  ObjectDef = 'object';
+  SCHEMA_BASE_URL = 'https://billbsing.github.io/opensloper/reference/schemas/';
+  OBJECT_DEF = 'object';
 
 function IsListOfValues(const Member: TOperationMember): boolean;
 begin
@@ -106,7 +106,7 @@ begin
       end;
     end;
     mkPatternObject:
-      Into.Add('$ref', '#/$defs/' + ObjectDef);
+      Into.Add('$ref', '#/$defs/' + OBJECT_DEF);
   end;
 end;
 
@@ -167,7 +167,7 @@ var
 begin
   Result := TJSONObject.Create;
   Root := TJSONObject.Create(['description', rsSchemaObject, 'type', 'object']);
-  Result.Add(ObjectDef, Root);
+  Result.Add(OBJECT_DEF, Root);
   Root.Add('required', TJSONArray.Create(['id', 'type']));
   Types := TJSONArray.Create;
   Root.Add('properties', TJSONObject.Create(['type', TJSONObject.Create(['enum', Types])]));
@@ -206,8 +206,8 @@ begin
   Schema := TJSONObject.Create;
   try
     Schema.Add('$schema', 'https://json-schema.org/draft/2020-12/schema');
-    Schema.Add('$id', SchemaBaseURL + FormatName + SchemaSuffix);
-    Schema.Add('$comment', Format(rsSchemaGenerated, [FormatName + SchemaSuffix]));
+    Schema.Add('$id', SCHEMA_BASE_URL + FormatName + SCHEMA_SUFFIX);
+    Schema.Add('$comment', Format(rsSchemaGenerated, [FormatName + SCHEMA_SUFFIX]));
     Schema.Add('title', Format(rsSchemaTitle, [LowerCase(Info.Title), Info.Extension]));
     Schema.Add('description', Info.Summary);
     AddObjectSchema(Schema, Info.Members, '');

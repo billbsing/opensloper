@@ -47,10 +47,10 @@ uses
 
 const
   // At 96 dpi; scaled to the screen
-  LogoSize = 128;
-  TextWidth = 360;
+  LOGO_SIZE = 128;
+  TEXT_WIDTH = 360;
   // Points
-  TitleFontSize = 16;
+  TITLE_FONT_SIZE = 16;
 
 function NewLabel(Dialog: TForm; const ACaption: string): TLabel;
 begin
@@ -59,8 +59,8 @@ begin
   Result.Caption := ACaption;
   Result.WordWrap := True;
   Result.AutoSize := True;
-  Result.Constraints.MinWidth := Dialog.Scale96ToScreen(TextWidth);
-  Result.Constraints.MaxWidth := Dialog.Scale96ToScreen(TextWidth);
+  Result.Constraints.MinWidth := Dialog.Scale96ToScreen(TEXT_WIDTH);
+  Result.Constraints.MaxWidth := Dialog.Scale96ToScreen(TEXT_WIDTH);
 end;
 
 // Under AControl, or at the top beside the logo when AControl is nil
@@ -85,7 +85,7 @@ function NewLogo(Dialog: TForm): TImage;
 var
   Size: integer;
 begin
-  Size := Dialog.Scale96ToScreen(LogoSize);
+  Size := Dialog.Scale96ToScreen(LOGO_SIZE);
   Result := TImage.Create(Dialog);
   Result.Parent := Dialog;
   Result.SetBounds(0, 0, Size, Size);
@@ -116,9 +116,9 @@ begin
     Logo := NewLogo(Dialog);
     TitleLabel := NewLabel(Dialog, ATitle);
     TitleLabel.Font.Style := [fsBold];
-    TitleLabel.Font.Size := TitleFontSize;
+    TitleLabel.Font.Size := TITLE_FONT_SIZE;
     PlaceBelow(TitleLabel, Logo, nil, 0);
-    VersionLabel := NewLabel(Dialog, Format(rsAboutVersion, [AppVersion]));
+    VersionLabel := NewLabel(Dialog, Format(rsAboutVersion, [APP_VERSION]));
     PlaceBelow(VersionLabel, Logo, TitleLabel, 0);
     SummaryLabel := NewLabel(Dialog, ASummary);
     PlaceBelow(SummaryLabel, Logo, VersionLabel, ControlGap);

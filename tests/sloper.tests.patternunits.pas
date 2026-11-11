@@ -300,7 +300,7 @@ begin
   Pattern.Evaluate;
   Result := nil;
   if DetectPiecePath(Pattern, Vec2(1, 1), Path, Reason) then
-    Result := Pattern.AddPiece('', Path, DefaultPieceAllowance);
+    Result := Pattern.AddPiece('', Path, DEFAULT_PIECE_ALLOWANCE);
 end;
 
 procedure TTestPatternUnits.TestStartingValuesPerUnit;
@@ -312,16 +312,16 @@ var
 begin
   FPattern.Units := muInch;
   Piece := TPieceObject(Check(SquarePiece(FPattern, '4')));
-  AssertEquals('allowance', '0.375', FPattern.FormulaText(Piece, PieceAllowanceField));
+  AssertEquals('allowance', '0.375', FPattern.FormulaText(Piece, PIECE_ALLOWANCE_FIELD));
   Side := nil;
   SetLength(Side, 1);
   Side[0].PieceKey := Piece.Key;
   Side[0].EdgeKey := Piece.Path[0].EdgeKey;
   Seam := TSeamObject(Check(FPattern.AddSeam('', Side, Side)));
-  AssertEquals('tolerance', '0.04', FPattern.FormulaText(Seam, SeamToleranceField));
+  AssertEquals('tolerance', '0.04', FPattern.FormulaText(Seam, SEAM_TOLERANCE_FIELD));
   A := Pt('M', '1', '1');
   AssertTrue(FPattern.LastError, FPattern.SetMarker(A.Key, pmButton));
-  AssertEquals('button', '0.625', FPattern.FormulaText(A, MarkerSizeField));
+  AssertEquals('button', '0.625', FPattern.FormulaText(A, MARKER_SIZE_FIELD));
   FPattern.Evaluate;
   AssertNear('marker size in mm', 0.625 * 25.4, A.MarkerSize);
   AssertTrue('allowance in mm', Piece.State = esValid);
@@ -335,7 +335,7 @@ begin
   FPattern.Materials[0].HasAllowance := True;
   FPattern.Materials[0].Allowance := 1.5;
   Piece := TPieceObject(Check(SquarePiece(FPattern, '10')));
-  AssertEquals('the material''s, in the pattern unit', '1.5', FPattern.FormulaText(Piece, PieceAllowanceField));
+  AssertEquals('the material''s, in the pattern unit', '1.5', FPattern.FormulaText(Piece, PIECE_ALLOWANCE_FIELD));
 end;
 
 procedure TTestPatternUnits.TestNotesPlacedInPatternUnit;
@@ -347,8 +347,8 @@ begin
   Note := TNoteObject(Check(FPattern.AddNote('', 'Text', naPoint, FPattern.FindObject('A').Key, '', '1', '0')));
   FPattern.Evaluate;
   AssertTrue(FPattern.LastError, FPattern.MakeNoteFree(Note));
-  AssertEquals('x in cm', '3', FPattern.FormulaText(Note, NoteXField));
-  AssertEquals('y in cm', '3', FPattern.FormulaText(Note, NoteYField));
+  AssertEquals('x in cm', '3', FPattern.FormulaText(Note, NOTE_X_FIELD));
+  AssertEquals('y in cm', '3', FPattern.FormulaText(Note, NOTE_Y_FIELD));
 end;
 
 procedure TTestPatternUnits.TestConvertToCurveHandlesInPatternUnit;

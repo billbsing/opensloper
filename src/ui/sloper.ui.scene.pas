@@ -32,7 +32,7 @@ uses
   Sloper.Core.Seam, Sloper.Core.Transform, Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.TextFields;
 
 const
-  MinFocusSize = 60;
+  MIN_FOCUS_SIZE = 60;
 
 type
   // A mark showing which way a piece's path runs along one of its edges
@@ -68,7 +68,7 @@ type
     Position: double;
   end;
 
-// Extent of the objects with these keys, at least MinFocusSize mm each way so
+// Extent of the objects with these keys, at least MIN_FOCUS_SIZE mm each way so
 // that a single point has an area to zoom to; False when none is shown
 function ObjectsBounds(Pattern: TPattern; const Keys: TStringArray; out Bounds: TRect2): boolean;
 // The edge as a polyline, curves flattened to within Tolerance mm
@@ -149,6 +149,16 @@ implementation
 uses
   Math, StrUtils, Generics.Collections, Sloper.Core.Bezier, Sloper.Core.Evaluator;
 
+const
+  // How finely an edge is flattened to find its middle for a copy's link, in mm
+  COPY_LINK_TOLERANCE = 0.05;
+  // Lines in the same place are this close in mm
+  RANK_TOLERANCE = 1e-6;
+  COINCIDE_SAMPLES = 8;
+
+  // Every sample along From lies on Onto
+  COINCIDE_TOLERANCE = 0.01;
+
 type
   TKeySet = specialize THashSet<string>;
 
@@ -174,10 +184,10 @@ begin
   Result := not Empty;
   if not Result then
     Exit;
-  Grow := Max(0, (MinFocusSize - (Bounds.MaxX - Bounds.MinX)) / 2);
+  Grow := Max(0, (MIN_FOCUS_SIZE - (Bounds.MaxX - Bounds.MinX)) / 2);
   Bounds.MinX := Bounds.MinX - Grow;
   Bounds.MaxX := Bounds.MaxX + Grow;
-  Grow := Max(0, (MinFocusSize - (Bounds.MaxY - Bounds.MinY)) / 2);
+  Grow := Max(0, (MIN_FOCUS_SIZE - (Bounds.MaxY - Bounds.MinY)) / 2);
   Bounds.MinY := Bounds.MinY - Grow;
   Bounds.MaxY := Bounds.MaxY + Grow;
 end;
@@ -321,9 +331,6 @@ begin
 end;
 
 function ObjectsAt(Pattern: TPattern; const At: TVec2; PointRadius, EdgeRadius: double): TStringArray;
-const
-  // Lines in the same place are this close in mm
-  RankTolerance = 1e-6;
 type
   TFound = record
     Key: string;
@@ -344,7 +351,7 @@ var
 
   function Before(const Item, Other: TFound): boolean;
   begin
-    if Abs(Item.Rank - Other.Rank) > RankTolerance then
+    if Abs(Item.Rank - Other.Rank) > RANK_TOLERANCE then
       Result := Item.Rank < Other.Rank
     else
       Result := Item.Priority > Other.Priority;
@@ -390,7 +397,7 @@ begin
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
     if Offset <= EdgeRadius then
-      Add(DraftObject.Key, Offset, RolePriorities[TEdgeObject(DraftObject).Role]);
+      Add(DraftObject.Key, Offset, ROLE_PRIORITIES[TEdgeObject(DraftObject).Role]);
   end;
   SortFrom(First);
   First := Length(Found);
@@ -465,18 +472,15 @@ begin
 end;
 
 function EdgesCoincide(EdgeA, EdgeB: TEdgeObject; Tolerance: double): boolean;
-const
-  Samples = 8;
 
-// Every sample along From lies on Onto
   function LiesOn(From, Onto: TEdgeObject): boolean;
   var
     Index: integer;
     Position, Offset: double;
   begin
-    for Index := 0 to Samples do
+    for Index := 0 to COINCIDE_SAMPLES do
     begin
-      Onto.Locate(From.PointAtLength(From.Length * Index / Samples), Position, Offset);
+      Onto.Locate(From.PointAtLength(From.Length * Index / COINCIDE_SAMPLES), Position, Offset);
       if Offset > Tolerance then
         Exit(False);
     end;
@@ -501,8 +505,6 @@ begin
 end;
 
 function CoincidentEdges(Pattern: TPattern): TEdgeSlotArray;
-const
-  Tolerance = 0.01;
 var
   Edges: array of TEdgeObject;
   Group: array of TEdgeObject;
@@ -525,7 +527,7 @@ begin
       Continue;
     Group := [Edges[Index]];
     for Other := Index + 1 to High(Edges) do
-      if not Taken[Other] and EdgesCoincide(Edges[Index], Edges[Other], Tolerance) then
+      if not Taken[Other] and EdgesCoincide(Edges[Index], Edges[Other], COINCIDE_TOLERANCE) then
       begin
         Taken[Other] := True;
         Insert(Edges[Other], Group, Length(Group));
@@ -535,7 +537,7 @@ begin
     // One side of the first edge's chord; a closed edge has none, so it goes
     // down and to the right
     Chord := Group[0].PointAtLength(Group[0].Length) - Group[0].PointAtLength(0);
-    if Chord.Length < Tolerance then
+    if Chord.Length < COINCIDE_TOLERANCE then
       Normal := Vec2(Sqrt(0.5), Sqrt(0.5))
     else
       Normal := Vec2(-Chord.Y / Chord.Length, Chord.X / Chord.Length);
@@ -700,12 +702,12 @@ begin
   if not Assigned(Edge) or not Assigned(Point) or not Edge.HasResult or not Point.HasResult then
     Exit;
   Edge.Locate(Point.Position, Position, Gap);
-  if Gap > NotchPointTolerance then
+  if Gap > NOTCH_POINT_TOLERANCE then
   begin
     Reason := Format(rsSceneSplitOff, [Point.DisplayName, Edge.DisplayName]);
     Exit;
   end;
-  if (Position <= NotchPointTolerance) or (Position >= Edge.Length - NotchPointTolerance) then
+  if (Position <= NOTCH_POINT_TOLERANCE) or (Position >= Edge.Length - NOTCH_POINT_TOLERANCE) then
   begin
     Reason := Format(rsSceneSplitAtEnd, [Point.DisplayName, Edge.DisplayName]);
     Exit;
@@ -751,7 +753,7 @@ begin
   if Assigned(Point) then
   begin
     TEdgeObject(Pattern.FindNode(Target.EdgeKey)).Locate(Point.Position, Position, Gap);
-    if Gap <= NotchPointTolerance then
+    if Gap <= NOTCH_POINT_TOLERANCE then
       Target.PointKey := Point.Key;
   end;
 end;
@@ -864,8 +866,6 @@ end;
 
 // Edges are linked at their middles, flattened finely enough to land on the curve
 function CopyLinks(Pattern: TPattern; const Selection: TStringArray; const HoverKey: string): TCopyLinkArray;
-const
-  MiddleTolerance = 0.05;
 var
   Index, Count: integer;
   DraftObject: TDraftObject;
@@ -901,8 +901,8 @@ begin
       Source := Pattern.FindNode(TEdgeCopy(DraftObject).Source);
       if not (Source is TEdgeObject) or not Source.HasResult then
         Continue;
-      CopyLine := EdgePolyline(TEdgeObject(DraftObject), MiddleTolerance);
-      SourceLine := EdgePolyline(TEdgeObject(Source), MiddleTolerance);
+      CopyLine := EdgePolyline(TEdgeObject(DraftObject), COPY_LINK_TOLERANCE);
+      SourceLine := EdgePolyline(TEdgeObject(Source), COPY_LINK_TOLERANCE);
       if (Length(CopyLine) = 0) or (Length(SourceLine) = 0) then
         Continue;
       Link.CopyAt := PolylineMiddle(CopyLine);

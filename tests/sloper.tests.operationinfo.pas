@@ -53,6 +53,9 @@ uses
   Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.Materials, Sloper.Core.Transform, Sloper.Core.PatternFile,
   Sloper.Core.OperationInfo;
 
+const
+  MEMBER_LISTS: array[0..3, 0..1] of string = (('node', 'nodes[]'), ('edge', 'path[]'), ('notch', 'notches[]'), ('marking', 'markings[]'));
+
 procedure TTestOperationInfo.SetUp;
 begin
   FPattern := TPattern.Create;
@@ -273,8 +276,6 @@ end;
 
 // A formula field's name as the table lists it: node2.angle is nodes[].angle
 function MemberNameOfField(const FieldName: string): string;
-const
-  Lists: array[0..3, 0..1] of string = (('node', 'nodes[]'), ('edge', 'path[]'), ('notch', 'notches[]'), ('marking', 'markings[]'));
 var
   Dot, Index: integer;
   Head: string;
@@ -284,10 +285,10 @@ begin
   if Dot = 0 then
     Exit;
   Head := Copy(FieldName, 1, Dot - 1);
-  for Index := 0 to High(Lists) do
-    if (Copy(Head, 1, Length(Lists[Index, 0])) = Lists[Index, 0]) and (Length(Head) > Length(Lists[Index, 0])) and
-      (Head[Length(Lists[Index, 0]) + 1] in ['0'..'9']) then
-      Exit(Lists[Index, 1] + Copy(FieldName, Dot, MaxInt));
+  for Index := 0 to High(MEMBER_LISTS) do
+    if (Copy(Head, 1, Length(MEMBER_LISTS[Index, 0])) = MEMBER_LISTS[Index, 0]) and (Length(Head) > Length(MEMBER_LISTS[Index, 0])) and
+      (Head[Length(MEMBER_LISTS[Index, 0]) + 1] in ['0'..'9']) then
+      Exit(MEMBER_LISTS[Index, 1] + Copy(FieldName, Dot, MaxInt));
 end;
 
 procedure TTestOperationInfo.TestFormulaKindsMatch;
@@ -308,9 +309,9 @@ begin
       FieldName := Node.Fields[FieldIndex].Name;
       MemberName := MemberNameOfField(FieldName);
       // A note's draft values are written in its text, and its place on an edge in its anchor
-      if (Node is TNoteObject) and (FieldName.StartsWith(NoteValueField) or (FieldName = NotePositionField)) then
+      if (Node is TNoteObject) and (FieldName.StartsWith(NOTE_VALUE_FIELD) or (FieldName = NOTE_POSITION_FIELD)) then
       begin
-        if FieldName = NotePositionField then
+        if FieldName = NOTE_POSITION_FIELD then
           MemberName := 'anchor.position'
         else
           Continue;

@@ -46,20 +46,20 @@ uses
 
 const
   // Every member outside the objects, with values that make the writer write it
-  FullPattern =
+  FULL_PATTERN =
     '{"format": "pattern", "version": 1, "units": "cm", "notes": "Notes", "measurementFile": "bill.slm",' +
     ' "identity": "3021d120-7482-45c9-8c9a-1b9c1b60be87", "nextId": 9,' +
     ' "variables": [{"id": 1, "name": "ease", "formula": "2", "description": "Ease"}],' +
     ' "objects": [{"id": 2, "type": "freePoint", "name": "A", "x": "0", "y": "0"}],' +
     ' "materials": [{"id": 3, "name": "Main", "color": "#5B8DB8", "fill": "hatch", "allowance": 1.5}],' +
     ' "view": {"zoom": 1.5, "centre": [120, -200], "hiddenRoles": ["construction"], "hideAnnotations": true}}';
-  FullMeasurements =
+  FULL_MEASUREMENTS =
     '{"format": "measurements", "version": 1, "units": "mm", "name": "Bill", "notes": "Notes",' +
     ' "measurements": [{"key": "waist", "value": 820, "description": "Waist"}]}';
-  FullSizeTable =
+  FULL_SIZE_TABLE =
     '{"format": "measurements", "version": 1, "units": "mm", "name": "Sizes", "notes": "", "sizes": ["36", "38"],' +
     ' "measurements": [{"key": "waist", "values": [700, null], "description": "Waist"}]}';
-  FullLayout =
+  FULL_LAYOUT =
     '{"format": "layout", "version": 1, "units": "mm", "name": "Skirt", "nextId": 2,' +
     ' "sources": [{"id": 1, "pattern": "skirt.sloper", "measurementFile": "sizes.slm", "size": "38"}],' +
     ' "output": {"kind": "material", "rollWidth": 900, "paper": "Mine", "paperWidth": 200, "paperHeight": 300,' +
@@ -79,7 +79,7 @@ var
 begin
   Result := '';
   Err := '';
-  if FormatName = PatternFormat then
+  if FormatName = PATTERN_FORMAT then
   begin
     Pattern := TPattern.Create;
     try
@@ -89,7 +89,7 @@ begin
       FreeAndNil(Pattern);
     end;
   end
-  else if FormatName = MeasurementFormat then
+  else if FormatName = MEASUREMENT_FORMAT then
   begin
     MeasurementSet := TMeasurementSet.Create;
     try
@@ -147,12 +147,12 @@ var
   Text, Err: string;
   Root: TJSONObject;
 begin
-  if FormatName = PatternFormat then
-    Texts := [FullPattern]
-  else if FormatName = MeasurementFormat then
-    Texts := [FullMeasurements, FullSizeTable]
+  if FormatName = PATTERN_FORMAT then
+    Texts := [FULL_PATTERN]
+  else if FormatName = MEASUREMENT_FORMAT then
+    Texts := [FULL_MEASUREMENTS, FULL_SIZE_TABLE]
   else
-    Texts := [FullLayout];
+    Texts := [FULL_LAYOUT];
   Result := TStringList.Create;
   Result.Sorted := True;
   Result.Duplicates := dupIgnore;
@@ -224,9 +224,9 @@ procedure TTestFileInfo.TestLayoutMatchesItsUnit;
 var
   Info: TFileFormatInfo;
 begin
-  AssertTrue(FindFileFormatInfo(LayoutFormat, Info));
-  AssertEquals(LayoutVersion, Info.Version);
-  AssertEquals(LayoutExtension, Info.Extension);
+  AssertTrue(FindFileFormatInfo(LAYOUT_FORMAT, Info));
+  AssertEquals(LAYOUT_VERSION, Info.Version);
+  AssertEquals(LAYOUT_EXTENSION, Info.Extension);
 end;
 
 procedure TTestFileInfo.TestSchemasForEveryFormat;

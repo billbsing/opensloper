@@ -93,8 +93,8 @@ end;
 
 procedure TTestGridColumns.TestShareWithNoSpaceIsDefault;
 begin
-  AssertNear('no space', DefaultNameColumnShare, NameShareAt(10, 0, 40));
-  AssertNear('too narrow for both minimums', DefaultNameColumnShare, NameShareAt(10, 60, 40));
+  AssertNear('no space', DEFAULT_NAME_COLUMN_SHARE, NameShareAt(10, 0, 40));
+  AssertNear('too narrow for both minimums', DEFAULT_NAME_COLUMN_SHARE, NameShareAt(10, 60, 40));
 end;
 
 procedure TTestGridColumns.TestFitLeavesShortTextAlone;

@@ -70,7 +70,7 @@ function PagesFor(Extent, Printable, Overlap: double): integer;
 begin
   Result := 1;
   if Extent > Printable then
-    Result := 1 + Ceil((Extent - Printable - DefaultTolerance) / (Printable - Overlap));
+    Result := 1 + Ceil((Extent - Printable - DEFAULT_TOLERANCE) / (Printable - Overlap));
 end;
 
 function TilePages(const Extent: TVec2; const Settings: TTileSettings; out RowCount, ColumnCount: integer): TTilePageArray;

@@ -330,7 +330,7 @@ var
 begin
   Front := Panel('Front', 0, 100, 200, Top, Right);
   Seam := FPattern.AddSeam('', Side(Front, Top), Side(Front, Right));
-  AssertTrue(FPattern.LastError, FPattern.SetFormula(Front, PieceAllowanceField, '-1'));
+  AssertTrue(FPattern.LastError, FPattern.SetFormula(Front, PIECE_ALLOWANCE_FIELD, '-1'));
   FPattern.Evaluate;
   AssertTrue('blocked', Seam.State = esBlocked);
 end;
@@ -469,7 +469,7 @@ begin
   Problems := PatternProblems(FPattern, BlockedCount);
   AssertEquals('one problem', 1, Length(Problems));
   AssertEquals(Format(rsCheckSeam, ['Side', '100', '120', '20', '0']), Problems[0]);
-  AssertTrue(FPattern.LastError, FPattern.SetFormula(Seam, SeamEaseField, '20'));
+  AssertTrue(FPattern.LastError, FPattern.SetFormula(Seam, SEAM_EASE_FIELD, '20'));
   FPattern.Evaluate;
   AssertEquals('none with ease', 0, Length(PatternProblems(FPattern, BlockedCount)));
 end;

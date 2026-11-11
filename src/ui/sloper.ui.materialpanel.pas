@@ -68,7 +68,7 @@ uses
   Sloper.UI.Spacing;
 
 const
-  CutListHeight96 = 90;
+  CUT_LIST_HEIGHT96 = 90;
 
 constructor TMaterialsPanel.Create(AOwner: TComponent);
 var
@@ -103,7 +103,7 @@ begin
   FCutList := TMemo.Create(Self);
   FCutList.Parent := FCutGroup;
   FCutList.Align := alTop;
-  FCutList.Height := Scale96ToScreen(CutListHeight96);
+  FCutList.Height := Scale96ToScreen(CUT_LIST_HEIGHT96);
   FCutList.ReadOnly := True;
   FGrid := TMaterialGrid.Create(Self);
   FGrid.Parent := Self;

@@ -92,7 +92,7 @@ uses
   SysUtils, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.Pattern, Sloper.Core.Draft;
 
 const
-  SampleText =
+  SAMPLE_TEXT =
     '{'#10 +
     '  "format": "measurements",'#10 +
     '  "version": 1,'#10 +
@@ -112,9 +112,10 @@ const
     '    }'#10 +
     '  ]'#10 +
     '}'#10;
+  SIZE_TABLE_HEAD = '{"format": "measurements", "version": 1, ';
 
 const
-  TableText =
+  TABLE_TEXT =
     '{'#10 +
     '  "format": "measurements",'#10 +
     '  "version": 1,'#10 +
@@ -170,7 +171,7 @@ procedure TTestMeasurements.LoadTable;
 var
   Err: string;
 begin
-  AssertTrue(Err, FSet.LoadFromText(TableText, Err));
+  AssertTrue(Err, FSet.LoadFromText(TABLE_TEXT, Err));
 end;
 
 procedure TTestMeasurements.TestSizeTable;
@@ -189,33 +190,31 @@ end;
 procedure TTestMeasurements.TestSizeTableRoundTrip;
 begin
   LoadTable;
-  AssertEquals(TableText, FSet.SaveToText);
+  AssertEquals(TABLE_TEXT, FSet.SaveToText);
 end;
 
 procedure TTestMeasurements.TestPersonalSetHasNoSizes;
 var
   Err: string;
 begin
-  AssertTrue(Err, FSet.LoadFromText(SampleText, Err));
+  AssertTrue(Err, FSet.LoadFromText(SAMPLE_TEXT, Err));
   AssertEquals(0, FSet.SizeCount);
   AssertEquals('', FSet.SizeName);
   AssertTrue(FSet.Find('waist').HasValue);
-  AssertEquals(SampleText, FSet.SaveToText);
+  AssertEquals(SAMPLE_TEXT, FSet.SaveToText);
 end;
 
 procedure TTestMeasurements.TestBadSizeTables;
-const
-  Head = '{"format": "measurements", "version": 1, ';
 begin
-  AssertLoadFails(Head + '"sizes": 3, "measurements": []}', rsMeasurementBadSizes);
-  AssertLoadFails(Head + '"sizes": [36], "measurements": []}', rsMeasurementBadSizes);
-  AssertLoadFails(Head + '"sizes": [" "], "measurements": []}', rsMeasurementSizeEmpty);
-  AssertLoadFails(Head + '"sizes": ["S", "s"], "measurements": []}', Format(rsMeasurementSizeTaken, ['s']));
-  AssertLoadFails(Head + '"sizes": ["36", "38"], "measurements": [{"key": "a", "values": [1]}]}',
+  AssertLoadFails(SIZE_TABLE_HEAD + '"sizes": 3, "measurements": []}', rsMeasurementBadSizes);
+  AssertLoadFails(SIZE_TABLE_HEAD + '"sizes": [36], "measurements": []}', rsMeasurementBadSizes);
+  AssertLoadFails(SIZE_TABLE_HEAD + '"sizes": [" "], "measurements": []}', rsMeasurementSizeEmpty);
+  AssertLoadFails(SIZE_TABLE_HEAD + '"sizes": ["S", "s"], "measurements": []}', Format(rsMeasurementSizeTaken, ['s']));
+  AssertLoadFails(SIZE_TABLE_HEAD + '"sizes": ["36", "38"], "measurements": [{"key": "a", "values": [1]}]}',
     Format(rsMeasurementBadValues, ['a', 2]));
-  AssertLoadFails(Head + '"sizes": ["36"], "measurements": [{"key": "a", "value": 1}]}',
+  AssertLoadFails(SIZE_TABLE_HEAD + '"sizes": ["36"], "measurements": [{"key": "a", "value": 1}]}',
     Format(rsMeasurementBadValues, ['a', 1]));
-  AssertLoadFails(Head + '"sizes": ["36"], "measurements": [{"key": "a", "values": ["1"]}]}',
+  AssertLoadFails(SIZE_TABLE_HEAD + '"sizes": ["36"], "measurements": [{"key": "a", "values": ["1"]}]}',
     Format(rsMeasurementBadValue, ['a']));
 end;
 
@@ -582,9 +581,9 @@ begin
   Theirs := TMeasurementSet.Create;
   Merged := TMeasurementSet.Create;
   try
-    AssertTrue(Err, Base.LoadFromText(TableText, Err));
-    AssertTrue(Err, Mine.LoadFromText(TableText, Err));
-    AssertTrue(Err, Theirs.LoadFromText(TableText, Err));
+    AssertTrue(Err, Base.LoadFromText(TABLE_TEXT, Err));
+    AssertTrue(Err, Mine.LoadFromText(TABLE_TEXT, Err));
+    AssertTrue(Err, Theirs.LoadFromText(TABLE_TEXT, Err));
     Mine.Find('waist').SetValueFor(1, 745);
     Theirs.Find('hip').SetValueFor(1, 940);
     MergeMeasurementSets(Base, Mine, Theirs, nil, Merged, Conflicts);
@@ -679,18 +678,18 @@ begin
   FSet.Notes := 'Measured over a T-shirt';
   FSet.Add('waist', 820, 'Waist circumference');
   FSet.Add('back_length', 432.5);
-  AssertEquals(SampleText, FSet.SaveToText);
+  AssertEquals(SAMPLE_TEXT, FSet.SaveToText);
 end;
 
 procedure TTestMeasurements.TestRoundTrip;
 var
   Err: string;
 begin
-  AssertTrue(FSet.LoadFromText(SampleText, Err));
+  AssertTrue(FSet.LoadFromText(SAMPLE_TEXT, Err));
   AssertEquals('name', 'Bill', FSet.Name);
   AssertEquals('count', 2, FSet.Count);
   AssertNear('value', 432.5, FSet.Find('back_length').Value);
-  AssertEquals('identical after save', SampleText, FSet.SaveToText);
+  AssertEquals('identical after save', SAMPLE_TEXT, FSet.SaveToText);
 end;
 
 procedure TTestMeasurements.TestFileRoundTrip;

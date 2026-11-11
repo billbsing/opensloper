@@ -35,11 +35,11 @@ uses
   Sloper.Output.Tiling;
 
 const
-  LayoutFormat = 'layout';
-  LayoutVersion = 1;
-  LayoutExtension = '.slayout';
+  LAYOUT_FORMAT = 'layout';
+  LAYOUT_VERSION = 1;
+  LAYOUT_EXTENSION = '.slayout';
   // The paper name for a size given by hand
-  CustomPaper = 'custom';
+  CUSTOM_PAPER = 'custom';
 
 type
   TLayoutMarks = (lkDiamond, lkNone, lkHalfCircle);
@@ -353,27 +353,29 @@ uses
   Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
 
 const
-  CornerNames: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
-  DefaultSheetNoteSize = 12;
-  DefaultPaper = 'A4';
-  DefaultMargin = 6;
-  DefaultOverlap = 10;
-  MarksNames: array[TLayoutMarks] of string = ('diamond', 'none', 'halfCircle');
-  FillNames: array[TLayoutFill] of string = ('none', 'tint', 'hatch');
-  KindNames: array[TOutputKind] of string = ('tiled', 'large', 'projector', 'material');
+  CORNER_NAMES: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
+  DEFAULT_SHEET_NOTE_SIZE = 12;
+  DEFAULT_PAPER = 'A4';
+  DEFAULT_MARGIN = 6;
+  DEFAULT_OVERLAP = 10;
+  MARKS_NAMES: array[TLayoutMarks] of string = ('diamond', 'none', 'halfCircle');
+  FILL_NAMES: array[TLayoutFill] of string = ('none', 'tint', 'hatch');
+  KIND_NAMES: array[TOutputKind] of string = ('tiled', 'large', 'projector', 'material');
   // 36 inches, a common copy-shop width
-  DefaultRollWidth = 914;
-  DefaultMaterialWidth = 1500;
+  DEFAULT_ROLL_WIDTH = 914;
+  DEFAULT_MATERIAL_WIDTH = 1500;
   // New rows are this wide before wrapping, and this far apart
-  ShelfWidth = 1000;
-  ShelfGap = 10;
-  SeamFlatness = 0.05;
+  SHELF_WIDTH = 1000;
+  SHELF_GAP = 10;
+  SEAM_FLATNESS = 0.05;
   // Overlaps smaller than this (in mm²) are rounding, not a problem
-  OverlapArea = 1;
+  OVERLAP_AREA = 1;
+  // Clipper rounds to this many decimals, and a cut line deserves better than 0.01 mm
+  OUTLINE_KEPT_DECIMALS = 4;
 
 function PublishTargetFor(const PatternFile: string): string;
 begin
-  Result := ChangeFileExt(PatternFile, LayoutExtension);
+  Result := ChangeFileExt(PatternFile, LAYOUT_EXTENSION);
   if not FileExists(Result) then
     Result := PatternFile;
 end;
@@ -449,13 +451,13 @@ end;
 function DefaultOutput: TLayoutOutput;
 begin
   Result := Default(TLayoutOutput);
-  Result.Paper := DefaultPaper;
-  Result.RollWidth := DefaultRollWidth;
-  PaperSize(DefaultPaper, Result.Tiles.PaperWidth, Result.Tiles.PaperHeight);
-  Result.Tiles.Margin := DefaultMargin;
-  Result.Tiles.Overlap := DefaultOverlap;
+  Result.Paper := DEFAULT_PAPER;
+  Result.RollWidth := DEFAULT_ROLL_WIDTH;
+  PaperSize(DEFAULT_PAPER, Result.Tiles.PaperWidth, Result.Tiles.PaperHeight);
+  Result.Tiles.Margin := DEFAULT_MARGIN;
+  Result.Tiles.Overlap := DEFAULT_OVERLAP;
   Result.Marks := lkDiamond;
-  Result.MaterialWidth := DefaultMaterialWidth;
+  Result.MaterialWidth := DEFAULT_MATERIAL_WIDTH;
 end;
 
 { TLayoutSource }
@@ -519,9 +521,9 @@ procedure TLayout.UseDefaultTitle;
 begin
   Title := Default(TTitleBlock);
   Title.Enabled := True;
-  Insert(FieldPatternName, Title.Fields, 0);
-  Insert(FieldMeasurementsName, Title.Fields, 1);
-  Insert(FieldDate, Title.Fields, 2);
+  Insert(FIELD_PATTERN_NAME, Title.Fields, 0);
+  Insert(FIELD_MEASUREMENTS_NAME, Title.Fields, 1);
+  Insert(FIELD_DATE, Title.Fields, 2);
 end;
 
 function TLayout.FieldValues(const APage, APages: string): TFieldValues;
@@ -576,12 +578,12 @@ begin
   for Field in Title.Fields do
   begin
     case Field of
-      FieldPatternName: Line := Format(rsTitlePattern, [Values.PatternName]);
-      FieldMeasurementsName: Line := Format(rsTitleMeasurements, [Values.MeasurementsName]);
-      FieldLayoutName: Line := Format(rsTitleLayout, [Values.LayoutName]);
-      FieldDate: Line := Format(rsTitleDate, [Values.Date]);
-      FieldCutList: Line := Format(rsTitleCutList, [Values.CutList]);
-      FieldMaterials: Line := Format(rsTitleMaterials, [Values.Materials]);
+      FIELD_PATTERN_NAME: Line := Format(rsTitlePattern, [Values.PatternName]);
+      FIELD_MEASUREMENTS_NAME: Line := Format(rsTitleMeasurements, [Values.MeasurementsName]);
+      FIELD_LAYOUT_NAME: Line := Format(rsTitleLayout, [Values.LayoutName]);
+      FIELD_DATE: Line := Format(rsTitleDate, [Values.Date]);
+      FIELD_CUT_LIST: Line := Format(rsTitleCutList, [Values.CutList]);
+      FIELD_MATERIALS: Line := Format(rsTitleMaterials, [Values.Materials]);
       else
         Continue;
     end;
@@ -710,7 +712,7 @@ var
 begin
   Result := TJSONObject.Create;
   try
-    Result.Add('kind', KindNames[Output.Kind]);
+    Result.Add('kind', KIND_NAMES[Output.Kind]);
     Result.Add('rollWidth', JSONFloat(Output.RollWidth));
     Result.Add('paper', Output.Paper);
     if not PaperSize(Output.Paper, KnownWidth, KnownHeight) then
@@ -720,14 +722,14 @@ begin
     end;
     Result.Add('margin', JSONFloat(Output.Tiles.Margin));
     Result.Add('overlap', JSONFloat(Output.Tiles.Overlap));
-    Result.Add('marks', MarksNames[Output.Marks]);
+    Result.Add('marks', MARKS_NAMES[Output.Marks]);
     if Output.Fill <> lfNone then
-      Result.Add('fill', FillNames[Output.Fill]);
+      Result.Add('fill', FILL_NAMES[Output.Fill]);
     if Output.Profile <> '' then
       Result.Add('profile', Output.Profile);
     if Output.OutputProfile <> '' then
       Result.Add('outputProfile', Output.OutputProfile);
-    if Output.MaterialWidth <> DefaultMaterialWidth then
+    if Output.MaterialWidth <> DEFAULT_MATERIAL_WIDTH then
       Result.Add('materialWidth', JSONFloat(Output.MaterialWidth));
     if Output.MaterialLength > 0 then
       Result.Add('materialLength', JSONFloat(Output.MaterialLength));
@@ -759,8 +761,8 @@ var
 begin
   Root := TJSONObject.Create;
   try
-    Root.Add('format', LayoutFormat);
-    Root.Add('version', LayoutVersion);
+    Root.Add('format', LAYOUT_FORMAT);
+    Root.Add('version', LAYOUT_VERSION);
     Root.Add('units', 'mm');
     Root.Add('name', Name);
     Root.Add('nextId', FNextId);
@@ -805,7 +807,7 @@ begin
         Item.Add('y', JSONFloat(Note.Y));
         Item.Add('size', JSONFloat(Note.Size));
         if Note.Align <> taLeft then
-          Item.Add('align', TextAlignNames[Note.Align]);
+          Item.Add('align', TEXT_ALIGN_NAMES[Note.Align]);
         if Note.Boxed then
           Item.Add('box', True);
       end;
@@ -814,7 +816,7 @@ begin
     begin
       Item := TJSONObject.Create;
       Root.Add('titleBlock', Item);
-      Item.Add('corner', CornerNames[Title.Corner]);
+      Item.Add('corner', CORNER_NAMES[Title.Corner]);
       List := TJSONArray.Create;
       Item.Add('fields', List);
       for Field in Title.Fields do
@@ -860,13 +862,13 @@ begin
       Exit(False);
     Item := TJSONObject(Data.Items[Index]);
     Note := Default(TSheetNote);
-    Note.Size := DefaultSheetNoteSize;
+    Note.Size := DEFAULT_SHEET_NOTE_SIZE;
     if not GetJSONString(Item, 'text', Note.Text) or not GetJSONNumber(Item, 'x', Note.X) or not GetJSONNumber(Item, 'y', Note.Y) then
       Exit(False);
     ReadOptionalNumber(Item, 'size', Note.Size);
     if GetJSONString(Item, 'align', AlignText) then
       for Align := Low(TTextAlign) to High(TTextAlign) do
-        if TextAlignNames[Align] = AlignText then
+        if TEXT_ALIGN_NAMES[Align] = AlignText then
           Note.Align := Align;
     GetJSONBoolean(Item, 'box', Note.Boxed);
     Insert(Note, Notes, Length(Notes));
@@ -884,7 +886,7 @@ begin
   Title.Enabled := True;
   if GetJSONString(Item, 'corner', CornerText) then
     for Corner := Low(TTitleCorner) to High(TTitleCorner) do
-      if CornerText = CornerNames[Corner] then
+      if CornerText = CORNER_NAMES[Corner] then
         Title.Corner := Corner;
   GetJSONBoolean(Item, 'everyPage', Title.EveryPage);
   List := Item.Find('fields');
@@ -907,7 +909,7 @@ begin
   ErrorMessage := '';
   if GetJSONString(Item, 'kind', KindText) then
     for Kind := Low(TOutputKind) to High(TOutputKind) do
-      if KindText = KindNames[Kind] then
+      if KindText = KIND_NAMES[Kind] then
         Output.Kind := Kind;
   ReadOptionalNumber(Item, 'rollWidth', Output.RollWidth);
   if not GetJSONString(Item, 'profile', Output.Profile) then
@@ -953,7 +955,7 @@ begin
   begin
     Found := False;
     for Mark := Low(TLayoutMarks) to High(TLayoutMarks) do
-      if MarksText = MarksNames[Mark] then
+      if MarksText = MARKS_NAMES[Mark] then
       begin
         Output.Marks := Mark;
         Found := True;
@@ -963,7 +965,7 @@ begin
   end;
   if GetJSONString(Item, 'fill', FillText) then
     for Fill := Low(TLayoutFill) to High(TLayoutFill) do
-      if FillText = FillNames[Fill] then
+      if FillText = FILL_NAMES[Fill] then
         Output.Fill := Fill;
   Result := True;
 end;
@@ -991,9 +993,9 @@ begin
   if not ParseJSONObject(Text, Root, ErrorMessage) then
     Exit(False);
   try
-    if not GetJSONString(Root, 'format', TextValue) or (TextValue <> LayoutFormat) or not GetJSONInteger(Root, 'version', Version) then
+    if not GetJSONString(Root, 'format', TextValue) or (TextValue <> LAYOUT_FORMAT) or not GetJSONInteger(Root, 'version', Version) then
       Exit(Fail(rsLayoutWrongFormat));
-    if Version > LayoutVersion then
+    if Version > LAYOUT_VERSION then
       Exit(Fail(Format(rsLayoutNewerVersion, [Version])));
     if GetJSONString(Root, 'units', TextValue) and (TextValue <> 'mm') then
       Exit(Fail(Format(rsLayoutUnits, [TextValue])));
@@ -1158,9 +1160,6 @@ end;
 
 // A half piece with its mirror image across the fold, joined into one outline
 function WholeOutline(const Points: TVec2Array; const Fold: TLine2): TVec2Array;
-const
-  // Clipper rounds to this many decimals, and a cut line deserves better than 0.01 mm
-  KeptDecimals = 4;
 var
   Mirrored: TVec2Array;
   Joined: TPathsD;
@@ -1170,7 +1169,7 @@ begin
   SetLength(Mirrored, Length(Points));
   for Index := 0 to High(Points) do
     Mirrored[Index] := MirrorPoint(Points[Index], Fold.P1, Fold.P2);
-  Joined := Union(ClipperPaths(Points), ClipperPaths(Mirrored), frNonZero, KeptDecimals);
+  Joined := Union(ClipperPaths(Points), ClipperPaths(Mirrored), frNonZero, OUTLINE_KEPT_DECIMALS);
   Best := 0;
   for Index := 1 to High(Joined) do
     if Abs(Area(Joined[Index])) > Abs(Area(Joined[Best])) then
@@ -1223,7 +1222,7 @@ var
 
   function OnTheFold(const Point: TVec2): boolean;
   begin
-    Result := Distance(Point, Mirror(Point)) < DefaultTolerance;
+    Result := Distance(Point, Mirror(Point)) < DEFAULT_TOLERANCE;
   end;
 
   // An opened piece has each mark on both halves, unless it lies on the fold
@@ -1445,22 +1444,22 @@ begin
   RowY := 0;
   RowHeight := 0;
   for Shape in PlacedPieces do
-    RowY := Max(RowY, Shape.Bounds.MaxY + ShelfGap);
+    RowY := Max(RowY, Shape.Bounds.MaxY + SHELF_GAP);
   for Item in Copies do
   begin
     if not Item.CanPlace then
       Continue;
     Placement := NewPlacement(Item, Piece);
     Shape := PlaceShape(Piece, Placement, OpensFolds, ActiveOutputProfile);
-    if (RowX > 0) and (RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX > ShelfWidth) then
+    if (RowX > 0) and (RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX > SHELF_WIDTH) then
     begin
       RowX := 0;
-      RowY := RowY + RowHeight + ShelfGap;
+      RowY := RowY + RowHeight + SHELF_GAP;
       RowHeight := 0;
     end;
     Placement.X := RowX;
     Placement.Y := RowY;
-    RowX := RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX + ShelfGap;
+    RowX := RowX + Shape.Bounds.MaxX - Shape.Bounds.MinX + SHELF_GAP;
     RowHeight := Max(RowHeight, Shape.Bounds.MaxY - Shape.Bounds.MinY);
     SetLength(Placements, Length(Placements) + 1);
     Placements[High(Placements)] := Placement;
@@ -1576,7 +1575,7 @@ end;
 function TLayout.ChosenProfile(out Profile: TMachineProfile): boolean;
 begin
   if Output.Profile = '' then
-    Result := FindMachineProfile(MachineProfiles, StandardProfileName, Profile)
+    Result := FindMachineProfile(MachineProfiles, STANDARD_PROFILE_NAME, Profile)
   else
     Result := FindMachineProfile(MachineProfiles, Output.Profile, Profile);
 end;
@@ -1724,19 +1723,19 @@ begin
         Add(Format(rsLayoutNoteOverlap, [TextLines(Note.Text)[0], Shapes[First].Caption]));
   for First := 0 to High(Shapes) do
   begin
-    if (Shapes[First].Bounds.MinX < -DefaultTolerance) or (Shapes[First].Bounds.MinY < -DefaultTolerance) then
+    if (Shapes[First].Bounds.MinX < -DEFAULT_TOLERANCE) or (Shapes[First].Bounds.MinY < -DEFAULT_TOLERANCE) then
       Add(Format(rsLayoutOffSheet, [Shapes[First].Caption]));
-    if (Output.Kind = okLarge) and (Shapes[First].Bounds.MaxX > Output.RollWidth - 2 * Output.Tiles.Margin + DefaultTolerance) then
+    if (Output.Kind = okLarge) and (Shapes[First].Bounds.MaxX > Output.RollWidth - 2 * Output.Tiles.Margin + DEFAULT_TOLERANCE) then
       Add(Format(rsLayoutWiderThanRoll, [Shapes[First].Caption, FormatFloat('0.#', Output.RollWidth)]));
-    if (Output.Kind = okMaterial) and (Output.MaterialLength > 0) and ((Shapes[First].Bounds.MaxX > Output.MaterialWidth + DefaultTolerance) or
-      (Shapes[First].Bounds.MaxY > Output.MaterialLength + DefaultTolerance)) then
+    if (Output.Kind = okMaterial) and (Output.MaterialLength > 0) and ((Shapes[First].Bounds.MaxX > Output.MaterialWidth + DEFAULT_TOLERANCE) or
+      (Shapes[First].Bounds.MaxY > Output.MaterialLength + DEFAULT_TOLERANCE)) then
       Add(Format(rsLayoutPastSheet, [Shapes[First].Caption, FormatFloat('0.#', Output.MaterialWidth), FormatFloat('0.#', Output.MaterialLength)]))
-    else if (Output.Kind = okMaterial) and (Shapes[First].Bounds.MaxX > Output.MaterialWidth + DefaultTolerance) then
+    else if (Output.Kind = okMaterial) and (Shapes[First].Bounds.MaxX > Output.MaterialWidth + DEFAULT_TOLERANCE) then
       Add(Format(rsLayoutPastWidth, [Shapes[First].Caption, FormatFloat('0.#', Output.MaterialWidth)]));
     for Second := First + 1 to High(Shapes) do
       if (Shapes[First].Bounds.MaxX > Shapes[Second].Bounds.MinX) and (Shapes[Second].Bounds.MaxX > Shapes[First].Bounds.MinX) and
         (Shapes[First].Bounds.MaxY > Shapes[Second].Bounds.MinY) and (Shapes[Second].Bounds.MaxY > Shapes[First].Bounds.MinY) and
-        (Abs(Area(Intersect(ClipperPaths(Shapes[First].CutLine), ClipperPaths(Shapes[Second].CutLine), frNonZero))) > OverlapArea) then
+        (Abs(Area(Intersect(ClipperPaths(Shapes[First].CutLine), ClipperPaths(Shapes[Second].CutLine), frNonZero))) > OVERLAP_AREA) then
         Add(Format(rsLayoutOverlap, [Shapes[First].Caption, Shapes[Second].Caption]));
   end;
 end;

@@ -68,7 +68,7 @@ uses
   Classes, SysUtils, jsonparser;
 
 const
-  TempSuffix = '.tmp';
+  TEMP_SUFFIX = '.tmp';
 
 function JSONFormatSettings: TFormatSettings;
 begin
@@ -237,7 +237,7 @@ function WriteTextFileAtomic(const FileName, Text: string; out ErrorMessage: str
 var
   TempName: string;
 begin
-  TempName := FileName + TempSuffix;
+  TempName := FileName + TEMP_SUFFIX;
   if not WriteTextFile(TempName, Text, ErrorMessage) then
   begin
     DeleteFile(TempName);

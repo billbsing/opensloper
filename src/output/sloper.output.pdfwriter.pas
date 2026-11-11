@@ -67,8 +67,10 @@ type
 implementation
 
 const
-  PointsPerMM = 72 / 25.4;
-  ValueDecimals = '0.###';
+  POINTS_PER_MM = 72 / 25.4;
+  VALUE_DECIMALS = '0.###';
+  FONT_ID = 3;
+  FIRST_PAGE_ID = 4;
 
 function PointsText(Value: double): string;
 var
@@ -76,7 +78,7 @@ var
 begin
   Settings := DefaultFormatSettings;
   Settings.DecimalSeparator := '.';
-  Result := FormatFloat(ValueDecimals, Value, Settings);
+  Result := FormatFloat(VALUE_DECIMALS, Value, Settings);
   if Result = '-0' then
     Result := '0';
 end;
@@ -93,13 +95,13 @@ end;
 
 function TPDFWriter.PageX(Value: double): string;
 begin
-  Result := PointsText(Value * PointsPerMM);
+  Result := PointsText(Value * POINTS_PER_MM);
 end;
 
 // PDF's y points up, from the bottom of the page
 function TPDFWriter.PageY(Value: double): string;
 begin
-  Result := PointsText((FPageHeights[High(FPageHeights)] - Value) * PointsPerMM);
+  Result := PointsText((FPageHeights[High(FPageHeights)] - Value) * POINTS_PER_MM);
 end;
 
 procedure TPDFWriter.BeginPage(AWidth, AHeight: double);
@@ -113,7 +115,7 @@ end;
 
 procedure TPDFWriter.SetLineWidth(Millimetres: double);
 begin
-  Add(PointsText(Millimetres * PointsPerMM) + ' w');
+  Add(PointsText(Millimetres * POINTS_PER_MM) + ' w');
 end;
 
 procedure TPDFWriter.SetDash(Millimetres: double);
@@ -121,7 +123,7 @@ begin
   if Millimetres <= 0 then
     Add('[] 0 d')
   else
-    Add('[' + PointsText(Millimetres * PointsPerMM) + '] 0 d');
+    Add('[' + PointsText(Millimetres * POINTS_PER_MM) + '] 0 d');
 end;
 
 procedure TPDFWriter.SetDashPattern(const Lengths: array of double);
@@ -135,7 +137,7 @@ begin
     begin
       if Pattern <> '' then
         Pattern := Pattern + ' ';
-      Pattern := Pattern + PointsText(Lengths[Index] * PointsPerMM);
+      Pattern := Pattern + PointsText(Lengths[Index] * POINTS_PER_MM);
     end;
   if (Length(Lengths) = 0) or (Lengths[0] <= 0) then
     Pattern := '';
@@ -157,8 +159,8 @@ end;
 
 procedure TPDFWriter.FillRectangle(const Area: TRect2);
 begin
-  Add(PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * PointsPerMM) + ' ' +
-    PointsText((Area.MaxY - Area.MinY) * PointsPerMM) + ' re f');
+  Add(PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * POINTS_PER_MM) + ' ' +
+    PointsText((Area.MaxY - Area.MinY) * POINTS_PER_MM) + ' re f');
 end;
 
 procedure TPDFWriter.FillPolygon(const Points: TVec2Array);
@@ -195,8 +197,8 @@ end;
 
 procedure TPDFWriter.Rectangle(const Area: TRect2);
 begin
-  Add(PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * PointsPerMM) + ' ' +
-    PointsText((Area.MaxY - Area.MinY) * PointsPerMM) + ' re S');
+  Add(PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * POINTS_PER_MM) + ' ' +
+    PointsText((Area.MaxY - Area.MinY) * POINTS_PER_MM) + ' re S');
 end;
 
 // WinAnsi matches Latin-1 for what is kept here
@@ -227,8 +229,8 @@ end;
 
 procedure TPDFWriter.PushClip(const Area: TRect2);
 begin
-  Add('q ' + PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * PointsPerMM) + ' ' +
-    PointsText((Area.MaxY - Area.MinY) * PointsPerMM) + ' re W n');
+  Add('q ' + PageX(Area.MinX) + ' ' + PageY(Area.MaxY) + ' ' + PointsText((Area.MaxX - Area.MinX) * POINTS_PER_MM) + ' ' +
+    PointsText((Area.MaxY - Area.MinY) * POINTS_PER_MM) + ' re W n');
 end;
 
 procedure TPDFWriter.PopClip;
@@ -237,9 +239,6 @@ begin
 end;
 
 function TPDFWriter.Finish: rawbytestring;
-const
-  FontId = 3;
-  FirstPageId = 4;
 var
   Offsets: array of integer;
   Index, ObjectCount: integer;
@@ -252,22 +251,22 @@ var
   end;
 
 begin
-  ObjectCount := FirstPageId + 2 * Length(FContents);
+  ObjectCount := FIRST_PAGE_ID + 2 * Length(FContents);
   Offsets := nil;
   SetLength(Offsets, ObjectCount);
   Result := '%PDF-1.4' + #10;
   Kids := '';
   for Index := 0 to High(FContents) do
-    Kids := Kids + IntToStr(FirstPageId + 2 * Index) + ' 0 R ';
+    Kids := Kids + IntToStr(FIRST_PAGE_ID + 2 * Index) + ' 0 R ';
   AddObject(1, '<< /Type /Catalog /Pages 2 0 R >>');
   AddObject(2, '<< /Type /Pages /Count ' + IntToStr(Length(FContents)) + ' /Kids [' + Trim(Kids) + '] >>');
-  AddObject(FontId, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  AddObject(FONT_ID, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
   for Index := 0 to High(FContents) do
   begin
-    AddObject(FirstPageId + 2 * Index, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PointsText(FPageWidths[Index] * PointsPerMM) +
-      ' ' + PointsText(FPageHeights[Index] * PointsPerMM) + '] /Resources << /Font << /F1 ' + IntToStr(FontId) +
-      ' 0 R >> >> /Contents ' + IntToStr(FirstPageId + 2 * Index + 1) + ' 0 R >>');
-    AddObject(FirstPageId + 2 * Index + 1, '<< /Length ' + IntToStr(Length(FContents[Index])) + ' >>' + #10 + 'stream' + #10 +
+    AddObject(FIRST_PAGE_ID + 2 * Index, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PointsText(FPageWidths[Index] * POINTS_PER_MM) +
+      ' ' + PointsText(FPageHeights[Index] * POINTS_PER_MM) + '] /Resources << /Font << /F1 ' + IntToStr(FONT_ID) +
+      ' 0 R >> >> /Contents ' + IntToStr(FIRST_PAGE_ID + 2 * Index + 1) + ' 0 R >>');
+    AddObject(FIRST_PAGE_ID + 2 * Index + 1, '<< /Length ' + IntToStr(Length(FContents[Index])) + ' >>' + #10 + 'stream' + #10 +
       FContents[Index] + 'endstream');
   end;
   Index := Length(Result);

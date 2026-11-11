@@ -312,9 +312,9 @@ begin
   Call('get_object', '{"name": "ease"}');
   AssertEquals('one undo step', '10', FormulaOf(Answer, 'formula'));
   Call('convert_units', '{"units": "ft"}');
-  AssertEquals(RpcInvalidParams, ErrorCode);
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
   Call('convert_units', '{"units": "mm"}');
-  AssertEquals('already mm', RpcRefused, ErrorCode);
+  AssertEquals('already mm', RPC_REFUSED, ErrorCode);
 end;
 
 // An open number is listed, nothing changes, and a mark settles it
@@ -340,7 +340,7 @@ begin
   AssertEquals('400 became 40', '40 * 2', FormulaOf(ObjectNamed('C'), 'x'));
   AssertNear('C stays put', 800, ObjectNamed('C').Get('x', 0.0));
   Call('convert_units', '{"units": "in", "marks": [{"name": "C"}]}');
-  AssertEquals('a mark needs all its members', RpcInvalidParams, ErrorCode);
+  AssertEquals('a mark needs all its members', RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 // Formulas and variable values in inches; reported positions stay mm
@@ -413,9 +413,9 @@ begin
   Call('set_role', '{"name": "Pocket", "role": "construction"}');
   AssertEquals('taken off', 0, TJSONArray(Answer.Find('pieces')).Count);
   Call('set_role', '{"name": "Pocket", "role": "hem"}');
-  AssertEquals('no such role', RpcInvalidParams, ErrorCode);
+  AssertEquals('no such role', RPC_INVALID_PARAMS, ErrorCode);
   Call('set_role', '{"name": "Flap", "role": "stitch"}');
-  AssertEquals('not an edge', RpcRefused, ErrorCode);
+  AssertEquals('not an edge', RPC_REFUSED, ErrorCode);
   Call('add_edge', '{"type": "line", "start": "P", "end": "Q", "name": "Topstitch", "role": "stitch"}');
   AssertEquals('stitch', Answer.Get('role', ''));
   Call('get_object', '{"name": "Flap"}');
@@ -430,7 +430,7 @@ begin
   Call('add_point', '{"type": "freePoint", "name": "Btn", "x": 50, "y": 50}');
   Call('set_marker', '{"name": "Btn", "marker": "button", "size": 12}');
   AssertEquals('button', Answer.Get('marker', ''));
-  AssertEquals('12', FormulaOf(Answer, MarkerSizeField));
+  AssertEquals('12', FormulaOf(Answer, MARKER_SIZE_FIELD));
   AssertEquals('on the piece', 'Flap', TJSONArray(Answer.Find('pieces')).Strings[0]);
   Call('get_object', '{"name": "Flap"}');
   AssertEquals(1, Answer.Get('markings', 0));
@@ -438,13 +438,13 @@ begin
   Call('get_object', '{"name": "Btn"}');
   AssertEquals('undone', '', Answer.Get('marker', ''));
   Call('set_marker', '{"name": "Btn", "marker": "match"}');
-  AssertEquals('3', FormulaOf(Answer, MarkerSizeField));
+  AssertEquals('3', FormulaOf(Answer, MARKER_SIZE_FIELD));
   Call('set_marker', '{"name": "Btn", "marker": "plain"}');
   AssertEquals('taken off', 0, TJSONArray(Answer.Find('pieces')).Count);
   Call('set_marker', '{"name": "Btn", "marker": "star"}');
-  AssertEquals('no such marker', RpcInvalidParams, ErrorCode);
+  AssertEquals('no such marker', RPC_INVALID_PARAMS, ErrorCode);
   Call('set_marker', '{"name": "Flap", "marker": "hole"}');
-  AssertEquals('not a point', RpcRefused, ErrorCode);
+  AssertEquals('not a point', RPC_REFUSED, ErrorCode);
 end;
 
 // Two sides of the square, stitched 6 mm inside, join the piece as a marking
@@ -462,7 +462,7 @@ begin
   Call('add_edge', '{"type": "offsetEdge", "edges": ["Line_A_B", "Line_C_D"], "distance": 5, "side": "left"}');
   AssertEquals(rsPatternRunNotJoined, ErrorText);
   Call('add_edge', '{"type": "offsetEdge", "edges": ["Line_A_B"], "distance": 5, "side": "inside"}');
-  AssertEquals('inside needs the piece', RpcInvalidParams, ErrorCode);
+  AssertEquals('inside needs the piece', RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 procedure TTestAPI.TestRectangleCornerAndOffset;
@@ -564,7 +564,7 @@ end;
 procedure TTestAPI.TestOpenMissingFile;
 begin
   Call('open', '{"path": "/no/such/file.sloper"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   AssertTrue('names the file', Pos('file.sloper', ErrorText) > 0);
 end;
 
@@ -609,7 +609,7 @@ var
 begin
   OpenTestPattern;
   Call('set_formula', '{"name": "B", "field": "length", "formula": "1 + @chest"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   Data := TJSONObject(TJSONObject(FReply.Find('error')).Find('data'));
   AssertNotNull('where', Data);
   AssertEquals('field', 'length', Data.Get('field', ''));
@@ -631,7 +631,7 @@ procedure TTestAPI.TestCycleRefused;
 begin
   OpenTestPattern;
   Call('set_formula', '{"name": "A", "field": "x", "formula": "B.x"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestRenameKeepsReferences;
@@ -646,14 +646,14 @@ procedure TTestAPI.TestRenameRefused;
 begin
   OpenTestPattern;
   Call('rename', '{"name": "A", "newName": "B"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestDeleteRefusedWhileUsed;
 begin
   OpenTestPattern;
   Call('delete', '{"name": "A"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   AssertTrue('says what uses it', Pos('B', ErrorText) > 0);
   AssertNotNull(ObjectNamed('A'));
 end;
@@ -678,7 +678,7 @@ end;
 procedure TTestAPI.TestNothingToUndo;
 begin
   Call('undo');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   AssertEquals(rsApiNothingToUndo, ErrorText);
   Call('redo');
   AssertEquals(rsApiNothingToRedo, ErrorText);
@@ -723,7 +723,7 @@ begin
   Call('set_measurement', '{"key": "chest", "value": 900}');
   AssertTrue('added', Answer.Get('added', False));
   Call('set_measurement', '{"key": "2 bad", "value": 1}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.WriteTable;
@@ -774,7 +774,7 @@ begin
   WriteTable;
   OpenTestPattern;
   Call('set_measurement', '{"key": "waist", "value": 800, "size": "XL"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   AssertEquals(Format(rsMeasurementUnknownSize, ['XL']), ErrorText);
 end;
 
@@ -836,7 +836,7 @@ procedure TTestAPI.TestArrangeRefused;
 begin
   OpenTestPattern;
   Call('arrange', '{"action": "distribute", "points": ["A"]}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   AssertEquals(rsArrangeTooFewToDistribute, ErrorText);
 end;
 
@@ -885,7 +885,7 @@ end;
 procedure TTestAPI.TestSaveNeedsAPath;
 begin
   Call('save');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   AssertEquals(rsApiNoFileName, ErrorText);
 end;
 
@@ -901,7 +901,7 @@ procedure TTestAPI.TestSaveReplacesOnlyPatterns;
     AssertTrue(Err, WriteTextFile(Path, '{"format": "layout", "version": 1}', Err));
     try
       Call('save', PathParams(Path));
-      AssertEquals(FileName, RpcRefused, ErrorCode);
+      AssertEquals(FileName, RPC_REFUSED, ErrorCode);
       AssertEquals(FileName, Format(Msg, [FileName]), ErrorText);
       AssertTrue(Err, ReadTextFile(Path, Text, Err));
       AssertEquals(FileName + ' kept', '{"format": "layout", "version": 1}', Text);
@@ -915,7 +915,7 @@ begin
   AssertRefused('notes.txt', rsApiSaveExtension);
   AssertRefused('layout.sloper', rsApiNotAPattern);
   Call('save', PathParams(ConcatPaths([FFolder, 'nothing.json'])));
-  AssertEquals('a new file needs the extension', RpcRefused, ErrorCode);
+  AssertEquals('a new file needs the extension', RPC_REFUSED, ErrorCode);
   AssertFalse(FileExists(ConcatPaths([FFolder, 'nothing.json'])));
   Call('save', PathParams(ChangeFileExt(FCopyPath, '.SLOPER')));
   Answer;
@@ -927,33 +927,33 @@ end;
 procedure TTestAPI.TestBadJSON;
 begin
   Keep(FServer.HandleLine('{nope'));
-  AssertEquals(RpcParseError, ErrorCode);
+  AssertEquals(RPC_PARSE_ERROR, ErrorCode);
   AssertTrue('id is null', FReply.Find('id').JSONType = jtNull);
 end;
 
 procedure TTestAPI.TestNotARequest;
 begin
   Keep(FServer.HandleLine('{"id": 7}'));
-  AssertEquals(RpcInvalidRequest, ErrorCode);
+  AssertEquals(RPC_INVALID_REQUEST, ErrorCode);
   AssertEquals('id kept', 7, FReply.Get('id', 0));
 end;
 
 procedure TTestAPI.TestUnknownMethod;
 begin
   Call('fly');
-  AssertEquals(RpcMethodNotFound, ErrorCode);
+  AssertEquals(RPC_METHOD_NOT_FOUND, ErrorCode);
 end;
 
 procedure TTestAPI.TestMissingParam;
 begin
   Call('open');
-  AssertEquals(RpcInvalidParams, ErrorCode);
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 procedure TTestAPI.TestParamsMustBeAnObject;
 begin
   Call('open', '[1]');
-  AssertEquals(RpcInvalidParams, ErrorCode);
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 procedure TTestAPI.TestNotificationGetsNoReply;
@@ -977,11 +977,11 @@ end;
 procedure TTestAPI.TestUnknownTarget;
 begin
   Call('get_object', '{"id": 999}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   Call('get_object', '{"name": "Nothing"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   Call('get_object');
-  AssertEquals(RpcInvalidParams, ErrorCode);
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 procedure TTestAPI.TestRender;
@@ -1017,7 +1017,7 @@ begin
   Call('render', '{"hiddenRoles": ["stitch"]}');
   AssertEquals('hidden', 0, Pos('data-name="Diagonal"', Answer.Get('svg', '')));
   Call('render', '{"hiddenRoles": ["seam"]}');
-  AssertEquals(RpcInvalidParams, ErrorCode);
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 procedure TTestAPI.TestRenderFollowsEdits;
@@ -1031,11 +1031,11 @@ end;
 procedure TTestAPI.TestRenderRefusals;
 begin
   Call('render', '{"format": "png"}');
-  AssertEquals(RpcRefused, ErrorCode);
+  AssertEquals(RPC_REFUSED, ErrorCode);
   Call('render', '{"region": {"minX": 5, "minY": 0, "maxX": 1, "maxY": 1}}');
-  AssertEquals(RpcInvalidParams, ErrorCode);
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
   Call('render', '{"region": 3}');
-  AssertEquals(RpcInvalidParams, ErrorCode);
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 procedure TTestAPI.TestRenderWithoutParams;
@@ -1126,16 +1126,16 @@ procedure TTestAPI.TestCreatePieceRefusals;
 begin
   AddSquare;
   Call('create_piece', '{"x": 500, "y": 50}');
-  AssertEquals('refused', RpcRefused, ErrorCode);
+  AssertEquals('refused', RPC_REFUSED, ErrorCode);
   AssertEquals(rsDetectNoRegion, ErrorText);
   Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
   Call('create_piece', '{"x": 50, "y": 50}');
-  AssertEquals('one piece per region', RpcRefused, ErrorCode);
+  AssertEquals('one piece per region', RPC_REFUSED, ErrorCode);
   Call('undo');
   Call('create_piece', '{"y": 50}');
-  AssertEquals('no x', RpcInvalidParams, ErrorCode);
+  AssertEquals('no x', RPC_INVALID_PARAMS, ErrorCode);
   Call('create_piece', '{"x": 50, "y": 50, "allowance": "1 +"}');
-  AssertEquals('bad formula', RpcRefused, ErrorCode);
+  AssertEquals('bad formula', RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestEdgeAllowance;
@@ -1149,7 +1149,7 @@ begin
   Call('set_edge_allowance', '{"name": "Front", "edge": "Line_A_B"}');
   AssertEquals('allowance and grainline', 2, Answer.Objects['formulas'].Count);
   Call('set_edge_allowance', '{"name": "A", "edge": "Line_A_B"}');
-  AssertEquals('not a piece', RpcRefused, ErrorCode);
+  AssertEquals('not a piece', RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestGrainlineAndNotches;
@@ -1163,7 +1163,7 @@ begin
   AssertEquals('between points', 'valid', Answer.Get('state', ''));
   AssertEquals('field gone', 1, Answer.Objects['formulas'].Count);
   Call('set_grainline', '{"name": "Front"}');
-  AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
+  AssertEquals('nothing given', RPC_INVALID_PARAMS, ErrorCode);
   Call('set_grainline', '{"name": "Front", "none": true}');
   AssertEquals('cleared', 'valid', Answer.Get('state', ''));
 
@@ -1173,11 +1173,11 @@ begin
   Call('add_notch', '{"name": "Front", "point": "A"}');
   AssertEquals('notches', 2, Answer.Get('notches', 0));
   Call('add_notch', '{"name": "Front"}');
-  AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
+  AssertEquals('nothing given', RPC_INVALID_PARAMS, ErrorCode);
   Call('remove_notch', '{"name": "Front", "notch": 1}');
   AssertEquals('notches', 1, Answer.Get('notches', 0));
   Call('remove_notch', '{"name": "Front", "notch": 9}');
-  AssertEquals('no such notch', RpcRefused, ErrorCode);
+  AssertEquals('no such notch', RPC_REFUSED, ErrorCode);
   Call('undo');
   Call('get_object', '{"name": "Front"}');
   AssertEquals('undone', 2, Answer.Get('notches', 0));
@@ -1194,11 +1194,11 @@ begin
   Call('get_object', '{"name": "Front"}');
   AssertEquals('the piece is fine', 'valid', Answer.Get('state', ''));
   Call('convert_edge', '{"name": "Curve_C_D", "to": "curve"}');
-  AssertEquals('already one', RpcRefused, ErrorCode);
+  AssertEquals('already one', RPC_REFUSED, ErrorCode);
   Call('convert_edge', '{"name": "Curve_C_D", "to": "spiral"}');
-  AssertEquals('no such type', RpcInvalidParams, ErrorCode);
+  AssertEquals('no such type', RPC_INVALID_PARAMS, ErrorCode);
   Call('convert_edge', '{"name": "Front", "to": "line"}');
-  AssertEquals('not an edge', RpcRefused, ErrorCode);
+  AssertEquals('not an edge', RPC_REFUSED, ErrorCode);
   Call('undo');
   Call('get_object', '{"name": "Line_C_D"}');
   AssertEquals('back to a line', 'line', Answer.Get('type', ''));
@@ -1215,11 +1215,11 @@ begin
   Call('get_object', '{"name": "Line_Corner_C"}');
   AssertEquals('the line stays', 'line', Answer.Get('type', ''));
   Call('get_object', '{"name": "A"}');
-  AssertEquals('A is merged away', RpcRefused, ErrorCode);
+  AssertEquals('A is merged away', RPC_REFUSED, ErrorCode);
   Call('merge_points', '{"points": ["B"]}');
-  AssertEquals('one point', RpcRefused, ErrorCode);
+  AssertEquals('one point', RPC_REFUSED, ErrorCode);
   Call('merge_points', '{}');
-  AssertEquals('no points', RpcInvalidParams, ErrorCode);
+  AssertEquals('no points', RPC_INVALID_PARAMS, ErrorCode);
   Call('undo');
   Call('get_object', '{"name": "A"}');
   AssertEquals('undone', 'freePoint', Answer.Get('type', ''));
@@ -1236,9 +1236,9 @@ begin
   AssertEquals('A1', TJSONObject(Points[0]).Get('name', ''));
   AssertEquals('A2', TJSONObject(Points[1]).Get('name', ''));
   Call('break_point', '{"name": "A2"}');
-  AssertEquals('one edge only', RpcRefused, ErrorCode);
+  AssertEquals('one edge only', RPC_REFUSED, ErrorCode);
   Call('break_point', '{"name": "Line_A1_B"}');
-  AssertEquals('not a point', RpcRefused, ErrorCode);
+  AssertEquals('not a point', RPC_REFUSED, ErrorCode);
   Call('undo');
   Call('get_object', '{"name": "A"}');
   AssertEquals('undone', 'freePoint', Answer.Get('type', ''));
@@ -1262,12 +1262,12 @@ begin
   AssertEquals(1, Objects.Count);
   AssertEquals('a second line on the same points', 'Line_A_B2', TJSONObject(Objects[0]).Get('name', ''));
   Call('copy_objects', '{"objects": []}');
-  AssertEquals('nothing to copy', RpcRefused, ErrorCode);
+  AssertEquals('nothing to copy', RPC_REFUSED, ErrorCode);
   Call('paste_objects', '{"fragment": "Line_A_B"}');
-  AssertEquals('not a copy', RpcRefused, ErrorCode);
+  AssertEquals('not a copy', RPC_REFUSED, ErrorCode);
   Call('undo');
   Call('get_object', '{"name": "Line_A_B2"}');
-  AssertEquals('undone', RpcRefused, ErrorCode);
+  AssertEquals('undone', RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestCutAndFold;
@@ -1281,11 +1281,11 @@ begin
   Call('set_cut', '{"name": "Front", "count": 3}');
   AssertTrue('keeps mirrored', Answer.Get('mirrored', False));
   Call('set_cut', '{"name": "Front", "count": 0}');
-  AssertEquals('refused', RpcRefused, ErrorCode);
+  AssertEquals('refused', RPC_REFUSED, ErrorCode);
   Call('set_fold', '{"name": "Front", "edge": "Line_D_A"}');
   AssertTrue(Answer.Get('onFold', False));
   Call('set_fold', '{"name": "Front"}');
-  AssertEquals('nothing given', RpcInvalidParams, ErrorCode);
+  AssertEquals('nothing given', RPC_INVALID_PARAMS, ErrorCode);
   Call('set_fold', '{"name": "Front", "none": true}');
   AssertFalse(Answer.Get('onFold', True));
 end;
@@ -1310,16 +1310,16 @@ begin
   Call('get_object', '{"name": "A_t1"}');
   AssertEquals('moved', 15, Answer.Get('x', 99.0), 0.001);
   Call('add_transform', '{"type": "mirror", "sources": ["A"]}');
-  AssertEquals('no axis', RpcInvalidParams, ErrorCode);
+  AssertEquals('no axis', RPC_INVALID_PARAMS, ErrorCode);
   Call('add_transform', '{"type": "turn", "sources": ["A"]}');
-  AssertEquals('no such type', RpcInvalidParams, ErrorCode);
+  AssertEquals('no such type', RPC_INVALID_PARAMS, ErrorCode);
   Call('add_transform', '{"type": "move", "sources": []}');
-  AssertEquals('nothing to copy', RpcRefused, ErrorCode);
+  AssertEquals('nothing to copy', RPC_REFUSED, ErrorCode);
   Call('delete', '{"name": "A_r1"}');
-  AssertEquals('copy alone', RpcRefused, ErrorCode);
+  AssertEquals('copy alone', RPC_REFUSED, ErrorCode);
   Call('delete', '{"name": "Rotate"}');
   Call('get_object', '{"name": "A_r1"}');
-  AssertEquals('gone with it', RpcRefused, ErrorCode);
+  AssertEquals('gone with it', RPC_REFUSED, ErrorCode);
   Call('undo');
   Call('get_object', '{"name": "A_r1"}');
   AssertEquals('back', 'pointCopy', Answer.Get('type', ''));
@@ -1329,9 +1329,9 @@ end;
 procedure TTestAPI.TestNoDraftsOrLayers;
 begin
   Call('list_drafts');
-  AssertEquals('no drafts', RpcMethodNotFound, ErrorCode);
+  AssertEquals('no drafts', RPC_METHOD_NOT_FOUND, ErrorCode);
   Call('add_layer', '{"name": "Dart"}');
-  AssertEquals('no layers', RpcMethodNotFound, ErrorCode);
+  AssertEquals('no layers', RPC_METHOD_NOT_FOUND, ErrorCode);
 end;
 
 procedure TTestAPI.TestExport;
@@ -1348,11 +1348,11 @@ begin
     Answer;
     AssertEquals('layout refused', True, FileExists(Pattern));
     Call('export', Format('{"layout": %s, "path": %s}', [AsJSONString(Layout), AsJSONString(Target)]));
-    AssertEquals('no layout yet', RpcRefused, ErrorCode);
+    AssertEquals('no layout yet', RPC_REFUSED, ErrorCode);
     Call('export', Format('{"layout": %s, "path": "a.png"}', [AsJSONString(Layout)]));
-    AssertEquals('unknown format', RpcInvalidParams, ErrorCode);
+    AssertEquals('unknown format', RPC_INVALID_PARAMS, ErrorCode);
     Call('export', Format('{"layout": %s, "path": %s, "format": "pdf"}', [AsJSONString(Layout), AsJSONString(Target)]));
-    AssertEquals('a PDF needs .pdf', RpcRefused, ErrorCode);
+    AssertEquals('a PDF needs .pdf', RPC_REFUSED, ErrorCode);
     AssertEquals(Format(rsApiExportExtension, ['pdf', '.pdf']), ErrorText);
     Call('export', Format('{"layout": %s, "path": %s, "format": "machine-dxf"}', [AsJSONString(Layout),
       AsJSONString(ChangeFileExt(Target, '.txt'))]));
@@ -1383,13 +1383,13 @@ begin
   Call('get_object', '{"name": "Hem"}');
   AssertFalse('undone', Answer.Get('reversed', True));
   Call('flip_seam', '{"name": "Front"}');
-  AssertEquals('not a seam', RpcRefused, ErrorCode);
+  AssertEquals('not a seam', RPC_REFUSED, ErrorCode);
   Call('add_seam', '{"sideA": [{"piece": "Front", "edge": "Line_A_B"}], "sideB": []}');
-  AssertEquals('empty side', RpcRefused, ErrorCode);
+  AssertEquals('empty side', RPC_REFUSED, ErrorCode);
   Call('add_seam', '{"sideA": [{"piece": "Front", "edge": "Line_A_B"}]}');
-  AssertEquals('no side', RpcInvalidParams, ErrorCode);
+  AssertEquals('no side', RPC_INVALID_PARAMS, ErrorCode);
   Call('delete', '{"name": "Front"}');
-  AssertEquals('piece in use', RpcRefused, ErrorCode);
+  AssertEquals('piece in use', RPC_REFUSED, ErrorCode);
   Call('suggest_seams');
   AssertEquals('one piece has no pairs', 0, Answer.Arrays['suggestions'].Count);
 end;
@@ -1419,17 +1419,17 @@ begin
   Call('render', '{"annotations": false}');
   AssertEquals('hidden', 0, Pos('Stay-stitch neckline', Answer.Get('svg', '')));
   Call('delete', '{"name": "A"}');
-  AssertEquals('anchor in use', RpcRefused, ErrorCode);
+  AssertEquals('anchor in use', RPC_REFUSED, ErrorCode);
   Call('set_text', '{"name": "Stay", "size": 0}');
-  AssertEquals('bad size', RpcRefused, ErrorCode);
+  AssertEquals('bad size', RPC_REFUSED, ErrorCode);
   Call('set_text', '{"name": "A", "text": "x"}');
-  AssertEquals('not a note', RpcRefused, ErrorCode);
+  AssertEquals('not a note', RPC_REFUSED, ErrorCode);
   Call('add_note', '{"text": "x", "anchor": {"edge": "Line_A_B"}}');
-  AssertEquals('edge needs a position', RpcInvalidParams, ErrorCode);
+  AssertEquals('edge needs a position', RPC_INVALID_PARAMS, ErrorCode);
   Call('add_note', '{"text": "x", "anchor": {"point": "Line_A_B"}}');
-  AssertEquals('wrong kind', RpcRefused, ErrorCode);
+  AssertEquals('wrong kind', RPC_REFUSED, ErrorCode);
   Call('add_note', '{"anchor": {"point": "A"}}');
-  AssertEquals('no text', RpcInvalidParams, ErrorCode);
+  AssertEquals('no text', RPC_INVALID_PARAMS, ErrorCode);
   // Stage 2: callouts, draft values, alignment and the box
   Call('add_note', '{"text": "Top {=Line_A_B.length} mm", "anchor": {"point": "B"}, "dx": 10, "dy": 10, "leader": "arrow", ' +
     '"align": "right", "box": true, "name": "Top"}');
@@ -1439,18 +1439,18 @@ begin
   AssertEquals('shown', 'Top 100 mm', Answer.Get('shownText', ''));
   AssertEquals('with names', 'Top {=Line_A_B.length} mm', Answer.Get('text', ''));
   Call('set_text', '{"name": "Top", "text": "{=Nope.x}"}');
-  AssertEquals('bad draft value', RpcRefused, ErrorCode);
+  AssertEquals('bad draft value', RPC_REFUSED, ErrorCode);
   Call('get_object', '{"name": "Top"}');
   AssertEquals('unchanged', 'Top 100 mm', Answer.Get('shownText', ''));
   Call('set_text', '{"name": "Top", "leader": "dot", "align": "middle"}');
-  AssertEquals('unknown alignment', RpcInvalidParams, ErrorCode);
+  AssertEquals('unknown alignment', RPC_INVALID_PARAMS, ErrorCode);
   Call('set_text', '{"name": "Top", "leader": "dot", "box": false}');
   AssertEquals('dot', 'dot', Answer.Get('leader', ''));
   AssertFalse('no box', Answer.Get('box', True));
   Call('add_note', '{"text": "x", "x": 1, "y": 1, "leader": "arrow"}');
-  AssertEquals('free callout', RpcRefused, ErrorCode);
+  AssertEquals('free callout', RPC_REFUSED, ErrorCode);
   Call('delete', '{"name": "Line_A_B"}');
-  AssertEquals('a draft value reads it', RpcRefused, ErrorCode);
+  AssertEquals('a draft value reads it', RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestSplitEdge;
@@ -1492,30 +1492,30 @@ var
   Data: TJSONObject;
 begin
   Call('add_point', '{"type": "wobble"}');
-  AssertEquals('unknown type', RpcInvalidParams, ErrorCode);
+  AssertEquals('unknown type', RPC_INVALID_PARAMS, ErrorCode);
   AssertTrue('lists the choices', Pos('freePoint', ErrorText) > 0);
   Call('add_point', '{"type": "freePoint", "x": 0}');
-  AssertEquals('missing field', RpcInvalidParams, ErrorCode);
+  AssertEquals('missing field', RPC_INVALID_PARAMS, ErrorCode);
   Call('add_point', '{"type": "offsetPoint", "base": "Nothing", "length": 1, "angle": 0}');
-  AssertEquals('unknown input', RpcRefused, ErrorCode);
+  AssertEquals('unknown input', RPC_REFUSED, ErrorCode);
   Call('add_point', '{"type": "offsetPoint", "base": 99, "length": 1, "angle": 0}');
-  AssertEquals('unknown ID', RpcRefused, ErrorCode);
+  AssertEquals('unknown ID', RPC_REFUSED, ErrorCode);
   Call('add_point', '{"type": "freePoint", "name": "A", "x": 0, "y": 0}');
   Call('add_point', '{"type": "freePoint", "name": "a", "x": 0, "y": 0}');
-  AssertEquals('name taken', RpcRefused, ErrorCode);
+  AssertEquals('name taken', RPC_REFUSED, ErrorCode);
   Call('add_point', '{"type": "freePoint", "x": "1 +", "y": 0}');
-  AssertEquals('bad formula', RpcRefused, ErrorCode);
+  AssertEquals('bad formula', RPC_REFUSED, ErrorCode);
   Data := TJSONObject(TJSONObject(FReply.Find('error')).Find('data'));
   AssertEquals('says which field', 'x', Data.Get('field', ''));
   Call('add_point', '{"type": "offsetPoint", "base": "A", "mode": "sideways", "length": 1, "angle": 0}');
-  AssertEquals('bad choice', RpcInvalidParams, ErrorCode);
+  AssertEquals('bad choice', RPC_INVALID_PARAMS, ErrorCode);
   Call('add_edge', '{"type": "line", "start": "A", "end": "A"}');
   AssertEquals('an edge to itself is a state, not a refusal', 'invalid', Answer.Get('state', ''));
   Call('delete', '{"name": "Line_A_A"}');
   Call('add_edge', '{"type": "curvePath"}');
-  AssertEquals('no nodes', RpcInvalidParams, ErrorCode);
+  AssertEquals('no nodes', RPC_INVALID_PARAMS, ErrorCode);
   Call('add_variable', '{"name": "2 bad", "formula": "1"}');
-  AssertEquals('bad name', RpcRefused, ErrorCode);
+  AssertEquals('bad name', RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestRefusedAddLeavesNoChangeOpen;
@@ -1526,7 +1526,7 @@ begin
   AssertEquals('the next call still works', 'A', Answer.Get('name', ''));
   Call('undo');
   Call('undo');
-  AssertEquals('a refused add is not a step', RpcRefused, ErrorCode);
+  AssertEquals('a refused add is not a step', RPC_REFUSED, ErrorCode);
 end;
 
 procedure TTestAPI.TestInputsByIdOrName;
@@ -1558,13 +1558,13 @@ begin
   OpenTestPattern;
   FServer.Document.Pattern.InsertVariable(TVariable.Create('bad'));
   Call('list_objects');
-  AssertEquals('list', RpcInternalError, ErrorCode);
+  AssertEquals('list', RPC_INTERNAL_ERROR, ErrorCode);
   Call('get_object', '{"name": "ease"}');
   AssertEquals('other objects still work', 'ease', Answer.Get('name', ''));
   Call('check');
-  AssertEquals('check', RpcInternalError, ErrorCode);
+  AssertEquals('check', RPC_INTERNAL_ERROR, ErrorCode);
   Call('save');
-  AssertEquals('save', RpcInternalError, ErrorCode);
+  AssertEquals('save', RPC_INTERNAL_ERROR, ErrorCode);
   AssertFalse('no change left open', FServer.Document.ChangeOpen);
 end;
 

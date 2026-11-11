@@ -31,13 +31,9 @@ interface
 
 const
   // Default tolerance for comparing coordinates, in mm
-  DefaultTolerance = 0.001;
+  DEFAULT_TOLERANCE = 0.001;
   // Below this a length or determinant is treated as zero
-  Epsilon = 1e-12;
-  // A line or curve this close to a circle (in mm) touches it once
-  TangentTolerance = 1e-9;
-  // Angles this close below 360 degrees are taken as 0
-  AngleSnap = 1e-9;
+  EPSILON = 1e-12;
 
 type
   TVec2 = record
@@ -103,7 +99,7 @@ function Cross(const A, B: TVec2): double; inline;
 function LeftOf(const V: TVec2): TVec2; inline;
 function Lerp(const A, B: TVec2; T: double): TVec2;
 function Distance(const A, B: TVec2): double;
-function PointsNear(const A, B: TVec2; Tolerance: double = DefaultTolerance): boolean;
+function PointsNear(const A, B: TVec2; Tolerance: double = DEFAULT_TOLERANCE): boolean;
 
 // Angle in degrees normalised to [0, 360)
 function NormalizeAngle(AngleDeg: double): double;
@@ -117,7 +113,7 @@ function RotatePoint(const P, Pivot: TVec2; AngleDeg: double): TVec2;
 function MirrorPoint(const P, A, B: TVec2): TVec2;
 
 // Intersection of two lines. Without Extend a line is limited to its ends
-// (within DefaultTolerance). False when parallel or not crossing.
+// (within DEFAULT_TOLERANCE). False when parallel or not crossing.
 function IntersectLines(const A, B: TLine2; ExtendA, ExtendB: boolean; out Hit: TIntersection): boolean;
 // Crossings of a line and a circle, sorted by T1 (the line parameter)
 function IntersectLineCircle(const L: TLine2; Extend: boolean; const Centre: TVec2; Radius: double): TIntersectionArray;
@@ -141,7 +137,14 @@ implementation
 uses
   Math;
 
+const
+  // A line or curve this close to a circle (in mm) touches it once
+  TANGENT_TOLERANCE = 1e-9;
+  // Angles this close below 360 degrees are taken as 0
+  ANGLE_SNAP = 1e-9;
+
   { TVec2 }
+  TOUCH_TOLERANCE = 1e-9;
 
 function TVec2.Length: double;
 begin
@@ -201,7 +204,7 @@ var
 begin
   D := P2 - P1;
   LenSq := Dot(D, D);
-  if LenSq < Epsilon then
+  if LenSq < EPSILON then
     Exit(0);
   Result := Dot(P - P1, D) / LenSq;
 end;
@@ -329,7 +332,7 @@ begin
   if Result < 0 then
     Result := Result + 360;
   // A rounding error just below 0 (or 360) would otherwise read 359.999...
-  if Result >= 360 - AngleSnap then
+  if Result >= 360 - ANGLE_SNAP then
     Result := 0;
 end;
 
@@ -365,16 +368,16 @@ begin
   Result := Foot * 2 - P;
 end;
 
-// Parameter tolerance equivalent to DefaultTolerance along a line
+// Parameter tolerance equivalent to DEFAULT_TOLERANCE along a line
 function ParamTolerance(const L: TLine2): double;
 var
   Len: double;
 begin
   Len := L.Length;
-  if Len < Epsilon then
+  if Len < EPSILON then
     Result := 0
   else
-    Result := DefaultTolerance / Len;
+    Result := DEFAULT_TOLERANCE / Len;
 end;
 
 function InRange01(T, Tol: double): boolean;
@@ -392,7 +395,7 @@ begin
   DB := B.P2 - B.P1;
   Denom := Cross(DA, DB);
   // Relative test so the result does not depend on the line lengths
-  if Abs(Denom) <= Epsilon * Max(1, DA.Length * DB.Length) then
+  if Abs(Denom) <= EPSILON * Max(1, DA.Length * DB.Length) then
     Exit(False);
   Diff := B.P1 - A.P1;
   Hit.T1 := Cross(Diff, DB) / Denom;
@@ -421,15 +424,15 @@ begin
   D := L.P2 - L.P1;
   F := L.P1 - Centre;
   A := Dot(D, D);
-  if A < Epsilon then
+  if A < EPSILON then
     Exit;
   B := 2 * Dot(F, D);
   C := Dot(F, F) - Radius * Radius;
   Disc := B * B - 4 * A * C;
   Tol := ParamTolerance(L);
   // Disc = 4A(r² - d²) ≈ 8Ar(r - d), where d is the centre's distance from
-  // the line; treat |r - d| below TangentTolerance as touching at one point
-  if Abs(Disc) <= 8 * A * Radius * TangentTolerance then
+  // the line; treat |r - d| below TANGENT_TOLERANCE as touching at one point
+  if Abs(Disc) <= 8 * A * Radius * TANGENT_TOLERANCE then
     Add(-B / (2 * A))
   else if Disc > 0 then
   begin
@@ -440,8 +443,6 @@ begin
 end;
 
 function IntersectCircles(const A: TVec2; RadiusA: double; const B: TVec2; RadiusB: double; out First, Second: TVec2): integer;
-const
-  TouchTolerance = 1e-9;
 var
   Gap, Along, HeightSquared, Height: double;
   Unit2, Foot, Across: TVec2;
@@ -449,15 +450,15 @@ begin
   First := Vec2(0, 0);
   Second := First;
   Gap := Distance(A, B);
-  if Gap < TouchTolerance then
+  if Gap < TOUCH_TOLERANCE then
     Exit(0);
   Along := (Gap * Gap + RadiusA * RadiusA - RadiusB * RadiusB) / (2 * Gap);
   HeightSquared := RadiusA * RadiusA - Along * Along;
-  if HeightSquared < -TouchTolerance * Max(RadiusA * RadiusA, 1) then
+  if HeightSquared < -TOUCH_TOLERANCE * Max(RadiusA * RadiusA, 1) then
     Exit(0);
   Unit2 := (B - A) * (1 / Gap);
   Foot := A + Unit2 * Along;
-  if HeightSquared <= TouchTolerance * Max(RadiusA * RadiusA, 1) then
+  if HeightSquared <= TOUCH_TOLERANCE * Max(RadiusA * RadiusA, 1) then
   begin
     First := Foot;
     Second := Foot;

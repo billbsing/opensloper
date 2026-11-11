@@ -58,7 +58,7 @@ uses
   Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.UI.ObjectList, Sloper.UI.PanelEdits, Sloper.UI.Spacing;
 
 const
-  NewVariableFormula = '0';
+  NEW_VARIABLE_FORMULA = '0';
 
 constructor TVariablesPanel.Create(AOwner: TComponent);
 
@@ -126,7 +126,7 @@ begin
     Exit;
   FinishEditing;
   Document.BeginChange(rsVariablesAddChange);
-  Variable := Document.Pattern.AddVariable(Document.Pattern.NewVariableName, NewVariableFormula);
+  Variable := Document.Pattern.AddVariable(Document.Pattern.NewVariableName, NEW_VARIABLE_FORMULA);
   Reason := Document.Pattern.LastError;
   Key := '';
   if Assigned(Variable) then

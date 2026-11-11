@@ -70,16 +70,16 @@ uses
   Math, Forms, Sloper.Core.JSON;
 
 const
-  ColumnColour = 0;
-  ColumnName = 1;
-  ColumnFill = 2;
-  ColumnAllowance = 3;
-  ColourWidth96 = 64;
-  NameWidth96 = 130;
-  FillWidth96 = 90;
-  AllowanceWidth96 = 90;
+  COLUMN_COLOUR = 0;
+  COLUMN_NAME = 1;
+  COLUMN_FILL = 2;
+  COLUMN_ALLOWANCE = 3;
+  COLOUR_WIDTH96 = 64;
+  NAME_WIDTH96 = 130;
+  FILL_WIDTH96 = 90;
+  ALLOWANCE_WIDTH96 = 90;
   // Between hatching lines in a swatch, at 96 pixels per inch
-  SwatchHatchGap96 = 6;
+  SWATCH_HATCH_GAP96 = 6;
 
 function ChooseMaterialColor(Owner: TComponent; var Text: string): boolean;
 var
@@ -131,7 +131,7 @@ begin
   CentreX := (Rect.Left + Rect.Right) / 2;
   CentreY := (Rect.Top + Rect.Bottom) / 2;
   Reach := Hypot(Rect.Right - Rect.Left, Rect.Bottom - Rect.Top);
-  Gap := Max(3, SwatchHatchGap96 * Screen.PixelsPerInch / 96);
+  Gap := Max(3, SWATCH_HATCH_GAP96 * Screen.PixelsPerInch / 96);
   Canvas.Pen.Color := Ink;
   Canvas.Pen.Width := 1;
   Canvas.ClipRect := Rect;
@@ -167,10 +167,10 @@ begin
   FixedRows := 1;
   RowCount := 1;
   Options := Options + [goRowSelect] - [goRangeSelect, goEditing];
-  AddColumn(rsMaterialColour, ColourWidth96);
-  AddColumn(rsMaterialName, NameWidth96);
-  AddColumn(rsMaterialFill, FillWidth96);
-  AddColumn(rsMaterialAllowance, AllowanceWidth96);
+  AddColumn(rsMaterialColour, COLOUR_WIDTH96);
+  AddColumn(rsMaterialName, NAME_WIDTH96);
+  AddColumn(rsMaterialFill, FILL_WIDTH96);
+  AddColumn(rsMaterialAllowance, ALLOWANCE_WIDTH96);
 end;
 
 procedure TMaterialGrid.ShowMaterials(APattern: TPattern);
@@ -192,13 +192,13 @@ begin
         for Index := 0 to FPattern.MaterialCount - 1 do
         begin
           Material := FPattern.Materials[Index];
-          Cells[ColumnColour, Index + 1] := '';
-          Cells[ColumnName, Index + 1] := Material.Name;
-          Cells[ColumnFill, Index + 1] := MaterialFillCaption(Material.Fill);
+          Cells[COLUMN_COLOUR, Index + 1] := '';
+          Cells[COLUMN_NAME, Index + 1] := Material.Name;
+          Cells[COLUMN_FILL, Index + 1] := MaterialFillCaption(Material.Fill);
           if Material.HasAllowance then
-            Cells[ColumnAllowance, Index + 1] := FormatJSONFloat(Material.Allowance)
+            Cells[COLUMN_ALLOWANCE, Index + 1] := FormatJSONFloat(Material.Allowance)
           else
-            Cells[ColumnAllowance, Index + 1] := '';
+            Cells[COLUMN_ALLOWANCE, Index + 1] := '';
         end;
       end;
     finally
@@ -228,7 +228,7 @@ end;
 procedure TMaterialGrid.PrepareCanvas(ACol, ARow: integer; AState: TGridDrawState);
 begin
   inherited PrepareCanvas(ACol, ARow, AState);
-  if (ACol = ColumnColour) and (ARow >= 1) and Assigned(FPattern) and (ARow <= FPattern.MaterialCount) then
+  if (ACol = COLUMN_COLOUR) and (ARow >= 1) and Assigned(FPattern) and (ARow <= FPattern.MaterialCount) then
     Canvas.Brush.Color := SwatchColor(FPattern.Materials[ARow - 1].Color);
 end;
 
@@ -238,7 +238,7 @@ var
   Swatch: TRect;
 begin
   inherited DrawCell(ACol, ARow, ARect, AState);
-  if (ACol <> ColumnColour) or (ARow < 1) or not Assigned(FPattern) or (ARow > FPattern.MaterialCount) or
+  if (ACol <> COLUMN_COLOUR) or (ARow < 1) or not Assigned(FPattern) or (ARow > FPattern.MaterialCount) or
     (FPattern.Materials[ARow - 1].Fill <> ffHatch) then
     Exit;
   Swatch := ARect;

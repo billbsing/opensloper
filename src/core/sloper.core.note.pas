@@ -37,29 +37,23 @@ uses
 const
   // The formula fields: the offset from the anchor, or the place of a free
   // note, both in mm; and how far along an edge, as a ratio from its start
-  NoteDxField = 'dx';
-  NoteDyField = 'dy';
-  NoteXField = 'x';
-  NoteYField = 'y';
-  NotePositionField = 'position';
+  NOTE_DX_FIELD = 'dx';
+  NOTE_DY_FIELD = 'dy';
+  NOTE_X_FIELD = 'x';
+  NOTE_Y_FIELD = 'y';
+  NOTE_POSITION_FIELD = 'position';
   // A draft value's field is this with its number from 1: value1, value2
-  NoteValueField = 'value';
+  NOTE_VALUE_FIELD = 'value';
   // Not a formula field: names the text when a draft value in it is refused
-  NoteTextField = 'text';
+  NOTE_TEXT_FIELD = 'text';
   // Points, at true print size
-  DefaultNoteSize = 10;
-  MaxNoteSize = 500;
-  // In mm, at true size: the white box's margin around the text, an arrow
-  // head's length and spread, and a dot's radius
-  NoteBoxPadding = 1;
-  LeaderArrowLength = 3;
-  LeaderArrowSpread = 25;
-  LeaderDotRadius = 0.8;
-  // Draft values are shown to a tenth
-  NoteValueDecimals = 1;
+  DEFAULT_NOTE_SIZE = 10;
+  MAX_NOTE_SIZE = 500;
+  // In mm, at true size: an arrow head's length, and a dot's radius
+  LEADER_ARROW_LENGTH = 3;
+  LEADER_DOT_RADIUS = 0.8;
   // Stands for a draft value in a note's template; never typed
-  ValueMark = #1;
-  DraftValueOpen = '{=';
+  VALUE_MARK = #1;
 
 type
   TNoteAnchor = (naFree, naPoint, naEdge, naPiece);
@@ -71,16 +65,16 @@ type
 
 const
   // As written in pattern and layout files and the Automation API
-  NoteAnchorNames: array[TNoteAnchor] of string = ('free', 'point', 'edge', 'piece');
-  NoteLeaderNames: array[TNoteLeader] of string = ('none', 'arrow', 'dot', 'line');
-  TextAlignNames: array[TTextAlign] of string = ('left', 'centre', 'right');
+  NOTE_ANCHOR_NAMES: array[TNoteAnchor] of string = ('free', 'point', 'edge', 'piece');
+  NOTE_LEADER_NAMES: array[TNoteLeader] of string = ('none', 'arrow', 'dot', 'line');
+  TEXT_ALIGN_NAMES: array[TTextAlign] of string = ('left', 'centre', 'right');
 
 type
   TNoteObject = class(TDraftObject)
   private
     FAnchor: TNoteAnchor;
     FAnchorKey: string;
-    // The text with ValueMark where each draft value goes
+    // The text with VALUE_MARK where each draft value goes
     FTemplate: string;
     FValues: array of double;
     FSize: double;
@@ -116,7 +110,7 @@ type
     function ValueField(Index: integer): string;
     // Text with no draft values: {= is kept as typed
     procedure SetPlainText(const AText: string);
-    // Takes a template and one parsed formula per ValueMark in it, owning them
+    // Takes a template and one parsed formula per VALUE_MARK in it, owning them
     procedure SetValues(const ATemplate: string; const Formulas: array of TFormula);
     // As read from a file: {=...} in stored ID form. One that does not parse
     // is kept as text, and the note shows an error.
@@ -151,7 +145,7 @@ type
   TNoteObjectArray = array of TNoteObject;
 
 // Splits Text at each {=...}, braces inside counted, into a template with
-// ValueMark for each and the formulas' text. False when a {= is not closed,
+// VALUE_MARK for each and the formulas' text. False when a {= is not closed,
 // with ErrorPos at it.
 function SplitDraftValues(const Text: string; out Template: string; out Expressions: TStringArray; out ErrorPos: integer): boolean;
 // The draft value as shown in text: to a tenth, without "-0"
@@ -181,8 +175,17 @@ uses
   Math, Sloper.Core.JSON;
 
 const
-  DotSides = 12;
-  Unknown = '?';
+  DOT_SIDES = 12;
+  UNKNOWN = '?';
+  // The white box's margin around the text, in mm at true size
+  NOTE_BOX_PADDING = 1;
+  // Either side of the leader, in degrees
+  LEADER_ARROW_SPREAD = 25;
+  // Draft values are shown to a tenth
+  NOTE_VALUE_DECIMALS = 1;
+  // Starts a draft value in a note's stored and shown text
+  DRAFT_VALUE_OPEN = '{=';
+  PLACE_FIELD_NAMES: array[0..4] of string = (NOTE_X_FIELD, NOTE_Y_FIELD, NOTE_POSITION_FIELD, NOTE_DX_FIELD, NOTE_DY_FIELD);
 
 function SplitDraftValues(const Text: string; out Template: string; out Expressions: TStringArray; out ErrorPos: integer): boolean;
 var
@@ -213,11 +216,11 @@ begin
         Exit(False);
       end;
       Insert(Trim(Copy(Text, Start + 2, Index - Start - 3)), Expressions, Length(Expressions));
-      Template := Template + ValueMark;
+      Template := Template + VALUE_MARK;
     end
     else
     begin
-      if Text[Index] <> ValueMark then
+      if Text[Index] <> VALUE_MARK then
         Template := Template + Text[Index];
       Inc(Index);
     end;
@@ -240,13 +243,13 @@ end;
 
 function DraftValueText(Value: double): string;
 begin
-  Result := RoundedNumberText(Value, NoteValueDecimals);
+  Result := RoundedNumberText(Value, NOTE_VALUE_DECIMALS);
 end;
 
 function LeaderStart(const Frame: TRect2; const Tip: TVec2; out Start: TVec2): boolean;
 begin
   Start := Vec2(EnsureRange(Tip.X, Frame.MinX, Frame.MaxX), EnsureRange(Tip.Y, Frame.MinY, Frame.MaxY));
-  Result := Distance(Start, Tip) > DefaultTolerance;
+  Result := Distance(Start, Tip) > DEFAULT_TOLERANCE;
 end;
 
 function LeaderStrokes(const Start, Tip: TVec2; Leader: TNoteLeader): TLine2Array;
@@ -262,8 +265,8 @@ begin
   // Screen angles turn anticlockwise with y down, so the direction back
   // from the tip is measured from the tip towards the start
   Back := RadToDeg(ArcTan2(-(Start.Y - Tip.Y), Start.X - Tip.X));
-  Insert(Line2(Tip, PolarPoint(Tip, LeaderArrowLength, Back + LeaderArrowSpread)), Result, Length(Result));
-  Insert(Line2(Tip, PolarPoint(Tip, LeaderArrowLength, Back - LeaderArrowSpread)), Result, Length(Result));
+  Insert(Line2(Tip, PolarPoint(Tip, LEADER_ARROW_LENGTH, Back + LEADER_ARROW_SPREAD)), Result, Length(Result));
+  Insert(Line2(Tip, PolarPoint(Tip, LEADER_ARROW_LENGTH, Back - LEADER_ARROW_SPREAD)), Result, Length(Result));
 end;
 
 function LeaderDot(const Tip: TVec2): TVec2Array;
@@ -271,9 +274,9 @@ var
   Side: integer;
 begin
   Result := nil;
-  SetLength(Result, DotSides);
-  for Side := 0 to DotSides - 1 do
-    Result[Side] := PolarPoint(Tip, LeaderDotRadius, Side * 360 / DotSides);
+  SetLength(Result, DOT_SIDES);
+  for Side := 0 to DOT_SIDES - 1 do
+    Result[Side] := PolarPoint(Tip, LEADER_DOT_RADIUS, Side * 360 / DOT_SIDES);
 end;
 
 function AlignedLeft(Left, BoxWidth, LineWidth: double; Align: TTextAlign): double;
@@ -288,10 +291,10 @@ end;
 
 function PaddedBox(const Box: TRect2): TRect2;
 begin
-  Result.MinX := Box.MinX - NoteBoxPadding;
-  Result.MinY := Box.MinY - NoteBoxPadding;
-  Result.MaxX := Box.MaxX + NoteBoxPadding;
-  Result.MaxY := Box.MaxY + NoteBoxPadding;
+  Result.MinX := Box.MinX - NOTE_BOX_PADDING;
+  Result.MinY := Box.MinY - NOTE_BOX_PADDING;
+  Result.MaxX := Box.MaxX + NOTE_BOX_PADDING;
+  Result.MaxY := Box.MaxY + NOTE_BOX_PADDING;
 end;
 
 { TNoteObject }
@@ -303,7 +306,7 @@ begin
   FAnchorKey := AAnchorKey;
   if FAnchor = naFree then
     FAnchorKey := '';
-  FSize := DefaultNoteSize;
+  FSize := DEFAULT_NOTE_SIZE;
   FPrint := True;
   AddPlaceFields;
 end;
@@ -312,25 +315,23 @@ procedure TNoteObject.AddPlaceFields;
 begin
   if FAnchor = naFree then
   begin
-    AddField(NoteXField);
-    AddField(NoteYField);
+    AddField(NOTE_X_FIELD);
+    AddField(NOTE_Y_FIELD);
   end
   else
   begin
     if FAnchor = naEdge then
-      AddField(NotePositionField);
-    AddField(NoteDxField);
-    AddField(NoteDyField);
+      AddField(NOTE_POSITION_FIELD);
+    AddField(NOTE_DX_FIELD);
+    AddField(NOTE_DY_FIELD);
   end;
 end;
 
 procedure TNoteObject.RemovePlaceFields;
-const
-  PlaceFieldNames: array[0..4] of string = (NoteXField, NoteYField, NotePositionField, NoteDxField, NoteDyField);
 var
   FieldName: string;
 begin
-  for FieldName in PlaceFieldNames do
+  for FieldName in PLACE_FIELD_NAMES do
     if Assigned(Field(FieldName)) then
       RemoveField(FieldName);
 end;
@@ -370,7 +371,7 @@ end;
 
 function TNoteObject.ValueField(Index: integer): string;
 begin
-  Result := NoteValueField + IntToStr(Index + 1);
+  Result := NOTE_VALUE_FIELD + IntToStr(Index + 1);
 end;
 
 function TNoteObject.AnchorAt(Context: TEvalContext; out At: TVec2): TEvalState;
@@ -399,7 +400,7 @@ begin
       if not (Node is TEdgeObject) then
         Exit(Fail(esError, Format(rsDraftNotAnEdge, [Node.DisplayName])));
       Edge := TEdgeObject(Node);
-      if not EvalField(Context, NotePositionField, Ratio) then
+      if not EvalField(Context, NOTE_POSITION_FIELD, Ratio) then
         Exit(esError);
       if (Ratio < 0) or (Ratio > 1) then
         Exit(Fail(esInvalid, Format(rsDraftRatioRange, [FormatFloat('0.###', Ratio)])));
@@ -430,7 +431,7 @@ begin
       Exit(esError);
   if FAnchor = naFree then
   begin
-    if not EvalLength(Context, NoteXField, First) or not EvalLength(Context, NoteYField, Second) then
+    if not EvalLength(Context, NOTE_X_FIELD, First) or not EvalLength(Context, NOTE_Y_FIELD, Second) then
       Exit(esError);
     Base := Vec2(First, Second);
     Offset := Vec2(0, 0);
@@ -440,7 +441,7 @@ begin
     Result := AnchorAt(Context, Base);
     if Result <> esValid then
       Exit;
-    if not EvalLength(Context, NoteDxField, First) or not EvalLength(Context, NoteDyField, Second) then
+    if not EvalLength(Context, NOTE_DX_FIELD, First) or not EvalLength(Context, NOTE_DY_FIELD, Second) then
       Exit(esError);
     Offset := Vec2(First, Second);
   end;
@@ -477,14 +478,14 @@ end;
 function TNoteObject.PlaceFields: TStringArray;
 begin
   if FAnchor = naFree then
-    Result := [NoteXField, NoteYField]
+    Result := [NOTE_X_FIELD, NOTE_Y_FIELD]
   else
-    Result := [NoteDxField, NoteDyField];
+    Result := [NOTE_DX_FIELD, NOTE_DY_FIELD];
 end;
 
 procedure TNoteObject.SetPlainText(const AText: string);
 begin
-  SetValues(StringReplace(AText, ValueMark, '', [rfReplaceAll]), []);
+  SetValues(StringReplace(AText, VALUE_MARK, '', [rfReplaceAll]), []);
 end;
 
 procedure TNoteObject.SetValues(const ATemplate: string; const Formulas: array of TFormula);
@@ -533,7 +534,7 @@ begin
   Result := '';
   Part := 0;
   for Index := 1 to Length(FTemplate) do
-    if (FTemplate[Index] = ValueMark) and (Part <= High(Parts)) then
+    if (FTemplate[Index] = VALUE_MARK) and (Part <= High(Parts)) then
     begin
       Result := Result + Parts[Part];
       Inc(Part);
@@ -550,7 +551,7 @@ begin
   Parts := nil;
   SetLength(Parts, Length(FValues));
   for Index := 0 to High(Parts) do
-    Parts[Index] := DraftValueOpen + Field(ValueField(Index)).StoredText + '}';
+    Parts[Index] := DRAFT_VALUE_OPEN + Field(ValueField(Index)).StoredText + '}';
   Result := Filled(Parts);
 end;
 
@@ -562,7 +563,7 @@ begin
   Parts := nil;
   SetLength(Parts, Length(FValues));
   for Index := 0 to High(Parts) do
-    Parts[Index] := DraftValueOpen + Field(ValueField(Index)).DisplayText(Resolver) + '}';
+    Parts[Index] := DRAFT_VALUE_OPEN + Field(ValueField(Index)).DisplayText(Resolver) + '}';
   Result := Filled(Parts);
 end;
 
@@ -575,7 +576,7 @@ begin
   SetLength(Parts, Length(FValues));
   for Index := 0 to High(Parts) do
     if IsNan(FValues[Index]) then
-      Parts[Index] := Unknown
+      Parts[Index] := UNKNOWN
     else
       Parts[Index] := DraftValueText(FValues[Index]);
   Result := Filled(Parts);
@@ -595,9 +596,9 @@ end;
 // value is whatever its formula makes it
 function TNoteObject.FieldUnitKind(const AName: string): TFieldUnitKind;
 begin
-  if AName = NotePositionField then
+  if AName = NOTE_POSITION_FIELD then
     Result := fkNumber
-  else if AName.StartsWith(NoteValueField) then
+  else if AName.StartsWith(NOTE_VALUE_FIELD) then
     Result := fkFree
   else
     Result := inherited FieldUnitKind(AName);

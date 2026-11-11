@@ -30,16 +30,14 @@ uses
   SysUtils, Generics.Collections, Sloper.Core.Geometry;
 
 const
-  DefaultMaterialName = 'Main';
+  DEFAULT_MATERIAL_NAME = 'Main';
   // Not translated: a name has to keep to the name rules
-  NewMaterialBaseName = 'Material';
+  NEW_MATERIAL_BASE_NAME = 'Material';
   // As written in pattern files and the Automation API
-  MaterialFillNames: array[0..1] of string = ('tint', 'hatch');
-  PieceFillNames: array[0..2] of string = ('material', 'tint', 'hatch');
+  MATERIAL_FILL_NAMES: array[0..1] of string = ('tint', 'hatch');
+  PIECE_FILL_NAMES: array[0..2] of string = ('material', 'tint', 'hatch');
   // Told apart by hue and by lightness, so also with colour-blindness
-  MaterialPalette: array[0..5] of string = ('#5B8DB8', '#C9A227', '#2E9E7B', '#CC79A7', '#D55E00', '#7A5AA6');
-  // The share of the material's colour in a printed or opaque tint; the rest is white
-  MaterialTintShare = 0.3;
+  MATERIAL_PALETTE: array[0..5] of string = ('#5B8DB8', '#C9A227', '#2E9E7B', '#CC79A7', '#D55E00', '#7A5AA6');
 
 type
   TMaterialFill = (ffTint, ffHatch);
@@ -89,7 +87,9 @@ uses
   Math;
 
 const
-  HatchAngles: array[0..3] of double = (45, 135, 0, 90);
+  // The share of the material's colour in a printed or opaque tint; the rest is white
+  MATERIAL_TINT_SHARE = 0.3;
+  HATCH_ANGLES: array[0..3] of double = (45, 135, 0, 90);
 
 function IsMaterialColor(const Text: string): boolean;
 var
@@ -121,7 +121,7 @@ function MaterialTint(const Color: TMaterialColor): TMaterialColor;
 
   function Mixed(Channel: byte): byte;
   begin
-    Result := Round(Channel * MaterialTintShare + 255 * (1 - MaterialTintShare));
+    Result := Round(Channel * MATERIAL_TINT_SHARE + 255 * (1 - MATERIAL_TINT_SHARE));
   end;
 
 begin
@@ -132,7 +132,7 @@ end;
 
 function MaterialHatchAngle(Index: integer): double;
 begin
-  Result := HatchAngles[Abs(Index) mod Length(HatchAngles)];
+  Result := HATCH_ANGLES[Abs(Index) mod Length(HATCH_ANGLES)];
 end;
 
 function HatchLines(const Polygon: TVec2Array; Spacing, Angle: double): TLine2Array;

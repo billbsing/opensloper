@@ -297,7 +297,7 @@ var
 begin
   Piece := Panel('Front', 0, 100, 200, Top, Right);
   AssertEquals('edge2.allowance', 1, Piece.OverridePathIndex(Piece.OverrideField(1)));
-  AssertEquals('the piece''s own', -1, Piece.OverridePathIndex(PieceAllowanceField));
+  AssertEquals('the piece''s own', -1, Piece.OverridePathIndex(PIECE_ALLOWANCE_FIELD));
   AssertEquals('past the path', -1, Piece.OverridePathIndex('edge9.allowance'));
 end;
 

@@ -48,29 +48,29 @@ type
   TDashPattern = array[0..3] of double;
 
 const
-  MarkingRoles = [erPlacement, erStitch, erFold, erCut, erSkive, erEdgeFinish];
+  MARKING_ROLES = [erPlacement, erStitch, erFold, erCut, erSkive, erEdgeFinish];
   // The roles that can be hidden in the drafting app: all but Outline, which
   // pieces are made from
-  HideableRoles = [erConstruction] + MarkingRoles;
+  HIDEABLE_ROLES = [erConstruction] + MARKING_ROLES;
   // As written in pattern files and the Automation API
-  PointMarkerNames: array[TPointMarker] of string = ('plain', 'hole', 'button', 'match');
+  POINT_MARKER_NAMES: array[TPointMarker] of string = ('plain', 'hole', 'button', 'match');
   // The formula field of a marker's size, across in mm, and what it starts at
-  MarkerSizeField = 'markerSize';
+  MARKER_SIZE_FIELD = 'markerSize';
   // As written in pattern files and the Automation API
-  EdgeRoleNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut', 'skive', 'edgeFinish');
+  EDGE_ROLE_NAMES: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut', 'skive', 'edgeFinish');
   // The class of each role's group in the publish app's SVG
-  RoleClassNames: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut', 'skive', 'edge-finish');
+  ROLE_CLASS_NAMES: array[TEdgeRole] of string = ('construction', 'outline', 'placement', 'stitch', 'fold', 'cut', 'skive', 'edge-finish');
   // How marking lines are printed: placement thin and solid, stitch in short
   // dashes (shorter than the seam line's 2 mm), fold dash-dot, cut solid at
   // the cutting line's width, skive line in 4 mm dashes and edge finish dotted
-  RoleDashes: array[TEdgeRole] of TDashPattern = ((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (1, 1, 0, 0), (6, 1.5, 1, 1.5), (0, 0, 0, 0),
+  ROLE_DASHES: array[TEdgeRole] of TDashPattern = ((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (1, 1, 0, 0), (6, 1.5, 1, 1.5), (0, 0, 0, 0),
     (4, 2, 0, 0), (0.4, 0.8, 0, 0));
   // How they are told apart on screen and in draft SVG; red and orange mean
   // problems there, so no role uses them
-  RoleColors: array[TEdgeRole] of string = ('', '', '#1f6fd1', '#2a9d3a', '#8a3fc4', '#00838f', '#8b5a2b', '#757575');
+  ROLE_COLORS: array[TEdgeRole] of string = ('', '', '#1f6fd1', '#2a9d3a', '#8a3fc4', '#00838f', '#8b5a2b', '#757575');
   // Where lines lie in the same place, the higher is drawn on top and picked
   // first: the lines a piece is cut and sewn by over the guides
-  RolePriorities: array[TEdgeRole] of integer = (0, 7, 3, 5, 4, 6, 2, 1);
+  ROLE_PRIORITIES: array[TEdgeRole] of integer = (0, 7, 3, 5, 4, 6, 2, 1);
 
 type
 
@@ -473,7 +473,7 @@ type
 
   // A parallel copy of a connected run of edges at the formula distance, to
   // the left or right of the direction of travel. Corners are mitred, or
-  // bevelled when the mitre would reach more than MitreLimit distances out,
+  // bevelled when the mitre would reach more than MITRE_LIMIT distances out,
   // and trimmed on the inner side. Inside and outside of a piece are worked
   // out when it is made (see TPattern.PieceRun).
   TOffsetEdge = class(TEdgeObject)
@@ -630,6 +630,25 @@ implementation
 uses
   Math;
 
+const
+  MARKER_CIRCLE_STROKES = 16;
+  MARKER_RINGS = 3;
+  MAX_REPEAT_COUNT = 500;
+  CLOSED_TOLERANCE = 0.01;
+  DIRECTION_SPAN = 0.25;
+  MAX_SEGMENT_SWEEP = 45;
+  SMALLEST_ARC_SWEEP = 1e-6;
+  // A cubic per span follows a parallel curve to about a hundredth of a mm
+  OFFSET_SPANS_PER_CURVE = 8;
+  OFFSET_CURVATURE_SAMPLES = 16;
+  OFFSET_JOIN_TOLERANCE = 0.001;
+  // Edges of a run whose ends are this close (in mm) are joined
+  OFFSET_RUN_TOLERANCE = 0.01;
+  // A mitre reaching further out than this many distances is bevelled
+  OFFSET_MITRE_LIMIT = 4;
+  // Edges this close to a straight run or doubled back have no corner to round
+  SMALLEST_CORNER_TURN = 0.01;
+
 function FormatMM(Millimetres: double): string;
 begin
   Result := FormatFloat('0.#', Millimetres);
@@ -645,7 +664,7 @@ end;
 function TDraftObject.FieldUnitKind(const AName: string): TFieldUnitKind;
 begin
   case AName of
-    'x', 'y', 'length', 'dx', 'dy', 'length1', 'length2', 'radius', 'radiusA', 'radiusB', 'distance', MarkerSizeField:
+    'x', 'y', 'length', 'dx', 'dy', 'length1', 'length2', 'radius', 'radiusA', 'radiusB', 'distance', MARKER_SIZE_FIELD:
       Result := fkLength;
     'angle', 'angle1', 'angle2', 'rotate':
       Result := fkAngle;
@@ -686,7 +705,7 @@ var
 begin
   if FMarker = pmPlain then
     Exit(esValid);
-  if not EvalLength(Context, MarkerSizeField, Size) then
+  if not EvalLength(Context, MARKER_SIZE_FIELD, Size) then
     Exit(esError);
   if Size <= 0 then
     Exit(Fail(esInvalid, rsDraftMarkerSize));
@@ -697,9 +716,9 @@ end;
 procedure TDraftObject.SetMarker(AMarker: TPointMarker);
 begin
   if (FMarker = pmPlain) and (AMarker <> pmPlain) then
-    AddField(MarkerSizeField)
+    AddField(MARKER_SIZE_FIELD)
   else if (FMarker <> pmPlain) and (AMarker = pmPlain) then
-    RemoveField(MarkerSizeField);
+    RemoveField(MARKER_SIZE_FIELD);
   FMarker := AMarker;
 end;
 
@@ -719,7 +738,7 @@ begin
   Result := nil;
   for Role := Low(TEdgeRole) to High(TEdgeRole) do
     if Role in Roles then
-      System.Insert(EdgeRoleNames[Role], Result, System.Length(Result));
+      System.Insert(EDGE_ROLE_NAMES[Role], Result, System.Length(Result));
 end;
 
 function NamesToRoles(const Names: array of string; out Roles: TEdgeRoles): boolean;
@@ -733,7 +752,7 @@ begin
   begin
     Found := False;
     for Role := Low(TEdgeRole) to High(TEdgeRole) do
-      if EdgeRoleNames[Role] = RoleName then
+      if EDGE_ROLE_NAMES[Role] = RoleName then
       begin
         Include(Roles, Role);
         Found := True;
@@ -753,10 +772,10 @@ begin
   Result := nil;
   Highest := 0;
   for Role := Low(TEdgeRole) to High(TEdgeRole) do
-    Highest := Max(Highest, RolePriorities[Role]);
+    Highest := Max(Highest, ROLE_PRIORITIES[Role]);
   for Priority := 0 to Highest do
     for DraftObject in Objects do
-      if (DraftObject is TEdgeObject) and (RolePriorities[TEdgeObject(DraftObject).Role] = Priority) then
+      if (DraftObject is TEdgeObject) and (ROLE_PRIORITIES[TEdgeObject(DraftObject).Role] = Priority) then
         System.Insert(DraftObject, Result, System.Length(Result));
 end;
 
@@ -779,9 +798,6 @@ begin
 end;
 
 function MarkerStrokes(AMarker: TPointMarker; const Centre: TVec2; Size: double): TLine2Array;
-const
-  CircleStrokes = 16;
-  Rings = 3;
 var
   Radius: double;
   Ring: integer;
@@ -796,8 +812,8 @@ var
   var
     Index: integer;
   begin
-    for Index := 0 to CircleStrokes - 1 do
-      Add(PolarPoint(Centre, ARadius, Index * 360 / CircleStrokes), PolarPoint(Centre, ARadius, (Index + 1) * 360 / CircleStrokes));
+    for Index := 0 to MARKER_CIRCLE_STROKES - 1 do
+      Add(PolarPoint(Centre, ARadius, Index * 360 / MARKER_CIRCLE_STROKES), PolarPoint(Centre, ARadius, (Index + 1) * 360 / MARKER_CIRCLE_STROKES));
   end;
 
 begin
@@ -812,8 +828,8 @@ begin
       Add(Centre - Vec2(0, Radius), Centre + Vec2(0, Radius));
     end;
     pmMatch:
-      for Ring := 1 to Rings do
-        AddCircle(Radius * Ring / Rings);
+      for Ring := 1 to MARKER_RINGS do
+        AddCircle(Radius * Ring / MARKER_RINGS);
   end;
 end;
 
@@ -975,9 +991,9 @@ begin
     FPosition := First + (Last - First) * Amount;
     Exit(esValid);
   end;
-  if Gap <= DefaultTolerance then
+  if Gap <= DEFAULT_TOLERANCE then
     Exit(Fail(esInvalid, rsDraftSamePlace));
-  if (Amount < -DefaultTolerance) or (Amount > Gap + DefaultTolerance) then
+  if (Amount < -DEFAULT_TOLERANCE) or (Amount > Gap + DEFAULT_TOLERANCE) then
     Exit(Fail(esInvalid, Format(rsDraftPastPoint, [FormatMM(Amount), FormatMM(Gap)])));
   FPosition := First + (Last - First) * (Amount / Gap);
   Result := esValid;
@@ -1232,15 +1248,13 @@ begin
 end;
 
 function TRepeatObject.Compute(Context: TEvalContext): TEvalState;
-const
-  MaxRepeatCount = 500;
 var
   Amount: double;
 begin
   if not EvalField(Context, 'count', Amount) then
     Exit(esError);
-  if (Round(Amount) < 1) or (Round(Amount) > MaxRepeatCount) then
-    Exit(Fail(esInvalid, Format(rsDraftRepeatCount, [MaxRepeatCount, FormatFloat('0.###', Amount)])));
+  if (Round(Amount) < 1) or (Round(Amount) > MAX_REPEAT_COUNT) then
+    Exit(Fail(esInvalid, Format(rsDraftRepeatCount, [MAX_REPEAT_COUNT, FormatFloat('0.###', Amount)])));
   Result := ComputePositions(Context, Round(Amount));
   if Result = esValid then
     UpdateVirtualItems;
@@ -1288,7 +1302,7 @@ begin
   end
   else
   begin
-    if (Amount < -DefaultTolerance) or (Amount > Len + DefaultTolerance) then
+    if (Amount < -DEFAULT_TOLERANCE) or (Amount > Len + DEFAULT_TOLERANCE) then
       Exit(Fail(esInvalid, Format(rsDraftPastEnd, [FormatMM(Amount), EdgeObject.DisplayName, FormatMM(Len)])));
     DistanceAlong := Amount;
   end;
@@ -1381,15 +1395,13 @@ begin
 end;
 
 function TEdgeObject.IsClosed: boolean;
-const
-  ClosedTolerance = 0.01;
 var
   Points: TVec2Array;
 begin
   if System.Length(FSegments) = 0 then
     Exit(False);
   Points := Flatten(1);
-  Result := (System.Length(Points) > 2) and (Distance(Points[0], Points[High(Points)]) <= ClosedTolerance);
+  Result := (System.Length(Points) > 2) and (Distance(Points[0], Points[High(Points)]) <= CLOSED_TOLERANCE);
 end;
 
 function TEdgeObject.Length: double;
@@ -1451,13 +1463,11 @@ begin
 end;
 
 function TEdgeObject.DirectionAt(Position: double): double;
-const
-  DirectionSpan = 0.25;
 var
   Before, After: double;
 begin
-  Before := Max(Position - DirectionSpan, 0);
-  After := Min(Position + DirectionSpan, Length);
+  Before := Max(Position - DIRECTION_SPAN, 0);
+  After := Min(Position + DIRECTION_SPAN, Length);
   Result := AngleBetween(PointAtLength(Before), PointAtLength(After));
 end;
 
@@ -1610,18 +1620,18 @@ begin
       if Segment.Kind = skLine then
       begin
         SplitPos := Segment.Line.PointAtLength(Local);
-        if Local > DefaultTolerance then
+        if Local > DEFAULT_TOLERANCE then
           AddSegment(First, LineSegment(Line2(Segment.Line.P1, SplitPos)));
-        if SegLength - Local > DefaultTolerance then
+        if SegLength - Local > DEFAULT_TOLERANCE then
           AddSegment(Second, LineSegment(Line2(SplitPos, Segment.Line.P2)));
       end
       else
       begin
         Param := Segment.Curve.ParamAtLength(Local);
         Segment.Curve.Split(Param, CurveA, CurveB);
-        if Local > DefaultTolerance then
+        if Local > DEFAULT_TOLERANCE then
           AddSegment(First, CurveSegment(CurveA));
-        if SegLength - Local > DefaultTolerance then
+        if SegLength - Local > DEFAULT_TOLERANCE then
           AddSegment(Second, CurveSegment(CurveB));
       end;
       Done := True;
@@ -1762,8 +1772,6 @@ end;
 
 // A cubic per 45 degrees or less stays within a few millionths of the radius
 procedure TRoundEdge.SetRound(const ACentre: TVec2; ARadius, AStartAngle, ASweep: double);
-const
-  MaxSegmentSweep = 45;
 var
   Count, Index: integer;
   Step, Handle, Angle: double;
@@ -1784,7 +1792,7 @@ var
 begin
   FRadius := ARadius;
   FSweep := ASweep;
-  Count := Ceil(Abs(ASweep) / MaxSegmentSweep);
+  Count := Ceil(Abs(ASweep) / MAX_SEGMENT_SWEEP);
   Step := ASweep / Count;
   Handle := 4 / 3 * Tan(DegToRad(Step) / 4);
   FSegments := nil;
@@ -1842,8 +1850,6 @@ begin
 end;
 
 function TArcObject.Compute(Context: TEvalContext): TEvalState;
-const
-  SmallestSweep = 1e-6;
 var
   CentrePos: TVec2;
   Radius, FirstAngle, LastAngle: double;
@@ -1854,7 +1860,7 @@ begin
     Exit(esError);
   if Radius <= 0 then
     Exit(Fail(esInvalid, rsDraftRadiusNotPositive));
-  if (Abs(LastAngle - FirstAngle) < SmallestSweep) or (Abs(LastAngle - FirstAngle) >= 360) then
+  if (Abs(LastAngle - FirstAngle) < SMALLEST_ARC_SWEEP) or (Abs(LastAngle - FirstAngle) >= 360) then
     Exit(Fail(esInvalid, rsDraftBadArcSweep));
   SetRound(CentrePos, Radius, FirstAngle, LastAngle - FirstAngle);
   Result := esValid;
@@ -1982,15 +1988,6 @@ begin
 end;
 
 function TOffsetEdge.Compute(Context: TEvalContext): TEvalState;
-const
-  // A cubic per span follows a parallel curve to about a hundredth of a mm
-  SpansPerCurve = 8;
-  CurvatureSamples = 16;
-  JoinTolerance = 0.001;
-  // Edges of a run whose ends are this close (in mm) are joined
-  RunTolerance = 0.01;
-  // A mitre reaching further out than this many distances is bevelled
-  MitreLimit = 4;
 var
   Path: TEdgeSegmentArray;
   Owners: array of TEdgeObject;
@@ -2031,7 +2028,7 @@ var
           Oriented[Item] := Segments[Item];
       if System.Length(Oriented) = 0 then
         Continue;
-      if (System.Length(Path) > 0) and not PointsNear(SegmentEnd(Path[High(Path)]), SegmentStart(Oriented[0]), RunTolerance) then
+      if (System.Length(Path) > 0) and not PointsNear(SegmentEnd(Path[High(Path)]), SegmentStart(Oriented[0]), OFFSET_RUN_TOLERANCE) then
         Exit(Fail(esInvalid, Format(rsDraftRunGap, [Previous.DisplayName, Edge.DisplayName])));
       for Item := 0 to High(Oriented) do
       begin
@@ -2050,10 +2047,10 @@ var
     First, Second: TVec2;
     Turn, Speed: double;
   begin
-    for Sample := 0 to CurvatureSamples do
+    for Sample := 0 to OFFSET_CURVATURE_SAMPLES do
     begin
-      First := Curve.DerivativeAt(Sample / CurvatureSamples);
-      Second := Curve.SecondDerivativeAt(Sample / CurvatureSamples);
+      First := Curve.DerivativeAt(Sample / OFFSET_CURVATURE_SAMPLES);
+      Second := Curve.SecondDerivativeAt(Sample / OFFSET_CURVATURE_SAMPLES);
       Speed := First.Length;
       if Speed = 0 then
         Continue;
@@ -2072,14 +2069,14 @@ var
     Handle: double;
   begin
     Result := nil;
-    for Span := 0 to SpansPerCurve - 1 do
+    for Span := 0 to OFFSET_SPANS_PER_CURVE - 1 do
     begin
-      Tangent1 := Curve.DerivativeAt(Span / SpansPerCurve);
-      Tangent2 := Curve.DerivativeAt((Span + 1) / SpansPerCurve);
+      Tangent1 := Curve.DerivativeAt(Span / OFFSET_SPANS_PER_CURVE);
+      Tangent2 := Curve.DerivativeAt((Span + 1) / OFFSET_SPANS_PER_CURVE);
       if (Tangent1.Length = 0) or (Tangent2.Length = 0) then
         Continue;
-      First := Curve.PointAt(Span / SpansPerCurve) + Across(Tangent1);
-      Last := Curve.PointAt((Span + 1) / SpansPerCurve) + Across(Tangent2);
+      First := Curve.PointAt(Span / OFFSET_SPANS_PER_CURVE) + Across(Tangent1);
+      Last := Curve.PointAt((Span + 1) / OFFSET_SPANS_PER_CURVE) + Across(Tangent2);
       Handle := Sloper.Core.Geometry.Distance(First, Last) / 3;
       AddSegment(Result, CurveSegment(CubicBezier(First, First + Tangent1 * (Handle / Tangent1.Length), Last - Tangent2 * (Handle / Tangent2.Length), Last)));
     end;
@@ -2097,7 +2094,7 @@ var
     begin
       Run := Segment.Line.P2 - Segment.Line.P1;
       Along := Dot(At - Segment.Line.P1, Run) / Dot(Run, Run);
-      if (Along < -JoinTolerance) or (Along > 1 + JoinTolerance) then
+      if (Along < -OFFSET_JOIN_TOLERANCE) or (Along > 1 + OFFSET_JOIN_TOLERANCE) then
         Exit(False);
       if KeepStart then
         Segment.Line.P2 := At
@@ -2132,7 +2129,7 @@ var
     Result := True;
     EndPos := SegmentEnd(Parts[Before][High(Parts[Before])]);
     StartPos := SegmentStart(Parts[After][0]);
-    if PointsNear(EndPos, StartPos, JoinTolerance) then
+    if PointsNear(EndPos, StartPos, OFFSET_JOIN_TOLERANCE) then
       Exit;
     EndDir := SegmentDirection(Parts[Before][High(Parts[Before])], True);
     StartDir := SegmentDirection(Parts[After][0], False);
@@ -2147,7 +2144,7 @@ var
     Mitre := EndPos + EndDir * Out1;
     if Out1 >= 0 then
     begin
-      if Sloper.Core.Geometry.Distance(Mitre, Vertex) > MitreLimit * Distance2 then
+      if Sloper.Core.Geometry.Distance(Mitre, Vertex) > OFFSET_MITRE_LIMIT * Distance2 then
         AddSegment(Joins[Before], LineSegment(Line2(EndPos, StartPos)))
       else
       begin
@@ -2201,7 +2198,7 @@ begin
     if not JoinParts(Index - 1, Index, SegmentStart(Path[Index])) then
       Exit(Fail(esInvalid, Format(rsDraftOffsetCollapses, [Owners[Index].DisplayName])));
   // A closed run, such as a whole outline, joins up at its start too
-  Closed := (Count > 1) and PointsNear(SegmentEnd(Path[Count - 1]), SegmentStart(Path[0]), RunTolerance);
+  Closed := (Count > 1) and PointsNear(SegmentEnd(Path[Count - 1]), SegmentStart(Path[0]), OFFSET_RUN_TOLERANCE);
   if Closed and not JoinParts(Count - 1, 0, SegmentStart(Path[0])) then
     Exit(Fail(esInvalid, Format(rsDraftOffsetCollapses, [Owners[0].DisplayName])));
   FSegments := nil;
@@ -2242,9 +2239,6 @@ begin
 end;
 
 function TCornerArc.Compute(Context: TEvalContext): TEvalState;
-const
-  // Edges this close to a straight run or doubled back have no corner to round
-  SmallestTurn = 0.01;
 var
   First, Second: TEdgeObject;
   Corner, Along1, Along2, TangentA, TangentB, Middle: TVec2;
@@ -2274,7 +2268,7 @@ begin
   Along1 := AwayFromCorner(First);
   Along2 := AwayFromCorner(Second);
   Half := ArcCos(EnsureRange(Dot(Along1, Along2), -1, 1)) / 2;
-  if (RadToDeg(Half) < SmallestTurn) or (RadToDeg(Half) > 90 - SmallestTurn) then
+  if (RadToDeg(Half) < SMALLEST_CORNER_TURN) or (RadToDeg(Half) > 90 - SMALLEST_CORNER_TURN) then
     Exit(Fail(esInvalid, rsDraftCornerStraight));
   Reach := Radius / Tan(Half);
   if (Reach >= First.Length) or (Reach >= Second.Length) then
@@ -2501,9 +2495,9 @@ begin
   if not PointPosition(Context, FPoint, SplitPos) then
     Exit(Fail(esError, Format(rsDraftNotAPoint, [FPoint])));
   SourceEdge.Locate(SplitPos, Position, Offset);
-  if Offset > DefaultTolerance then
+  if Offset > DEFAULT_TOLERANCE then
     Exit(Fail(esInvalid, Format(rsDraftNotOnEdge, [Context.FindNode(FPoint).DisplayName, SourceEdge.DisplayName])));
-  if (Position <= DefaultTolerance) or (Position >= SourceEdge.Length - DefaultTolerance) then
+  if (Position <= DEFAULT_TOLERANCE) or (Position >= SourceEdge.Length - DEFAULT_TOLERANCE) then
     Exit(Fail(esInvalid, Format(rsDraftSplitAtEnd, [Context.FindNode(FPoint).DisplayName, SourceEdge.DisplayName])));
   SourceEdge.SplitAt(Position, First, Second);
   if FPart = 1 then
@@ -2513,12 +2507,12 @@ begin
   Result := esValid;
 end;
 
-// True when Param is within a line piece, allowing DefaultTolerance in mm
+// True when Param is within a line piece, allowing DEFAULT_TOLERANCE in mm
 function InPiece(const Piece: TEdgePiece; Param: double): boolean;
 var
   Tolerance: double;
 begin
-  Tolerance := DefaultTolerance / Max(Piece.Line.Length, Epsilon);
+  Tolerance := DEFAULT_TOLERANCE / Max(Piece.Line.Length, EPSILON);
   Result := (Param >= Piece.TMin - Tolerance) and (Param <= Piece.TMax + Tolerance);
 end;
 
@@ -2770,8 +2764,8 @@ begin
       Param := Piece.Curve.ClosestParam(SourcePos);
       Foot := Piece.Curve.PointAt(Param);
       Tangent := Piece.Curve.DerivativeAt(Param);
-      if (Tangent.Length > Epsilon) and
-        (Abs(Dot(SourcePos - Foot, Tangent * (1 / Tangent.Length))) <= DefaultTolerance) then
+      if (Tangent.Length > EPSILON) and
+        (Abs(Dot(SourcePos - Foot, Tangent * (1 / Tangent.Length))) <= DEFAULT_TOLERANCE) then
         AddFoot(Foot);
     end;
 end;

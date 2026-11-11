@@ -113,6 +113,9 @@ implementation
 uses
   Math, Sloper.Core.EvalTypes, Sloper.Core.PatternFile, Sloper.Core.PieceDetect, Sloper.Core.Evaluator, Sloper.Core.PatternCheck;
 
+const
+  CORNER_RADIUS = 20;
+
 procedure TTestAccessories.SetUp;
 begin
   inherited SetUp;
@@ -161,7 +164,7 @@ var
 begin
   FPattern.Evaluate;
   AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(X, Y), Path, Reason));
-  Result := FPattern.AddPiece(AName, Path, DefaultPieceAllowance);
+  Result := FPattern.AddPiece(AName, Path, DEFAULT_PIECE_ALLOWANCE);
   AssertNotNull(FPattern.LastError, Result);
   FPattern.Evaluate;
 end;
@@ -489,8 +492,6 @@ end;
 
 // One of the corners joins the end of the path to its start
 procedure TTestAccessories.TestAllFourCornersOfAPiece;
-const
-  Radius = 20;
 var
   Edges: TRectangleEdges;
   Index: integer;
@@ -504,7 +505,7 @@ begin
     Current[Index] := Edges[Index];
   for Index := 0 to 3 do
   begin
-    Arc := FPattern.AddRoundCorner(Current[Index].Key, Current[(Index + 1) mod 4].Key, IntToStr(Radius));
+    Arc := FPattern.AddRoundCorner(Current[Index].Key, Current[(Index + 1) mod 4].Key, IntToStr(CORNER_RADIUS));
     AssertNotNull(FPattern.LastError, Arc);
     Current[Index] := Arc.TrimmedA;
     Current[(Index + 1) mod 4] := Arc.TrimmedB;
@@ -512,7 +513,7 @@ begin
   FPattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
   AssertEquals('four lines and four arcs', 8, Length(Piece.Path));
-  AssertEquals(20000 - 4 * CornerLoss(Radius), Piece.Area, 6);
+  AssertEquals(20000 - 4 * CornerLoss(CORNER_RADIUS), Piece.Area, 6);
   Reloaded;
   AssertTrue(TPieceObject(FLoaded.FindObject('Panel')).State = esValid);
 end;
@@ -617,8 +618,6 @@ begin
 end;
 
 procedure TTestAccessories.TestAllFourCornersMakeAPiece;
-const
-  Radius = 20;
 var
   Edges: TRectangleEdges;
   Index: integer;
@@ -632,15 +631,15 @@ begin
   // Each corner trims two edges, and the next uses what is left of them
   for Index := 0 to 3 do
   begin
-    Arc := FPattern.AddRoundCorner(Current[Index].Key, Current[(Index + 1) mod 4].Key, IntToStr(Radius));
+    Arc := FPattern.AddRoundCorner(Current[Index].Key, Current[(Index + 1) mod 4].Key, IntToStr(CORNER_RADIUS));
     AssertNotNull(FPattern.LastError, Arc);
     Current[Index] := Arc.TrimmedA;
     Current[(Index + 1) mod 4] := Arc.TrimmedB;
   end;
   Piece := PieceAt(100, 50);
   AssertEquals('four lines and four arcs', 8, Length(Piece.Path));
-  AssertEquals('within 0.03%, from the flattened outline', 20000 - (4 - Pi) * Sqr(Radius), Piece.Area, 6);
-  AssertEquals(2 * (200 + 100) - 8 * Radius + 2 * Pi * Radius, Piece.Perimeter, 0.5);
+  AssertEquals('within 0.03%, from the flattened outline', 20000 - (4 - Pi) * Sqr(CORNER_RADIUS), Piece.Area, 6);
+  AssertEquals(2 * (200 + 100) - 8 * CORNER_RADIUS + 2 * Pi * CORNER_RADIUS, Piece.Perimeter, 0.5);
   Reloaded;
   AssertTrue('survives saving', FLoaded.FindObject('Panel').State = esValid);
 end;
@@ -669,14 +668,14 @@ begin
   AssertTrue(FPattern.SetMaterialAllowance(Leather, True, 3));
   FPattern.SetPieceMaterial(Piece, Leather);
   FPattern.Evaluate;
-  AssertEquals('3', FPattern.FormulaText(Piece, PieceAllowanceField));
+  AssertEquals('3', FPattern.FormulaText(Piece, PIECE_ALLOWANCE_FIELD));
 end;
 
 procedure TTestAccessories.TestMaterialAllowanceForNewPiece;
 begin
   AssertTrue(FPattern.SetMaterialAllowance(FPattern.Materials[0], True, 4.5));
   Rectangle;
-  AssertEquals('4.5', FPattern.FormulaText(PieceAt(50, 50), PieceAllowanceField));
+  AssertEquals('4.5', FPattern.FormulaText(PieceAt(50, 50), PIECE_ALLOWANCE_FIELD));
 end;
 
 procedure TTestAccessories.TestMaterialWithoutAllowanceLeavesPiece;
@@ -685,9 +684,9 @@ var
 begin
   Rectangle;
   Piece := PieceAt(50, 50);
-  AssertTrue(FPattern.SetFormula(Piece, PieceAllowanceField, '12'));
+  AssertTrue(FPattern.SetFormula(Piece, PIECE_ALLOWANCE_FIELD, '12'));
   FPattern.SetPieceMaterial(Piece, FPattern.AddMaterial('Lining'));
-  AssertEquals('12', FPattern.FormulaText(Piece, PieceAllowanceField));
+  AssertEquals('12', FPattern.FormulaText(Piece, PIECE_ALLOWANCE_FIELD));
 end;
 
 procedure TTestAccessories.TestExplicitAllowanceStands;
@@ -698,7 +697,7 @@ begin
   AssertTrue(FPattern.SetMaterialAllowance(FPattern.Materials[0], True, 3));
   Rectangle;
   AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(50, 50), Path, Reason));
-  AssertEquals('25', FPattern.FormulaText(FPattern.AddPiece('Panel', Path, '25'), PieceAllowanceField));
+  AssertEquals('25', FPattern.FormulaText(FPattern.AddPiece('Panel', Path, '25'), PIECE_ALLOWANCE_FIELD));
 end;
 
 procedure TTestAccessories.TestMaterialAllowanceRoundTrip;
@@ -917,7 +916,7 @@ begin
   FPattern.Evaluate;
   AssertTrue(Piece.Message, Piece.State = esValid);
   AssertEquals(1, Length(Piece.Markings));
-  AssertEquals('5', FPattern.FormulaText(Piece, Piece.MarkingField(0, MarkingSpacingField)));
+  AssertEquals('5', FPattern.FormulaText(Piece, Piece.MarkingField(0, MARKING_SPACING_FIELD)));
   AssertEquals(2, Piece.MarkingMarks[0].HoleSize, 1e-9);
 end;
 

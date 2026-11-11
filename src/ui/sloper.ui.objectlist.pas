@@ -189,9 +189,9 @@ uses
   Sloper.Core.Drag, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Core.Transform;
 
 const
-  VariableDecimals = 4;
+  VARIABLE_DECIMALS = 4;
   // A scaled measurement is shown to a hundredth
-  ScaledFormat = '0.##';
+  SCALED_FORMAT = '0.##';
 
 function FieldCaption(const FieldName: string): string;
 var
@@ -207,14 +207,14 @@ begin
   begin
     NodeNumber := Copy(FieldName, 8, Dot - 8);
     Part := Copy(FieldName, Dot + 1, MaxInt);
-    if Part = MarkingSpacingField then
+    if Part = MARKING_SPACING_FIELD then
       Exit(Format(rsFieldMarkingSpacing, [NodeNumber]));
     Exit(Format(rsFieldMarkingSize, [NodeNumber]));
   end;
   // A note's draft values: value1, value2
-  if (Length(FieldName) > Length(NoteValueField)) and (Copy(FieldName, 1, Length(NoteValueField)) = NoteValueField) and
-    (StrToIntDef(Copy(FieldName, Length(NoteValueField) + 1, MaxInt), 0) > 0) then
-    Exit(Format(rsFieldNoteValue, [Copy(FieldName, Length(NoteValueField) + 1, MaxInt)]));
+  if (Length(FieldName) > Length(NOTE_VALUE_FIELD)) and (Copy(FieldName, 1, Length(NOTE_VALUE_FIELD)) = NOTE_VALUE_FIELD) and
+    (StrToIntDef(Copy(FieldName, Length(NOTE_VALUE_FIELD) + 1, MaxInt), 0) > 0) then
+    Exit(Format(rsFieldNoteValue, [Copy(FieldName, Length(NOTE_VALUE_FIELD) + 1, MaxInt)]));
   if (Dot > 0) and (Copy(FieldName, 1, 4) = 'node') then
   begin
     NodeNumber := Copy(FieldName, 5, Dot - 5);
@@ -248,8 +248,8 @@ begin
     'angle2': Result := rsFieldAngle2;
     'length2': Result := rsFieldLength2;
     'formula': Result := rsFieldFormula;
-    NotePositionField: Result := rsFieldPosition;
-    MarkerSizeField: Result := rsFieldMarkerSize;
+    NOTE_POSITION_FIELD: Result := rsFieldPosition;
+    MARKER_SIZE_FIELD: Result := rsFieldMarkerSize;
     else
       Result := FieldName;
   end;
@@ -339,7 +339,7 @@ end;
 
 function PositionText(const Position: TVec2; AUnit: TMeasureUnit): string;
 begin
-  Result := Format(rsObjectPosition, [FormatLength(Position.X, AUnit), FormatLength(Position.Y, AUnit), MeasureUnitNames[AUnit]]);
+  Result := Format(rsObjectPosition, [FormatLength(Position.X, AUnit), FormatLength(Position.Y, AUnit), MEASURE_UNIT_NAMES[AUnit]]);
 end;
 
 function ResultText(DraftObject: TDraftObject; AUnit: TMeasureUnit): string;
@@ -486,7 +486,7 @@ begin
   Result.Formula := Pattern.FormulaText(Variable, 'formula');
   Result.Value := '';
   if Variable.State = esValid then
-    Result.Value := RoundedText(Variable.Value, VariableDecimals);
+    Result.Value := RoundedText(Variable.Value, VARIABLE_DECIMALS);
   Result.Description := Variable.Description;
   Result.State := Variable.State;
   Result.StateText := StateCaption(Variable.State);
@@ -531,7 +531,7 @@ var
       Exit(FormatJSONFloat(Value));
     Formats := DefaultFormatSettings;
     Formats.DecimalSeparator := '.';
-    Result := FormatFloat(ScaledFormat, Value * Pattern.MeasurementScale, Formats);
+    Result := FormatFloat(SCALED_FORMAT, Value * Pattern.MeasurementScale, Formats);
   end;
 
   procedure Add(const AKey, Value, Description: string; Missing: boolean);

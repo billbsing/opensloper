@@ -77,13 +77,13 @@ uses
   SysUtils, Math, Graphics, Sloper.UI.RulerTicks;
 
 const
-  ThicknessAt96 = 22;
-  FontHeightAt96 = 11;
+  THICKNESS_AT96 = 22;
+  FONT_HEIGHT_AT96 = 11;
   // Tick lengths as shares of the ruler's thickness
-  LabelledShare = 0.9;
-  MiddleShare = 0.45;
-  MinorShare = 0.25;
-  LabelGap = 2;
+  LABELLED_SHARE = 0.9;
+  MIDDLE_SHARE = 0.45;
+  MINOR_SHARE = 0.25;
+  LABEL_GAP = 2;
 
 function Background: TBGRAPixel;
 begin
@@ -112,7 +112,7 @@ end;
 
 function RulerThickness(Control: TControl): integer;
 begin
-  Result := Control.Scale96ToForm(ThicknessAt96);
+  Result := Control.Scale96ToForm(THICKNESS_AT96);
 end;
 
 constructor TCanvasRuler.Create(AOwner: TComponent; AVertical: boolean);
@@ -171,7 +171,7 @@ var
   Gap: integer;
 begin
   Size := FBitmap.TextSize(ALabel);
-  Gap := Scale96ToForm(LabelGap);
+  Gap := Scale96ToForm(LABEL_GAP);
   if not FVertical then
   begin
     FBitmap.TextOut(Position + Gap, 0, ALabel, TextColor);
@@ -210,15 +210,15 @@ begin
     Thickness := ClientHeight;
     Ticks := RulerTicks(FView, False, ClientWidth, FMeasureUnit);
   end;
-  Labelled := RulerSpacing(FView.Scale * MillimetresPerUnit[FMeasureUnit], FMeasureUnit).Labelled;
+  Labelled := RulerSpacing(FView.Scale * MILLIMETRES_PER_UNIT[FMeasureUnit], FMeasureUnit).Labelled;
   for Tick in Ticks do
   begin
     Along := Round(Tick.Position);
     case Tick.Kind of
-      rtLabelled: TickLength := Round(Thickness * LabelledShare);
-      rtMiddle: TickLength := Round(Thickness * MiddleShare);
+      rtLabelled: TickLength := Round(Thickness * LABELLED_SHARE);
+      rtMiddle: TickLength := Round(Thickness * MIDDLE_SHARE);
       else
-        TickLength := Max(Round(Thickness * MinorShare), 2);
+        TickLength := Max(Round(Thickness * MINOR_SHARE), 2);
     end;
     // Ticks grow from the edge next to the canvas
     if FVertical then
@@ -246,7 +246,7 @@ begin
   if (FBitmap.Width <> ClientWidth) or (FBitmap.Height <> ClientHeight) then
     FBitmap.SetSize(Max(ClientWidth, 1), Max(ClientHeight, 1));
   FBitmap.Fill(Background);
-  FBitmap.FontHeight := Scale96ToForm(FontHeightAt96);
+  FBitmap.FontHeight := Scale96ToForm(FONT_HEIGHT_AT96);
   FBitmap.FontQuality := fqFineAntialiasing;
   DrawTicks;
   if FPointerShown then
@@ -281,10 +281,10 @@ var
 begin
   Bitmap := TBGRABitmap.Create(Max(ClientWidth, 1), Max(ClientHeight, 1), Background);
   try
-    Bitmap.FontHeight := Scale96ToForm(FontHeightAt96);
+    Bitmap.FontHeight := Scale96ToForm(FONT_HEIGHT_AT96);
     Bitmap.FontStyle := [fsBold];
     Bitmap.FontQuality := fqFineAntialiasing;
-    Abbreviation := MeasureUnitNames[FMeasureUnit];
+    Abbreviation := MEASURE_UNIT_NAMES[FMeasureUnit];
     Size := Bitmap.TextSize(Abbreviation);
     Bitmap.TextOut((ClientWidth - Size.cx) div 2, (ClientHeight - Size.cy) div 2, Abbreviation, UnitColor);
     Bitmap.DrawVertLine(ClientWidth - 1, 0, ClientHeight - 1, TickColor);

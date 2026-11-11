@@ -29,9 +29,6 @@ interface
 uses
   Controls, ButtonPanel;
 
-const
-  ControlGap96 = 8;
-
 // The gap at the screen's resolution
 function ControlGap: integer;
 // Puts the gap between a container's children and round its edges. The
@@ -49,9 +46,12 @@ implementation
 uses
   Forms;
 
+const
+  CONTROL_GAP96 = 8;
+
 function ControlGap: integer;
 begin
-  Result := Round(ControlGap96 * Screen.PixelsPerInch / 96);
+  Result := Round(CONTROL_GAP96 * Screen.PixelsPerInch / 96);
 end;
 
 procedure SpaceChildren(Container: TWinControl);

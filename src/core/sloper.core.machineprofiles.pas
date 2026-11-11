@@ -46,10 +46,10 @@ type
   TMachineProfileArray = array of TMachineProfile;
 
 const
-  StandardProfileName = 'Standard';
-  LineTypeNames: array[TLineType] of string = ('cut', 'score', 'mark', 'engrave', 'hole');
+  STANDARD_PROFILE_NAME = 'Standard';
+  LINE_TYPE_NAMES: array[TLineType] of string = ('cut', 'score', 'mark', 'engrave', 'hole');
   // Outlines last, as a piece cut free can shift before its holes are cut
-  MachineOrder: array[0..4] of TLineType = (ltScore, ltMark, ltEngrave, ltHole, ltCut);
+  MACHINE_ORDER: array[0..4] of TLineType = (ltScore, ltMark, ltEngrave, ltHole, ltCut);
 
 function StandardProfile: TMachineProfile;
 // Ignoring case. A profile in the list goes before the built-in one.
@@ -65,7 +65,7 @@ uses
   SysUtils, Sloper.Core.JSON;
 
 const
-  DefaultWidth = 0.1;
+  DEFAULT_WIDTH = 0.1;
 
 function StandardProfile: TMachineProfile;
 
@@ -74,12 +74,12 @@ function StandardProfile: TMachineProfile;
     Result.Lines[Kind].Enabled := True;
     Result.Lines[Kind].Color := AColor;
     Result.Lines[Kind].Layer := ALayer;
-    Result.Lines[Kind].Width := DefaultWidth;
+    Result.Lines[Kind].Width := DEFAULT_WIDTH;
   end;
 
 begin
   Result := Default(TMachineProfile);
-  Result.Name := StandardProfileName;
+  Result.Name := STANDARD_PROFILE_NAME;
   SetLine(ltCut, '#ff0000', 'Cut');
   SetLine(ltScore, '#0000ff', 'Score');
   SetLine(ltMark, '#000000', 'Mark');
@@ -98,7 +98,7 @@ begin
       Exit(True);
     end;
   Found := StandardProfile;
-  Result := SameText(AName, StandardProfileName);
+  Result := SameText(AName, STANDARD_PROFILE_NAME);
 end;
 
 function IsHexColor(const Text: string): boolean;
@@ -130,7 +130,7 @@ begin
       for Kind := Low(TLineType) to High(TLineType) do
       begin
         Line := TJSONObject.Create;
-        Lines.Add(LineTypeNames[Kind], Line);
+        Lines.Add(LINE_TYPE_NAMES[Kind], Line);
         Line.Add('on', Profile.Lines[Kind].Enabled);
         Line.Add('color', Profile.Lines[Kind].Color);
         Line.Add('layer', Profile.Lines[Kind].Layer);
@@ -184,7 +184,7 @@ begin
     if Assigned(Lines) and (Lines.JSONType = jtObject) then
       for Kind := Low(TLineType) to High(TLineType) do
       begin
-        Line := TJSONObject(Lines).Find(LineTypeNames[Kind]);
+        Line := TJSONObject(Lines).Find(LINE_TYPE_NAMES[Kind]);
         if Assigned(Line) and (Line.JSONType = jtObject) then
           ReadLine(TJSONObject(Line), Profile.Lines[Kind]);
       end;

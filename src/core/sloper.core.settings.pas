@@ -61,17 +61,17 @@ type
   end;
 
 const
-  DefaultNameColumnShare = 0.45;
-  DefaultLabelMode = lmContextual;
-  DefaultGridSteps: TGridSteps = (5, 0.5, 0.125);
+  DEFAULT_NAME_COLUMN_SHARE = 0.45;
+  DEFAULT_LABEL_MODE = lmContextual;
+  DEFAULT_GRID_STEPS: TGridSteps = (5, 0.5, 0.125);
   // The largest grid spacing, in mm, so a mistyped one can't hide the grid
-  MaxGridStep = 1000;
+  MAX_GRID_STEP = 1000;
   // Calibration factors further off than this are typing mistakes
-  MinCalibration = 0.5;
-  MaxCalibration = 2;
+  MIN_CALIBRATION = 0.5;
+  MAX_CALIBRATION = 2;
   // The sides of the PDF's test square: 4 in on Letter, 10 cm elsewhere
-  MetricTestSquareSide = 100;
-  InchTestSquareSide = 101.6;
+  METRIC_TEST_SQUARE_SIDE = 100;
+  INCH_TEST_SQUARE_SIDE = 101.6;
 
 type
   TAppSettings = class
@@ -151,14 +151,14 @@ uses
   SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.AppPaths;
 
 const
-  SettingsFormat = 'opensloper-settings';
-  SettingsVersion = 1;
-  LabelModeNames: array[TLabelMode] of string = ('contextual', 'all', 'none');
+  SETTINGS_FORMAT = 'opensloper-settings';
+  SETTINGS_VERSION = 1;
+  LABEL_MODE_NAMES: array[TLabelMode] of string = ('contextual', 'all', 'none');
 
 function DefaultPreferences: TPreferences;
 begin
   Result.MeasureUnit := muMillimetre;
-  Result.GridSteps := DefaultGridSteps;
+  Result.GridSteps := DEFAULT_GRID_STEPS;
   Result.Calibration := NoCalibration;
 end;
 
@@ -170,13 +170,13 @@ end;
 
 function CalibrationIsUsable(const Calibration: TCalibration): boolean;
 begin
-  Result := (Calibration.X >= MinCalibration) and (Calibration.X <= MaxCalibration) and (Calibration.Y >= MinCalibration) and
-    (Calibration.Y <= MaxCalibration);
+  Result := (Calibration.X >= MIN_CALIBRATION) and (Calibration.X <= MAX_CALIBRATION) and (Calibration.Y >= MIN_CALIBRATION) and
+    (Calibration.Y <= MAX_CALIBRATION);
 end;
 
 function GridStepIsUsable(Step: double; AUnit: TMeasureUnit): boolean;
 begin
-  Result := (Step > 0) and (Step * MillimetresPerUnit[AUnit] <= MaxGridStep);
+  Result := (Step > 0) and (Step * MILLIMETRES_PER_UNIT[AUnit] <= MAX_GRID_STEP);
 end;
 
 function CorrectedCalibration(Current, Expected, Measured: double): double;
@@ -194,8 +194,8 @@ end;
 
 procedure TAppSettings.Reset;
 begin
-  NameColumnShare := DefaultNameColumnShare;
-  LabelMode := DefaultLabelMode;
+  NameColumnShare := DEFAULT_NAME_COLUMN_SHARE;
+  LabelMode := DEFAULT_LABEL_MODE;
   ShowSidePanel := True;
   SideTab := '';
   PublishTab := '';
@@ -257,7 +257,7 @@ begin
     if Assigned(Hidden) and (Hidden.JSONType = jtArray) then
       for Item := 0 to Hidden.Count - 1 do
         if (Hidden.Items[Item].JSONType = jtString) and NamesToRoles([Hidden.Items[Item].AsString], Roles) then
-          Preset.Hidden := Preset.Hidden + Roles * HideableRoles;
+          Preset.Hidden := Preset.Hidden + Roles * HIDEABLE_ROLES;
     Insert(Preset, Result, Length(Result));
   end;
 end;
@@ -283,7 +283,7 @@ var
 begin
   Result := TJSONObject.Create;
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
-    Result.Add(MeasureUnitNames[AUnit], JSONFloat(Steps[AUnit]));
+    Result.Add(MEASURE_UNIT_NAMES[AUnit], JSONFloat(Steps[AUnit]));
 end;
 
 // A missing or unusable step keeps its default
@@ -297,7 +297,7 @@ begin
   if not Assigned(Item) or (Item.JSONType <> jtObject) then
     Exit;
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
-    if GetJSONNumber(TJSONObject(Item), MeasureUnitNames[AUnit], Step) and GridStepIsUsable(Step, AUnit) then
+    if GetJSONNumber(TJSONObject(Item), MEASURE_UNIT_NAMES[AUnit], Step) and GridStepIsUsable(Step, AUnit) then
       Steps[AUnit] := Step;
 end;
 
@@ -316,10 +316,10 @@ var
 begin
   Obj := TJSONObject.Create;
   try
-    Obj.Add('format', SettingsFormat);
-    Obj.Add('version', SettingsVersion);
+    Obj.Add('format', SETTINGS_FORMAT);
+    Obj.Add('version', SETTINGS_VERSION);
     Obj.Add('nameColumnShare', JSONFloat(NameColumnShare));
-    Obj.Add('labelMode', LabelModeNames[LabelMode]);
+    Obj.Add('labelMode', LABEL_MODE_NAMES[LabelMode]);
     Obj.Add('showSidePanel', ShowSidePanel);
     if SideTab <> '' then
       Obj.Add('sideTab', SideTab);
@@ -329,7 +329,7 @@ begin
     Obj.Add('showPieceFills', ShowPieceFills);
     if MaterialDialogSplit > 0 then
       Obj.Add('materialDialogSplit', MaterialDialogSplit);
-    Obj.Add('measureUnit', MeasureUnitNames[Preferences.MeasureUnit]);
+    Obj.Add('measureUnit', MEASURE_UNIT_NAMES[Preferences.MeasureUnit]);
     Obj.Add('gridSteps', GridStepsToJSON(Preferences.GridSteps));
     Obj.Add('calibrationX', JSONFloat(Preferences.Calibration.X));
     Obj.Add('calibrationY', JSONFloat(Preferences.Calibration.Y));
@@ -360,12 +360,12 @@ begin
   if not ParseJSONObject(Text, Obj, ErrorMessage) then
     Exit(False);
   try
-    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> SettingsFormat) or not GetJSONInteger(Obj, 'version', Version) then
+    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> SETTINGS_FORMAT) or not GetJSONInteger(Obj, 'version', Version) then
     begin
       ErrorMessage := rsSettingsWrongFormat;
       Exit(False);
     end;
-    if Version > SettingsVersion then
+    if Version > SETTINGS_VERSION then
     begin
       ErrorMessage := Format(rsSettingsNewerVersion, [Version]);
       Exit(False);
@@ -374,7 +374,7 @@ begin
       NameColumnShare := Share;
     if GetJSONString(Obj, 'labelMode', TextValue) then
       for Mode := Low(TLabelMode) to High(TLabelMode) do
-        if TextValue = LabelModeNames[Mode] then
+        if TextValue = LABEL_MODE_NAMES[Mode] then
           LabelMode := Mode;
     if GetJSONBoolean(Obj, 'showSidePanel', Shown) then
       ShowSidePanel := Shown;
@@ -390,7 +390,7 @@ begin
       MaterialDialogSplit := Split;
     if GetJSONString(Obj, 'measureUnit', TextValue) then
       for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
-        if TextValue = MeasureUnitNames[AUnit] then
+        if TextValue = MEASURE_UNIT_NAMES[AUnit] then
           Preferences.MeasureUnit := AUnit;
     ReadGridSteps(Obj, Preferences.GridSteps);
     ReadCalibration(Obj, Preferences.Calibration);

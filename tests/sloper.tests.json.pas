@@ -43,6 +43,9 @@ implementation
 uses
   SysUtils;
 
+const
+  ROUND_TRIP_VALUES: array[0..4] of double = (1 / 3, 0.1 + 0.2, 123.456789, 1e-7, 2.5e20);
+
 procedure TTestJSON.TestWholeNumbers;
 begin
   AssertEquals('720', FormatJSONFloat(720));
@@ -67,15 +70,13 @@ begin
 end;
 
 procedure TTestJSON.TestDecimalsRoundTrip;
-const
-  Values: array[0..4] of double = (1 / 3, 0.1 + 0.2, 123.456789, 1e-7, 2.5e20);
 var
   V, Back: double;
   Settings: TFormatSettings;
 begin
   Settings := DefaultFormatSettings;
   Settings.DecimalSeparator := '.';
-  for V in Values do
+  for V in ROUND_TRIP_VALUES do
   begin
     Back := StrToFloat(FormatJSONFloat(V), Settings);
     AssertTrue(FormatJSONFloat(V) + ' reads back exactly', Back = V);

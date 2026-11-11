@@ -112,7 +112,7 @@ var
 begin
   FPattern.Evaluate;
   AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(X, Y), Path, Reason));
-  Result := FPattern.AddPiece(AName, Path, DefaultPieceAllowance);
+  Result := FPattern.AddPiece(AName, Path, DEFAULT_PIECE_ALLOWANCE);
   AssertNotNull(FPattern.LastError, Result);
   FPattern.Evaluate;
 end;
@@ -123,7 +123,7 @@ var
 begin
   Point := TDraftObject(FPattern.FindNode(Pt('A', 5, 5)));
   AssertTrue(Point.Marker = pmPlain);
-  AssertNull('no size field', Point.Field(MarkerSizeField));
+  AssertNull('no size field', Point.Field(MARKER_SIZE_FIELD));
 end;
 
 procedure TTestMarkers.TestMarkerStartsAtItsDefaultSize;
@@ -176,7 +176,7 @@ begin
   AssertTrue(FPattern.SetMarker(Key, pmHole, '2 * 3'));
   FPattern.Evaluate;
   AssertEquals(6, TDraftObject(FPattern.FindNode(Key)).MarkerSize, 1e-9);
-  AssertTrue(FPattern.SetFormula(FPattern.FindNode(Key), MarkerSizeField, '5'));
+  AssertTrue(FPattern.SetFormula(FPattern.FindNode(Key), MARKER_SIZE_FIELD, '5'));
   FPattern.Evaluate;
   AssertEquals(5, TDraftObject(FPattern.FindNode(Key)).MarkerSize, 1e-9);
 end;
@@ -194,7 +194,7 @@ begin
   AssertEquals(1, Length(Piece.Markings));
   AssertTrue(FPattern.SetMarker(Key, pmPlain));
   AssertEquals(0, Length(Piece.Markings));
-  AssertNull('size field gone', FPattern.FindNode(Key).Field(MarkerSizeField));
+  AssertNull('size field gone', FPattern.FindNode(Key).Field(MARKER_SIZE_FIELD));
 end;
 
 // The properties panel still showed the size row after Plain took the field
@@ -206,7 +206,7 @@ begin
   Key := Pt('H', 100, 50);
   AssertTrue(FPattern.SetMarker(Key, pmHole));
   AssertTrue(FPattern.SetMarker(Key, pmPlain));
-  AssertEquals('', FPattern.FormulaText(FPattern.FindNode(Key), MarkerSizeField));
+  AssertEquals('', FPattern.FormulaText(FPattern.FindNode(Key), MARKER_SIZE_FIELD));
 end;
 
 procedure TTestMarkers.TestBadSizeLeavesMarkerAsItWas;
@@ -217,11 +217,11 @@ begin
   AssertTrue(FPattern.SetMarker(Key, pmHole, '4'));
   AssertFalse(FPattern.SetMarker(Key, pmButton, '4 +'));
   AssertTrue(TDraftObject(FPattern.FindNode(Key)).Marker = pmHole);
-  AssertEquals('4', FPattern.FormulaText(FPattern.FindNode(Key), MarkerSizeField));
+  AssertEquals('4', FPattern.FormulaText(FPattern.FindNode(Key), MARKER_SIZE_FIELD));
   Other := Pt('Other', 5, 5);
   AssertFalse('from plain', FPattern.SetMarker(Other, pmHole, 'nonsense +'));
   AssertTrue(TDraftObject(FPattern.FindNode(Other)).Marker = pmPlain);
-  AssertNull(FPattern.FindNode(Other).Field(MarkerSizeField));
+  AssertNull(FPattern.FindNode(Other).Field(MARKER_SIZE_FIELD));
 end;
 
 procedure TTestMarkers.TestMarkerJoinsNewPiece;
@@ -402,7 +402,7 @@ begin
       if Item.Get('id', 0) = StrToInt(Key) then
       begin
         Item.Delete('marker');
-        Item.Delete(MarkerSizeField);
+        Item.Delete(MARKER_SIZE_FIELD);
       end;
       if Item.Get('id', 0) = StrToInt(Piece.Key) then
       begin

@@ -64,7 +64,7 @@ uses
   SysUtils, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Units;
 
 const
-  Radius = 2;
+  RADIUS = 2;
 
 procedure TTestSnap.SetUp;
 begin
@@ -85,7 +85,7 @@ end;
 
 function TTestSnap.Snap(X, Y: double; const AnchorKey: string): TSnap;
 begin
-  Result := FindSnap(FPattern, Vec2(X, Y), Radius, AnchorKey);
+  Result := FindSnap(FPattern, Vec2(X, Y), RADIUS, AnchorKey);
 end;
 
 // The snap adds a point of the expected operation, which evaluates to X, Y

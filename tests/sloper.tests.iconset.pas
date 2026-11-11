@@ -67,7 +67,7 @@ var
   Icon: TAppIcon;
 begin
   for Icon := Low(TAppIcon) to High(TAppIcon) do
-    AssertTrue(AppIconNames[Icon], FileExists(IconFileName(TAppPaths.IconDir, Icon)));
+    AssertTrue(APP_ICON_NAMES[Icon], FileExists(IconFileName(TAppPaths.IconDir, Icon)));
 end;
 
 procedure TTestIconSet.TestEveryIconTakesTheTextColour;
@@ -78,7 +78,7 @@ begin
   for Icon := Low(TAppIcon) to High(TAppIcon) do
   begin
     AssertTrue(Err, ReadTextFile(IconFileName(TAppPaths.IconDir, Icon), Text, Err));
-    AssertTrue(AppIconNames[Icon], Pos('currentColor', Text) > 0);
+    AssertTrue(APP_ICON_NAMES[Icon], Pos('currentColor', Text) > 0);
   end;
 end;
 

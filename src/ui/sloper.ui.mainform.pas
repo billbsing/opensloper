@@ -217,15 +217,20 @@ uses
   Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.UnitConvert,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout;
 
+const
+  MARKING_ICONS: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
+  TRANSFORM_ICONS: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
+  CURSOR_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 3);
+
   {$R *.lfm}
 
 const
-  PanelCursor = 0;
-  PanelProblems = 1;
-  PanelMeasurements = 2;
-  PanelMessage = 3;
-  ProblemsPanelWidth96 = 150;
-  MeasurementWatchMilliseconds = 1000;
+  PANEL_CURSOR = 0;
+  PANEL_PROBLEMS = 1;
+  PANEL_MEASUREMENTS = 2;
+  PANEL_MESSAGE = 3;
+  PROBLEMS_PANEL_WIDTH96 = 150;
+  MEASUREMENT_WATCH_MILLISECONDS = 1000;
 
 resourcestring
   rsMenuFile = '&File';
@@ -500,7 +505,7 @@ begin
   FMeasurements := TMeasurementsPanel(AddList('measurements', rsTabMeasurements, TMeasurementsPanel.Create(Self)));
   FMeasurements.OnNewSet := @MeasurementsNewSet;
   FMeasurementWatch := TTimer.Create(Self);
-  FMeasurementWatch.Interval := MeasurementWatchMilliseconds;
+  FMeasurementWatch.Interval := MEASUREMENT_WATCH_MILLISECONDS;
   FMeasurementWatch.OnTimer := @MeasurementWatchTick;
   FAlign := TAlignPanel(AddSection('align', rsTabAlign, TAlignPanel.Create(Self)));
   FAlign.Document := FDocument;
@@ -538,7 +543,7 @@ end;
 
 procedure TMainForm.ListPanelMessage(Sender: TObject; const AText: string);
 begin
-  StatusBar.Panels[PanelMessage].Text := AText;
+  StatusBar.Panels[PANEL_MESSAGE].Text := AText;
 end;
 
 procedure TMainForm.AlignSelect(Sender: TObject; const Key: string);
@@ -606,7 +611,7 @@ begin
     end;
   end;
   if FDocument.CheckMeasurementFile then
-    StatusBar.Panels[PanelMessage].Text := Format(rsMeasurementsReloaded, [ExtractFileName(FDocument.MeasurementPath)]);
+    StatusBar.Panels[PANEL_MESSAGE].Text := Format(rsMeasurementsReloaded, [ExtractFileName(FDocument.MeasurementPath)]);
 end;
 
 procedure TMainForm.MeasurementsNewSet(Sender: TObject);
@@ -882,9 +887,6 @@ end;
 // action's Tag is its TCanvasTool, TMarkingKind, TTransformKind or
 // TOffsetSide, or Ord(True) for inside a piece.
 procedure TMainForm.CreateToolCommands;
-const
-  MarkingIcons: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
-  TransformIcons: array[TTransformKind] of TAppIcon = (aiRotate, aiMirror, aiMove);
 var
   MenuTools, Item: TMenuItem;
   Tool: TCanvasTool;
@@ -970,7 +972,7 @@ begin
   AddBreak;
   SubMenu := AddSubmenu(rsMenuToolsMarkings);
   for Marking := Low(TMarkingKind) to High(TMarkingKind) do
-    AddCommand(SubMenu, NewAction(MarkingCaptions[Marking], MarkingIcons[Marking], @MarkingClick, 0, Ord(Marking)));
+    AddCommand(SubMenu, NewAction(MarkingCaptions[Marking], MARKING_ICONS[Marking], @MarkingClick, 0, Ord(Marking)));
   SubMenu.Add(NewLine);
   AddCommand(SubMenu, NewAction(rsMenuToolsRemoveMarking, aiRemoveMarking, @RemoveMarkingClick));
   SubMenu := AddSubmenu(rsMenuToolsDrawAs);
@@ -985,7 +987,7 @@ begin
   AddBreak;
   SubMenu := AddSubmenu(rsMenuToolsTransform);
   for Kind := Low(TTransformKind) to High(TTransformKind) do
-    AddCommand(SubMenu, NewAction(TransformCaptions[Kind], TransformIcons[Kind], @TransformClick, 0, Ord(Kind)));
+    AddCommand(SubMenu, NewAction(TransformCaptions[Kind], TRANSFORM_ICONS[Kind], @TransformClick, 0, Ord(Kind)));
   // Menu only: it finds rather than makes, and double-clicking a copy does it too
   SubMenu.Add(NewLine);
   SourceAction := NewAction(rsMenuToolsGoToSource, aiMove, @GoToSourceClick);
@@ -1187,16 +1189,14 @@ end;
 
 // To a tenth of a millimetre, or as near as the unit shows it
 function CursorNumber(Millimetres: double; AUnit: TMeasureUnit): string;
-const
-  Decimals: array[TMeasureUnit] of integer = (1, 2, 3);
 begin
-  Result := FloatToStrF(Millimetres / MillimetresPerUnit[AUnit], ffFixed, 15, Decimals[AUnit]);
+  Result := FloatToStrF(Millimetres / MILLIMETRES_PER_UNIT[AUnit], ffFixed, 15, CURSOR_DECIMALS[AUnit]);
 end;
 
 procedure TMainForm.CanvasCursorMove(Sender: TObject; const ModelPos: TVec2);
 begin
-  StatusBar.Panels[PanelCursor].Text := Format(rsCursorAt, [CursorNumber(ModelPos.X, FDocument.Pattern.Units),
-    CursorNumber(ModelPos.Y, FDocument.Pattern.Units), MeasureUnitNames[FDocument.Pattern.Units]]);
+  StatusBar.Panels[PANEL_CURSOR].Text := Format(rsCursorAt, [CursorNumber(ModelPos.X, FDocument.Pattern.Units),
+    CursorNumber(ModelPos.Y, FDocument.Pattern.Units), MEASURE_UNIT_NAMES[FDocument.Pattern.Units]]);
   FHorzRuler.ShowCursor(ModelPos);
   FVertRuler.ShowCursor(ModelPos);
 end;
@@ -1251,7 +1251,7 @@ end;
 
 procedure TMainForm.CanvasMessage(Sender: TObject; const AText: string);
 begin
-  StatusBar.Panels[PanelMessage].Text := AText;
+  StatusBar.Panels[PANEL_MESSAGE].Text := AText;
 end;
 
 // The message panel takes the room the others leave
@@ -1260,9 +1260,9 @@ var
   Index, Used: integer;
 begin
   Used := 0;
-  for Index := 0 to PanelMessage - 1 do
+  for Index := 0 to PANEL_MESSAGE - 1 do
     Inc(Used, StatusBar.Panels[Index].Width);
-  StatusBar.Panels[PanelMessage].Width := Max(50, StatusBar.ClientWidth - Used);
+  StatusBar.Panels[PANEL_MESSAGE].Width := Max(50, StatusBar.ClientWidth - Used);
 end;
 
 function TMainForm.DisplayName: string;
@@ -1281,7 +1281,7 @@ begin
     Mark := '*'
   else
     Mark := '';
-  Caption := Format(rsTitle, [DisplayName, Mark, AppName]);
+  Caption := Format(rsTitle, [DisplayName, Mark, APP_NAME]);
 end;
 
 // Undo and Redo name the step, in the menu and the tooltip
@@ -1323,15 +1323,15 @@ begin
     ProblemText := Format(rsRoleHidden, [ProblemText])
   else if Hidden > 1 then
     ProblemText := Format(rsRolesHidden, [ProblemText, Hidden]);
-  StatusBar.Panels[PanelProblems].Text := ProblemText;
-  StatusBar.Panels[PanelProblems].Width := Max(Scale96ToForm(ProblemsPanelWidth96), StatusBar.Canvas.TextWidth(ProblemText) + Scale96ToForm(16));
+  StatusBar.Panels[PANEL_PROBLEMS].Text := ProblemText;
+  StatusBar.Panels[PANEL_PROBLEMS].Width := Max(Scale96ToForm(PROBLEMS_PANEL_WIDTH96), StatusBar.Canvas.TextWidth(ProblemText) + Scale96ToForm(16));
   StatusBarResize(StatusBar);
   if not Assigned(FDocument.Measurements) then
-    StatusBar.Panels[PanelMeasurements].Text := rsNoMeasurements
+    StatusBar.Panels[PANEL_MEASUREMENTS].Text := rsNoMeasurements
   else if FDocument.Measurements.Name <> '' then
-    StatusBar.Panels[PanelMeasurements].Text := FDocument.Measurements.Name
+    StatusBar.Panels[PANEL_MEASUREMENTS].Text := FDocument.Measurements.Name
   else
-    StatusBar.Panels[PanelMeasurements].Text := ExtractFileName(FDocument.MeasurementPath);
+    StatusBar.Panels[PANEL_MEASUREMENTS].Text := ExtractFileName(FDocument.MeasurementPath);
 end;
 
 function TMainForm.ConfirmDiscard: boolean;
@@ -1484,7 +1484,7 @@ begin
     Options.LabelChosen := True;
     Options.LabelKeys := FCanvas.ShownLabelKeys;
     if WriteTextFile(Dialog.FileName, DraftToSVG(FDocument.Pattern, Options), Reason) then
-      StatusBar.Panels[PanelMessage].Text := Format(rsExportDraftDone, [ExtractFileName(Dialog.FileName)])
+      StatusBar.Panels[PANEL_MESSAGE].Text := Format(rsExportDraftDone, [ExtractFileName(Dialog.FileName)])
     else
       MessageDlg(Format(rsExportDraftFailed, [Dialog.FileName, Reason]), mtError, [mbOK], 0);
   finally
@@ -1562,7 +1562,7 @@ end;
 function TMainForm.FragmentFormat: TClipboardFormat;
 begin
   if FFragmentFormat = 0 then
-    FFragmentFormat := RegisterClipboardFormat(FragmentMimeType);
+    FFragmentFormat := RegisterClipboardFormat(FRAGMENT_MIME_TYPE);
   Result := FFragmentFormat;
 end;
 
@@ -1653,7 +1653,7 @@ end;
 
 procedure TMainForm.MenuHelpAboutClick(Sender: TObject);
 begin
-  ShowAboutDialog(Self, AppName, rsAboutSummary);
+  ShowAboutDialog(Self, APP_NAME, rsAboutSummary);
 end;
 
 end.

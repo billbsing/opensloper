@@ -96,14 +96,14 @@ uses
   Math, Types, LCLIntf, Sloper.Core.Materials, Sloper.Core.Units, Sloper.UI.Spacing;
 
 const
-  DialogWidth96 = 640;
-  DialogHeight96 = 380;
-  DefaultSplit96 = 300;
-  MinSplit96 = 160;
-  FieldsWidth96 = 260;
-  SwatchHeight96 = 30;
-  RefusedPaper = TColor($D8D8FF);
-  ProblemInk = TColor($2020C0);
+  DIALOG_WIDTH96 = 640;
+  DIALOG_HEIGHT96 = 380;
+  DEFAULT_SPLIT96 = 300;
+  MIN_SPLIT96 = 160;
+  FIELDS_WIDTH96 = 260;
+  SWATCH_HEIGHT96 = 30;
+  REFUSED_PAPER = TColor($D8D8FF);
+  PROBLEM_INK = TColor($2020C0);
 
 constructor TMaterialsDialog.CreateFor(AOwner: TComponent; ADocument: TPatternDocument; Index: integer);
 var
@@ -116,9 +116,9 @@ begin
   Caption := rsMaterialsTitle;
   Position := poOwnerFormCenter;
   BorderStyle := bsSizeable;
-  Width := Scale96ToScreen(DialogWidth96);
-  Height := Scale96ToScreen(DialogHeight96);
-  Constraints.MinWidth := Scale96ToScreen(MinSplit96 + FieldsWidth96);
+  Width := Scale96ToScreen(DIALOG_WIDTH96);
+  Height := Scale96ToScreen(DIALOG_HEIGHT96);
+  Constraints.MinWidth := Scale96ToScreen(MIN_SPLIT96 + FIELDS_WIDTH96);
   Bottom := TPanel.Create(Self);
   Bottom.Parent := Self;
   Bottom.Align := alBottom;
@@ -137,7 +137,7 @@ begin
   Splitter.Parent := Self;
   Splitter.Align := alLeft;
   Splitter.Left := FLeft.Left + FLeft.Width + 1;
-  Splitter.MinSize := Scale96ToScreen(MinSplit96);
+  Splitter.MinSize := Scale96ToScreen(MIN_SPLIT96);
   BuildFields;
   FDocument.AddListener(@DocumentChanged);
   FGrid.ShowMaterials(FDocument.Pattern);
@@ -177,7 +177,7 @@ begin
   FLeft := TPanel.Create(Self);
   FLeft.Parent := Self;
   FLeft.Align := alLeft;
-  FLeft.Width := Scale96ToScreen(DefaultSplit96);
+  FLeft.Width := Scale96ToScreen(DEFAULT_SPLIT96);
   FLeft.BevelOuter := bvNone;
   FLeft.BorderSpacing.Left := ControlGap;
   FLeft.BorderSpacing.Top := ControlGap;
@@ -245,7 +245,7 @@ begin
   Row := AddRow;
   // As tall as a button, not as the swatch would grow it
   Row.AutoSize := False;
-  Row.Height := Scale96ToScreen(SwatchHeight96);
+  Row.Height := Scale96ToScreen(SWATCH_HEIGHT96);
   FColourButton := TButton.Create(Self);
   FColourButton.Parent := Row;
   FColourButton.Align := alRight;
@@ -283,7 +283,7 @@ begin
 
   FReason := AddCaption(FFields, '');
   FReason.WordWrap := True;
-  FReason.Font.Color := ProblemInk;
+  FReason.Font.Color := PROBLEM_INK;
 end;
 
 function TMaterialsDialog.GetSplit: integer;
@@ -293,7 +293,7 @@ end;
 
 procedure TMaterialsDialog.SetSplit(Width96: integer);
 begin
-  if Width96 >= MinSplit96 then
+  if Width96 >= MIN_SPLIT96 then
     FLeft.Width := Scale96ToScreen(Width96);
 end;
 
@@ -311,7 +311,7 @@ end;
 // A field holding a refused value keeps it until it is fixed or put back
 procedure TMaterialsDialog.ShowField(Edit: TEdit; Field: TMaterialField);
 begin
-  if Edit.Color = RefusedPaper then
+  if Edit.Color = REFUSED_PAPER then
     Exit;
   Edit.Text := MaterialFieldText(FDocument, Current, Field);
 end;
@@ -327,7 +327,7 @@ begin
   try
     FFields.Enabled := Has;
     FDeleteButton.Enabled := Has and (FDocument.Pattern.MaterialCount > 1);
-    FUnitLabel.Caption := MeasureUnitNames[FDocument.Pattern.Units];
+    FUnitLabel.Caption := MEASURE_UNIT_NAMES[FDocument.Pattern.Units];
     ShowField(FNameEdit, mfName);
     ShowField(FAllowanceEdit, mfAllowance);
     if Has then
@@ -359,7 +359,7 @@ begin
     if Done then
       Edit.Color := clDefault
     else
-      Edit.Color := RefusedPaper;
+      Edit.Color := REFUSED_PAPER;
   end;
   if Done then
   begin
@@ -446,7 +446,7 @@ end;
 procedure TMaterialsDialog.FillChange(Sender: TObject);
 begin
   if FFillBox.ItemIndex >= 0 then
-    Commit(mfFill, MaterialFillNames[FFillBox.ItemIndex], nil);
+    Commit(mfFill, MATERIAL_FILL_NAMES[FFillBox.ItemIndex], nil);
 end;
 
 function FieldOf(Dialog: TMaterialsDialog; Edit: TObject): TMaterialField;
@@ -473,7 +473,7 @@ begin
     begin
       // Escape closes the dialog only once the field holds no change
       Original := MaterialFieldText(FDocument, Current, FieldOf(Self, Edit));
-      if (Edit.Text <> Original) or (Edit.Color = RefusedPaper) then
+      if (Edit.Text <> Original) or (Edit.Color = REFUSED_PAPER) then
       begin
         Edit.Color := clDefault;
         Edit.Text := Original;
@@ -498,7 +498,7 @@ begin
   if (ActiveControl <> FNameEdit) and (ActiveControl <> FAllowanceEdit) then
     Exit;
   Edit := TEdit(ActiveControl);
-  Result := (Edit.Color = RefusedPaper) or (Edit.Text <> MaterialFieldText(FDocument, Current, FieldOf(Self, Edit)));
+  Result := (Edit.Color = REFUSED_PAPER) or (Edit.Text <> MaterialFieldText(FDocument, Current, FieldOf(Self, Edit)));
 end;
 
 // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo pattern changes, as in the

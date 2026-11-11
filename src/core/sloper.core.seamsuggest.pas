@@ -27,10 +27,6 @@ interface
 uses
   Sloper.Core.Pattern, Sloper.Core.Seam;
 
-const
-  // Edges on different pieces this close in length (in mm) are suggested
-  SuggestLengthLimit = 1;
-
 type
   TSeamSuggestion = record
     First, Second: TSeamEntry;
@@ -50,6 +46,10 @@ implementation
 
 uses
   Sloper.Core.EvalTypes, Sloper.Core.Draft, Sloper.Core.Piece;
+
+const
+  // Edges on different pieces this close in length (in mm) are suggested
+  SUGGEST_LENGTH_LIMIT = 1;
 
 type
   TCandidate = record
@@ -127,7 +127,7 @@ begin
       Item.Second := Edges[Other].Entry;
       Item.Shared := Item.First.EdgeKey = Item.Second.EdgeKey;
       Item.Difference := Abs(Edges[Index].Length - Edges[Other].Length);
-      if Item.Shared or (Item.Difference <= SuggestLengthLimit) then
+      if Item.Shared or (Item.Difference <= SUGGEST_LENGTH_LIMIT) then
         InsertInOrder(Result, Item);
     end;
 end;

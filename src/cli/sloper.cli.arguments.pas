@@ -30,9 +30,9 @@ uses
   ConsoleTools;
 
 const
-  ExitSuccess = 0;
-  ExitProblems = 1;
-  ExitFailure = 2;
+  EXIT_SUCCESS = 0;
+  EXIT_PROBLEMS = 1;
+  EXIT_FAILURE = 2;
 
 type
   TCliCommand = record
@@ -86,8 +86,8 @@ resourcestring
   rsExitFailure = 'A usage error, or a file that could not be read or written';
 
 const
-  CliTitle = 'opensloper-cli';
-  CliCommands: array[0..7] of TCliCommand = (
+  CLI_TITLE = 'opensloper-cli';
+  CLI_COMMANDS: array[0..7] of TCliCommand = (
     (Name: 'check'; Usage: 'check PATTERN [-m FILE] [-s SIZE] [--json]'; Description: rsCmdCheck),
     (Name: 'export'; Usage: 'export LAYOUT [-o FILE] [--format=FORMAT] [--profile=NAME]'; Description: rsCmdExport),
     (Name: 'export-draft'; Usage: 'export-draft PATTERN [-o FILE] [-m FILE] [-s SIZE] [--labels] [--upto=NAME]';
@@ -98,7 +98,7 @@ const
     (Name: 'pack'; Usage: 'pack LAYOUT'; Description: rsCmdPack),
     (Name: 'serve'; Usage: 'serve'; Description: rsCmdServe),
     (Name: 'doc'; Usage: 'doc TOPIC [-o FILE]' + LineEnding + 'doc'; Description: rsCmdDoc));
-  CliOptions: array[0..10] of TCliOption = (
+  CLI_OPTIONS: array[0..10] of TCliOption = (
     (Name: 'help'; Short: '-h'; Long: '--help'; Parameter: ''; Description: rsOptHelp),
     (Name: 'version'; Short: '-V'; Long: '--version'; Parameter: ''; Description: rsOptVersion),
     (Name: 'measurements'; Short: '-m'; Long: '--measurements'; Parameter: 'file'; Description: rsOptMeasurements),
@@ -111,12 +111,12 @@ const
     (Name: 'labels'; Short: ''; Long: '--labels'; Parameter: ''; Description: rsOptLabels),
     (Name: 'upto'; Short: ''; Long: '--upto'; Parameter: 'name'; Description: rsOptUpTo));
   // After the command, in order; all optional, as each command takes its own
-  CliArguments: array[0..3] of TCliArgument = (
+  CLI_ARGUMENTS: array[0..3] of TCliArgument = (
     (Name: 'pattern'; Description: rsArgPattern),
     (Name: 'file'; Description: rsArgFile),
     (Name: 'key'; Description: rsArgKey),
     (Name: 'value'; Description: rsArgValue));
-  CliExitCodes: array[ExitSuccess..ExitFailure] of string = (rsExitSuccess, rsExitProblems, rsExitFailure);
+  CLI_EXIT_CODES: array[EXIT_SUCCESS..EXIT_FAILURE] of string = (rsExitSuccess, rsExitProblems, rsExitFailure);
 
 // A parser for the tables above; the caller frees it
 function BuildCliParser: TArgumentParser;
@@ -131,17 +131,17 @@ var
   Argument: TCliArgument;
 begin
   Result := TArgumentParser.Create;
-  Result.Title := CliTitle;
+  Result.Title := CLI_TITLE;
   Result.Description := rsCliDescription;
-  for Option in CliOptions do
+  for Option in CLI_OPTIONS do
     if Option.Parameter = '' then
       Result.AddOption(Option.Name, Option.Short, Option.Long, Option.Description, '', avSwitch)
     else
       Result.AddOption(Option.Name, Option.Short, Option.Long, Option.Description, Option.Parameter);
   CommandArgument := Result.AddArgument('command', rsArgCommand, 'command', asRequired, avChoice);
-  for Command in CliCommands do
+  for Command in CLI_COMMANDS do
     CommandArgument.AddChoice(Command.Name, Command.Description);
-  for Argument in CliArguments do
+  for Argument in CLI_ARGUMENTS do
     Result.AddArgument(Argument.Name, Argument.Description, Argument.Name, asOptional);
 end;
 

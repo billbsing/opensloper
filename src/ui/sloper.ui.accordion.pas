@@ -104,14 +104,14 @@ uses
 
 const
   // At 96 pixels per inch
-  HeaderHeight96 = 26;
-  HeaderPadding96 = 10;
-  TextIndent96 = 24;
-  ArrowLeft96 = 8;
-  ArrowSize96 = 8;
+  HEADER_HEIGHT96 = 26;
+  HEADER_PADDING96 = 10;
+  TEXT_INDENT96 = 24;
+  ARROW_LEFT96 = 8;
+  ARROW_SIZE96 = 8;
   // How much of the highlight colour tints an open or pointed-at header
-  OpenTint = 0.18;
-  HotTint = 0.10;
+  OPEN_TINT = 0.18;
+  HOT_TINT = 0.10;
 
 // From First towards Second by Amount, 0 to 1
 function Blend(First, Second: TColor; Amount: double): TColor;
@@ -151,16 +151,16 @@ var
 begin
   Area := ClientRect;
   if FOpen then
-    Canvas.Brush.Color := Blend(clBtnFace, clHighlight, OpenTint)
+    Canvas.Brush.Color := Blend(clBtnFace, clHighlight, OPEN_TINT)
   else if FHot then
-    Canvas.Brush.Color := Blend(clBtnFace, clHighlight, HotTint)
+    Canvas.Brush.Color := Blend(clBtnFace, clHighlight, HOT_TINT)
   else
     Canvas.Brush.Color := clBtnFace;
   Canvas.FillRect(Area);
   Canvas.Pen.Color := clBtnShadow;
   Canvas.Line(Area.Left, Area.Bottom - 1, Area.Right, Area.Bottom - 1);
-  ArrowLeft := Scale96ToForm(ArrowLeft96);
-  ArrowSize := Scale96ToForm(ArrowSize96);
+  ArrowLeft := Scale96ToForm(ARROW_LEFT96);
+  ArrowSize := Scale96ToForm(ARROW_SIZE96);
   Middle := (Area.Top + Area.Bottom) div 2;
   Canvas.Pen.Color := clBtnText;
   Canvas.Brush.Color := clBtnText;
@@ -175,7 +175,7 @@ begin
   Canvas.Font.Color := clBtnText;
   if FOpen then
     Canvas.Font.Style := [fsBold];
-  Canvas.TextOut(Scale96ToForm(TextIndent96), Middle - Canvas.TextHeight(Caption) div 2, Caption);
+  Canvas.TextOut(Scale96ToForm(TEXT_INDENT96), Middle - Canvas.TextHeight(Caption) div 2, Caption);
   Canvas.Brush.Style := bsSolid;
   if Focused then
     Canvas.DrawFocusRect(Rect(Area.Left + 2, Area.Top + 2, Area.Right - 2, Area.Bottom - 3));
@@ -255,11 +255,11 @@ end;
 // Tall enough for the caption in the widgetset's font
 function TAccordion.HeaderHeight: integer;
 begin
-  Result := Scale96ToForm(HeaderHeight96);
+  Result := Scale96ToForm(HEADER_HEIGHT96);
   if HandleAllocated then
   begin
     Canvas.Font := Font;
-    Result := Max(Result, Canvas.TextHeight('Ag') + Scale96ToForm(HeaderPadding96));
+    Result := Max(Result, Canvas.TextHeight('Ag') + Scale96ToForm(HEADER_PADDING96));
   end;
 end;
 

@@ -24,13 +24,12 @@ unit Sloper.Core.Version;
 interface
 
 const
-  AppName = 'OpenSloper';
-  AppVersion = '0.1.0';
+  APP_NAME = 'OpenSloper';
+  APP_VERSION = '0.1.0';
   // Lower-case name used for folders on Linux and for the executable
-  AppNameLower = 'opensloper';
+  APP_NAME_LOWER = 'opensloper';
 
-  PatternFileExt = '.sloper';
-  MeasurementFileExt = '.slm';
+  PATTERN_FILE_EXT = '.sloper';
 
 implementation
 

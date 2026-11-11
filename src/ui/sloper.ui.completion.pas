@@ -64,8 +64,8 @@ uses
   Sloper.Core.Drag, Sloper.Core.Units, Sloper.UI.ObjectList;
 
 const
-  PropertyNames: array[0..5] of string = ('x', 'y', 'length', 'angle', 'angle1', 'angle2');
-  ValueDecimals = 2;
+  PROPERTY_NAMES: array[0..5] of string = ('x', 'y', 'length', 'angle', 'angle1', 'angle2');
+  VALUE_DECIMALS = 2;
 
 type
   // The items so far, best first, with what each ranked
@@ -132,7 +132,7 @@ begin
   begin
     Measurement := Pattern.Measurements[Index];
     AddItem(Found, Measurement.Key, Prefix + Measurement.Key, Format(rsCompletionMeasurement,
-      [RoundedText(Measurement.Value / MillimetresPerUnit[Pattern.Units], ValueDecimals), MeasureUnitNames[Pattern.Units]]));
+      [RoundedText(Measurement.Value / MILLIMETRES_PER_UNIT[Pattern.Units], VALUE_DECIMALS), MEASURE_UNIT_NAMES[Pattern.Units]]));
   end;
 end;
 
@@ -150,7 +150,7 @@ begin
       Continue;
     Detail := '';
     if Variable.State = esValid then
-      Detail := RoundedText(Variable.Value, ValueDecimals);
+      Detail := RoundedText(Variable.Value, VALUE_DECIMALS);
     AddItem(Found, Variable.Name, Prefix + Variable.Name, Detail);
   end;
 end;
@@ -161,7 +161,7 @@ var
   PropertyName, Detail: string;
   Value: double;
 begin
-  for PropertyName in PropertyNames do
+  for PropertyName in PROPERTY_NAMES do
     if Owner.HasProperty(PropertyName) then
     begin
       Detail := '';
@@ -169,8 +169,8 @@ begin
       begin
         Value := Owner.PropertyValue(PropertyName);
         if IsLengthProperty(PropertyName) then
-          Value := Value / MillimetresPerUnit[AUnit];
-        Detail := RoundedText(Value, ValueDecimals);
+          Value := Value / MILLIMETRES_PER_UNIT[AUnit];
+        Detail := RoundedText(Value, VALUE_DECIMALS);
       end;
       AddItem(Found, PropertyName, PropertyName, Detail);
     end;
@@ -192,7 +192,7 @@ begin
     end;
   AddVariables(Found, Pattern, Node, '#');
   AddMeasurements(Found, Pattern, '@');
-  for FunctionName in FormulaFunctionNames do
+  for FunctionName in FORMULA_FUNCTION_NAMES do
     AddItem(Found, FunctionName, FunctionName + '(', rsCompletionFunction);
 end;
 

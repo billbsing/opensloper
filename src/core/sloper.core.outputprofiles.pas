@@ -60,12 +60,6 @@ type
 
   TOutputProfileArray = array of TOutputProfile;
 
-const
-  AllPieceMarks = [Low(TPieceMark)..High(TPieceMark)];
-  // As written in settings files
-  PieceMarkNames: array[TPieceMark] of string = ('seamLine', 'notches', 'grainline', 'foldBracket', 'labels', 'holes', 'stitchHoles');
-  AllowanceChoiceNames: array[TAllowanceChoice] of string = ('keep', 'none');
-
 // Everything, as a layout without a profile prints
 function FullOutputProfile: TOutputProfile;
 // Home printing, Plotter or laser cutter, Leather and Instructions sheet
@@ -87,17 +81,21 @@ uses
   SysUtils, Sloper.Core.JSON, Sloper.Core.MachineProfiles;
 
 const
+  ALL_PIECE_MARKS = [Low(TPieceMark)..High(TPieceMark)];
+  // As written in settings files
+  PIECE_MARK_NAMES: array[TPieceMark] of string = ('seamLine', 'notches', 'grainline', 'foldBracket', 'labels', 'holes', 'stitchHoles');
+  ALLOWANCE_CHOICE_NAMES: array[TAllowanceChoice] of string = ('keep', 'none');
   // Layouts store these names, so they are not translated
-  ProfileHome = 'Home printing';
-  ProfileCutter = 'Plotter or laser cutter';
-  ProfileLeather = 'Leather';
-  ProfileInstructions = 'Instructions sheet';
+  PROFILE_HOME = 'Home printing';
+  PROFILE_CUTTER = 'Plotter or laser cutter';
+  PROFILE_LEATHER = 'Leather';
+  PROFILE_INSTRUCTIONS = 'Instructions sheet';
 
 function FullOutputProfile: TOutputProfile;
 begin
   Result := Default(TOutputProfile);
-  Result.Roles := MarkingRoles;
-  Result.PieceMarks := AllPieceMarks;
+  Result.Roles := MARKING_ROLES;
+  Result.PieceMarks := ALL_PIECE_MARKS;
   Result.Allowance := apKeep;
 end;
 
@@ -113,10 +111,10 @@ function BuiltInOutputProfiles: TOutputProfileArray;
   end;
 
 begin
-  Result := [Profile(ProfileHome, MarkingRoles, AllPieceMarks, apKeep),
-    Profile(ProfileCutter, [erCut], [pkHoles, pkStitchHoles], apKeep),
-    Profile(ProfileLeather, [erStitch, erCut, erSkive, erEdgeFinish], [pkNotches, pkGrainline, pkLabels, pkHoles, pkStitchHoles], apNone),
-    Profile(ProfileInstructions, [erPlacement, erStitch, erFold], [pkSeamLine, pkNotches, pkLabels], apKeep)];
+  Result := [Profile(PROFILE_HOME, MARKING_ROLES, ALL_PIECE_MARKS, apKeep),
+    Profile(PROFILE_CUTTER, [erCut], [pkHoles, pkStitchHoles], apKeep),
+    Profile(PROFILE_LEATHER, [erStitch, erCut, erSkive, erEdgeFinish], [pkNotches, pkGrainline, pkLabels, pkHoles, pkStitchHoles], apNone),
+    Profile(PROFILE_INSTRUCTIONS, [erPlacement, erStitch, erFold], [pkSeamLine, pkNotches, pkLabels], apKeep)];
 end;
 
 function IsBuiltInOutputProfile(const AName: string): boolean;
@@ -173,13 +171,13 @@ begin
       Item.Add('roles', List);
       for Role := Low(TEdgeRole) to High(TEdgeRole) do
         if Role in Profile.Roles then
-          List.Add(EdgeRoleNames[Role]);
+          List.Add(EDGE_ROLE_NAMES[Role]);
       List := TJSONArray.Create;
       Item.Add('pieceMarks', List);
       for Mark := Low(TPieceMark) to High(TPieceMark) do
         if Mark in Profile.PieceMarks then
-          List.Add(PieceMarkNames[Mark]);
-      Item.Add('allowance', AllowanceChoiceNames[Profile.Allowance]);
+          List.Add(PIECE_MARK_NAMES[Mark]);
+      Item.Add('allowance', ALLOWANCE_CHOICE_NAMES[Profile.Allowance]);
       Styles := nil;
       for Role := Low(TEdgeRole) to High(TEdgeRole) do
       begin
@@ -191,7 +189,7 @@ begin
           Item.Add('styles', Styles);
         end;
         Style := TJSONObject.Create;
-        Styles.Add(EdgeRoleNames[Role], Style);
+        Styles.Add(EDGE_ROLE_NAMES[Role], Style);
         Style.Add('color', Profile.Styles[Role].Color);
         Dashes := TJSONArray.Create;
         Style.Add('dash', Dashes);
@@ -279,22 +277,22 @@ begin
       Profile.Roles := [];
       for Text in ReadNames(Item.Find('roles')) do
         if NamesToRoles([Text], Found) then
-          Profile.Roles := Profile.Roles + Found * MarkingRoles;
+          Profile.Roles := Profile.Roles + Found * MARKING_ROLES;
     end;
     if Assigned(Item.Find('pieceMarks')) then
     begin
       Profile.PieceMarks := [];
       for Text in ReadNames(Item.Find('pieceMarks')) do
         for Mark := Low(TPieceMark) to High(TPieceMark) do
-          if PieceMarkNames[Mark] = Text then
+          if PIECE_MARK_NAMES[Mark] = Text then
             Include(Profile.PieceMarks, Mark);
     end;
-    if GetJSONString(Item, 'allowance', Text) and (Text = AllowanceChoiceNames[apNone]) then
+    if GetJSONString(Item, 'allowance', Text) and (Text = ALLOWANCE_CHOICE_NAMES[apNone]) then
       Profile.Allowance := apNone;
     Styles := Item.Find('styles');
     if Assigned(Styles) and (Styles.JSONType = jtObject) then
       for Role := Low(TEdgeRole) to High(TEdgeRole) do
-        if (Role in MarkingRoles) and not ReadStyle(TJSONObject(Styles).Find(EdgeRoleNames[Role]), Profile.Styles[Role]) then
+        if (Role in MARKING_ROLES) and not ReadStyle(TJSONObject(Styles).Find(EDGE_ROLE_NAMES[Role]), Profile.Styles[Role]) then
           Profile.Styles[Role] := Default(TRoleStyle);
     Insert(Profile, Result, System.Length(Result));
   end;

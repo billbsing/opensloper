@@ -124,7 +124,9 @@ uses
   Sloper.Core.Evaluator, Sloper.Core.Variables, Sloper.Core.Names, Sloper.Core.Materials, Sloper.Core.JSON, Sloper.UI.ObjectList;
 
 const
-  MaxMeasurementValue = 1e12;
+  MAX_MEASUREMENT_VALUE = 1e12;
+  MATERIAL_FIELD_DESCRIPTIONS: array[TMaterialField] of string = (rsPanelRenameMaterial, rsPanelRecolorMaterial, rsPanelMaterialFill,
+    rsPanelMaterialAllowance);
 
 function CommitVariableCell(Document: TPatternDocument; const Key: string; Column: TVariableColumn; const Text: string;
   out Reason: string; out ErrorPos: integer): boolean;
@@ -182,7 +184,7 @@ begin
     mfColor:
       Result := Material.Color;
     mfFill:
-      Result := MaterialFillNames[Ord(Material.Fill)];
+      Result := MATERIAL_FILL_NAMES[Ord(Material.Fill)];
     mfAllowance:
       if Material.HasAllowance then
         Result := FormatJSONFloat(Material.Allowance);
@@ -191,9 +193,6 @@ end;
 
 function CommitMaterialField(Document: TPatternDocument; Index: integer; Field: TMaterialField; const Text: string;
   out Reason: string): boolean;
-const
-  Descriptions: array[TMaterialField] of string = (rsPanelRenameMaterial, rsPanelRecolorMaterial, rsPanelMaterialFill,
-    rsPanelMaterialAllowance);
 var
   Material: TPatternMaterial;
   Entry: string;
@@ -219,7 +218,7 @@ begin
         Reason := rsPanelBadColor;
     mfFill:
     begin
-      FillIndex := IndexText(Entry, MaterialFillNames);
+      FillIndex := IndexText(Entry, MATERIAL_FILL_NAMES);
       if FillIndex < 0 then
         Reason := rsPanelBadFill
       else
@@ -231,7 +230,7 @@ begin
   end;
   if Reason <> '' then
     Exit(False);
-  Document.BeginChange(Descriptions[Field]);
+  Document.BeginChange(MATERIAL_FIELD_DESCRIPTIONS[Field]);
   Material := Document.Pattern.Materials[Index];
   case Field of
     mfName:
@@ -287,7 +286,7 @@ begin
   Settings := DefaultFormatSettings;
   Settings.DecimalSeparator := '.';
   Settings.ThousandSeparator := #0;
-  Result := TryStrToFloat(Trim(Text), Value, Settings) and (Abs(Value) < MaxMeasurementValue);
+  Result := TryStrToFloat(Trim(Text), Value, Settings) and (Abs(Value) < MAX_MEASUREMENT_VALUE);
 end;
 
 function MeasurementsSavedText(const Changes: TMeasurementChangeArray; const FileName: string): string;

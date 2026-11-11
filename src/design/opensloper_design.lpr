@@ -36,7 +36,7 @@ uses
 
 begin
   RequireDerivedFormResource := True;
-  Application.Title := AppName;
+  Application.Title := APP_NAME;
   Application.Scaled := True;
   Application.Initialize;
   PlaceHintsAboveCursor;

@@ -73,13 +73,16 @@ uses
   SysUtils, StrUtils, Graphics, LCLProc, LCLType, Sloper.UI.Icons;
 
 const
-  ToolIconSize = 24;
-  MenuIconSize = 16;
-  ButtonPadding = 8;
-  DividerSpace = 11;
-  DividerInset = 4;
-  MenuDividerGap = 4;
-  MenuDividerInset = 6;
+  TOOL_ICON_SIZE = 24;
+  MENU_ICON_SIZE = 16;
+  BUTTON_PADDING = 8;
+  DIVIDER_SPACE = 11;
+  DIVIDER_INSET = 4;
+  MENU_DIVIDER_GAP = 4;
+  MENU_DIVIDER_INSET = 6;
+  // In the order of SHORTCUT_KEY_NAMES
+  NAMED_KEYS: array[0..High(SHORTCUT_KEY_NAMES)] of word = (VK_OEM_COMMA, VK_OEM_PLUS, VK_OEM_MINUS, VK_DELETE, VK_ESCAPE,
+    VK_RETURN, VK_TAB, VK_SPACE, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_F2);
 
 type
   TDividerButton = class(TToolButton)
@@ -96,7 +99,7 @@ procedure TDividerButton.Paint;
 var
   Inset, Middle: integer;
 begin
-  Inset := Scale96ToForm(DividerInset);
+  Inset := Scale96ToForm(DIVIDER_INSET);
   Canvas.Pen.Color := clGrayText;
   Canvas.Pen.Width := 1;
   if IsVerticalBar(Self) then
@@ -121,9 +124,9 @@ begin
   Button.Parent := Bar;
   Button.Style := tbsDivider;
   if IsVerticalBar(Button) then
-    Button.Height := Bar.Scale96ToForm(DividerSpace)
+    Button.Height := Bar.Scale96ToForm(DIVIDER_SPACE)
   else
-    Button.Width := Bar.Scale96ToForm(DividerSpace);
+    Button.Width := Bar.Scale96ToForm(DIVIDER_SPACE);
 end;
 
 {$IF DEFINED(LCLQt5) or DEFINED(LCLQt6)}
@@ -149,7 +152,7 @@ begin
   QApplication_styleSheet(App, @Sheet);
   Color := ColorToRGB(clGrayText);
   Sheet := Sheet + UTF8Decode(Format(LineEnding + 'QMenu::separator { height: 1px; margin: %dpx %dpx; background: #%.2x%.2x%.2x; }',
-    [Scale96(MenuDividerGap), Scale96(MenuDividerInset), Red(Color), Green(Color), Blue(Color)]));
+    [Scale96(MENU_DIVIDER_GAP), Scale96(MENU_DIVIDER_INSET), Red(Color), Green(Color), Blue(Color)]));
   QApplication_setStyleSheet(App, @Sheet);
 end;
 {$ELSE}
@@ -160,10 +163,6 @@ end;
 {$ENDIF}
 
 function KeysToShortCut(const Keys: string): TShortCut;
-const
-  // In the order of ShortcutKeyNames
-  NamedKeys: array[0..High(ShortcutKeyNames)] of word = (VK_OEM_COMMA, VK_OEM_PLUS, VK_OEM_MINUS, VK_DELETE, VK_ESCAPE,
-    VK_RETURN, VK_TAB, VK_SPACE, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_F2);
 var
   KeyName: string;
   Modifiers: TShortcutModifiers;
@@ -175,7 +174,7 @@ begin
   if Length(KeyName) = 1 then
     Key := Ord(KeyName[1])
   else
-    Key := NamedKeys[IndexStr(KeyName, ShortcutKeyNames)];
+    Key := NAMED_KEYS[IndexStr(KeyName, SHORTCUT_KEY_NAMES)];
   Shift := [];
   if smMod in Modifiers then
     Include(Shift, ssModifier);
@@ -199,9 +198,9 @@ end;
 constructor TCommandSet.Create(Form: TCustomForm; Menu: TMainMenu);
 begin
   inherited Create(Form);
-  FToolIcons := CreateIconList(Self, Form.Scale96ToForm(ToolIconSize), clWindowText);
-  FDisabledIcons := CreateIconList(Self, Form.Scale96ToForm(ToolIconSize), clGrayText);
-  FMenuIcons := CreateIconList(Self, Form.Scale96ToForm(MenuIconSize), clMenuText);
+  FToolIcons := CreateIconList(Self, Form.Scale96ToForm(TOOL_ICON_SIZE), clWindowText);
+  FDisabledIcons := CreateIconList(Self, Form.Scale96ToForm(TOOL_ICON_SIZE), clGrayText);
+  FMenuIcons := CreateIconList(Self, Form.Scale96ToForm(MENU_ICON_SIZE), clMenuText);
   FActions := TActionList.Create(Self);
   FActions.Images := FMenuIcons;
   Menu.Images := FMenuIcons;
@@ -217,8 +216,8 @@ begin
   FBar.Wrapable := True;
   if IconsFound then
   begin
-    FBar.ButtonWidth := FToolIcons.Width + Form.Scale96ToForm(ButtonPadding);
-    FBar.ButtonHeight := FToolIcons.Height + Form.Scale96ToForm(ButtonPadding);
+    FBar.ButtonWidth := FToolIcons.Width + Form.Scale96ToForm(BUTTON_PADDING);
+    FBar.ButtonHeight := FToolIcons.Height + Form.Scale96ToForm(BUTTON_PADDING);
   end;
 end;
 

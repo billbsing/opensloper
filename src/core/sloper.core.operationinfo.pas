@@ -322,7 +322,7 @@ begin
   begin
     if Result <> '' then
       Result := Result + ', ';
-    Result := Result + EdgeRoleNames[Role];
+    Result := Result + EDGE_ROLE_NAMES[Role];
   end;
 end;
 
@@ -503,7 +503,7 @@ begin
   M('notches[].edge', mkEdge, rsMemberNotchEdge);
   M('notches[].position', mkLength, rsMemberNotchPosition);
   M('markings', mkList, rsMemberMarkings);
-  M('markings[].kind', mkChoice, rsMemberMarkingKind, Joined(MarkingKindNames));
+  M('markings[].kind', mkChoice, rsMemberMarkingKind, Joined(MARKING_KIND_NAMES));
   M('markings[].point', mkPoint, rsMemberMarkingPoint);
   M('markings[].edge', mkEdge, rsMemberMarkingEdge);
   M('markings[].spacing', mkLength, rsMemberMarkingSpacing);
@@ -515,7 +515,7 @@ begin
   M('material', mkMaterial, rsMemberMaterial);
   M('fill', mkGroup, rsMemberFill);
   M('fill.color', mkText, rsMemberFillColor);
-  M('fill.style', mkChoice, rsMemberFillStyle, Joined(PieceFillNames));
+  M('fill.style', mkChoice, rsMemberFillStyle, Joined(PIECE_FILL_NAMES));
   Op('seam', rsOpSeam, ogPiece, rsOpSeamSummary, '');
   M('sideA', mkList, rsMemberSideA);
   M('sideA[].piece', mkPiece, rsMemberSidePiece);
@@ -540,8 +540,8 @@ begin
   M('text', mkText, rsMemberText);
   M('size', mkSize, rsMemberSize);
   M('print', mkFlag, rsMemberPrint);
-  M('leader', mkChoice, rsMemberLeader, Joined(NoteLeaderNames));
-  M('align', mkChoice, rsMemberAlign, Joined(TextAlignNames));
+  M('leader', mkChoice, rsMemberLeader, Joined(NOTE_LEADER_NAMES));
+  M('align', mkChoice, rsMemberAlign, Joined(TEXT_ALIGN_NAMES));
   M('box', mkFlag, rsMemberBox);
 end;
 
@@ -560,8 +560,8 @@ begin
     Insert(NewMember('role', mkChoice, rsMemberRole, RoleChoices), Result, Length(Result));
   if Group = ogPoint then
   begin
-    Insert(NewMember('marker', mkChoice, rsMemberMarker, Joined(PointMarkerNames)), Result, Length(Result));
-    Insert(NewMember(MarkerSizeField, mkLength, rsMemberMarkerSize), Result, Length(Result));
+    Insert(NewMember('marker', mkChoice, rsMemberMarker, Joined(POINT_MARKER_NAMES)), Result, Length(Result));
+    Insert(NewMember(MARKER_SIZE_FIELD, mkLength, rsMemberMarkerSize), Result, Length(Result));
   end;
 end;
 

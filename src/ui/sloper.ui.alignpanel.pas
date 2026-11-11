@@ -100,8 +100,9 @@ uses
   Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.UI.Spacing;
 
 const
-  DefaultRepeatCount = '3';
-  ActionTags: array[TArrangeAction] of integer = (0, 1, 2, 3, 4, 5);
+  DEFAULT_REPEAT_COUNT = '3';
+  ACTION_TAGS: array[TArrangeAction] of integer = (0, 1, 2, 3, 4, 5);
+  ARRANGE_DESCRIPTIONS: array[boolean] of string = (rsDistributeChange, rsAlignChange);
 
 constructor TAlignPanel.Create(AOwner: TComponent);
 var
@@ -168,7 +169,7 @@ var
 begin
   Button := TButton.Create(Self);
   Button.Caption := ACaption;
-  Button.Tag := ActionTags[AAction];
+  Button.Tag := ACTION_TAGS[AAction];
   Button.OnClick := @ActionClick;
   Place(Button);
 end;
@@ -260,8 +261,6 @@ begin
 end;
 
 procedure TAlignPanel.Run(AAction: TArrangeAction);
-const
-  Descriptions: array[boolean] of string = (rsDistributeChange, rsAlignChange);
 var
   Request: TArrangeRequest;
   Items: TArrangeItemArray;
@@ -277,7 +276,7 @@ begin
     Exit;
   end;
   Replace := AskToReplace(Items);
-  FDocument.BeginChange(Descriptions[AAction in [aaAlignVertical, aaAlignHorizontal]]);
+  FDocument.BeginChange(ARRANGE_DESCRIPTIONS[AAction in [aaAlignVertical, aaAlignHorizontal]]);
   if FDocument.Commit(ApplyArrange(FDocument.Pattern, Request, Replace, Err)) or (Err = '') then
     ShowResult(Items, Replace)
   else
@@ -303,9 +302,9 @@ begin
   Pattern := FDocument.Pattern;
   FDocument.BeginChange(rsRepeatChange);
   if Request.Edge <> '' then
-    Added := Pattern.AddRepeatOnEdge('', Request.Edge, DefaultRepeatCount, True)
+    Added := Pattern.AddRepeatOnEdge('', Request.Edge, DEFAULT_REPEAT_COUNT, True)
   else
-    Added := Pattern.AddRepeatBetween('', Pattern.UsePoint(Request.Points[0]), Pattern.UsePoint(Request.Points[1]), DefaultRepeatCount, True);
+    Added := Pattern.AddRepeatBetween('', Pattern.UsePoint(Request.Points[0]), Pattern.UsePoint(Request.Points[1]), DEFAULT_REPEAT_COUNT, True);
   Err := Pattern.LastError;
   if not FDocument.Commit(Assigned(Added)) then
   begin

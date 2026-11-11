@@ -284,8 +284,8 @@ type
     function SetFoldEdge(Piece: TPieceObject; const EdgeId: string): boolean;
     // A seam between two sides. An empty name takes the next free one: Seam,
     // Seam2 and so on. Nil with LastError set when refused.
-    function AddSeam(const AName: string; const SideA, SideB: TSeamSide; const Ease: string = DefaultSeamEase;
-      const Tolerance: string = DefaultSeamTolerance): TSeamObject;
+    function AddSeam(const AName: string; const SideA, SideB: TSeamSide; const Ease: string = DEFAULT_SEAM_EASE;
+      const Tolerance: string = DEFAULT_SEAM_TOLERANCE): TSeamObject;
     // Whether Side has edges, each once and each on the piece beside it. For
     // loaders too: a fold set after the seam is made only makes it invalid.
     function CheckSeamSide(const Side: TSeamSide): boolean;
@@ -296,11 +296,11 @@ type
     // A leader other than nlNone makes it a callout, which a free note
     // cannot be.
     function AddNote(const AName, AText: string; Anchor: TNoteAnchor; const AnchorKey, Position, DxOrX, DyOrY: string;
-      ASize: double = DefaultNoteSize; APrint: boolean = True; ALeader: TNoteLeader = nlNone): TNoteObject;
+      ASize: double = DEFAULT_NOTE_SIZE; APrint: boolean = True; ALeader: TNoteLeader = nlNone): TNoteObject;
     // Text as typed, draft values {=...} with names. Refused when one does
     // not parse, with the reason and its place in LastError.
     function SetNoteText(Note: TNoteObject; const AText: string): boolean;
-    // Refused unless above 0 and at most MaxNoteSize points
+    // Refused unless above 0 and at most MAX_NOTE_SIZE points
     function SetNoteSize(Note: TNoteObject; ASize: double): boolean;
     procedure SetNotePrint(Note: TNoteObject; APrint: boolean);
     // Refused for a free note, which has nothing to point at
@@ -534,6 +534,10 @@ implementation
 uses
   Math, StrUtils, Sloper.Core.Names, Sloper.Core.TypeChange, Sloper.Core.PointMerge;
 
+const
+  CHAIN_TOLERANCE = 0.01;
+  INSIDE_SAMPLES = 8;
+
 function NewPatternIdentity: string;
 var
   Guid: TGUID;
@@ -554,15 +558,15 @@ end;
 
 const
   // pmPlain has no size; the entry is never used
-  MarkerStartingLengths: array[TPointMarker] of TStartingLength = (slHoleSize, slHoleSize, slButtonSize, slMatchSize);
+  MARKER_STARTING_LENGTHS: array[TPointMarker] of TStartingLength = (slHoleSize, slHoleSize, slButtonSize, slMatchSize);
   // Not translated: a name has to keep to the name rules
-  NewVariableBaseName = 'variable';
-  NewPieceBaseName = 'Piece';
-  NewSeamBaseName = 'Seam';
-  NewNoteBaseName = 'Note';
-  NoteRatioDecimals = 4;
-  TransformBaseNames: array[TTransformKind] of string = ('Rotate', 'Mirror', 'Move');
-  TransformSuffixLetters: array[TTransformKind] of string = ('_r', '_m', '_t');
+  NEW_VARIABLE_BASE_NAME = 'variable';
+  NEW_PIECE_BASE_NAME = 'Piece';
+  NEW_SEAM_BASE_NAME = 'Seam';
+  NEW_NOTE_BASE_NAME = 'Note';
+  NOTE_RATIO_DECIMALS = 4;
+  TRANSFORM_BASE_NAMES: array[TTransformKind] of string = ('Rotate', 'Mirror', 'Move');
+  TRANSFORM_SUFFIX_LETTERS: array[TTransformKind] of string = ('_r', '_m', '_t');
 
 type
   TPatternResolver = class(TNameResolver)
@@ -728,7 +732,7 @@ end;
 
 function TPatternContext.LengthScale: double;
 begin
-  Result := MillimetresPerUnit[FPattern.Units];
+  Result := MILLIMETRES_PER_UNIT[FPattern.Units];
 end;
 
 { TPattern }
@@ -873,7 +877,7 @@ procedure TPattern.SetPieceMaterial(Piece: TPieceObject; Material: TPatternMater
 begin
   FMaterialSet.SetPieceMaterial(Piece, Material);
   if Assigned(Material) and Material.HasAllowance then
-    SetFormula(Piece, PieceAllowanceField, MaterialAllowanceText(Material));
+    SetFormula(Piece, PIECE_ALLOWANCE_FIELD, MaterialAllowanceText(Material));
 end;
 
 function TPattern.SetPieceFill(Piece: TPieceObject; const AColor: string; Style: TPieceFillStyle): boolean;
@@ -962,7 +966,7 @@ begin
   Number := 0;
   repeat
     Inc(Number);
-    Result := TransformSuffixLetters[Kind] + IntToStr(Number);
+    Result := TRANSFORM_SUFFIX_LETTERS[Kind] + IntToStr(Number);
     Taken := False;
     for Index := 0 to FObjects.Count - 1 do
       if (Objects[Index] is TTransformObject) and SameName(TTransformObject(Objects[Index]).Suffix, Result) then
@@ -995,7 +999,7 @@ begin
   TransformName := Spec.Name;
   if TransformName = '' then
   begin
-    TransformName := NextFreeName(TransformBaseNames[Spec.Kind], @ObjectNameTaken);
+    TransformName := NextFreeName(TRANSFORM_BASE_NAMES[Spec.Kind], @ObjectNameTaken);
   end
   else if not CheckObjectName(TransformName, nil, Msg) then
   begin
@@ -1009,7 +1013,7 @@ begin
     tkRotate:
     begin
       Result.UseRotate(Spec.Pivot);
-      AddField(FieldAngle, Spec.Angle);
+      AddField(FIELD_ANGLE, Spec.Angle);
     end;
     tkMirror:
       if Spec.AxisEdge <> '' then
@@ -1019,23 +1023,23 @@ begin
       else
       begin
         Result.UseAxisAngle(Spec.AxisA);
-        AddField(FieldAngle, Spec.Angle);
+        AddField(FIELD_ANGLE, Spec.Angle);
       end;
     tkMove:
     begin
       Result.UseMove(Spec.Polar, Spec.Pivot);
       if Spec.Polar then
       begin
-        AddField(FieldLength, Spec.Length);
-        AddField(FieldAngle, Spec.Angle);
+        AddField(FIELD_LENGTH, Spec.Length);
+        AddField(FIELD_ANGLE, Spec.Angle);
       end
       else
       begin
-        AddField(FieldDX, Spec.DX);
-        AddField(FieldDY, Spec.DY);
+        AddField(FIELD_DX, Spec.DX);
+        AddField(FIELD_DY, Spec.DY);
       end;
       if Spec.Pivot <> '' then
-        AddField(FieldRotate, Spec.Rotate);
+        AddField(FIELD_ROTATE, Spec.Rotate);
     end;
   end;
   if not ParseFields(Result, Names, Texts) then
@@ -1070,7 +1074,7 @@ begin
         if TPointObject(Node).Marker <> pmPlain then
         begin
           Point.SetMarker(TPointObject(Node).Marker);
-          Point.Field(MarkerSizeField).ParseStored(Node.Field(MarkerSizeField).StoredText);
+          Point.Field(MARKER_SIZE_FIELD).ParseStored(Node.Field(MARKER_SIZE_FIELD).StoredText);
         end;
         AddObjectNode(Point);
         PointCopies.Add(Key, Point);
@@ -1348,7 +1352,7 @@ end;
 
 function TPattern.NewVariableName: string;
 begin
-  Result := NextFreeName(NewVariableBaseName, @VariableNameTaken);
+  Result := NextFreeName(NEW_VARIABLE_BASE_NAME, @VariableNameTaken);
 end;
 
 function TPattern.AddVariable(const AName, FormulaText: string;
@@ -1736,8 +1740,6 @@ end;
 // Grown both ways from the first edge, which the run follows the way it is
 // drawn, so that left and right are the sides of that edge
 function TPattern.ChainRun(const EdgeIds: TStringArray; out Run: TRunEdgeArray): boolean;
-const
-  Tolerance = 0.01;
 var
   Edges: array of TEdgeObject;
   Used: array of boolean;
@@ -1795,22 +1797,22 @@ begin
     begin
       if Used[Other] then
         Continue;
-      if PointsNear(EdgeStart(Edges[Other]), RunEnd, Tolerance) then
+      if PointsNear(EdgeStart(Edges[Other]), RunEnd, CHAIN_TOLERANCE) then
       begin
         Append(Edges[Other], False, False);
         RunEnd := EdgeEnd(Edges[Other]);
       end
-      else if PointsNear(EdgeEnd(Edges[Other]), RunEnd, Tolerance) then
+      else if PointsNear(EdgeEnd(Edges[Other]), RunEnd, CHAIN_TOLERANCE) then
       begin
         Append(Edges[Other], True, False);
         RunEnd := EdgeStart(Edges[Other]);
       end
-      else if PointsNear(EdgeEnd(Edges[Other]), RunStart, Tolerance) then
+      else if PointsNear(EdgeEnd(Edges[Other]), RunStart, CHAIN_TOLERANCE) then
       begin
         Append(Edges[Other], False, True);
         RunStart := EdgeStart(Edges[Other]);
       end
-      else if PointsNear(EdgeStart(Edges[Other]), RunStart, Tolerance) then
+      else if PointsNear(EdgeStart(Edges[Other]), RunStart, CHAIN_TOLERANCE) then
       begin
         Append(Edges[Other], True, True);
         RunStart := EdgeEnd(Edges[Other]);
@@ -2111,7 +2113,7 @@ begin
       Continue;
     for Notch := 0 to High(Piece.Notches) do
       if (Piece.Notches[Notch].EdgeKey = Source.Key) and Piece.Field(Piece.NotchField(Notch)).Evaluate(FContext, Position) and
-        (Position * FContext.LengthScale > First.Length + DefaultTolerance) then
+        (Position * FContext.LengthScale > First.Length + DEFAULT_TOLERANCE) then
       begin
         Piece.SetNotchEdge(Notch, Second.Key);
         SetStoredFormula(Piece, Piece.NotchField(Notch), '(' + Piece.Field(Piece.NotchField(Notch)).StoredText + ') - {' +
@@ -2160,7 +2162,7 @@ begin
   PieceName := AName;
   if PieceName = '' then
   begin
-    PieceName := NextFreeName(NewPieceBaseName, @ObjectNameTaken);
+    PieceName := NextFreeName(NEW_PIECE_BASE_NAME, @ObjectNameTaken);
   end
   else if not CheckObjectName(PieceName, nil, Msg) then
   begin
@@ -2170,11 +2172,11 @@ begin
   Result := TPieceObject.Create(TakeId, Path);
   // The first material's allowance stands in for the general default
   PieceAllowance := Allowance;
-  if (Allowance = DefaultPieceAllowance) and FMaterialSet[0].HasAllowance then
+  if (Allowance = DEFAULT_PIECE_ALLOWANCE) and FMaterialSet[0].HasAllowance then
     PieceAllowance := MaterialAllowanceText(FMaterialSet[0])
-  else if Allowance = DefaultPieceAllowance then
-    PieceAllowance := StartingLengths[slPieceAllowance, FUnits];
-  if not ParseFields(Result, [PieceAllowanceField], [PieceAllowance]) then
+  else if Allowance = DEFAULT_PIECE_ALLOWANCE then
+    PieceAllowance := STARTING_LENGTHS[slPieceAllowance, FUnits];
+  if not ParseFields(Result, [PIECE_ALLOWANCE_FIELD], [PieceAllowance]) then
   begin
     GiveBackId(Result.Key);
     FreeAndNil(Result);
@@ -2183,7 +2185,7 @@ begin
   Result.Name := PieceName;
   Result.MaterialKey := FMaterialSet[0].Key;
   AddObjectNode(Result);
-  SetGrainAngle(Result, DefaultGrainAngle);
+  SetGrainAngle(Result, DEFAULT_GRAIN_ANGLE);
   // Lines drawn before the piece was made join it now
   FAssignLoose := True;
 end;
@@ -2259,11 +2261,11 @@ var
 begin
   OldKind := Piece.GrainKind;
   if OldKind = gkAngle then
-    Exit(SetFormula(Piece, GrainAngleField, Text));
+    Exit(SetFormula(Piece, GRAIN_ANGLE_FIELD, Text));
   OldStart := Piece.GrainStartKey;
   OldEnd := Piece.GrainEndKey;
   Piece.SetGrainKind(gkAngle);
-  Result := SetFormula(Piece, GrainAngleField, Text);
+  Result := SetFormula(Piece, GRAIN_ANGLE_FIELD, Text);
   if not Result then
     Piece.SetGrainKind(OldKind, OldStart, OldEnd);
 end;
@@ -2334,7 +2336,7 @@ begin
   OldMarker := Target.Marker;
   OldSize := '';
   if OldMarker <> pmPlain then
-    OldSize := Target.Field(MarkerSizeField).StoredText;
+    OldSize := Target.Field(MARKER_SIZE_FIELD).StoredText;
   Target.SetMarker(AMarker);
   if AMarker = pmPlain then
   begin
@@ -2342,16 +2344,16 @@ begin
     Exit(True);
   end;
   if Size <> '' then
-    Result := SetFormula(Target, MarkerSizeField, Size)
+    Result := SetFormula(Target, MARKER_SIZE_FIELD, Size)
   else if OldMarker = pmPlain then
-    Result := SetFormula(Target, MarkerSizeField, StartingLengths[MarkerStartingLengths[AMarker], FUnits])
+    Result := SetFormula(Target, MARKER_SIZE_FIELD, STARTING_LENGTHS[MARKER_STARTING_LENGTHS[AMarker], FUnits])
   else
     Result := True;
   if not Result then
   begin
     Target.SetMarker(OldMarker);
     if OldMarker <> pmPlain then
-      SetStoredFormula(Target, MarkerSizeField, OldSize);
+      SetStoredFormula(Target, MARKER_SIZE_FIELD, OldSize);
     Exit;
   end;
   if OldMarker = pmPlain then
@@ -2381,7 +2383,7 @@ begin
   if not CheckEdgeTarget(EdgeId) then
     Exit(False);
   Edge := TEdgeObject(FindNode(EdgeId));
-  if not (Edge.Role in MarkingRoles) then
+  if not (Edge.Role in MARKING_ROLES) then
     Exit(SetError(Format(rsPatternNotMarkingLine, [Edge.DisplayName])));
   if Piece.PathIndexOf(EdgeId) >= 0 then
     Exit(SetError(Format(rsPatternLineIsOutline, [Edge.DisplayName, Piece.DisplayName])));
@@ -2396,9 +2398,9 @@ function TPattern.SetEdgeRole(Edge: TEdgeObject; Role: TEdgeRole): boolean;
 var
   WasMarking: boolean;
 begin
-  WasMarking := Edge.Role in MarkingRoles;
+  WasMarking := Edge.Role in MARKING_ROLES;
   Edge.Role := Role;
-  if not (Role in MarkingRoles) then
+  if not (Role in MARKING_ROLES) then
     DetachMarking(Edge.Key)
   else if not WasMarking then
     QueueMarking(Edge);
@@ -2419,7 +2421,7 @@ end;
 function TPattern.IsMarking(DraftObject: TDraftObject): boolean;
 begin
   if DraftObject is TEdgeObject then
-    Result := TEdgeObject(DraftObject).Role in MarkingRoles
+    Result := TEdgeObject(DraftObject).Role in MARKING_ROLES
   else
     Result := ((DraftObject is TPointObject) or (DraftObject is TRepeatObject)) and (DraftObject.Marker <> pmPlain);
 end;
@@ -2431,8 +2433,6 @@ begin
 end;
 
 function TPattern.LiesInside(DraftObject: TDraftObject; Piece: TPieceObject): boolean;
-const
-  Samples = 8;
 var
   Index, Inside: integer;
   Edge: TEdgeObject;
@@ -2444,9 +2444,9 @@ begin
   if DraftObject is TEdgeObject then
   begin
     Edge := TEdgeObject(DraftObject);
-    SetLength(Positions, Samples + 1);
-    for Index := 0 to Samples do
-      Positions[Index] := Edge.PointAtLength(Edge.Length * Index / Samples);
+    SetLength(Positions, INSIDE_SAMPLES + 1);
+    for Index := 0 to INSIDE_SAMPLES do
+      Positions[Index] := Edge.PointAtLength(Edge.Length * Index / INSIDE_SAMPLES);
   end
   else
     Positions := MarkerPositions(DraftObject);
@@ -2545,7 +2545,8 @@ begin
     Exit(False);
   Index := Piece.AddMarking(mkStitchHoles, '', EdgeId);
   KeepInputsBefore(Piece);
-  Result := SetFormula(Piece, Piece.MarkingField(Index, MarkingSpacingField), Spacing) and SetFormula(Piece, Piece.MarkingField(Index, MarkingSizeField), Size);
+  Result := SetFormula(Piece, Piece.MarkingField(Index, MARKING_SPACING_FIELD), Spacing) and SetFormula(Piece,
+    Piece.MarkingField(Index, MARKING_SIZE_FIELD), Size);
   if not Result then
     Piece.RemoveMarking(Index);
 end;
@@ -2663,7 +2664,7 @@ begin
   SeamName := AName;
   if SeamName = '' then
   begin
-    SeamName := NextFreeName(NewSeamBaseName, @ObjectNameTaken);
+    SeamName := NextFreeName(NEW_SEAM_BASE_NAME, @ObjectNameTaken);
   end
   else if not CheckObjectName(SeamName, nil, Msg) then
   begin
@@ -2672,9 +2673,9 @@ begin
   end;
   Result := TSeamObject.Create(TakeId, SideA, SideB);
   SeamTolerance := Tolerance;
-  if SeamTolerance = DefaultSeamTolerance then
-    SeamTolerance := StartingLengths[slSeamTolerance, FUnits];
-  if not ParseFields(Result, [SeamEaseField, SeamToleranceField], [Ease, SeamTolerance]) then
+  if SeamTolerance = DEFAULT_SEAM_TOLERANCE then
+    SeamTolerance := STARTING_LENGTHS[slSeamTolerance, FUnits];
+  if not ParseFields(Result, [SEAM_EASE_FIELD, SEAM_TOLERANCE_FIELD], [Ease, SeamTolerance]) then
   begin
     GiveBackId(Result.Key);
     FreeAndNil(Result);
@@ -2735,15 +2736,15 @@ begin
   end;
   if not CheckNoteAnchor(Anchor, AnchorKey, Key) then
     Exit;
-  if (ASize <= 0) or (ASize > MaxNoteSize) then
+  if (ASize <= 0) or (ASize > MAX_NOTE_SIZE) then
   begin
-    SetError(Format(rsPatternNoteSize, [MaxNoteSize]));
+    SetError(Format(rsPatternNoteSize, [MAX_NOTE_SIZE]));
     Exit;
   end;
   NoteName := AName;
   if NoteName = '' then
   begin
-    NoteName := NextFreeName(NewNoteBaseName, @ObjectNameTaken);
+    NoteName := NextFreeName(NEW_NOTE_BASE_NAME, @ObjectNameTaken);
   end
   else if not CheckObjectName(NoteName, nil, Msg) then
   begin
@@ -2751,9 +2752,9 @@ begin
     Exit;
   end;
   Result := TNoteObject.Create(TakeId, Anchor, Key);
-  if ((Anchor = naFree) and not ParseFields(Result, [NoteXField, NoteYField], [DxOrX, DyOrY])) or
-    ((Anchor = naEdge) and not ParseFields(Result, [NotePositionField], [Position])) or
-    ((Anchor <> naFree) and not ParseFields(Result, [NoteDxField, NoteDyField], [DxOrX, DyOrY])) or not SetNoteText(Result, AText) then
+  if ((Anchor = naFree) and not ParseFields(Result, [NOTE_X_FIELD, NOTE_Y_FIELD], [DxOrX, DyOrY])) or
+    ((Anchor = naEdge) and not ParseFields(Result, [NOTE_POSITION_FIELD], [Position])) or
+    ((Anchor <> naFree) and not ParseFields(Result, [NOTE_DX_FIELD, NOTE_DY_FIELD], [DxOrX, DyOrY])) or not SetNoteText(Result, AText) then
   begin
     GiveBackId(Result.Key);
     FreeAndNil(Result);
@@ -2775,7 +2776,7 @@ var
   Ref: TFormulaReference;
 begin
   if not SplitDraftValues(AText, Template, Expressions, ErrorPos) then
-    Exit(SetError(rsNoteUnclosed, NoteTextField, ErrorPos));
+    Exit(SetError(rsNoteUnclosed, NOTE_TEXT_FIELD, ErrorPos));
   Formulas := nil;
   SetLength(Formulas, Length(Expressions));
   Built := 0;
@@ -2785,11 +2786,11 @@ begin
       Formulas[Index] := TFormula.Create;
       Built := Index + 1;
       if not Formulas[Index].Parse(Expressions[Index], ResolverFor(Note)) then
-        Exit(SetError(Formulas[Index].ErrorMessage, NoteTextField));
+        Exit(SetError(Formulas[Index].ErrorMessage, NOTE_TEXT_FIELD));
       // Nothing reads a note, so only reading itself could go round
       for Ref in Formulas[Index].References do
         if ReferenceKey(Ref) = Note.Key then
-          Exit(SetError(Format(rsPatternUsesItself, [Note.DisplayName]), NoteTextField));
+          Exit(SetError(Format(rsPatternUsesItself, [Note.DisplayName]), NOTE_TEXT_FIELD));
     end;
     Note.SetValues(Template, Formulas);
     Built := 0;
@@ -2802,8 +2803,8 @@ end;
 
 function TPattern.SetNoteSize(Note: TNoteObject; ASize: double): boolean;
 begin
-  if (ASize <= 0) or (ASize > MaxNoteSize) then
-    Exit(SetError(Format(rsPatternNoteSize, [MaxNoteSize])));
+  if (ASize <= 0) or (ASize > MAX_NOTE_SIZE) then
+    Exit(SetError(Format(rsPatternNoteSize, [MAX_NOTE_SIZE])));
   Note.Size := ASize;
   Result := True;
 end;
@@ -2858,12 +2859,12 @@ begin
   if not CheckNoteAnchor(Anchor, AnchorKey, Key) then
     Exit(False);
   Box := Note.Position;
-  RatioText := RoundedNumberText(Ratio, NoteRatioDecimals);
+  RatioText := RoundedNumberText(Ratio, NOTE_RATIO_DECIMALS);
   Base := Vec2(0, 0);
   if Anchor <> naFree then
-    Base := NoteAnchorPlace(Anchor, Key, RoundTo(Ratio, -NoteRatioDecimals));
+    Base := NoteAnchorPlace(Anchor, Key, RoundTo(Ratio, -NOTE_RATIO_DECIMALS));
   Note.Reanchor(Anchor, Key);
-  if (Anchor = naEdge) and not ParseFields(Note, [NotePositionField], [RatioText]) then
+  if (Anchor = naEdge) and not ParseFields(Note, [NOTE_POSITION_FIELD], [RatioText]) then
     Exit(False);
   Result := ParseFields(Note, Note.PlaceFields, [RoundLengthFormulaText(Box.X - Base.X, FUnits),
     RoundLengthFormulaText(Box.Y - Base.Y, FUnits)]);
@@ -2877,7 +2878,7 @@ begin
     Exit(SetError(Format(rsPatternNoteIsFree, [Note.DisplayName])));
   At := Note.Position;
   Note.MakeFree;
-  Result := ParseFields(Note, [NoteXField, NoteYField], [RoundLengthFormulaText(At.X, FUnits),
+  Result := ParseFields(Note, [NOTE_X_FIELD, NOTE_Y_FIELD], [RoundLengthFormulaText(At.X, FUnits),
     RoundLengthFormulaText(At.Y, FUnits)]);
 end;
 

@@ -29,9 +29,7 @@ uses
   Sloper.Output.Layout;
 
 const
-  PackGap = 10;
-  // The window's drag grid, so packed pieces can be lined up by hand
-  PackGrid = 0.5;
+  PACK_GAP = 10;
 
 type
   TPackResult = record
@@ -60,9 +58,11 @@ uses
   SysUtils, Math, Sloper.Core.Geometry, Sloper.Output.Tiling;
 
 const
+  // The window's drag grid, so packed pieces can be lined up by hand
+  PACK_GRID = 0.5;
   // Column counts tried above the fewest that fit the widest piece
-  ExtraColumns = 12;
-  CloseEnough = 1e-6;
+  EXTRA_COLUMNS = 12;
+  CLOSE_ENOUGH = 1e-6;
 
 type
   TPackItem = record
@@ -116,7 +116,7 @@ end;
 
 function OnGrid(Value: double): double;
 begin
-  Result := Ceil(Value / PackGrid - CloseEnough) * PackGrid;
+  Result := Ceil(Value / PACK_GRID - CLOSE_ENOUGH) * PACK_GRID;
 end;
 
 function BoxIsFree(const Boxes: TPackBoxArray; X, Y, Width, Height: double): boolean;
@@ -124,8 +124,8 @@ var
   Box: TPackBox;
 begin
   for Box in Boxes do
-    if (X < Box.MaxX + PackGap - CloseEnough) and (X + Width + PackGap > Box.MinX + CloseEnough) and
-      (Y < Box.MaxY + PackGap - CloseEnough) and (Y + Height + PackGap > Box.MinY + CloseEnough) then
+    if (X < Box.MaxX + PACK_GAP - CLOSE_ENOUGH) and (X + Width + PACK_GAP > Box.MinX + CLOSE_ENOUGH) and
+      (Y < Box.MaxY + PACK_GAP - CLOSE_ENOUGH) and (Y + Height + PACK_GAP > Box.MinY + CLOSE_ENOUGH) then
       Exit(False);
   Result := True;
 end;
@@ -141,8 +141,8 @@ begin
   Insert(0.0, Ys, 0);
   for Box in Boxes do
   begin
-    Insert(OnGrid(Box.MaxX + PackGap), Xs, Length(Xs));
-    Insert(OnGrid(Box.MaxY + PackGap), Ys, Length(Ys));
+    Insert(OnGrid(Box.MaxX + PACK_GAP), Xs, Length(Xs));
+    Insert(OnGrid(Box.MaxY + PACK_GAP), Ys, Length(Ys));
   end;
 end;
 
@@ -158,15 +158,15 @@ begin
   for Y in Ys do
   begin
     Bottom := Y + Height;
-    if Bottom > Depth + CloseEnough then
+    if Bottom > Depth + CLOSE_ENOUGH then
       Continue;
-    if Found and (Bottom > BestBottom + CloseEnough) then
+    if Found and (Bottom > BestBottom + CLOSE_ENOUGH) then
       Continue;
     for X in Xs do
     begin
       if X + Width > Limit then
         Continue;
-      if Found and (Bottom >= BestBottom - CloseEnough) and (X >= Best.X - CloseEnough) then
+      if Found and (Bottom >= BestBottom - CLOSE_ENOUGH) and (X >= Best.X - CLOSE_ENOUGH) then
         Continue;
       if BoxIsFree(Boxes, X, Y, Width, Height) then
       begin
@@ -264,7 +264,7 @@ function LessThan(PagesA: integer; LengthA: double; PagesB: integer; LengthB: do
 begin
   if PagesA <> PagesB then
     Exit(PagesA < PagesB);
-  Result := LengthA < LengthB - CloseEnough;
+  Result := LengthA < LengthB - CLOSE_ENOUGH;
 end;
 
 function TiledWidth(Layout: TLayout; Columns: integer): double;
@@ -294,7 +294,7 @@ begin
   Before := Copy(Layout.Placements);
   BestPages := MaxInt;
   BestSheet := Infinity;
-  for Columns := First to First + ExtraColumns do
+  for Columns := First to First + EXTRA_COLUMNS do
   begin
     PackInto(Items, TiledWidth(Layout, Columns), Spots);
     ApplySpots(Layout, Spots);
@@ -322,7 +322,7 @@ var
   Shape: TPlacedPiece;
 begin
   for Shape in Layout.PlacedPieces do
-    if (Shape.Bounds.MaxX > Layout.UsableWidth + CloseEnough) or (Shape.Bounds.MaxY > SheetDepth(Layout) + CloseEnough) then
+    if (Shape.Bounds.MaxX > Layout.UsableWidth + CLOSE_ENOUGH) or (Shape.Bounds.MaxY > SheetDepth(Layout) + CLOSE_ENOUGH) then
       Exit(False);
   Result := True;
 end;

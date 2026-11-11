@@ -112,10 +112,10 @@ procedure TTestRecentFiles.TestListIsCapped;
 var
   Index: integer;
 begin
-  for Index := 1 to MaxRecentFiles + 3 do
+  for Index := 1 to MAX_RECENT_FILES + 3 do
     FRecent.Add(rlLayouts, Path(Format('%d.layout', [Index])));
-  AssertEquals(MaxRecentFiles, Length(FRecent.Files[rlLayouts]));
-  AssertEquals('newest kept', Path(Format('%d.layout', [MaxRecentFiles + 3])), FRecent.Files[rlLayouts][0]);
+  AssertEquals(MAX_RECENT_FILES, Length(FRecent.Files[rlLayouts]));
+  AssertEquals('newest kept', Path(Format('%d.layout', [MAX_RECENT_FILES + 3])), FRecent.Files[rlLayouts][0]);
 end;
 
 procedure TTestRecentFiles.TestRelativeNameIsExpanded;

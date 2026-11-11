@@ -67,14 +67,16 @@ uses
   SysUtils, Math, Sloper.Core.AppPaths, Sloper.Core.Geometry;
 
 const
-  Figure = '[[0, 0], [100, 0], [100, 100]]';
-  Head = '{"format": "measurement-catalogue", "version": 1, "figures": {"front": [' + Figure + '], "back": [' + Figure +
-    '], "side": [' + Figure + ']}, "measurements": [';
-  WaistEntry = '{"key": "waist_circumference", "translations": {"seamly2d": ["waist_circ", "waist"]}, "name": "Waist circumference", ' +
+  FIGURE = '[[0, 0], [100, 0], [100, 100]]';
+  HEAD = '{"format": "measurement-catalogue", "version": 1, "figures": {"front": [' + FIGURE + '], "back": [' + FIGURE +
+    '], "side": [' + FIGURE + ']}, "measurements": [';
+  WAIST_ENTRY = '{"key": "waist_circumference", "translations": {"seamly2d": ["waist_circ", "waist"]}, "name": "Waist circumference", ' +
     '"group": "circumferences", "description": "Round the natural waist.", "howTo": "Measure it.", "view": "front", ' +
     '"overlay": [[100, 300], [300, 300]], "range": [550, 1500]}';
-  ArmEntry = '{"key": "arm_length", "name": "Arm length", "group": "arm", "description": "Shoulder tip to wrist.", "howTo": "", ' +
+  ARM_ENTRY = '{"key": "arm_length", "name": "Arm length", "group": "arm", "description": "Shoulder tip to wrist.", "howTo": "", ' +
     '"view": "side", "overlay": [[100, 300], [100, 500]], "range": [480, 740]}';
+  ENTRY_REST = '"name": "A", "description": "", "howTo": ""';
+  ABBREVIATIONS: array[0..5] of string = ('circ', 'f', 'b', 'mid', 'bustpoint', 'arc_f');
 
 procedure TTestCatalogue.SetUp;
 begin
@@ -90,7 +92,7 @@ procedure TTestCatalogue.LoadSample;
 var
   Err: string;
 begin
-  AssertTrue(Err, FCatalogue.LoadFromText(Head + WaistEntry + ', ' + ArmEntry + ']}', Err));
+  AssertTrue(Err, FCatalogue.LoadFromText(HEAD + WAIST_ENTRY + ', ' + ARM_ENTRY + ']}', Err));
 end;
 
 procedure TTestCatalogue.LoadShipped;
@@ -104,7 +106,7 @@ procedure TTestCatalogue.AssertLoadFails(const Entry, Msg: string);
 var
   Err: string;
 begin
-  AssertFalse(Msg + ' loads', FCatalogue.LoadFromText(Head + Entry + ']}', Err));
+  AssertFalse(Msg + ' loads', FCatalogue.LoadFromText(HEAD + Entry + ']}', Err));
   AssertEquals(Msg, Err);
 end;
 
@@ -141,12 +143,12 @@ end;
 procedure TTestCatalogue.TestTranslations;
 begin
   LoadSample;
-  AssertEquals('the first is exported', 'waist_circ', FCatalogue[0].NameIn(FormatSeamly2D));
+  AssertEquals('the first is exported', 'waist_circ', FCatalogue[0].NameIn(FORMAT_SEAMLY2D));
   AssertEquals('no such format', '', FCatalogue[0].NameIn('other'));
-  AssertEquals('no translation', '', FCatalogue[1].NameIn(FormatSeamly2D));
-  AssertEquals('waist_circumference', FCatalogue.FindTranslated(FormatSeamly2D, 'waist_circ').Key);
-  AssertEquals('any listed name', 'waist_circumference', FCatalogue.FindTranslated(FormatSeamly2D, 'waist').Key);
-  AssertNull('unknown name', FCatalogue.FindTranslated(FormatSeamly2D, 'hip_circ'));
+  AssertEquals('no translation', '', FCatalogue[1].NameIn(FORMAT_SEAMLY2D));
+  AssertEquals('waist_circumference', FCatalogue.FindTranslated(FORMAT_SEAMLY2D, 'waist_circ').Key);
+  AssertEquals('any listed name', 'waist_circumference', FCatalogue.FindTranslated(FORMAT_SEAMLY2D, 'waist').Key);
+  AssertNull('unknown name', FCatalogue.FindTranslated(FORMAT_SEAMLY2D, 'hip_circ'));
   AssertNull('unknown format', FCatalogue.FindTranslated('other', 'waist_circ'));
 end;
 
@@ -196,31 +198,29 @@ begin
   AssertEquals(rsCatalogueNoFigures, Err);
   AssertFalse(FCatalogue.LoadFromText('{"format": "measurement-catalogue", "version": 1, "figures": {"front": []}}', Err));
   AssertEquals(Format(rsCatalogueBadFigure, ['front']), Err);
-  AssertFalse(FCatalogue.LoadFromText('{"format": "measurement-catalogue", "version": 1, "figures": {"front": [' + Figure +
-    '], "back": [[[0, 0]]], "side": [' + Figure + ']}}', Err));
+  AssertFalse(FCatalogue.LoadFromText('{"format": "measurement-catalogue", "version": 1, "figures": {"front": [' + FIGURE +
+    '], "back": [[[0, 0]]], "side": [' + FIGURE + ']}}', Err));
   AssertEquals(Format(rsCatalogueBadFigure, ['back']), Err);
-  AssertFalse(FCatalogue.LoadFromText(Copy(Head, 1, Pos(', "measurements"', Head) - 1) + '}', Err));
+  AssertFalse(FCatalogue.LoadFromText(Copy(HEAD, 1, Pos(', "measurements"', HEAD) - 1) + '}', Err));
   AssertEquals(rsCatalogueNoList, Err);
 end;
 
 procedure TTestCatalogue.TestBadEntries;
-const
-  Rest = '"name": "A", "description": "", "howTo": ""';
 begin
   AssertLoadFails('{"key": "a", "group": "arm"}', rsCatalogueBadEntry);
   AssertLoadFails('3', rsCatalogueBadEntry);
-  AssertLoadFails(WaistEntry + ', ' + WaistEntry, Format(rsCatalogueDuplicate, ['waist_circumference']));
-  AssertLoadFails('{"key": "a", ' + Rest + ', "group": "toes", "view": "front", "overlay": [[0, 0], [1, 1]], "range": [1, 2]}',
+  AssertLoadFails(WAIST_ENTRY + ', ' + WAIST_ENTRY, Format(rsCatalogueDuplicate, ['waist_circumference']));
+  AssertLoadFails('{"key": "a", ' + ENTRY_REST + ', "group": "toes", "view": "front", "overlay": [[0, 0], [1, 1]], "range": [1, 2]}',
     Format(rsCatalogueBadGroup, ['a', 'toes']));
-  AssertLoadFails('{"key": "a", ' + Rest + ', "group": "arm", "view": "top", "overlay": [[0, 0], [1, 1]], "range": [1, 2]}',
+  AssertLoadFails('{"key": "a", ' + ENTRY_REST + ', "group": "arm", "view": "top", "overlay": [[0, 0], [1, 1]], "range": [1, 2]}',
     Format(rsCatalogueBadView, ['a', 'top']));
-  AssertLoadFails('{"key": "a", ' + Rest + ', "group": "arm", "view": "front", "overlay": [[0, 0]], "range": [1, 2]}',
+  AssertLoadFails('{"key": "a", ' + ENTRY_REST + ', "group": "arm", "view": "front", "overlay": [[0, 0]], "range": [1, 2]}',
     Format(rsCatalogueBadOverlay, ['a']));
-  AssertLoadFails('{"key": "a", ' + Rest + ', "group": "arm", "view": "front", "overlay": [[0, 0], [1]], "range": [1, 2]}',
+  AssertLoadFails('{"key": "a", ' + ENTRY_REST + ', "group": "arm", "view": "front", "overlay": [[0, 0], [1]], "range": [1, 2]}',
     Format(rsCatalogueBadOverlay, ['a']));
-  AssertLoadFails('{"key": "a", ' + Rest + ', "group": "arm", "view": "front", "overlay": [[0, 0], [1, 1]], "range": [2, 1]}',
+  AssertLoadFails('{"key": "a", ' + ENTRY_REST + ', "group": "arm", "view": "front", "overlay": [[0, 0], [1, 1]], "range": [2, 1]}',
     Format(rsCatalogueBadRange, ['a']));
-  AssertLoadFails('{"key": "a", ' + Rest + ', "group": "arm", "view": "front", "overlay": [[0, 0], [1, 1]]}',
+  AssertLoadFails('{"key": "a", ' + ENTRY_REST + ', "group": "arm", "view": "front", "overlay": [[0, 0], [1, 1]]}',
     Format(rsCatalogueBadRange, ['a']));
 end;
 
@@ -228,7 +228,7 @@ procedure TTestCatalogue.TestFailedLoadLeavesItEmpty;
 var
   Err: string;
 begin
-  AssertFalse(FCatalogue.LoadFromText(Head + WaistEntry + ', {"key": "2"}]}', Err));
+  AssertFalse(FCatalogue.LoadFromText(HEAD + WAIST_ENTRY + ', {"key": "2"}]}', Err));
   AssertEquals(0, FCatalogue.Count);
   AssertEquals(0, Length(FCatalogue.Figures[cvFront]));
 end;
@@ -297,8 +297,6 @@ end;
 
 // Keys use whole words, not the abbreviations of other programs
 procedure TTestCatalogue.TestShippedKeysAreWholeWords;
-const
-  Abbreviations: array[0..5] of string = ('circ', 'f', 'b', 'mid', 'bustpoint', 'arc_f');
 var
   Index: integer;
   Abbreviation, Key: string;
@@ -307,7 +305,7 @@ begin
   for Index := 0 to FCatalogue.Count - 1 do
   begin
     Key := '_' + FCatalogue[Index].Key + '_';
-    for Abbreviation in Abbreviations do
+    for Abbreviation in ABBREVIATIONS do
       AssertEquals(Key, 0, Pos('_' + Abbreviation + '_', Key));
   end;
 end;
@@ -317,7 +315,7 @@ var
   Group: string;
 begin
   LoadShipped;
-  for Group in CatalogueGroups do
+  for Group in CATALOGUE_GROUPS do
     AssertTrue(Group, Length(FCatalogue.Search(Group, '')) > 0);
 end;
 
@@ -330,8 +328,8 @@ begin
   for Index := 0 to FCatalogue.Count - 1 do
     for Point in FCatalogue[Index].Overlay do
     begin
-      AssertTrue(FCatalogue[Index].Key, (Point.X >= 0) and (Point.X <= FigureWidth));
-      AssertTrue(FCatalogue[Index].Key, (Point.Y >= 0) and (Point.Y <= FigureHeight));
+      AssertTrue(FCatalogue[Index].Key, (Point.X >= 0) and (Point.X <= FIGURE_WIDTH));
+      AssertTrue(FCatalogue[Index].Key, (Point.Y >= 0) and (Point.Y <= FIGURE_HEIGHT));
     end;
 end;
 
@@ -344,9 +342,9 @@ begin
   LoadShipped;
   for Index := 0 to FCatalogue.Count - 1 do
   begin
-    Name := FCatalogue[Index].NameIn(FormatSeamly2D);
+    Name := FCatalogue[Index].NameIn(FORMAT_SEAMLY2D);
     AssertTrue(FCatalogue[Index].Key + ' has a name', Name <> '');
-    AssertEquals(FCatalogue[Index].Key, FCatalogue.FindTranslated(FormatSeamly2D, Name).Key);
+    AssertEquals(FCatalogue[Index].Key, FCatalogue.FindTranslated(FORMAT_SEAMLY2D, Name).Key);
   end;
 end;
 
@@ -355,12 +353,12 @@ var
   Index: integer;
 begin
   LoadShipped;
-  AssertTrue('one of ours', FCatalogue.IsKnownName(FormatSeamly2D, 'waist_circ'));
-  AssertTrue('one not in the catalogue', FCatalogue.IsKnownName(FormatSeamly2D, 'neck_arc_f'));
-  AssertFalse(FCatalogue.IsKnownName(FormatSeamly2D, 'waist_circumference'));
+  AssertTrue('one of ours', FCatalogue.IsKnownName(FORMAT_SEAMLY2D, 'waist_circ'));
+  AssertTrue('one not in the catalogue', FCatalogue.IsKnownName(FORMAT_SEAMLY2D, 'neck_arc_f'));
+  AssertFalse(FCatalogue.IsKnownName(FORMAT_SEAMLY2D, 'waist_circumference'));
   AssertFalse(FCatalogue.IsKnownName('other', 'waist_circ'));
   for Index := 0 to FCatalogue.Count - 1 do
-    AssertTrue(FCatalogue[Index].Key, FCatalogue.IsKnownName(FormatSeamly2D, FCatalogue[Index].NameIn(FormatSeamly2D)));
+    AssertTrue(FCatalogue[Index].Key, FCatalogue.IsKnownName(FORMAT_SEAMLY2D, FCatalogue[Index].NameIn(FORMAT_SEAMLY2D)));
 end;
 
 procedure TTestCatalogue.TestShippedReadsWell;

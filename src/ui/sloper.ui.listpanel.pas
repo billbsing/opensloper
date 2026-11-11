@@ -174,9 +174,9 @@ uses
   Forms, Sloper.UI.ObjectList, Sloper.UI.Spacing;
 
 const
-  ProblemInk = TColor($2020C0);
-  BlockedInk = TColor($0080E0);
-  RefusedPaper = TColor($D8D8FF);
+  PROBLEM_INK = TColor($2020C0);
+  BLOCKED_INK = TColor($0080E0);
+  REFUSED_PAPER = TColor($D8D8FF);
 
 type
   // Keeps the cell open while the suggestions under it are clicked
@@ -804,8 +804,8 @@ begin
     FGrid.Canvas.Font.Style := [];
   if Editable and (RefusalIndex(Row.Key, ACol) >= 0) then
   begin
-    FGrid.Canvas.Brush.Color := RefusedPaper;
-    FGrid.Canvas.Font.Color := ProblemInk;
+    FGrid.Canvas.Brush.Color := REFUSED_PAPER;
+    FGrid.Canvas.Font.Color := PROBLEM_INK;
     Exit;
   end;
   // The current cell of an editable row stands out from the rest of it
@@ -820,9 +820,9 @@ begin
   else
     FGrid.Canvas.Brush.Color := FGrid.Color;
   if Row.State in [esError, esInvalid] then
-    FGrid.Canvas.Font.Color := ProblemInk
+    FGrid.Canvas.Font.Color := PROBLEM_INK
   else if Row.State = esBlocked then
-    FGrid.Canvas.Font.Color := BlockedInk
+    FGrid.Canvas.Font.Color := BLOCKED_INK
   else
     FGrid.Canvas.Font.Color := clWindowText;
 end;

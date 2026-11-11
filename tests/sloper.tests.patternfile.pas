@@ -64,6 +64,14 @@ implementation
 uses
   SysUtils, Sloper.Core.Geometry, Sloper.Core.EvalTypes, Sloper.Core.Names, Sloper.Core.Evaluator, Sloper.Core.PatternFile;
 
+const
+  FILE_TYPES: array[0..9] of string = ('freePoint', 'offsetPoint', 'alongEdgePoint', 'intersectPoint',
+    'circleEdgePoint', 'projectPoint', 'line', 'curve', 'curvePath', 'splitPart');
+  POINT_A = '{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, ';
+  POINT_B = '{"id": 2, "type": "freePoint", "name": "B", "x": "10", "y": "0"}, ';
+  LINE_AB = '{"id": 3, "type": "line", "start": 1, "end": 2}, ';
+  LINE_BA = '{"id": 4, "type": "line", "start": 2, "end": 1}, ';
+
 function PatternWithObjects(const ObjectsText: string): string;
 begin
   Result := '{"format": "pattern", "version": 1, "objects": ' + ObjectsText + '}';
@@ -197,9 +205,6 @@ begin
 end;
 
 procedure TTestPatternFile.TestRoundTripEveryType;
-const
-  FileTypes: array[0..9] of string = ('freePoint', 'offsetPoint', 'alongEdgePoint', 'intersectPoint',
-    'circleEdgePoint', 'projectPoint', 'line', 'curve', 'curvePath', 'splitPart');
 var
   Saved, Err, FileType: string;
   Index: integer;
@@ -207,7 +212,7 @@ var
 begin
   BuildEveryType;
   Saved := SavePatternToText(FPattern);
-  for FileType in FileTypes do
+  for FileType in FILE_TYPES do
     AssertTrue('has ' + FileType, Pos('"type": "' + FileType + '"', Saved) > 0);
   AssertTrue(Err, LoadPatternFromText(FLoaded, Saved, Err));
   AssertEquals('saves the same', Saved, SavePatternToText(FLoaded));
@@ -375,56 +380,51 @@ begin
 end;
 
 procedure TTestPatternFile.TestObjectErrors;
-const
-  PointA = '{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, ';
-  PointB = '{"id": 2, "type": "freePoint", "name": "B", "x": "10", "y": "0"}, ';
-  LineAB = '{"id": 3, "type": "line", "start": 1, "end": 2}, ';
-  LineBA = '{"id": 4, "type": "line", "start": 2, "end": 1}, ';
 begin
   AssertLoadFails('[{"type": "freePoint", "name": "A", "x": "0", "y": "0"}]', Format(rsPatternFileBadId, [1, 'objects']));
   AssertLoadFails('[{"id": "1", "type": "freePoint", "name": "A", "x": "0", "y": "0"}]',
     Format(rsPatternFileBadId, [1, 'objects']));
   AssertLoadFails('[{"id": 0, "type": "freePoint", "name": "A", "x": "0", "y": "0"}]',
     Format(rsPatternFileBadId, [1, 'objects']));
-  AssertLoadFails('[' + PointA + '{"id": 2, "type": "offsetPoint", "name": "B", "base": "1", "length": "1", "angle": "0"}]',
+  AssertLoadFails('[' + POINT_A + '{"id": 2, "type": "offsetPoint", "name": "B", "base": "1", "length": "1", "angle": "0"}]',
     Format(rsPatternObjectMissing, ['2', 'base']));
-  AssertLoadFails('[' + PointA + '{"id": 1, "type": "freePoint", "name": "B", "x": "0", "y": "0"}]',
+  AssertLoadFails('[' + POINT_A + '{"id": 1, "type": "freePoint", "name": "B", "x": "0", "y": "0"}]',
     Format(rsPatternFileBadId, [2, 'objects']));
   AssertLoadFails('[{"id": 1, "name": "A"}]', Format(rsPatternObjectMissing, ['1', 'type']));
   AssertLoadFails('[{"id": 1, "type": "spline"}]', Format(rsPatternObjectUnknownType, ['1', 'spline']));
   AssertLoadFails('[{"id": 1, "type": "freePoint", "x": "0", "y": "0"}]', Format(rsPatternObjectMissing, ['1', 'name']));
   AssertLoadFails('[{"id": 1, "type": "freePoint", "name": "a b", "x": "0", "y": "0"}]',
     Format(rsPatternObjectProblem, ['1', Format(rsNameInvalid, ['a b'])]));
-  AssertLoadFails('[' + PointA + '{"id": 2, "type": "freePoint", "name": "a", "x": "0", "y": "0"}]',
+  AssertLoadFails('[' + POINT_A + '{"id": 2, "type": "freePoint", "name": "a", "x": "0", "y": "0"}]',
     Format(rsPatternObjectProblem, ['2', Format(rsNameTaken, ['a'])]));
   AssertLoadFails('[{"id": 1, "type": "freePoint", "name": "A", "x": "0"}]', Format(rsPatternObjectMissing, ['1', 'y']));
   AssertLoadFails('[{"id": 1, "type": "freePoint", "name": "A", "x": 0, "y": "0"}]', Format(rsPatternObjectMissing, ['1', 'x']));
-  AssertLoadFails('[' + PointA + '{"id": 3, "type": "line", "start": 1, "end": 2}, ' + PointB +
+  AssertLoadFails('[' + POINT_A + '{"id": 3, "type": "line", "start": 1, "end": 2}, ' + POINT_B +
     '{"id": 5, "type": "freePoint", "name": "Z", "x": "0", "y": "0"}]',
     Format(rsPatternObjectNotBefore, ['3', '2']));
-  AssertLoadFails('[' + PointA + '{"id": 3, "type": "line", "start": 1}]', Format(rsPatternObjectMissing, ['3', 'end']));
-  AssertLoadFails('[' + PointA + PointB + '{"id": 6, "type": "alongEdgePoint", "name": "C", "edge": 2, "value": "1"}]',
+  AssertLoadFails('[' + POINT_A + '{"id": 3, "type": "line", "start": 1}]', Format(rsPatternObjectMissing, ['3', 'end']));
+  AssertLoadFails('[' + POINT_A + POINT_B + '{"id": 6, "type": "alongEdgePoint", "name": "C", "edge": 2, "value": "1"}]',
     Format(rsPatternObjectProblem, ['6', Format(rsDraftNotAnEdge, ['B'])]));
-  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": 4, "type": "line", "start": 1, "end": 3}]',
+  AssertLoadFails('[' + POINT_A + POINT_B + LINE_AB + '{"id": 4, "type": "line", "start": 1, "end": 3}]',
     Format(rsPatternObjectProblem, ['4', Format(rsDraftNotAPoint, ['3'])]));
-  AssertLoadFails('[' + PointA + '{"id": 2, "type": "offsetPoint", "name": "B", "base": 1, "mode": "sideways",' +
+  AssertLoadFails('[' + POINT_A + '{"id": 2, "type": "offsetPoint", "name": "B", "base": 1, "mode": "sideways",' +
     ' "length": "1", "angle": "0"}]', Format(rsPatternObjectMissing, ['2', 'mode']));
-  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": 4, "type": "line", "start": 1, "end": 2, "role": "seam"}]',
+  AssertLoadFails('[' + POINT_A + POINT_B + LINE_AB + '{"id": 4, "type": "line", "start": 1, "end": 2, "role": "seam"}]',
     Format(rsPatternObjectMissing, ['4', 'role']));
-  AssertLoadFails('[' + PointA + PointB + LineAB + LineBA +
+  AssertLoadFails('[' + POINT_A + POINT_B + LINE_AB + LINE_BA +
     '{"id": 6, "type": "intersectPoint", "name": "C", "edgeA": 3, "edgeB": 4, "extendA": "yes"}]',
     Format(rsPatternObjectMissing, ['6', 'extendA']));
-  AssertLoadFails('[' + PointA + PointB + LineAB + LineBA +
+  AssertLoadFails('[' + POINT_A + POINT_B + LINE_AB + LINE_BA +
     '{"id": 6, "type": "intersectPoint", "name": "C", "edgeA": 3, "edgeB": 4, "pick": 0}]',
     Format(rsPatternObjectProblem, ['6', rsPatternBadPick]));
-  AssertLoadFails('[' + PointA + PointB + LineAB +
+  AssertLoadFails('[' + POINT_A + POINT_B + LINE_AB +
     '{"id": 6, "type": "intersectPoint", "name": "C", "edgeA": 3, "edgeB": 3}]',
     Format(rsPatternObjectProblem, ['6', rsPatternSameEdge]));
-  AssertLoadFails('[' + PointA + '{"id": 7, "type": "curvePath", "nodes": [{"point": 1, "angle": "0"}]}]',
+  AssertLoadFails('[' + POINT_A + '{"id": 7, "type": "curvePath", "nodes": [{"point": 1, "angle": "0"}]}]',
     Format(rsPatternObjectProblem, ['7', rsPatternPathTooShort]));
-  AssertLoadFails('[' + PointA + PointB + '{"id": 7, "type": "curvePath", "nodes": [{"point": 1, "angle": "0",' +
+  AssertLoadFails('[' + POINT_A + POINT_B + '{"id": 7, "type": "curvePath", "nodes": [{"point": 1, "angle": "0",' +
     ' "lengthOut": "1"}, {"point": 2, "angle": "0"}]}]', Format(rsPatternObjectMissing, ['7', 'lengthIn']));
-  AssertLoadFails('[' + PointA + PointB + LineAB + '{"id": 4, "type": "splitPart", "edge": 3, "point": 2, "part": 3}]',
+  AssertLoadFails('[' + POINT_A + POINT_B + LINE_AB + '{"id": 4, "type": "splitPart", "edge": 3, "point": 2, "part": 3}]',
     Format(rsPatternObjectMissing, ['4', 'part']));
 end;
 

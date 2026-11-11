@@ -260,16 +260,16 @@ uses
 
 const
   // Screen pixels
-  PointHitRadius = 7;
-  EdgeHitRadius = 5;
-  DragThreshold = 3;
-  FitMargin = 40;
-  WheelPanPixels = 60;
+  POINT_HIT_RADIUS = 7;
+  EDGE_HIT_RADIUS = 5;
+  DRAG_THRESHOLD = 3;
+  FIT_MARGIN = 40;
+  WHEEL_PAN_PIXELS = 60;
   // Arrow-key nudges in mm
-  NudgeStep = 1;
-  NudgeStepLarge = 10;
+  NUDGE_STEP = 1;
+  NUDGE_STEP_LARGE = 10;
   // A click this many pixels around a note's text picks it
-  NoteHitPixels = 2;
+  NOTE_HIT_PIXELS = 2;
 
 type
   // How the tools reach the canvas
@@ -340,7 +340,7 @@ begin
   FShowPieceFills := True;
   FDrawRole := erOutline;
   FGridUnit := muMillimetre;
-  FGridStep := DefaultGridSteps[muMillimetre];
+  FGridStep := DEFAULT_GRID_STEPS[muMillimetre];
   FPainter := TPatternPainter.Create;
   FToolHost := TCanvasHost.Create(Self);
   FTools := CreateCanvasTools(FToolHost);
@@ -417,10 +417,10 @@ begin
   Notes := NotesHere(X, Y);
   if Length(Notes) > 0 then
     Exit(Notes[0]);
-  Point := PointAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius));
+  Point := PointAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(POINT_HIT_RADIUS));
   if Assigned(Point) then
     Exit(Point.Key);
-  Edge := EdgeAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(EdgeHitRadius));
+  Edge := EdgeAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(EDGE_HIT_RADIUS));
   if Assigned(Edge) then
     Exit(Edge.Key);
   Piece := PieceAt(FDocument.Pattern, ModelAt(X, Y));
@@ -436,7 +436,7 @@ end;
 
 function TPatternCanvas.NotesHere(X, Y: integer): TStringArray;
 begin
-  Result := NotesAt(FDocument.Pattern, ModelAt(X, Y), NoteValues, FView.PixelsToMM(NoteHitPixels));
+  Result := NotesAt(FDocument.Pattern, ModelAt(X, Y), NoteValues, FView.PixelsToMM(NOTE_HIT_PIXELS));
 end;
 
 function TPatternCanvas.IsSelected(const Key: string): boolean;
@@ -496,7 +496,7 @@ var
 begin
   if Assigned(FDocument) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
   begin
-    FView.Reveal(Bounds, ClientWidth, ClientHeight, FitMargin);
+    FView.Reveal(Bounds, ClientWidth, ClientHeight, FIT_MARGIN);
     Invalidate;
   end;
 end;
@@ -507,7 +507,7 @@ var
 begin
   if Assigned(FDocument) and ObjectsBounds(FDocument.Pattern, FSelection, Bounds) then
   begin
-    FView.Fit(Bounds, ClientWidth, ClientHeight, FitMargin);
+    FView.Fit(Bounds, ClientWidth, ClientHeight, FIT_MARGIN);
     Invalidate;
   end;
 end;
@@ -580,13 +580,13 @@ end;
 
 procedure TPatternCanvas.ZoomIn;
 begin
-  FView.ZoomAt(ZoomStep, Vec2(ClientWidth / 2, ClientHeight / 2));
+  FView.ZoomAt(ZOOM_STEP, Vec2(ClientWidth / 2, ClientHeight / 2));
   Invalidate;
 end;
 
 procedure TPatternCanvas.ZoomOut;
 begin
-  FView.ZoomAt(1 / ZoomStep, Vec2(ClientWidth / 2, ClientHeight / 2));
+  FView.ZoomAt(1 / ZOOM_STEP, Vec2(ClientWidth / 2, ClientHeight / 2));
   Invalidate;
 end;
 
@@ -595,7 +595,7 @@ var
   Bounds: TRect2;
 begin
   if Assigned(FDocument) and PatternBounds(FDocument.Pattern, Bounds, not FDocument.Pattern.View.HideAnnotations) then
-    FView.Fit(Bounds, ClientWidth, ClientHeight, FitMargin)
+    FView.Fit(Bounds, ClientWidth, ClientHeight, FIT_MARGIN)
   else
     FView := DefaultView;
   Invalidate;
@@ -710,7 +710,7 @@ var
 begin
   FieldName := '';
   EdgeKey := '';
-  if HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), Found) then
+  if HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(POINT_HIT_RADIUS), Found) then
   begin
     FieldName := Found.LengthField;
     EdgeKey := Found.EdgeKey;
@@ -896,7 +896,7 @@ var
   Spec: TTransformSpec;
 begin
   At := ModelAt(X, Y);
-  Point := PointAt(FDocument.Pattern, At, FView.PixelsToMM(PointHitRadius));
+  Point := PointAt(FDocument.Pattern, At, FView.PixelsToMM(POINT_HIT_RADIUS));
   Spec := Default(TTransformSpec);
   Spec.Kind := FPickKind;
   Spec.Sources := FPickSources;
@@ -925,7 +925,7 @@ begin
   end
   else
   begin
-    Edge := EdgeAt(FDocument.Pattern, At, FView.PixelsToMM(EdgeHitRadius));
+    Edge := EdgeAt(FDocument.Pattern, At, FView.PixelsToMM(EDGE_HIT_RADIUS));
     if not Assigned(Edge) then
     begin
       ShowMessageText(rsCanvasPickEdge);
@@ -962,7 +962,7 @@ end;
 // Where a dragged callout tip would hang from
 procedure TPatternCanvas.UpdateTipSnap(X, Y: integer);
 begin
-  FTipSnap := FindSnap(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SnapRadius));
+  FTipSnap := FindSnap(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(SNAP_RADIUS));
   FTipClick := ModelAt(X, Y);
   FTipSnapShown := True;
   ShowMessageText(CalloutSnapDescription(FDocument.Pattern, FTipSnap, FTipClick));
@@ -1115,9 +1115,9 @@ begin
     Exit;
   end;
   // A callout's tip or a curve's handle lies over whatever else is there
-  FPressKey := CalloutTipAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius));
+  FPressKey := CalloutTipAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(POINT_HIT_RADIUS));
   FPressTip := FPressKey <> '';
-  FPressHandle := not FPressTip and HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FHandle);
+  FPressHandle := not FPressTip and HandleAt(FDocument.Pattern, FSelection, ModelAt(X, Y), FView.PixelsToMM(POINT_HIT_RADIUS), FHandle);
   if FPressHandle then
     FPressKey := FHandle.EdgeKey
   else if not FPressTip then
@@ -1140,7 +1140,7 @@ begin
       Invalidate;
     end;
     cmPressed:
-      if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DragThreshold then
+      if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DRAG_THRESHOLD then
         if FPressTip then
         begin
           FTipDragging := True;
@@ -1242,8 +1242,8 @@ var
   Index: integer;
 begin
   Result := FPressKey;
-  Here := Concat(NotesHere(X, Y), ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius)));
-  Again := FHasLastClick and (Max(Abs(X - FLastClickPos.X), Abs(Y - FLastClickPos.Y)) < DragThreshold) and (Length(FSelection) = 1);
+  Here := Concat(NotesHere(X, Y), ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(POINT_HIT_RADIUS), FView.PixelsToMM(EDGE_HIT_RADIUS)));
+  Again := FHasLastClick and (Max(Abs(X - FLastClickPos.X), Abs(Y - FLastClickPos.Y)) < DRAG_THRESHOLD) and (Length(FSelection) = 1);
   FLastClickPos := Point(X, Y);
   FHasLastClick := True;
   if ssAlt in Shift then
@@ -1271,7 +1271,7 @@ var
   Node: TEvalNode;
   Screen: TPoint;
 begin
-  Here := Concat(NotesHere(X, Y), ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(PointHitRadius), FView.PixelsToMM(EdgeHitRadius)));
+  Here := Concat(NotesHere(X, Y), ObjectsAt(FDocument.Pattern, ModelAt(X, Y), FView.PixelsToMM(POINT_HIT_RADIUS), FView.PixelsToMM(EDGE_HIT_RADIUS)));
   if Length(Here) = 0 then
     Exit;
   if not Assigned(FPickMenu) then
@@ -1304,11 +1304,11 @@ begin
   Result := True;
   Steps := WheelDelta / 120;
   if ssModifier in Shift then
-    FView.ZoomAt(Power(ZoomStep, Steps), Vec2(MousePos.X, MousePos.Y))
+    FView.ZoomAt(Power(ZOOM_STEP, Steps), Vec2(MousePos.X, MousePos.Y))
   else if ssShift in Shift then
-    FView.Pan(Steps * WheelPanPixels, 0)
+    FView.Pan(Steps * WHEEL_PAN_PIXELS, 0)
   else
-    FView.Pan(0, Steps * WheelPanPixels);
+    FView.Pan(0, Steps * WHEEL_PAN_PIXELS);
   Invalidate;
 end;
 
@@ -1329,9 +1329,9 @@ begin
         Exit;
       end;
   if ssShift in Shift then
-    Step := NudgeStepLarge
+    Step := NUDGE_STEP_LARGE
   else
-    Step := NudgeStep;
+    Step := NUDGE_STEP;
   case Key of
     VK_SPACE:
       FInput.SpaceDown := True;
@@ -1426,7 +1426,7 @@ begin
   FHorzBar := Value;
   FHorzBar.Kind := sbHorizontal;
   FHorzBar.OnScroll := @BarScroll;
-  FHorzBar.SmallChange := WheelPanPixels;
+  FHorzBar.SmallChange := WHEEL_PAN_PIXELS;
   FHorzBar.TabStop := False;
 end;
 
@@ -1435,7 +1435,7 @@ begin
   FVertBar := Value;
   FVertBar.Kind := sbVertical;
   FVertBar.OnScroll := @BarScroll;
-  FVertBar.SmallChange := WheelPanPixels;
+  FVertBar.SmallChange := WHEEL_PAN_PIXELS;
   FVertBar.TabStop := False;
 end;
 
@@ -1481,8 +1481,8 @@ begin
   begin
     TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MinY));
     BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MaxY));
-    ShowOnBar(FHorzBar, ScrollAxisFor(TopLeft.X - FitMargin, BottomRight.X + FitMargin, ClientWidth));
-    ShowOnBar(FVertBar, ScrollAxisFor(TopLeft.Y - FitMargin, BottomRight.Y + FitMargin, ClientHeight));
+    ShowOnBar(FHorzBar, ScrollAxisFor(TopLeft.X - FIT_MARGIN, BottomRight.X + FIT_MARGIN, ClientWidth));
+    ShowOnBar(FVertBar, ScrollAxisFor(TopLeft.Y - FIT_MARGIN, BottomRight.Y + FIT_MARGIN, ClientHeight));
   end
   else
   begin

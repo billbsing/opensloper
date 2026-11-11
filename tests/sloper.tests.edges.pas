@@ -75,8 +75,8 @@ uses
   SysUtils, Sloper.Core.Formula, Sloper.Core.Evaluator;
 
 const
-  SegmentLength = 154.88679880318648;
-  CrossingX = 15.99776046414837;
+  SEGMENT_LENGTH = 154.88679880318648;
+  CROSSING_X = 15.99776046414837;
 
 procedure TTestEdges.SetUp;
 begin
@@ -162,8 +162,8 @@ begin
   FPattern.Evaluate;
   AssertValidEdge('path', Path);
   AssertEquals('two segments', 2, Length(Path.Segments));
-  AssertNear('length', 2 * SegmentLength, Path.Length, 1e-6);
-  AssertNear('length property', 2 * SegmentLength, Path.PropertyValue('length'), 1e-6);
+  AssertNear('length', 2 * SEGMENT_LENGTH, Path.Length, 1e-6);
+  AssertNear('length property', 2 * SEGMENT_LENGTH, Path.PropertyValue('length'), 1e-6);
   AssertAt('half way is node B', Middle, 100, -100);
 end;
 
@@ -206,8 +206,8 @@ begin
   First := TPointObject(Check(FPattern.AddIntersectPoint('X1', Path.Key, Across.Key, False, False, 1)));
   Second := TPointObject(Check(FPattern.AddIntersectPoint('X2', Path.Key, Across.Key, False, False, 2)));
   FPattern.Evaluate;
-  AssertAt('on the first segment', First, CrossingX, -50);
-  AssertAt('on the second segment', Second, 200 - CrossingX, -50);
+  AssertAt('on the first segment', First, CROSSING_X, -50);
+  AssertAt('on the second segment', Second, 200 - CROSSING_X, -50);
 end;
 
 procedure TTestEdges.TestPathExtends;
@@ -384,8 +384,8 @@ begin
   FPattern.Evaluate;
   AssertValidEdge('first', First);
   AssertEquals('first is one segment', 1, Length(First.Segments));
-  AssertNear('first', SegmentLength, First.Length, 1e-6);
-  AssertNear('second', SegmentLength, Second.Length, 1e-6);
+  AssertNear('first', SEGMENT_LENGTH, First.Length, 1e-6);
+  AssertNear('second', SEGMENT_LENGTH, Second.Length, 1e-6);
 end;
 
 procedure TTestEdges.TestSplitPartAgain;

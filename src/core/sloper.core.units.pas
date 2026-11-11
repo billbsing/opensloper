@@ -33,15 +33,13 @@ type
     slStitchSize, slHoleSize, slButtonSize, slMatchSize);
 
 const
-  MeasureUnitNames: array[TMeasureUnit] of string = ('mm', 'cm', 'in');
-  MillimetresPerUnit: array[TMeasureUnit] of double = (1, 10, 25.4);
+  MEASURE_UNIT_NAMES: array[TMeasureUnit] of string = ('mm', 'cm', 'in');
+  MILLIMETRES_PER_UNIT: array[TMeasureUnit] of double = (1, 10, 25.4);
   // Dragged lengths are rounded to 0.1 mm, 0.1 cm or 0.01 in
-  DragUnitDecimals: array[TMeasureUnit] of integer = (1, 1, 2);
-  // Lengths are shown to 0.1 mm, 0.01 cm or 0.001 in
-  ReadoutDecimals: array[TMeasureUnit] of integer = (1, 2, 3);
+  DRAG_UNIT_DECIMALS: array[TMeasureUnit] of integer = (1, 1, 2);
   // Round values in each unit, as formula text, rather than converted mm:
   // an inch pattern starts with a 3/8 in allowance, not 0.3937 in
-  StartingLengths: array[TStartingLength, TMeasureUnit] of string = (
+  STARTING_LENGTHS: array[TStartingLength, TMeasureUnit] of string = (
     ('10', '1', '0.375'),     // piece allowance
     ('1', '0.1', '0.04'),     // seam tolerance
     ('50', '5', '2'),         // arc radius
@@ -55,14 +53,14 @@ const
 
 // The unit with this name (mm, cm or in, any case)
 function MeasureUnitFromName(const AName: string; out AUnit: TMeasureUnit): boolean;
-// Millimetres as shown in AUnit, to ReadoutDecimals and without trailing
+// Millimetres as shown in AUnit, to READOUT_DECIMALS and without trailing
 // zeros or "-0", and without the unit's name
 function FormatLength(Millimetres: double; AUnit: TMeasureUnit): string;
 // FormatLength followed by the unit's name: "1.25 in"
 function LengthWithUnit(Millimetres: double; AUnit: TMeasureUnit): string;
 // Millimetres as formula text in AUnit, rounded to Decimals, without "-0"
 function LengthFormulaText(Millimetres: double; AUnit: TMeasureUnit; Decimals: integer): string;
-// Rounded to DragUnitDecimals: 0.1 mm, 0.1 cm or 0.01 in
+// Rounded to DRAG_UNIT_DECIMALS: 0.1 mm, 0.1 cm or 0.01 in
 function RoundLengthFormulaText(Millimetres: double; AUnit: TMeasureUnit): string;
 
 implementation
@@ -70,13 +68,17 @@ implementation
 uses
   SysUtils, Math, Sloper.Core.JSON;
 
+const
+  // Lengths are shown to 0.1 mm, 0.01 cm or 0.001 in
+  READOUT_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 3);
+
 function MeasureUnitFromName(const AName: string; out AUnit: TMeasureUnit): boolean;
 var
   Candidate: TMeasureUnit;
 begin
   AUnit := muMillimetre;
   for Candidate := Low(TMeasureUnit) to High(TMeasureUnit) do
-    if SameText(AName, MeasureUnitNames[Candidate]) then
+    if SameText(AName, MEASURE_UNIT_NAMES[Candidate]) then
     begin
       AUnit := Candidate;
       Exit(True);
@@ -89,8 +91,8 @@ var
   Settings: TFormatSettings;
   Scale, Rounded: double;
 begin
-  Scale := IntPower(10, ReadoutDecimals[AUnit]);
-  Rounded := Round(Millimetres / MillimetresPerUnit[AUnit] * Scale) / Scale;
+  Scale := IntPower(10, READOUT_DECIMALS[AUnit]);
+  Rounded := Round(Millimetres / MILLIMETRES_PER_UNIT[AUnit] * Scale) / Scale;
   // No "-0"
   if Rounded = 0 then
     Rounded := 0;
@@ -101,7 +103,7 @@ end;
 
 function LengthWithUnit(Millimetres: double; AUnit: TMeasureUnit): string;
 begin
-  Result := FormatLength(Millimetres, AUnit) + ' ' + MeasureUnitNames[AUnit];
+  Result := FormatLength(Millimetres, AUnit) + ' ' + MEASURE_UNIT_NAMES[AUnit];
 end;
 
 // Dividing a whole number leaves no binary noise (135.20000000000002) for the
@@ -111,7 +113,7 @@ var
   Scale, Rounded: double;
 begin
   Scale := IntPower(10, Decimals);
-  Rounded := Round(Millimetres / MillimetresPerUnit[AUnit] * Scale) / Scale;
+  Rounded := Round(Millimetres / MILLIMETRES_PER_UNIT[AUnit] * Scale) / Scale;
   if Rounded = 0 then
     Rounded := 0;
   Result := FormatJSONFloat(Rounded);
@@ -119,7 +121,7 @@ end;
 
 function RoundLengthFormulaText(Millimetres: double; AUnit: TMeasureUnit): string;
 begin
-  Result := LengthFormulaText(Millimetres, AUnit, DragUnitDecimals[AUnit]);
+  Result := LengthFormulaText(Millimetres, AUnit, DRAG_UNIT_DECIMALS[AUnit]);
 end;
 
 end.

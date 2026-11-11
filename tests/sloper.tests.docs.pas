@@ -78,7 +78,7 @@ procedure TTestDocs.TestCommittedPagesAreCurrent;
 var
   Topic, Expected, Committed, Err: string;
 begin
-  for Topic in DocTopics do
+  for Topic in DOC_TOPICS do
   begin
     AssertTrue(Topic, ReferencePage(Topic, Expected));
     AssertTrue(Err, ReadTextFile(ConcatPaths([ReferenceFolder, StringReplace(DocTopicPath(Topic), '/', PathDelim, [rfReplaceAll])]),
@@ -113,7 +113,7 @@ var
 begin
   Parser := BuildCliParser;
   try
-    for Option in CliOptions do
+    for Option in CLI_OPTIONS do
       AssertNotNull(Option.Name, Parser.Options[Option.Name]);
   finally
     FreeAndNil(Parser);
@@ -126,7 +126,7 @@ var
   Command: TCliCommand;
 begin
   AssertTrue(ReferencePage('cli', Markdown));
-  for Command in CliCommands do
+  for Command in CLI_COMMANDS do
     AssertTrue(Command.Name, Pos('### ' + Command.Name + #10, Markdown) > 0);
 end;
 
@@ -135,14 +135,14 @@ var
   Python, Reserved: string;
   Method: TApiMethod;
 begin
-  AssertTrue(ReferencePage(PythonClientTopic, Python));
-  AssertEquals('opensloper.py', DocTopicPath(PythonClientTopic));
+  AssertTrue(ReferencePage(PYTHON_CLIENT_TOPIC, Python));
+  AssertEquals('opensloper.py', DocTopicPath(PYTHON_CLIENT_TOPIC));
   for Method in ApiMethods do
   begin
     AssertTrue(Method.Name, Pos('    def ' + Method.Name + '(', Python) > 0);
     AssertTrue(Method.Name, Pos('self._send("' + Method.Name + '"', Python) > 0);
     // The client's own methods keep their names
-    for Reserved in PythonClientReserved do
+    for Reserved in PYTHON_CLIENT_RESERVED do
       AssertFalse(Method.Name + ' is a name the Python client uses', SameText(Method.Name, Reserved));
   end;
   // A target is sent as id or name, and members as given

@@ -32,9 +32,9 @@ uses
 
 const
   // Dragged angles and ratios are rounded to these decimals; a length is
-  // rounded in its unit (DragUnitDecimals)
-  DragAngleDecimals = 1;
-  DragRatioDecimals = 4;
+  // rounded in its unit (DRAG_UNIT_DECIMALS)
+  DRAG_ANGLE_DECIMALS = 1;
+  DRAG_RATIO_DECIMALS = 4;
 
 type
   // A curve's handle: the end of its tangent line, set by an angle and a length.
@@ -113,7 +113,7 @@ begin
   // TNumberSuffix follows TMeasureUnit after nsNone
   if Suffix <> nsNone then
     Units := TMeasureUnit(Ord(Suffix) - 1);
-  Result := RoundLengthFormulaText(Millimetres, Units) + NumberSuffixNames[Suffix];
+  Result := RoundLengthFormulaText(Millimetres, Units) + NUMBER_SUFFIX_NAMES[Suffix];
 end;
 
 // The fields a drag of Point writes; empty when its type cannot be dragged
@@ -234,7 +234,7 @@ begin
     if TOffsetPoint(Point).Mode = omPolar then
       Exit(SetFields(Pattern, Point, ['length', 'angle'],
         [DraggedLength(Point, 'length', Sloper.Core.Geometry.Distance(Base, Target), Pattern.Units),
-        RoundedText(AngleBetween(Base, Target), DragAngleDecimals)], ErrorMessage));
+        RoundedText(AngleBetween(Base, Target), DRAG_ANGLE_DECIMALS)], ErrorMessage));
     Exit(SetFields(Pattern, Point, ['dx', 'dy'],
       [DraggedLength(Point, 'dx', Target.X - Base.X, Pattern.Units), DraggedLength(Point, 'dy', Target.Y - Base.Y, Pattern.Units)],
       ErrorMessage));
@@ -252,7 +252,7 @@ begin
   if Along.Mode = amLength then
     Result := SetFields(Pattern, Point, ['value'], [DraggedLength(Point, 'value', Distance, Pattern.Units)], ErrorMessage)
   else if EdgeLength > 0 then
-    Result := SetFields(Pattern, Point, ['value'], [RoundedText(Distance / EdgeLength, DragRatioDecimals)], ErrorMessage)
+    Result := SetFields(Pattern, Point, ['value'], [RoundedText(Distance / EdgeLength, DRAG_RATIO_DECIMALS)], ErrorMessage)
   else
     Result := True;
 end;
@@ -313,10 +313,10 @@ begin
     Exit(False);
   LengthText := DraggedLength(Edge, Handle.LengthField, Sloper.Core.Geometry.Distance(Handle.Anchor, Target), Pattern.Units);
   // At the anchor, whatever unit the length is written in
-  if LengthText = '0' + NumberSuffixNames[Edge.Field(Handle.LengthField).LiteralSuffix] then
+  if LengthText = '0' + NUMBER_SUFFIX_NAMES[Edge.Field(Handle.LengthField).LiteralSuffix] then
     Exit(SetFields(Pattern, Edge, [Handle.LengthField], [LengthText], ErrorMessage));
   Result := SetFields(Pattern, Edge, [Handle.AngleField, Handle.LengthField],
-    [RoundedText(NormalizeAngle(AngleBetween(Handle.Anchor, Target) - Handle.AngleOffset), DragAngleDecimals), LengthText],
+    [RoundedText(NormalizeAngle(AngleBetween(Handle.Anchor, Target) - Handle.AngleOffset), DRAG_ANGLE_DECIMALS), LengthText],
     ErrorMessage);
 end;
 

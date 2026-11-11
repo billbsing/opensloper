@@ -72,6 +72,9 @@ uses
   SysUtils, Math, Sloper.Core.Units, Sloper.Core.Geometry, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Variables,
   Sloper.Core.Piece, Sloper.Core.PieceDetect, Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.Transform, Sloper.Core.PatternFile;
 
+const
+  REGRESSION_PATTERN_NAMES: array[0..1] of string = ('skirt-block.sloper', 'skirt-pieces.sloper');
+
 procedure TTestUnitConvert.SetUp;
 begin
   FSet := TMeasurementSet.Create;
@@ -406,14 +409,12 @@ end;
 // The skirt patterns in tests/patterns, with their measurements: nothing for
 // the user to mark, and nothing moves on the way to cm and back
 procedure TTestUnitConvert.TestRegressionPatterns;
-const
-  PatternNames: array[0..1] of string = ('skirt-block.sloper', 'skirt-pieces.sloper');
 var
   Folder, PatternName, Err, Before: string;
 begin
   Folder := ConcatPaths([ExtractFileDir(ExpandFileName(ParamStr(0))), 'patterns']);
   AssertTrue(Err, FSet.LoadFromFile(ConcatPaths([Folder, 'skirt-small.slm']), Err));
-  for PatternName in PatternNames do
+  for PatternName in REGRESSION_PATTERN_NAMES do
   begin
     AssertTrue(Err, LoadPatternFromFile(FPattern, ConcatPaths([Folder, PatternName]), Err));
     FPattern.Evaluate;

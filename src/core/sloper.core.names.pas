@@ -31,7 +31,7 @@ type
 
 const
   // Formula functions; names may not use them
-  FormulaFunctionNames: array[0..10] of string = ('sin', 'cos', 'tan', 'asin',
+  FORMULA_FUNCTION_NAMES: array[0..10] of string = ('sin', 'cos', 'tan', 'asin',
     'acos', 'atan2', 'sqrt', 'abs', 'min', 'max', 'round');
 
 // Letters, digits and underscore, not starting with a digit, not reserved
@@ -97,7 +97,7 @@ function IsFunctionName(const Name: string): boolean;
 var
   FunctionName: string;
 begin
-  for FunctionName in FormulaFunctionNames do
+  for FunctionName in FORMULA_FUNCTION_NAMES do
     if SameText(FunctionName, Name) then
       Exit(True);
   Result := False;

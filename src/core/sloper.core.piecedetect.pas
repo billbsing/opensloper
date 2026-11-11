@@ -50,12 +50,12 @@ uses
 const
   // How far along an edge (in mm) its direction leaving a node is measured,
   // so curves that leave tangent to each other still sort the right way round
-  DirectionReach = 0.5;
+  DIRECTION_REACH = 0.5;
   // Sampling of a curve for the region's polygon
-  CurveStep = 5;
-  MinCurveSteps = 16;
+  CURVE_STEP = 5;
+  MIN_CURVE_STEPS = 16;
   // Limit on the search for closed paths, far above what a draft needs
-  MaxCycleSteps = 200000;
+  MAX_CYCLE_STEPS = 200000;
 
 type
   TEdgeList = specialize TList<TEdgeObject>;
@@ -153,7 +153,7 @@ begin
         Slot := 1;
         while (Slot < Count - 1) and (Result[Slot] < Position) do
           Inc(Slot);
-        if (Position - Result[Slot - 1] <= PieceJoinTolerance) or (Result[Slot] - Position <= PieceJoinTolerance) then
+        if (Position - Result[Slot - 1] <= PIECE_JOIN_TOLERANCE) or (Result[Slot] - Position <= PIECE_JOIN_TOLERANCE) then
           Continue;
         System.Insert(Position, Result, Slot);
         Inc(Count);
@@ -163,7 +163,7 @@ end;
 function TFaceFinder.NodeAt(const Point: TVec2): integer;
 begin
   for Result := 0 to High(FNodes) do
-    if PointsNear(FNodes[Result], Point, PieceJoinTolerance) then
+    if PointsNear(FNodes[Result], Point, PIECE_JOIN_TOLERANCE) then
       Exit;
   SetLength(FNodes, Length(FNodes) + 1);
   Result := High(FNodes);
@@ -194,7 +194,7 @@ begin
   EndNode := NodeAt(EndPos);
   if StartNode = EndNode then
     Exit;
-  Reach := Min(DirectionReach, (ToPos - FromPos) / 4);
+  Reach := Min(DIRECTION_REACH, (ToPos - FromPos) / 4);
   Count := Length(FArcs);
   SetLength(FArcs, Count + 2);
   SetArc(Count, FromPos, ToPos, StartNode, EndNode, StartPos, Edge.PointAtLength(FromPos + Reach));
@@ -305,7 +305,7 @@ begin
     Arc := FArcs[ArcIndex];
     Steps := 1;
     if not IsStraightEdge(Arc.Edge) then
-      Steps := Max(MinCurveSteps, Ceil(Abs(Arc.ToPos - Arc.FromPos) / CurveStep));
+      Steps := Max(MIN_CURVE_STEPS, Ceil(Abs(Arc.ToPos - Arc.FromPos) / CURVE_STEP));
     SetLength(Result, Count + Steps);
     for Step := 0 to Steps - 1 do
       Result[Count + Step] := Arc.Edge.PointAtLength(Arc.FromPos + (Arc.ToPos - Arc.FromPos) * Step / Steps);
@@ -355,7 +355,7 @@ begin
       if (FArcs[Other].FromNode <> FArcs[ArcIndex].ToNode) and (FArcs[Other].ToNode <> FArcs[ArcIndex].ToNode) then
       begin
         FArcs[Other].Edge.Locate(FNodes[FArcs[ArcIndex].ToNode], Position, Gap);
-        if Gap <= PieceJoinTolerance then
+        if Gap <= PIECE_JOIN_TOLERANCE then
           Exit(True);
       end;
 end;
@@ -389,7 +389,7 @@ var
     Next, Target: integer;
   begin
     Inc(Steps);
-    if Steps > MaxCycleSteps then
+    if Steps > MAX_CYCLE_STEPS then
       Exit;
     Target := FArcs[Arc].ToNode;
     System.Insert(Arc, Trail, Length(Trail));
@@ -423,8 +423,8 @@ end;
 
 function TFaceFinder.ArcIsWholeEdge(Arc: integer): boolean;
 begin
-  Result := (Min(FArcs[Arc].FromPos, FArcs[Arc].ToPos) <= PieceJoinTolerance) and
-    (Max(FArcs[Arc].FromPos, FArcs[Arc].ToPos) >= FArcs[Arc].Edge.Length - PieceJoinTolerance);
+  Result := (Min(FArcs[Arc].FromPos, FArcs[Arc].ToPos) <= PIECE_JOIN_TOLERANCE) and
+    (Max(FArcs[Arc].FromPos, FArcs[Arc].ToPos) >= FArcs[Arc].Edge.Length - PIECE_JOIN_TOLERANCE);
 end;
 
 // The path around Face, clockwise; False with the reason in ErrorMessage
@@ -491,7 +491,7 @@ begin
       Continue;
     if Length(CutPositions(Edge, Edges)) > 2 then
       Continue;
-    Polygon := Edge.Flatten(CurveStep / MinCurveSteps);
+    Polygon := Edge.Flatten(CURVE_STEP / MIN_CURVE_STEPS);
     if PointInPolygon(At, Polygon) and (Abs(SignedArea(Polygon)) < Size) then
     begin
       Size := Abs(SignedArea(Polygon));
@@ -524,7 +524,7 @@ begin
       SetLength(Path, 1);
       Path[0].EdgeKey := Closed.Key;
       // Pieces run clockwise
-      Path[0].Reversed := SignedArea(Closed.Flatten(CurveStep / MinCurveSteps)) > 0;
+      Path[0].Reversed := SignedArea(Closed.Flatten(CURVE_STEP / MIN_CURVE_STEPS)) > 0;
       Exit(True);
     end;
     if Length(Face) = 0 then

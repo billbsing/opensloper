@@ -98,11 +98,11 @@ uses
   Math, LCLIntf, Sloper.Core.Draft;
 
 const
-  FitMargin = 24;
-  DragThreshold = 3;
-  CaptionHeight = 13;
-  LabelHeight = 12;
-  MinNoteHeight = 6;
+  FIT_MARGIN = 24;
+  DRAG_THRESHOLD = 3;
+  CAPTION_HEIGHT = 13;
+  LABEL_HEIGHT = 12;
+  MIN_NOTE_HEIGHT = 6;
 
 function Desk: TBGRAPixel;
 begin
@@ -323,7 +323,7 @@ begin
       Invalidate;
     end;
     pmPressed:
-      if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DragThreshold then
+      if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DRAG_THRESHOLD then
       begin
         if FSelectedNote >= 0 then
           FDocument.BeginChange(rsPreviewMoveNote)
@@ -349,7 +349,7 @@ end;
 function TPreviewCanvas.DoMouseWheel(Shift: TShiftState; WheelDelta: integer; MousePos: TPoint): boolean;
 begin
   Result := True;
-  FView.ZoomAt(Power(PreviewZoomStep, WheelDelta / 120), Vec2(MousePos.X, MousePos.Y));
+  FView.ZoomAt(Power(PREVIEW_ZOOM_STEP, WheelDelta / 120), Vec2(MousePos.X, MousePos.Y));
   Invalidate;
 end;
 
@@ -415,7 +415,7 @@ begin
     FBitmap.DrawLineAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, LeftOutInk, 1.5);
     FBitmap.DrawLineAntialias(BottomRight.X, TopLeft.Y, TopLeft.X, BottomRight.Y, LeftOutInk, 1.5);
   end;
-  FBitmap.FontHeight := CaptionHeight;
+  FBitmap.FontHeight := CAPTION_HEIGHT;
   FBitmap.TextOut(TopLeft.X + 4, TopLeft.Y + 2, Page.Caption, EdgeInk);
 end;
 
@@ -451,7 +451,7 @@ begin
   end;
   for Line in Shape.Lines do
   begin
-    if RoleDashes[Line.Role][0] > 0 then
+    if ROLE_DASHES[Line.Role][0] > 0 then
       FBitmap.PenStyle := psDash;
     FBitmap.DrawPolyLineAntialias(ScreenPoints(Line.Points), Ink, 1);
     FBitmap.PenStyle := psSolid;
@@ -459,7 +459,7 @@ begin
   if not Shape.ShowLabel then
     Exit;
   Spot := FView.ToScreen(Shape.LabelAt);
-  FBitmap.FontHeight := LabelHeight;
+  FBitmap.FontHeight := LABEL_HEIGHT;
   FBitmap.TextOut(Spot.X, Spot.Y, Shape.Caption, Ink);
 end;
 
@@ -492,7 +492,7 @@ var
       if Item.Leader = nlDot then
       begin
         Spot := FView.ToScreen(Item.Tip);
-        FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, LeaderDotRadius * FView.Scale + 0.5, LeaderDotRadius * FView.Scale + 0.5, Ink);
+        FBitmap.FillEllipseAntialias(Spot.X, Spot.Y, LEADER_DOT_RADIUS * FView.Scale + 0.5, LEADER_DOT_RADIUS * FView.Scale + 0.5, Ink);
       end;
     end;
     if Item.Boxed then
@@ -502,7 +502,7 @@ var
       FBitmap.FillRectAntialias(First.X, First.Y, Last.X, Last.Y, PaperInk);
     end;
     Lines := TextLines(ExpandFields(Item.Text, Values));
-    FBitmap.FontHeight := Max(MinNoteHeight, Round(LineHeight(Item.Size) * FView.Scale));
+    FBitmap.FontHeight := Max(MIN_NOTE_HEIGHT, Round(LineHeight(Item.Size) * FView.Scale));
     for LineIndex := 0 to High(Lines) do
     begin
       Spot := FView.ToScreen(Vec2(NoteLineLeft(Item, Values, Lines[LineIndex]), Item.Y));
@@ -538,7 +538,7 @@ begin
       Whole.MaxX := Max(Whole.MaxX, Page.Area.MaxX);
       Whole.MaxY := Max(Whole.MaxY, Page.Area.MaxY);
     end;
-    FView.Fit(Whole, ClientWidth, ClientHeight, FitMargin);
+    FView.Fit(Whole, ClientWidth, ClientHeight, FIT_MARGIN);
     FNeedsFit := False;
   end;
   FBitmap.Fill(Desk);

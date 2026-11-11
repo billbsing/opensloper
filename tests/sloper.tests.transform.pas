@@ -158,7 +158,7 @@ begin
   Transform := Rotate([A.Key], Pivot.Key, '0');
   FPattern.Evaluate;
   AssertPointsNear('on top to begin with', Vec2(10, 0), Copied('A_r1'));
-  AssertTrue(FPattern.LastError, FPattern.SetFormula(Transform, FieldAngle, '180'));
+  AssertTrue(FPattern.LastError, FPattern.SetFormula(Transform, FIELD_ANGLE, '180'));
   FPattern.Evaluate;
   AssertPointsNear('follows', Vec2(-10, 0), Copied('A_r1'));
 end;

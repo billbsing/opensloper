@@ -101,6 +101,9 @@ uses
   Sloper.Core.PatternFile, Sloper.Core.PatternCheck, Sloper.Core.PieceDetect, Sloper.Core.Drag, Sloper.Core.Bounds, Sloper.Core.TextFields,
   Sloper.Core.Measurements, Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Snap, Sloper.UI.Scene, Sloper.UI.ObjectList, Sloper.Output.DraftSVG;
 
+const
+  ANCHOR_PATTERN_HEAD = '{"format": "pattern", "version": 1, "objects": [{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, ';
+
 procedure TTestNotes.SetUp;
 begin
   FPattern := TPattern.Create;
@@ -270,7 +273,7 @@ begin
   FPattern.Evaluate;
   Note := TNoteObject(FPattern.FindNode(Key));
   AssertPointsNear('same place', Vec2(12.5, 23), Note.Position);
-  AssertEquals('x', '12.5', FPattern.FormulaText(Note, NoteXField));
+  AssertEquals('x', '12.5', FPattern.FormulaText(Note, NOTE_X_FIELD));
   AssertFalse('already free', FPattern.MakeNoteFree(Note));
 end;
 
@@ -304,7 +307,7 @@ begin
   Note := FPattern.AddNote('', 'x', naFree, '', '', '0', '0', 14);
   AssertNear('given size', 14, Note.Size);
   AssertFalse(FPattern.SetNoteSize(Note, -1));
-  AssertFalse(FPattern.SetNoteSize(Note, MaxNoteSize + 1));
+  AssertFalse(FPattern.SetNoteSize(Note, MAX_NOTE_SIZE + 1));
   AssertTrue(FPattern.SetNoteSize(Note, 8));
   AssertNear('changed', 8, Note.Size);
 end;
@@ -334,8 +337,8 @@ begin
   FPattern.Evaluate;
   AssertTrue(Reason, DragNote(FPattern, Note, Vec2(25.04, 12), Reason));
   FPattern.Evaluate;
-  AssertEquals('dx', '15', FPattern.FormulaText(Note, NoteDxField));
-  AssertEquals('dy', '-8', FPattern.FormulaText(Note, NoteDyField));
+  AssertEquals('dx', '15', FPattern.FormulaText(Note, NOTE_DX_FIELD));
+  AssertEquals('dy', '-8', FPattern.FormulaText(Note, NOTE_DY_FIELD));
   AssertPointsNear('moved', Vec2(25, 12), Note.Position);
 end;
 
@@ -350,7 +353,7 @@ begin
   FPattern.Evaluate;
   AssertFalse(DragNote(FPattern, Note, Vec2(0, 0), Reason));
   AssertTrue(Reason <> '');
-  AssertEquals('kept', 'A.x / 2', FPattern.FormulaText(Note, NoteDxField));
+  AssertEquals('kept', 'A.x / 2', FPattern.FormulaText(Note, NOTE_DX_FIELD));
 end;
 
 procedure TTestNotes.TestDragFreeNote;
@@ -386,27 +389,25 @@ begin
   AssertNear('size', 12, Note.Size);
   AssertFalse('screen only', Note.Print);
   AssertTrue(Note.Anchor = naEdge);
-  AssertEquals('position', '0.5', FLoaded.FormulaText(Note, NotePositionField));
+  AssertEquals('position', '0.5', FLoaded.FormulaText(Note, NOTE_POSITION_FIELD));
   AssertEquals('two lines', 'On a point' + #10 + 'second line', TNoteObject(FLoaded.FindObject('Note')).StoredText);
 end;
 
 procedure TTestNotes.TestLoadRefusesBadAnchor;
-const
-  Head = '{"format": "pattern", "version": 1, "objects": [{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, ';
 var
   Err: string;
 begin
-  AssertFalse('point as edge', LoadPatternFromText(FLoaded, Head +
+  AssertFalse('point as edge', LoadPatternFromText(FLoaded, ANCHOR_PATTERN_HEAD +
     '{"id": 2, "type": "note", "name": "N", "anchor": {"edge": 1, "position": "0"}, "dx": "0", "dy": "0", "text": "x"}]}', Err));
-  AssertFalse('later object', LoadPatternFromText(FLoaded, Head +
+  AssertFalse('later object', LoadPatternFromText(FLoaded, ANCHOR_PATTERN_HEAD +
     '{"id": 2, "type": "note", "name": "N", "anchor": {"point": 5}, "dx": "0", "dy": "0", "text": "x"}]}', Err));
-  AssertFalse('two anchors', LoadPatternFromText(FLoaded, Head +
+  AssertFalse('two anchors', LoadPatternFromText(FLoaded, ANCHOR_PATTERN_HEAD +
     '{"id": 2, "type": "note", "name": "N", "anchor": {"point": 1, "piece": 1}, "dx": "0", "dy": "0", "text": "x"}]}', Err));
-  AssertFalse('no text', LoadPatternFromText(FLoaded, Head +
+  AssertFalse('no text', LoadPatternFromText(FLoaded, ANCHOR_PATTERN_HEAD +
     '{"id": 2, "type": "note", "name": "N", "anchor": {"point": 1}, "dx": "0", "dy": "0"}]}', Err));
-  AssertTrue(Err, LoadPatternFromText(FLoaded, Head +
+  AssertTrue(Err, LoadPatternFromText(FLoaded, ANCHOR_PATTERN_HEAD +
     '{"id": 2, "type": "note", "name": "N", "anchor": {"point": 1}, "dx": "0", "dy": "0", "text": "x"}]}', Err));
-  AssertNear('default size', DefaultNoteSize, TNoteObject(FLoaded.FindObject('N')).Size);
+  AssertNear('default size', DEFAULT_NOTE_SIZE, TNoteObject(FLoaded.FindObject('N')).Size);
   AssertTrue('prints by default', TNoteObject(FLoaded.FindObject('N')).Print);
 end;
 
@@ -482,13 +483,13 @@ begin
   Front := Square('Front', 0, 100, TopF);
   Back := Square('Back', 200, 100, TopB);
   // On Back's corner, its text over Front
-  Callout := FPattern.AddNote('', 'a', naPoint, TEdgeObject(FPattern.FindNode(TopB)).StartKey, '', '-150', '50', DefaultNoteSize, True, nlArrow);
+  Callout := FPattern.AddNote('', 'a', naPoint, TEdgeObject(FPattern.FindNode(TopB)).StartKey, '', '-150', '50', DEFAULT_NOTE_SIZE, True, nlArrow);
   FPattern.Evaluate;
   Pieces := FPattern.NotePieces(Callout);
   AssertEquals('only Back', 1, Length(Pieces));
   AssertTrue(Pieces[0] = Back);
   // Pointing inside Front at a point no piece uses
-  Pointing := FPattern.AddNote('', 'b', naPoint, Pt('Inside', 50, 50).Key, '', '300', '0', DefaultNoteSize, True, nlDot);
+  Pointing := FPattern.AddNote('', 'b', naPoint, Pt('Inside', 50, 50).Key, '', '300', '0', DEFAULT_NOTE_SIZE, True, nlDot);
   FPattern.Evaluate;
   Pieces := FPattern.NotePieces(Pointing);
   AssertEquals('where its tip is', 1, Length(Pieces));
@@ -502,7 +503,7 @@ var
   Notes: TNoteObjectArray;
 begin
   Front := Square('Front', 0, 100, Top);
-  FPattern.AddNote('Shown', 'a', naPiece, Front.Key, '', '0', '0', DefaultNoteSize, False);
+  FPattern.AddNote('Shown', 'a', naPiece, Front.Key, '', '0', '0', DEFAULT_NOTE_SIZE, False);
   FPattern.AddNote('Printed', 'b', naPiece, Front.Key, '', '0', '0');
   FPattern.Evaluate;
   Notes := FPattern.PieceNotes(Front);
@@ -531,7 +532,7 @@ var
 begin
   Front := Square('Front', 0, 100, Top);
   FPattern.AddNote('Loose', 'a', naFree, '', '', '500', '500');
-  FPattern.AddNote('Private', 'b', naFree, '', '', '500', '500', DefaultNoteSize, False);
+  FPattern.AddNote('Private', 'b', naFree, '', '', '500', '500', DEFAULT_NOTE_SIZE, False);
   FPattern.AddNote('Fine', 'c', naPiece, Front.Key, '', '0', '0');
   FPattern.Evaluate;
   AssertTrue('loose printing note', Pos('Loose', Problems) > 0);
@@ -590,19 +591,19 @@ begin
   AssertNotNull(FPattern.LastError, Note);
   AssertTrue('point anchor', Note.Anchor = naPoint);
   AssertEquals('the corner', A.Key, Note.AnchorKey);
-  AssertEquals('dx', '1', FPattern.FormulaText(Note, NoteDxField));
+  AssertEquals('dx', '1', FPattern.FormulaText(Note, NOTE_DX_FIELD));
   // On an edge, as a ratio along it
   Snap := FindSnap(FPattern, Vec2(25, 1), 3);
   AssertTrue('snaps to the top', Snap.Kind = snEdge);
   Note := NoteFromSnap(FPattern, Snap, Vec2(25, 1), 'b');
   AssertTrue('edge anchor', Note.Anchor = naEdge);
   AssertEquals('the top', Top, Note.AnchorKey);
-  AssertEquals('a quarter along', '0.25', FPattern.FormulaText(Note, NotePositionField));
-  AssertEquals('dy', '1', FPattern.FormulaText(Note, NoteDyField));
+  AssertEquals('a quarter along', '0.25', FPattern.FormulaText(Note, NOTE_POSITION_FIELD));
+  AssertEquals('dy', '1', FPattern.FormulaText(Note, NOTE_DY_FIELD));
   // Inside the piece, away from its edges
   Snap := FindSnap(FPattern, Vec2(30, 60), 3);
   Note := NoteFromSnap(FPattern, Snap, Vec2(30, 60), 'c');
-  AssertTrue('piece anchor ' + NoteAnchorNames[Note.Anchor], Note.Anchor = naPiece);
+  AssertTrue('piece anchor ' + NOTE_ANCHOR_NAMES[Note.Anchor], Note.Anchor = naPiece);
   AssertEquals('the piece', Front.Key, Note.AnchorKey);
   FPattern.Evaluate;
   AssertPointsNear('where it was clicked', Vec2(30, 60), Note.Position, 0.06);
@@ -610,7 +611,7 @@ begin
   Snap := FindSnap(FPattern, Vec2(300, 300), 3);
   Note := NoteFromSnap(FPattern, Snap, Vec2(300, 300), 'd');
   AssertTrue('free', Note.Anchor = naFree);
-  AssertEquals('x', '300', FPattern.FormulaText(Note, NoteXField));
+  AssertEquals('x', '300', FPattern.FormulaText(Note, NOTE_X_FIELD));
 end;
 
 procedure TTestNotes.TestNotesAtTopmostAndHidden;
@@ -662,7 +663,7 @@ var
 begin
   Pt('A', 0, 0);
   FPattern.AddNote('', 'For {pattern.name}' + #10 + 'Line <two>', naFree, '', '', '10', '10');
-  FPattern.AddNote('', 'Mine', naFree, '', '', '10', '30', DefaultNoteSize, False);
+  FPattern.AddNote('', 'Mine', naFree, '', '', '10', '30', DEFAULT_NOTE_SIZE, False);
   FPattern.Evaluate;
   Options := DefaultDraftSVGOptions;
   Options.PatternFileName := 'skirt.sloper';
@@ -682,7 +683,7 @@ var
   ErrorPos: integer;
 begin
   AssertTrue(SplitDraftValues('a {={12}.x + 1} b {= 2 }', Template, Expressions, ErrorPos));
-  AssertEquals('a ' + ValueMark + ' b ' + ValueMark, Template);
+  AssertEquals('a ' + VALUE_MARK + ' b ' + VALUE_MARK, Template);
   AssertEquals(2, Length(Expressions));
   AssertEquals('braces inside counted', '{12}.x + 1', Expressions[0]);
   AssertEquals('trimmed', '2', Expressions[1]);
@@ -752,7 +753,7 @@ begin
   Pt('A', 0, 0);
   Note := FPattern.AddNote('', 'Before', naFree, '', '', '0', '0');
   AssertFalse('unknown name', FPattern.SetNoteText(Note, 'x {=Nope.length}'));
-  AssertEquals('names the field', NoteTextField, FPattern.LastErrorField);
+  AssertEquals('names the field', NOTE_TEXT_FIELD, FPattern.LastErrorField);
   AssertEquals('kept', 'Before', Note.StoredText);
   AssertFalse('unclosed', FPattern.SetNoteText(Note, 'x {=A.x'));
   AssertFalse('itself', FPattern.SetNoteText(Note, '{=Note.x}'));
@@ -808,10 +809,10 @@ var
   Note: TNoteObject;
 begin
   A := Pt('A', 0, 0);
-  AssertNull('free callout', FPattern.AddNote('', 'x', naFree, '', '', '0', '0', DefaultNoteSize, True, nlArrow));
+  AssertNull('free callout', FPattern.AddNote('', 'x', naFree, '', '', '0', '0', DEFAULT_NOTE_SIZE, True, nlArrow));
   Note := FPattern.AddNote('', 'x', naFree, '', '', '0', '0');
   AssertFalse('free note cannot get a leader', FPattern.SetNoteLeader(Note, nlDot));
-  Note := FPattern.AddNote('', 'x', naPoint, A.Key, '', '10', '0', DefaultNoteSize, True, nlArrow);
+  Note := FPattern.AddNote('', 'x', naPoint, A.Key, '', '10', '0', DEFAULT_NOTE_SIZE, True, nlArrow);
   AssertNotNull(FPattern.LastError, Note);
   FPattern.Evaluate;
   AssertTrue(FPattern.MakeNoteFree(Note));
@@ -825,7 +826,7 @@ var
   Text: string;
 begin
   A := Pt('A', 0, 0);
-  Note := FPattern.AddNote('Call', 'x', naPoint, A.Key, '', '10', '0', DefaultNoteSize, True, nlDot);
+  Note := FPattern.AddNote('Call', 'x', naPoint, A.Key, '', '10', '0', DEFAULT_NOTE_SIZE, True, nlDot);
   FPattern.SetNoteAlign(Note, taCentre);
   FPattern.SetNoteBoxed(Note, True);
   FPattern.AddNote('Plain', 'y', naFree, '', '', '0', '0');
@@ -854,12 +855,12 @@ var
 begin
   A := Pt('A', 0, 0);
   Line := FPattern.AddLine(A.Key, Pt('B', 100, 0).Key);
-  Note := FPattern.AddNote('', 'x', naPoint, A.Key, '', '10', '5', DefaultNoteSize, True, nlArrow);
+  Note := FPattern.AddNote('', 'x', naPoint, A.Key, '', '10', '5', DEFAULT_NOTE_SIZE, True, nlArrow);
   FPattern.Evaluate;
   AssertTrue(FPattern.LastError, FPattern.SetNoteAnchor(Note, naEdge, Line.Key, 0.5));
   AssertTrue(Note.Anchor = naEdge);
-  AssertEquals('dx', '-40', FPattern.FormulaText(Note, NoteDxField));
-  AssertEquals('position', '0.5', FPattern.FormulaText(Note, NotePositionField));
+  AssertEquals('dx', '-40', FPattern.FormulaText(Note, NOTE_DX_FIELD));
+  AssertEquals('position', '0.5', FPattern.FormulaText(Note, NOTE_POSITION_FIELD));
   FPattern.Evaluate;
   AssertPointsNear('text stays', Vec2(10, 5), Note.Position);
   AssertPointsNear('tip moved', Vec2(50, 0), Note.AnchorPosition);
@@ -896,7 +897,7 @@ begin
   AssertEquals('a dot is drawn apart', 1, Length(LeaderStrokes(Vec2(10, 2), Vec2(20, 2), nlDot)));
   Strokes := LeaderStrokes(Vec2(10, 2), Vec2(20, 2), nlArrow);
   AssertEquals('line and head', 3, Length(Strokes));
-  AssertNear('head length', LeaderArrowLength, Distance(Strokes[1].P1, Strokes[1].P2));
+  AssertNear('head length', LEADER_ARROW_LENGTH, Distance(Strokes[1].P1, Strokes[1].P2));
   AssertTrue('head points back', Strokes[1].P2.X < 20);
   AssertTrue('one each side', (Strokes[1].P2.Y - 2) * (Strokes[2].P2.Y - 2) < 0);
   AssertEquals('dot outline', 12, Length(LeaderDot(Vec2(0, 0))));
@@ -956,7 +957,7 @@ var
   Note, Plain: TNoteObject;
 begin
   A := Pt('A', 0, 0);
-  Note := FPattern.AddNote('', 'x', naPoint, A.Key, '', '20', '20', DefaultNoteSize, True, nlArrow);
+  Note := FPattern.AddNote('', 'x', naPoint, A.Key, '', '20', '20', DEFAULT_NOTE_SIZE, True, nlArrow);
   Plain := FPattern.AddNote('', 'y', naPoint, A.Key, '', '40', '20');
   FPattern.Evaluate;
   AssertEquals('selected callout', Note.Key, CalloutTipAt(FPattern, [Plain.Key, Note.Key], Vec2(0.5, 0), 1));
@@ -970,7 +971,7 @@ var
   Note: TNoteObject;
 begin
   A := Pt('A', 0, 0);
-  Note := FPattern.AddNote('', 'At {=A.x}', naPoint, A.Key, '', '20', '20', DefaultNoteSize, True, nlArrow);
+  Note := FPattern.AddNote('', 'At {=A.x}', naPoint, A.Key, '', '20', '20', DEFAULT_NOTE_SIZE, True, nlArrow);
   AssertEquals('Callout', TypeCaption(Note));
   AssertEquals('Value 1', FieldCaption(Note.ValueField(0)));
 end;
@@ -982,7 +983,7 @@ var
   Text: string;
 begin
   A := Pt('A', 0, 0);
-  Note := FPattern.AddNote('', 'Centred', naPoint, A.Key, '', '20', '20', DefaultNoteSize, True, nlDot);
+  Note := FPattern.AddNote('', 'Centred', naPoint, A.Key, '', '20', '20', DEFAULT_NOTE_SIZE, True, nlDot);
   FPattern.SetNoteBoxed(Note, True);
   FPattern.SetNoteAlign(Note, taCentre);
   FPattern.Evaluate;

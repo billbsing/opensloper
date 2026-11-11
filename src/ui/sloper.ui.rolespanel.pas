@@ -96,15 +96,15 @@ uses
   Math, Sloper.UI.Properties;
 
 const
-  Gap = 6;
-  SwatchWidth = 68;
-  RowHeight96 = 30;
+  GAP = 6;
+  SWATCH_WIDTH = 68;
+  ROW_HEIGHT96 = 30;
 
 constructor TRolesPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   BevelOuter := bvNone;
-  BorderSpacing.Around := Gap;
+  BorderSpacing.Around := GAP;
 end;
 
 // Once on a form, as sizes scale with the screen
@@ -132,26 +132,26 @@ begin
 
   for Role := High(TEdgeRole) downto Low(TEdgeRole) do
   begin
-    if not (Role in HideableRoles) then
+    if not (Role in HIDEABLE_ROLES) then
       Continue;
     Row := TPanel.Create(Self);
     Row.Parent := FViewGroup;
     Row.Align := alTop;
     Row.BevelOuter := bvNone;
-    Row.Height := Scale96ToForm(RowHeight96);
+    Row.Height := Scale96ToForm(ROW_HEIGHT96);
     Solo := AddButton(Row, rsRolesSolo, rsRolesSoloHint, @SoloClick);
     Solo.Align := alRight;
     Solo.Tag := Ord(Role);
     Swatch := TPaintBox.Create(Self);
     Swatch.Parent := Row;
     Swatch.Align := alLeft;
-    Swatch.Width := Scale96ToForm(SwatchWidth);
+    Swatch.Width := Scale96ToForm(SWATCH_WIDTH);
     Swatch.Tag := Ord(Role);
     Swatch.OnPaint := @SwatchPaint;
     FChecks[Role] := TCheckBox.Create(Self);
     FChecks[Role].Parent := Row;
     FChecks[Role].Align := alClient;
-    FChecks[Role].BorderSpacing.Left := Gap;
+    FChecks[Role].BorderSpacing.Left := GAP;
     FChecks[Role].Caption := RoleCaption(Role);
     FChecks[Role].Tag := Ord(Role);
     FChecks[Role].OnClick := @CheckClick;
@@ -212,7 +212,7 @@ begin
   Result.Hint := AHint;
   Result.ShowHint := True;
   Result.AutoSize := True;
-  Result.BorderSpacing.Right := Gap;
+  Result.BorderSpacing.Right := GAP;
   Result.OnClick := AHandler;
 end;
 
@@ -287,7 +287,7 @@ procedure TRolesPanel.SetHidden(Roles: TEdgeRoles);
 begin
   if not Assigned(FDocument) then
     Exit;
-  FDocument.Pattern.View.HiddenRoles := Roles * HideableRoles;
+  FDocument.Pattern.View.HiddenRoles := Roles * HIDEABLE_ROLES;
   FDocument.ViewChanged;
 end;
 
@@ -309,7 +309,7 @@ end;
 
 procedure TRolesPanel.SoloClick(Sender: TObject);
 begin
-  SetHidden(HideableRoles - [TEdgeRole(TComponent(Sender).Tag)]);
+  SetHidden(HIDEABLE_ROLES - [TEdgeRole(TComponent(Sender).Tag)]);
 end;
 
 procedure TRolesPanel.ShowAllClick(Sender: TObject);
@@ -319,7 +319,7 @@ end;
 
 procedure TRolesPanel.HideAllClick(Sender: TObject);
 begin
-  SetHidden(HideableRoles);
+  SetHidden(HIDEABLE_ROLES);
 end;
 
 procedure TRolesPanel.PresetChange(Sender: TObject);
@@ -379,13 +379,13 @@ begin
   Box.Canvas.FillRect(Box.ClientRect);
   Role := TEdgeRole(Box.Tag);
   Middle := Box.Height div 2;
-  if RoleColors[Role] = '' then
+  if ROLE_COLORS[Role] = '' then
     Box.Canvas.Pen.Color := clGray
   else
-    Box.Canvas.Pen.Color := RGBToColor(StrToInt('$' + Copy(RoleColors[Role], 2, 2)), StrToInt('$' + Copy(RoleColors[Role], 4, 2)),
-      StrToInt('$' + Copy(RoleColors[Role], 6, 2)));
+    Box.Canvas.Pen.Color := RGBToColor(StrToInt('$' + Copy(ROLE_COLORS[Role], 2, 2)), StrToInt('$' + Copy(ROLE_COLORS[Role], 4, 2)),
+      StrToInt('$' + Copy(ROLE_COLORS[Role], 6, 2)));
   Box.Canvas.Pen.Width := Max(1, Scale96ToForm(2) * 2);
-  if (Role = erConstruction) or (RoleDashes[Role][0] > 0) then
+  if (Role = erConstruction) or (ROLE_DASHES[Role][0] > 0) then
   begin
     Box.Canvas.Pen.Width := 4;
     Box.Canvas.Pen.Style := psDash;

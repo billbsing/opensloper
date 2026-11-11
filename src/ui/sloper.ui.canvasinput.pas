@@ -63,6 +63,9 @@ function IsPlainKey(Shift: TShiftState): boolean;
 
 implementation
 
+const
+  NOT_MODIFIERS = [ssLeft, ssRight, ssMiddle, ssDouble, ssTriple, ssQuad, ssExtra1, ssExtra2, ssCaps, ssNum, ssScroll];
+
 function TCanvasInput.Busy: boolean;
 begin
   Result := Mode <> cmIdle;
@@ -97,10 +100,8 @@ begin
 end;
 
 function IsPlainKey(Shift: TShiftState): boolean;
-const
-  NotModifiers = [ssLeft, ssRight, ssMiddle, ssDouble, ssTriple, ssQuad, ssExtra1, ssExtra2, ssCaps, ssNum, ssScroll];
 begin
-  Result := Shift - NotModifiers = [];
+  Result := Shift - NOT_MODIFIERS = [];
 end;
 
 end.

@@ -134,10 +134,10 @@ uses
 
 const
   // A new arc's sweep, as a starting point for typing the real values; its
-  // radius and other starting lengths are per unit (StartingLengths)
-  NewArcSweep = '90';
+  // radius and other starting lengths are per unit (STARTING_LENGTHS)
+  NEW_ARC_SWEEP = '90';
   // A new repeat's count, to be changed in the properties
-  NewRepeatCount = '3';
+  NEW_REPEAT_COUNT = '3';
 
 function Refused(const Reason: string): TSelectionEdit;
 begin
@@ -363,7 +363,7 @@ begin
   if not (Node is TPointObject) then
     Exit(Refused(rsSelectionPickCentre));
   Document.BeginChange(rsSelectionAddArc);
-  Added := Document.Pattern.AddArc(Document.Pattern.UsePoint(Node.Key), StartingLengths[slArcRadius, Document.Pattern.Units], '0', NewArcSweep, Role);
+  Added := Document.Pattern.AddArc(Document.Pattern.UsePoint(Node.Key), STARTING_LENGTHS[slArcRadius, Document.Pattern.Units], '0', NEW_ARC_SWEEP, Role);
   Result := CommitSelecting(Document, Assigned(Added), KeyOf(Added));
 end;
 
@@ -377,7 +377,7 @@ begin
   Edges := EdgeKeys(Document.Pattern, Selection);
   if (Length(Edges) = 0) or (Length(Edges) <> Length(Selection)) then
     Exit(Refused(rsSelectionPickEdgeToOffset));
-  Distance := StartingLengths[slOffsetDistance, Document.Pattern.Units];
+  Distance := STARTING_LENGTHS[slOffsetDistance, Document.Pattern.Units];
   Document.BeginChange(rsSelectionAddOffset);
   Added := nil;
   if Length(Edges) = 1 then
@@ -406,7 +406,7 @@ begin
   Document.BeginChange(rsSelectionAddOffset);
   Added := nil;
   if Document.Pattern.PieceRun(Piece, Edges, Inside, Run, Side) then
-    Added := Document.Pattern.AddOffsetRun(Run, StartingLengths[slOffsetDistance, Document.Pattern.Units], Side, Role);
+    Added := Document.Pattern.AddOffsetRun(Run, STARTING_LENGTHS[slOffsetDistance, Document.Pattern.Units], Side, Role);
   Result := CommitSelecting(Document, Assigned(Added), KeyOf(Added));
 end;
 
@@ -487,7 +487,7 @@ begin
     (Document.Pattern.FindNode(Selection[1]) is TEdgeObject) then
     Exit(Refused(rsSelectionPickCornerEdges));
   Document.BeginChange(rsSelectionRoundCorner);
-  Added := Document.Pattern.AddRoundCorner(Selection[0], Selection[1], StartingLengths[slCornerRadius, Document.Pattern.Units]);
+  Added := Document.Pattern.AddRoundCorner(Selection[0], Selection[1], STARTING_LENGTHS[slCornerRadius, Document.Pattern.Units]);
   Result := CommitSelecting(Document, Assigned(Added), KeyOf(Added));
 end;
 
@@ -510,9 +510,9 @@ begin
   Document.BeginChange(rsSelectionAddRepeat);
   // A repeat's own point between them is given an ID, as anything using it is
   if Length(Edges) = 1 then
-    Added := Pattern.AddRepeatOnEdge('', Edges[0], NewRepeatCount, True)
+    Added := Pattern.AddRepeatOnEdge('', Edges[0], NEW_REPEAT_COUNT, True)
   else
-    Added := Pattern.AddRepeatBetween('', Pattern.UsePoint(Points[0]), Pattern.UsePoint(Points[1]), NewRepeatCount, True);
+    Added := Pattern.AddRepeatBetween('', Pattern.UsePoint(Points[0]), Pattern.UsePoint(Points[1]), NEW_REPEAT_COUNT, True);
   AddedKey := '';
   if Assigned(Added) then
     AddedKey := Added.Key;
@@ -581,8 +581,8 @@ begin
   end;
   Document.BeginChange(rsSelectionAddMarking);
   if Kind = mkStitchHoles then
-    Done := Document.Pattern.AddStitchMarking(Piece, Target, StartingLengths[slStitchSpacing, Document.Pattern.Units],
-      StartingLengths[slStitchSize, Document.Pattern.Units])
+    Done := Document.Pattern.AddStitchMarking(Piece, Target, STARTING_LENGTHS[slStitchSpacing, Document.Pattern.Units],
+      STARTING_LENGTHS[slStitchSize, Document.Pattern.Units])
   else if Document.Pattern.FindNode(Target) is TEdgeObject then
     Done := Document.Pattern.AddLineMarking(Piece, Target)
   else

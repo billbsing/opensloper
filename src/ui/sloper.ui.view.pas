@@ -29,9 +29,9 @@ uses
   Sloper.Core.Geometry;
 
 const
-  MinScale = 0.02;   // pixels per mm
-  MaxScale = 200;
-  ZoomStep = 1.25;
+  MIN_SCALE = 0.02;   // pixels per mm
+  MAX_SCALE = 200;
+  ZOOM_STEP = 1.25;
 
 type
   TViewTransform = record
@@ -121,7 +121,7 @@ var
   Fixed: TVec2;
 begin
   Fixed := ToModel(Anchor);
-  Scale := EnsureRange(Scale * Factor, MinScale, MaxScale);
+  Scale := EnsureRange(Scale * Factor, MIN_SCALE, MAX_SCALE);
   OriginX := Anchor.X - Fixed.X * Scale;
   OriginY := Anchor.Y - Fixed.Y * Scale;
 end;
@@ -145,7 +145,7 @@ var
 begin
   ModelWidth := Max(Bounds.MaxX - Bounds.MinX, 1);
   ModelHeight := Max(Bounds.MaxY - Bounds.MinY, 1);
-  Scale := EnsureRange(Min((Width - 2 * Margin) / ModelWidth, (Height - 2 * Margin) / ModelHeight), MinScale, MaxScale);
+  Scale := EnsureRange(Min((Width - 2 * Margin) / ModelWidth, (Height - 2 * Margin) / ModelHeight), MIN_SCALE, MAX_SCALE);
   Centre := Vec2((Bounds.MinX + Bounds.MaxX) / 2, (Bounds.MinY + Bounds.MaxY) / 2);
   OriginX := Width / 2 - Centre.X * Scale;
   OriginY := Height / 2 - Centre.Y * Scale;

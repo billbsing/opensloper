@@ -112,6 +112,11 @@ implementation
 uses
   Sloper.Core.Names;
 
+const
+  CUT_LIST_ENTRY_GAP = ', ';
+  // Typed, so the middle dot stays a UTF-8 string
+  CUT_LIST_GROUP_GAP: string = ' · ';
+
 function MaterialAllowanceText(Material: TPatternMaterial): string;
 var
   Formats: TFormatSettings;
@@ -142,8 +147,8 @@ begin
   FItems.Clear;
   Material := TPatternMaterial.Create;
   FItems.Add(Material);
-  Material.Name := DefaultMaterialName;
-  Material.Color := MaterialPalette[0];
+  Material.Name := DEFAULT_MATERIAL_NAME;
+  Material.Color := MATERIAL_PALETTE[0];
 end;
 
 procedure TPatternMaterials.MakeExplicit;
@@ -194,7 +199,7 @@ var
   Material: TPatternMaterial;
   Taken: boolean;
 begin
-  for Result in MaterialPalette do
+  for Result in MATERIAL_PALETTE do
   begin
     Taken := False;
     for Material in FItems do
@@ -202,7 +207,7 @@ begin
     if not Taken then
       Exit;
   end;
-  Result := MaterialPalette[FItems.Count mod Length(MaterialPalette)];
+  Result := MATERIAL_PALETTE[FItems.Count mod Length(MATERIAL_PALETTE)];
 end;
 
 function TPatternMaterials.Add(const AName, AColor: string; AFill: TMaterialFill): TPatternMaterial;
@@ -215,11 +220,11 @@ begin
   if MaterialName = '' then
   begin
     Number := 1;
-    MaterialName := NewMaterialBaseName;
+    MaterialName := NEW_MATERIAL_BASE_NAME;
     while NameTaken(MaterialName) do
     begin
       Inc(Number);
-      MaterialName := NewMaterialBaseName + IntToStr(Number);
+      MaterialName := NEW_MATERIAL_BASE_NAME + IntToStr(Number);
     end;
   end
   else if not CheckName(MaterialName, nil) then
@@ -361,10 +366,6 @@ begin
 end;
 
 function TPatternMaterials.CutList: string;
-const
-  EntryGap = ', ';
-  // Typed, so the middle dot stays a UTF-8 string
-  GroupGap: string = ' · ';
 var
   Pieces: TPieceObjectArray;
   Index: integer;
@@ -389,13 +390,13 @@ var
       if MaterialOf(Piece) = Material then
       begin
         if Entries <> '' then
-          Entries := Entries + EntryGap;
+          Entries := Entries + CUT_LIST_ENTRY_GAP;
         Entries := Entries + Entry(Piece);
       end;
     if Entries = '' then
       Exit;
     if Result <> '' then
-      Result := Result + GroupGap;
+      Result := Result + CUT_LIST_GROUP_GAP;
     Result := Result + Format(rsPatternCutGroup, [Caption, Entries]);
   end;
 

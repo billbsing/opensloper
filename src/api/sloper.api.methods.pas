@@ -322,7 +322,7 @@ begin
   begin
     if Result <> '' then
       Result := Result + ', ';
-    Result := Result + EdgeRoleNames[Role];
+    Result := Result + EDGE_ROLE_NAMES[Role];
   end;
 end;
 
@@ -370,7 +370,7 @@ begin
   Method('save', agFiles, rsApiSave, rsApiReturnsDocument);
   P('path', apText, False, rsApiSavePath);
   Method('convert_units', agFiles, rsApiConvertUnits, rsApiConvertReturns);
-  P('units', apChoice, True, rsApiConvertUnitsUnits, Joined(MeasureUnitNames));
+  P('units', apChoice, True, rsApiConvertUnitsUnits, Joined(MEASURE_UNIT_NAMES));
   P('marks', apList, False, rsApiConvertMarks);
   P('marks[].id', apTarget, True, rsApiTarget);
   P('marks[].field', apText, True, rsApiMarkField);
@@ -471,18 +471,18 @@ begin
   P('role', apChoice, True, rsApiRole, RoleChoices);
   Method('set_marker', agDrafting, rsApiSetMarker, rsApiSetRoleReturns);
   Target;
-  P('marker', apChoice, True, rsApiMarker, Joined(PointMarkerNames));
+  P('marker', apChoice, True, rsApiMarker, Joined(POINT_MARKER_NAMES));
   P('size', apFormula, False, rsApiMarkerSize);
   // Pieces
   Method('create_piece', agPieces, rsApiCreatePiece, rsApiReturnsPiece);
   P('x', apNumber, True, rsApiPieceX);
   P('y', apNumber, True, rsApiPieceY);
   P('name', apText, False, rsApiPieceName);
-  P(PieceAllowanceField, apFormula, False, rsApiPieceAllowance);
+  P(PIECE_ALLOWANCE_FIELD, apFormula, False, rsApiPieceAllowance);
   Method('set_edge_allowance', agPieces, rsApiSetEdgeAllowance, rsApiReturnsPiece);
   PieceTarget;
   P('edge', apReference, True, rsApiEdgeAllowanceEdge);
-  P(PieceAllowanceField, apFormula, False, rsApiEdgeAllowance);
+  P(PIECE_ALLOWANCE_FIELD, apFormula, False, rsApiEdgeAllowance);
   Method('set_grainline', agPieces, rsApiSetGrainline, rsApiReturnsPiece);
   PieceTarget;
   P('angle', apFormula, False, rsApiGrainAngle);
@@ -499,11 +499,11 @@ begin
   P('notch', apWhole, True, rsApiNotchNumber);
   Method('add_marking', agPieces, rsApiAddMarking, rsApiReturnsPiece);
   PieceTarget;
-  P('kind', apChoice, True, rsApiMarkingKind, Joined(MarkingKindNames));
+  P('kind', apChoice, True, rsApiMarkingKind, Joined(MARKING_KIND_NAMES));
   P('point', apReference, False, rsApiMarkingPoint);
   P('edge', apReference, False, rsApiMarkingEdge);
-  P(MarkingSpacingField, apFormula, False, rsApiMarkingSpacing);
-  P(MarkingSizeField, apFormula, False, rsApiMarkingSize);
+  P(MARKING_SPACING_FIELD, apFormula, False, rsApiMarkingSpacing);
+  P(MARKING_SIZE_FIELD, apFormula, False, rsApiMarkingSize);
   Method('remove_marking', agPieces, rsApiRemoveMarking, rsApiReturnsPiece);
   PieceTarget;
   P('marking', apWhole, True, rsApiMarkingNumber);
@@ -522,20 +522,20 @@ begin
   Method('set_piece_fill', agPieces, rsApiSetPieceFill, rsApiReturnsPiece);
   PieceTarget;
   P('color', apText, False, rsApiFillColor);
-  P('style', apChoice, False, rsApiFillStyle, Joined(PieceFillNames));
+  P('style', apChoice, False, rsApiFillStyle, Joined(PIECE_FILL_NAMES));
   // Materials
   Method('list_materials', agMaterials, rsApiListMaterials, rsApiListMaterialsReturns);
   Method('add_material', agMaterials, rsApiAddMaterial, rsApiReturnsMaterials);
   P('name', apText, False, rsApiMaterialName);
   P('color', apText, False, rsApiMaterialColor);
-  P('fill', apChoice, False, rsApiMaterialFill, Joined(MaterialFillNames));
+  P('fill', apChoice, False, rsApiMaterialFill, Joined(MATERIAL_FILL_NAMES));
   Method('rename_material', agMaterials, rsApiRenameMaterial, rsApiReturnsMaterials);
   P('material', apMaterial, True, rsApiMaterial);
   P('name', apText, True, rsApiMaterialNewName);
   Method('set_material', agMaterials, rsApiSetMaterial, rsApiReturnsMaterials);
   P('material', apMaterial, True, rsApiMaterial);
   P('color', apText, False, rsApiMaterialColor);
-  P('fill', apChoice, False, rsApiMaterialFill, Joined(MaterialFillNames));
+  P('fill', apChoice, False, rsApiMaterialFill, Joined(MATERIAL_FILL_NAMES));
   P('allowance', apNumber, False, rsApiMaterialAllowance);
   P('noAllowance', apFlag, False, rsApiMaterialNoAllowance);
   Method('delete_material', agMaterials, rsApiDeleteMaterial, rsApiReturnsMaterials);
@@ -549,8 +549,8 @@ begin
   P('sideB[].piece', apReference, True, rsApiSidePiece);
   P('sideB[].edge', apReference, True, rsApiSideEdge);
   P('name', apText, False, rsApiSeamName);
-  P(SeamEaseField, apFormula, False, rsApiSeamEase);
-  P(SeamToleranceField, apFormula, False, rsApiSeamTolerance);
+  P(SEAM_EASE_FIELD, apFormula, False, rsApiSeamEase);
+  P(SEAM_TOLERANCE_FIELD, apFormula, False, rsApiSeamTolerance);
   Method('flip_seam', agSeams, rsApiFlipSeam, rsApiReturnsObject);
   Target;
   Method('suggest_seams', agSeams, rsApiSuggestSeams, rsApiSuggestReturns);
@@ -562,14 +562,14 @@ begin
   P('anchor.edge', apReference, False, rsApiNoteAnchorEdge);
   P('anchor.piece', apReference, False, rsApiNoteAnchorPiece);
   P('anchor.position', apFormula, False, rsApiNoteAnchorPosition);
-  P(NoteXField, apFormula, False, rsApiNoteX);
-  P(NoteYField, apFormula, False, rsApiNoteY);
-  P(NoteDxField, apFormula, False, rsApiNoteDx);
-  P(NoteDyField, apFormula, False, rsApiNoteDy);
+  P(NOTE_X_FIELD, apFormula, False, rsApiNoteX);
+  P(NOTE_Y_FIELD, apFormula, False, rsApiNoteY);
+  P(NOTE_DX_FIELD, apFormula, False, rsApiNoteDx);
+  P(NOTE_DY_FIELD, apFormula, False, rsApiNoteDy);
   P('size', apNumber, False, rsApiNoteSize);
   P('print', apFlag, False, rsApiNotePrint);
-  P('leader', apChoice, False, rsApiNoteLeader, Joined(NoteLeaderNames));
-  P('align', apChoice, False, rsApiNoteAlign, Joined(TextAlignNames));
+  P('leader', apChoice, False, rsApiNoteLeader, Joined(NOTE_LEADER_NAMES));
+  P('align', apChoice, False, rsApiNoteAlign, Joined(TEXT_ALIGN_NAMES));
   P('box', apFlag, False, rsApiNoteBox);
   P('name', apText, False, rsApiNoteName);
   Method('set_text', agNotes, rsApiSetText, rsApiReturnsObject);
@@ -577,8 +577,8 @@ begin
   P('text', apText, False, rsApiNoteText);
   P('size', apNumber, False, rsApiNoteSize);
   P('print', apFlag, False, rsApiNotePrint);
-  P('leader', apChoice, False, rsApiNoteLeader, Joined(NoteLeaderNames));
-  P('align', apChoice, False, rsApiNoteAlign, Joined(TextAlignNames));
+  P('leader', apChoice, False, rsApiNoteLeader, Joined(NOTE_LEADER_NAMES));
+  P('align', apChoice, False, rsApiNoteAlign, Joined(TEXT_ALIGN_NAMES));
   P('box', apFlag, False, rsApiNoteBox);
   // Checking and output
   Method('evaluate', agChecking, rsApiEvaluate, rsApiEvaluateReturns);

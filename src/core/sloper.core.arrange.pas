@@ -97,10 +97,10 @@ type
   TArrangeTargetArray = array of TArrangeTarget;
 
 const
-  AxisFields: array[TArrangeAxis] of string = ('x', 'y');
-  OffsetFields: array[TArrangeAxis] of string = ('dx', 'dy');
+  AXIS_FIELDS: array[TArrangeAxis] of string = ('x', 'y');
+  OFFSET_FIELDS: array[TArrangeAxis] of string = ('dx', 'dy');
   // The coordinate an arrange keeps, in the pattern unit, so it does not move
-  ExactDecimals = 9;
+  EXACT_DECIMALS = 9;
 
 function PointNamed(Pattern: TPattern; const Key: string): TPointObject;
 var
@@ -131,7 +131,7 @@ end;
 
 function AxisReference(const Key: string; Axis: TArrangeAxis): string;
 begin
-  Result := '{' + Key + '}.' + AxisFields[Axis];
+  Result := '{' + Key + '}.' + AXIS_FIELDS[Axis];
 end;
 
 function SelectedPoints(Pattern: TPattern; const Keys: TStringArray): specialize TArray<TPointObject>;
@@ -357,9 +357,9 @@ function AxisFieldOf(Point: TPointObject; Axis: TArrangeAxis): string;
 begin
   Result := '';
   if Point is TFreePoint then
-    Result := AxisFields[Axis]
+    Result := AXIS_FIELDS[Axis]
   else if (Point is TOffsetPoint) and (TOffsetPoint(Point).Mode = omCartesian) then
-    Result := OffsetFields[Axis];
+    Result := OFFSET_FIELDS[Axis];
 end;
 
 // An offset's dx or dy is measured from its base
@@ -472,12 +472,12 @@ begin
   // The other coordinate stays where it is, as a number
   if Axis = axX then
   begin
-    Other := LengthFormulaText(Target.Point.Position.Y, Pattern.Units, ExactDecimals);
+    Other := LengthFormulaText(Target.Point.Position.Y, Pattern.Units, EXACT_DECIMALS);
     Result := Assigned(Pattern.ConvertToFree(Target.Point, Target.Formula, Other));
   end
   else
   begin
-    Other := LengthFormulaText(Target.Point.Position.X, Pattern.Units, ExactDecimals);
+    Other := LengthFormulaText(Target.Point.Position.X, Pattern.Units, EXACT_DECIMALS);
     Result := Assigned(Pattern.ConvertToFree(Target.Point, Other, Target.Formula));
   end;
 end;

@@ -59,8 +59,8 @@ type
 implementation
 
 const
-  MaxRows = 8;
-  MinWidth96 = 220;
+  MAX_ROWS = 8;
+  MIN_WIDTH96 = 220;
 
 procedure TFormulaCompleter.CreateList;
 begin
@@ -81,8 +81,8 @@ var
   ListWidth, ListHeight: integer;
 begin
   Form := GetParentForm(FEdit);
-  ListWidth := Max(FEdit.Width, FEdit.ScaleDesignToForm(MinWidth96));
-  ListHeight := Min(FList.Count, MaxRows) * FList.ItemHeight + 6;
+  ListWidth := Max(FEdit.Width, FEdit.ScaleDesignToForm(MIN_WIDTH96));
+  ListHeight := Min(FList.Count, MAX_ROWS) * FList.ItemHeight + 6;
   Corner := Form.ScreenToClient(FEdit.ClientToScreen(Point(0, FEdit.Height)));
   if Corner.Y + ListHeight > Form.ClientHeight then
     Corner.Y := Max(0, Corner.Y - FEdit.Height - ListHeight);

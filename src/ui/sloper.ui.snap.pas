@@ -118,6 +118,9 @@ implementation
 uses
   Math, Sloper.Core.Evaluator, Sloper.Core.EvalTypes, Sloper.Core.Drag, Sloper.Core.Piece, Sloper.Core.Units, Sloper.UI.Scene;
 
+const
+  NEARER_WINS = 1e-6;
+
 // A length as the formula will have it, in the pattern unit
 function LengthText(Pattern: TPattern; Millimetres: double): string;
 begin
@@ -127,7 +130,7 @@ end;
 // The same, with the unit's name, for the status bar
 function ShownLength(Pattern: TPattern; Millimetres: double): string;
 begin
-  Result := LengthText(Pattern, Millimetres) + ' ' + MeasureUnitNames[Pattern.Units];
+  Result := LengthText(Pattern, Millimetres) + ' ' + MEASURE_UNIT_NAMES[Pattern.Units];
 end;
 
 type
@@ -240,17 +243,15 @@ end;
 // Level with Base (horizontal) or square to it (vertical), when within
 // Radius. The closest line-up wins; between equals, the nearer point.
 function LineUp(Base: TPointObject; const At: TVec2; Radius: double; var Snap: TSnap; var BestGap: double): boolean;
-const
-  NearerWins = 1e-6;
 var
   DX, DY: double;
 begin
   Result := False;
   DX := At.X - Base.Position.X;
   DY := At.Y - Base.Position.Y;
-  if (Abs(DY) <= Radius) and (Abs(DY) + Abs(DX) * NearerWins < BestGap) and (Abs(DX) > Radius) then
+  if (Abs(DY) <= Radius) and (Abs(DY) + Abs(DX) * NEARER_WINS < BestGap) and (Abs(DX) > Radius) then
   begin
-    BestGap := Abs(DY) + Abs(DX) * NearerWins;
+    BestGap := Abs(DY) + Abs(DX) * NEARER_WINS;
     Snap.Kind := snHorizontal;
     Snap.Position := Vec2(At.X, Base.Position.Y);
     Snap.PointKey := Base.Key;
@@ -261,9 +262,9 @@ begin
       Snap.Angle := 180;
     Result := True;
   end;
-  if (Abs(DX) <= Radius) and (Abs(DX) + Abs(DY) * NearerWins < BestGap) and (Abs(DY) > Radius) then
+  if (Abs(DX) <= Radius) and (Abs(DX) + Abs(DY) * NEARER_WINS < BestGap) and (Abs(DY) > Radius) then
   begin
-    BestGap := Abs(DX) + Abs(DY) * NearerWins;
+    BestGap := Abs(DX) + Abs(DY) * NEARER_WINS;
     Snap.Kind := snVertical;
     Snap.Position := Vec2(Base.Position.X, At.Y);
     Snap.PointKey := Base.Key;
@@ -436,19 +437,19 @@ var
   Node: TEvalNode;
 begin
   NoteAnchorFromSnap(Pattern, Snap, Click, Anchor, AnchorKey, Ratio);
-  RatioText := RoundedText(Ratio, DragRatioDecimals);
+  RatioText := RoundedText(Ratio, DRAG_RATIO_DECIMALS);
   if Anchor = naFree then
-    Exit(Pattern.AddNote('', AText, naFree, '', '', LengthText(Pattern, BoxAt.X), LengthText(Pattern, BoxAt.Y), DefaultNoteSize,
+    Exit(Pattern.AddNote('', AText, naFree, '', '', LengthText(Pattern, BoxAt.X), LengthText(Pattern, BoxAt.Y), DEFAULT_NOTE_SIZE,
       True, Leader));
   Node := Pattern.FindNode(AnchorKey);
   case Anchor of
     naPoint: Base := TPointObject(Node).Position;
-    naEdge: Base := TEdgeObject(Node).PointAtLength(RoundTo(Ratio, -DragRatioDecimals) * TEdgeObject(Node).Length);
+    naEdge: Base := TEdgeObject(Node).PointAtLength(RoundTo(Ratio, -DRAG_RATIO_DECIMALS) * TEdgeObject(Node).Length);
     else
       Base := TPieceObject(Node).Middle;
   end;
   Result := Pattern.AddNote('', AText, Anchor, AnchorKey, RatioText, LengthText(Pattern, BoxAt.X - Base.X),
-    LengthText(Pattern, BoxAt.Y - Base.Y), DefaultNoteSize, True, Leader);
+    LengthText(Pattern, BoxAt.Y - Base.Y), DEFAULT_NOTE_SIZE, True, Leader);
 end;
 
 function NoteFromSnap(Pattern: TPattern; const Snap: TSnap; const Click: TVec2; const AText: string): TNoteObject;

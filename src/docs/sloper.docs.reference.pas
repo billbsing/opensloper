@@ -31,7 +31,7 @@ const
   // A page is written to docs/reference/TOPIC.md, and a schema, whose topic is
   // its file name, to docs/reference/schemas/TOPIC; opensloper.py, the Python
   // client of the Automation API, to docs/reference/opensloper.py
-  DocTopics: array[0..9] of string = ('functions', 'operations', 'files', 'shortcuts', 'cli', 'api', 'pattern.schema.json',
+  DOC_TOPICS: array[0..9] of string = ('functions', 'operations', 'files', 'shortcuts', 'cli', 'api', 'pattern.schema.json',
     'measurements.schema.json', 'layout.schema.json', 'opensloper.py');
 
 // The page or schema for Topic; False when there is no such topic
@@ -201,6 +201,24 @@ uses
   Sloper.Core.PatternFile, Sloper.Core.Shortcuts, Sloper.API.Server, Sloper.API.Methods, Sloper.CLI.Arguments, Sloper.Docs.Schema,
   Sloper.Docs.Python;
 
+const
+  MEMBER_KIND_TEXTS: array[TMemberKind] of string = (rsDocKindLength, rsDocKindAngle, rsDocKindNumber, rsDocKindLengthOrRatio,
+    rsDocKindPoint, rsDocKindEdge, rsDocKindPiece, rsDocKindObject, rsDocKindMaterial, rsDocKindChoice, rsDocKindFlag,
+    rsDocKindWhole, rsDocKindText, rsDocKindSize, rsDocKindSizeOrNull, rsDocKindFormula, rsDocKindPatternObject,
+    rsDocKindList, rsDocKindGroup);
+  KEY_WORDS: array[0..5] of string = ('Arrows', 'Wheel', 'Drag', 'Click', 'Middle-drag', 'Right-click');
+  KEY_WORD_TEXTS: array[0..5] of string = (rsDocKeyArrows, rsDocKeyWheel, rsDocKeyDrag, rsDocKeyClick, rsDocKeyMiddleDrag,
+    rsDocKeyRightClick);
+  ARROW_KEYS: array[0..3] of string = ('Left', 'Right', 'Up', 'Down');
+  SHORTCUT_APP_TITLES: array[TShortcutApp] of string = (rsDocAppDesign, rsDocAppMeasurements, rsDocAppPublish);
+  SHORTCUT_GROUP_TITLES: array[TShortcutGroup] of string = (rsDocShortcutFile, rsDocShortcutEdit, rsDocShortcutView, rsDocShortcutTools,
+    rsDocShortcutCanvas, rsDocShortcutPanels, rsDocShortcutMouse);
+  OPERATION_GROUP_TITLES: array[TOperationGroup] of string = (rsDocGroupPoints, rsDocGroupEdges, rsDocGroupTransforms, rsDocGroupPieces,
+    rsDocGroupAnnotations);
+  API_GROUP_TITLES: array[TApiMethodGroup] of string = (rsDocApiGroupFiles, rsDocApiGroupMeasurements, rsDocApiGroupObjects,
+    rsDocApiGroupDrafting, rsDocApiGroupPieces, rsDocApiGroupMaterials, rsDocApiGroupSeams, rsDocApiGroupNotes,
+    rsDocApiGroupChecking);
+
 // Characters that would end a table cell or start markup
 function Cell(const Text: string): string;
 begin
@@ -271,7 +289,7 @@ begin
   Result := Result + LineEnding + Heading(2, rsDocUnitsTitle) + Paragraph(rsDocUnitsIntro);
   Result := Result + HeaderRow([rsDocUnit, rsDocMillimetres]);
   for Suffix := Succ(nsNone) to High(TNumberSuffix) do
-    Result := Result + Row([Code(NumberSuffixNames[Suffix]), FormatFloat('0.##', NumberSuffixMillimetres[Suffix])]);
+    Result := Result + Row([Code(NUMBER_SUFFIX_NAMES[Suffix]), FormatFloat('0.##', NUMBER_SUFFIX_MILLIMETRES[Suffix])]);
 end;
 
 function CodedList(const Choices: string): string;
@@ -286,16 +304,11 @@ begin
 end;
 
 function KindText(const Member: TOperationMember): string;
-const
-  Kinds: array[TMemberKind] of string = (rsDocKindLength, rsDocKindAngle, rsDocKindNumber, rsDocKindLengthOrRatio,
-    rsDocKindPoint, rsDocKindEdge, rsDocKindPiece, rsDocKindObject, rsDocKindMaterial, rsDocKindChoice, rsDocKindFlag,
-    rsDocKindWhole, rsDocKindText, rsDocKindSize, rsDocKindSizeOrNull, rsDocKindFormula, rsDocKindPatternObject,
-    rsDocKindList, rsDocKindGroup);
 begin
   if Member.Kind = mkChoice then
     Result := Format(rsDocKindChoice, [CodedList(Member.Choices)])
   else
-    Result := Kinds[Member.Kind];
+    Result := MEMBER_KIND_TEXTS[Member.Kind];
   if Member.Name.EndsWith('[]') then
     Result := Format(rsDocKindListOf, [Result]);
 end;
@@ -330,11 +343,6 @@ end;
 // Keys as the site draws them, ++ctrl+shift+s++, with mouse actions in words:
 // Mod+Wheel is ++ctrl++ and the wheel
 function KeysMarkdown(const Keys: string): string;
-const
-  Words: array[0..5] of string = ('Arrows', 'Wheel', 'Drag', 'Click', 'Middle-drag', 'Right-click');
-  WordTexts: array[0..5] of string = (rsDocKeyArrows, rsDocKeyWheel, rsDocKeyDrag, rsDocKeyClick, rsDocKeyMiddleDrag,
-    rsDocKeyRightClick);
-  Arrows: array[0..3] of string = ('Left', 'Right', 'Up', 'Down');
 var
   Part, Pressed, Action, Name: string;
   Index: integer;
@@ -343,15 +351,15 @@ begin
   Action := '';
   for Part in Keys.Split(['+']) do
   begin
-    Index := IndexStr(Part, Words);
+    Index := IndexStr(Part, KEY_WORDS);
     if Index >= 0 then
     begin
-      Action := WordTexts[Index];
+      Action := KEY_WORD_TEXTS[Index];
       Continue;
     end;
     if Part = 'Mod' then
       Name := 'ctrl'
-    else if IndexStr(Part, Arrows) >= 0 then
+    else if IndexStr(Part, ARROW_KEYS) >= 0 then
       Name := 'arrow-' + LowerCase(Part)
     else
       Name := LowerCase(Part);
@@ -370,10 +378,6 @@ begin
 end;
 
 function ShortcutsPage: string;
-const
-  AppTitles: array[TShortcutApp] of string = (rsDocAppDesign, rsDocAppMeasurements, rsDocAppPublish);
-  GroupTitles: array[TShortcutGroup] of string = (rsDocShortcutFile, rsDocShortcutEdit, rsDocShortcutView, rsDocShortcutTools,
-    rsDocShortcutCanvas, rsDocShortcutPanels, rsDocShortcutMouse);
 var
   App: TShortcutApp;
   Group: TShortcutGroup;
@@ -384,7 +388,7 @@ begin
   Result := Heading(1, rsDocShortcutsTitle) + Generated('shortcuts') + Paragraph(rsDocShortcutsIntro);
   for App := Low(TShortcutApp) to High(TShortcutApp) do
   begin
-    Result := Result + Heading(2, AppTitles[App]);
+    Result := Result + Heading(2, SHORTCUT_APP_TITLES[App]);
     for Group := Low(TShortcutGroup) to High(TShortcutGroup) do
     begin
       Table := '';
@@ -395,7 +399,7 @@ begin
           Table := Table + Row([KeysMarkdown(Info.Keys), Cell(Info.Description)]);
       end;
       if Table <> '' then
-        Result := Result + Heading(3, GroupTitles[Group]) + HeaderRow([rsDocKeys, rsDocWhatItDoes]) + Table + LineEnding;
+        Result := Result + Heading(3, SHORTCUT_GROUP_TITLES[Group]) + HeaderRow([rsDocKeys, rsDocWhatItDoes]) + Table + LineEnding;
     end;
   end;
 end;
@@ -409,20 +413,17 @@ begin
   Result := Result + Heading(2, rsDocFilesRulesTitle) + Paragraph(rsDocFilesRules);
   for Info in FileFormatInfos do
   begin
-    SchemaName := Info.FormatName + SchemaSuffix;
+    SchemaName := Info.FormatName + SCHEMA_SUFFIX;
     Result := Result + Heading(2, Info.Title + ' (' + Code(Info.Extension) + ')') + Paragraph(Info.Summary);
     Result := Result + Paragraph(Format(rsDocFilesVersion, [Info.Version, SchemaName, SchemaName]));
     Result := Result + FileMemberTable(Info.Members);
-    if Info.FormatName = PatternFormat then
+    if Info.FormatName = PATTERN_FORMAT then
       Result := Result + Paragraph(rsDocFilesObjects);
     Result := Result + Heading(3, rsDocExample) + Paragraph('```json' + LineEnding + Info.Example + LineEnding + '```');
   end;
 end;
 
 function OperationsPage: string;
-const
-  GroupTitles: array[TOperationGroup] of string = (rsDocGroupPoints, rsDocGroupEdges, rsDocGroupTransforms, rsDocGroupPieces,
-    rsDocGroupAnnotations);
 var
   Group: TOperationGroup;
   Info: TOperationInfo;
@@ -437,7 +438,7 @@ begin
   Result := Result + Paragraph(rsDocCommonPoints) + MemberTable(Copy(CommonMembers(ogPoint), Length(Common), MaxInt));
   for Group := Low(TOperationGroup) to High(TOperationGroup) do
   begin
-    Result := Result + Heading(2, GroupTitles[Group]);
+    Result := Result + Heading(2, OPERATION_GROUP_TITLES[Group]);
     for Info in OperationInfos do
       if Info.Group = Group then
       begin
@@ -494,10 +495,6 @@ begin
 end;
 
 function ApiPage: string;
-const
-  GroupTitles: array[TApiMethodGroup] of string = (rsDocApiGroupFiles, rsDocApiGroupMeasurements, rsDocApiGroupObjects,
-    rsDocApiGroupDrafting, rsDocApiGroupPieces, rsDocApiGroupMaterials, rsDocApiGroupSeams, rsDocApiGroupNotes,
-    rsDocApiGroupChecking);
 var
   Group: TApiMethodGroup;
   Method: TApiMethod;
@@ -509,12 +506,12 @@ begin
     '"params": {"name": "B", "field": "length", "formula": "@waist / 4 + #ease"}}' + LineEnding +
     '<-- {"jsonrpc": "2.0", "id": 1, "result": {"id": 3, "name": "B", "type": "offsetPoint", ...}}' + LineEnding + '```');
   Result := Result + Heading(2, rsDocApiErrorsTitle) + Paragraph(rsDocApiErrorsIntro) + HeaderRow([rsDocCode, rsDocMeaning]);
-  Result := Result + Row([IntToStr(RpcParseError), rsDocApiErrorParse]) + Row([IntToStr(RpcInvalidRequest), rsDocApiErrorRequest]) +
-    Row([IntToStr(RpcMethodNotFound), rsDocApiErrorMethod]) + Row([IntToStr(RpcInvalidParams), rsDocApiErrorParams]) +
-    Row([IntToStr(RpcInternalError), rsDocApiErrorInternal]) + Row([IntToStr(RpcRefused), rsDocApiErrorRefused]) + LineEnding;
+  Result := Result + Row([IntToStr(RPC_PARSE_ERROR), rsDocApiErrorParse]) + Row([IntToStr(RPC_INVALID_REQUEST), rsDocApiErrorRequest]) +
+    Row([IntToStr(RPC_METHOD_NOT_FOUND), rsDocApiErrorMethod]) + Row([IntToStr(RPC_INVALID_PARAMS), rsDocApiErrorParams]) +
+    Row([IntToStr(RPC_INTERNAL_ERROR), rsDocApiErrorInternal]) + Row([IntToStr(RPC_REFUSED), rsDocApiErrorRefused]) + LineEnding;
   for Group := Low(TApiMethodGroup) to High(TApiMethodGroup) do
   begin
-    Result := Result + Heading(2, GroupTitles[Group]);
+    Result := Result + Heading(2, API_GROUP_TITLES[Group]);
     for Method in ApiMethods do
       if Method.Group = Group then
       begin
@@ -547,17 +544,17 @@ var
   Status: integer;
 begin
   Result := Heading(1, rsDocCliTitle) + Generated('cli') + Paragraph(rsDocCliIntro);
-  Result := Result + Paragraph('```' + LineEnding + CliTitle + ' [options] <command> [arguments]' + LineEnding + '```');
+  Result := Result + Paragraph('```' + LineEnding + CLI_TITLE + ' [options] <command> [arguments]' + LineEnding + '```');
   Result := Result + Heading(2, rsDocCommands);
-  for Command in CliCommands do
+  for Command in CLI_COMMANDS do
   begin
     Result := Result + Heading(3, Command.Name) + Paragraph(Command.Description);
     // Each way of calling it on a line of its own
-    Result := Result + Paragraph('```' + LineEnding + CliTitle + ' ' + StringReplace(Command.Usage, LineEnding,
-      LineEnding + CliTitle + ' ', [rfReplaceAll]) + LineEnding + '```');
+    Result := Result + Paragraph('```' + LineEnding + CLI_TITLE + ' ' + StringReplace(Command.Usage, LineEnding,
+      LineEnding + CLI_TITLE + ' ', [rfReplaceAll]) + LineEnding + '```');
   end;
   Result := Result + Heading(2, rsDocOptions) + HeaderRow([rsDocOption, rsDocValue, rsDocDescription]);
-  for Option in CliOptions do
+  for Option in CLI_OPTIONS do
   begin
     Names := Code(Option.Long);
     if Option.Short <> '' then
@@ -566,11 +563,11 @@ begin
   end;
   Result := Result + LineEnding + Heading(2, rsDocArgumentsTitle) + Paragraph(rsDocArgumentsIntro) +
     HeaderRow([rsDocArgument, rsDocDescription]);
-  for Argument in CliArguments do
+  for Argument in CLI_ARGUMENTS do
     Result := Result + Row([Code(Argument.Name), Cell(Argument.Description)]);
   Result := Result + LineEnding + Heading(2, rsDocExitCodes) + HeaderRow([rsDocCode, rsDocMeaning]);
-  for Status := Low(CliExitCodes) to High(CliExitCodes) do
-    Result := Result + Row([IntToStr(Status), CliExitCodes[Status]]);
+  for Status := Low(CLI_EXIT_CODES) to High(CLI_EXIT_CODES) do
+    Result := Result + Row([IntToStr(Status), CLI_EXIT_CODES[Status]]);
 end;
 
 function ReferencePage(const Topic: string; out Markdown: string): boolean;
@@ -588,10 +585,10 @@ begin
     Markdown := FilesPage
   else if Topic = 'shortcuts' then
     Markdown := ShortcutsPage
-  else if Topic = PythonClientTopic then
+  else if Topic = PYTHON_CLIENT_TOPIC then
     Markdown := PythonClient
-  else if Topic.EndsWith(SchemaSuffix) then
-    Result := FileSchema(Copy(Topic, 1, Length(Topic) - Length(SchemaSuffix)), Markdown)
+  else if Topic.EndsWith(SCHEMA_SUFFIX) then
+    Result := FileSchema(Copy(Topic, 1, Length(Topic) - Length(SCHEMA_SUFFIX)), Markdown)
   else
   begin
     Markdown := '';
@@ -603,9 +600,9 @@ end;
 
 function DocTopicPath(const Topic: string): string;
 begin
-  if Topic.EndsWith(SchemaSuffix) then
+  if Topic.EndsWith(SCHEMA_SUFFIX) then
     Result := 'schemas/' + Topic
-  else if Topic = PythonClientTopic then
+  else if Topic = PYTHON_CLIENT_TOPIC then
     Result := Topic
   else
     Result := Topic + '.md';

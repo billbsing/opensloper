@@ -155,13 +155,13 @@ uses
 const
   // As the apps name them; Sloper.Output.Layout is outside the core, so a test
   // holds the layout's to it
-  LayoutFormatName = 'layout';
-  LayoutFormatVersion = 1;
-  LayoutExtensionName = '.slayout';
-  PatternExtensionName = '.sloper';
-  MeasurementExtensionName = '.slm';
+  LAYOUT_FORMAT_NAME = 'layout';
+  LAYOUT_FORMAT_VERSION = 1;
+  LAYOUT_EXTENSION_NAME = '.slayout';
+  PATTERN_EXTENSION_NAME = '.sloper';
+  MEASUREMENT_EXTENSION_NAME = '.slm';
 
-  PatternExample =
+  PATTERN_EXAMPLE =
     '{' + LineEnding +
     '  "format": "pattern",' + LineEnding +
     '  "version": 1,' + LineEnding +
@@ -213,7 +213,7 @@ const
     '  ]' + LineEnding +
     '}';
 
-  MeasurementsExample =
+  MEASUREMENTS_EXAMPLE =
     '{' + LineEnding +
     '  "format": "measurements",' + LineEnding +
     '  "version": 1,' + LineEnding +
@@ -244,7 +244,7 @@ const
     '  ]' + LineEnding +
     '}';
 
-  LayoutExample =
+  LAYOUT_EXAMPLE =
     '{' + LineEnding +
     '  "format": "layout",' + LineEnding +
     '  "version": 1,' + LineEnding +
@@ -307,7 +307,7 @@ begin
   begin
     if Result <> '' then
       Result := Result + ', ';
-    Result := Result + EdgeRoleNames[Role];
+    Result := Result + EDGE_ROLE_NAMES[Role];
   end;
 end;
 
@@ -320,7 +320,7 @@ begin
   begin
     if Result <> '' then
       Result := Result + ', ';
-    Result := Result + MeasureUnitNames[MeasureUnit];
+    Result := Result + MEASURE_UNIT_NAMES[MeasureUnit];
   end;
 end;
 
@@ -358,8 +358,8 @@ end;
 procedure BuildTable;
 begin
   Table := nil;
-  FileFormat(PatternFormat, PatternExtensionName, PatternVersion, rsFilePatternTitle, rsFilePatternSummary, PatternExample);
-  R('format', mkChoice, rsFileFormat, PatternFormat);
+  FileFormat(PATTERN_FORMAT, PATTERN_EXTENSION_NAME, PATTERN_VERSION, rsFilePatternTitle, rsFilePatternSummary, PATTERN_EXAMPLE);
+  R('format', mkChoice, rsFileFormat, PATTERN_FORMAT);
   R('version', mkWhole, rsFileVersion);
   M('units', mkChoice, rsFilePatternUnits, UnitChoices);
   M('notes', mkText, rsFilePatternNotes);
@@ -376,7 +376,7 @@ begin
   R('materials[].id', mkWhole, rsFileMaterialId);
   R('materials[].name', mkText, rsFileMaterialName);
   R('materials[].color', mkText, rsFileMaterialColor);
-  M('materials[].fill', mkChoice, rsFileMaterialFill, Joined(MaterialFillNames));
+  M('materials[].fill', mkChoice, rsFileMaterialFill, Joined(MATERIAL_FILL_NAMES));
   M('materials[].allowance', mkSize, rsFileMaterialAllowance);
   M('view', mkGroup, rsFilePatternView);
   M('view.zoom', mkSize, rsFileViewZoom);
@@ -384,9 +384,9 @@ begin
   M('view.hiddenRoles[]', mkChoice, rsFileViewHiddenRoles, RoleChoices);
   M('view.hideAnnotations', mkFlag, rsFileViewHideAnnotations);
 
-  FileFormat(MeasurementFormat, MeasurementExtensionName, MeasurementVersion, rsFileMeasurementsTitle, rsFileMeasurementsSummary,
-    MeasurementsExample);
-  R('format', mkChoice, rsFileFormat, MeasurementFormat);
+  FileFormat(MEASUREMENT_FORMAT, MEASUREMENT_EXTENSION_NAME, MEASUREMENT_VERSION, rsFileMeasurementsTitle, rsFileMeasurementsSummary,
+    MEASUREMENTS_EXAMPLE);
+  R('format', mkChoice, rsFileFormat, MEASUREMENT_FORMAT);
   R('version', mkWhole, rsFileVersion);
   M('units', mkChoice, rsFileUnitsMM, 'mm');
   M('name', mkText, rsFileMeasurementsName);
@@ -398,8 +398,8 @@ begin
   M('measurements[].values[]', mkSizeOrNull, rsFileMeasurementValues);
   M('measurements[].description', mkText, rsFileMeasurementDescription);
 
-  FileFormat(LayoutFormatName, LayoutExtensionName, LayoutFormatVersion, rsFileLayoutTitle, rsFileLayoutSummary, LayoutExample);
-  R('format', mkChoice, rsFileFormat, LayoutFormatName);
+  FileFormat(LAYOUT_FORMAT_NAME, LAYOUT_EXTENSION_NAME, LAYOUT_FORMAT_VERSION, rsFileLayoutTitle, rsFileLayoutSummary, LAYOUT_EXAMPLE);
+  R('format', mkChoice, rsFileFormat, LAYOUT_FORMAT_NAME);
   R('version', mkWhole, rsFileVersion);
   M('units', mkChoice, rsFileUnitsMM, 'mm');
   M('name', mkText, rsFileLayoutName);
@@ -439,12 +439,12 @@ begin
   R('sheetNotes[].x', mkSize, rsFileSheetNoteX);
   R('sheetNotes[].y', mkSize, rsFileSheetNoteY);
   M('sheetNotes[].size', mkSize, rsFileSheetNoteSize);
-  M('sheetNotes[].align', mkChoice, rsFileSheetNoteAlign, Joined(TextAlignNames));
+  M('sheetNotes[].align', mkChoice, rsFileSheetNoteAlign, Joined(TEXT_ALIGN_NAMES));
   M('sheetNotes[].box', mkFlag, rsFileSheetNoteBox);
   M('titleBlock', mkGroup, rsFileLayoutTitleBlock);
   M('titleBlock.corner', mkChoice, rsFileTitleCorner, 'bottomRight, bottomLeft, topRight');
-  M('titleBlock.fields[]', mkChoice, rsFileTitleFields, Joined([FieldPatternName, FieldMeasurementsName, FieldLayoutName,
-    FieldDate, FieldCutList, FieldMaterials]));
+  M('titleBlock.fields[]', mkChoice, rsFileTitleFields, Joined([FIELD_PATTERN_NAME, FIELD_MEASUREMENTS_NAME, FIELD_LAYOUT_NAME,
+    FIELD_DATE, FIELD_CUT_LIST, FIELD_MATERIALS]));
   M('titleBlock.everyPage', mkFlag, rsFileTitleEveryPage);
 end;
 

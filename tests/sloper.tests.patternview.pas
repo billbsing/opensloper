@@ -57,7 +57,7 @@ uses
 
 const
   // Two drafts, the second with two layers, and a point on each
-  OldFile = '{"format": "pattern", "version": 1, ' +
+  OLD_FILE = '{"format": "pattern", "version": 1, ' +
     '"drafts": [{"id": 1, "name": "Draft", "layers": [{"id": 2, "name": "Draft"}]}, ' +
     '{"id": 3, "name": "Sleeve", "layers": [{"id": 4, "name": "Draft"}, {"id": 40, "name": "Dart"}]}], ' +
     '"objects": [{"id": 5, "type": "freePoint", "name": "A", "x": "0", "y": "0", "layer": 2}, ' +
@@ -166,7 +166,7 @@ procedure TTestPatternView.TestOldDraftsLoadOnOneCanvas;
 var
   Err: string;
 begin
-  AssertTrue(Err, LoadPatternFromText(FLoaded, OldFile, Err));
+  AssertTrue(Err, LoadPatternFromText(FLoaded, OLD_FILE, Err));
   AssertEquals('both points', 2, FLoaded.ObjectCount);
   AssertNotNull('A', FLoaded.FindObject('A'));
   AssertNotNull('B, from a hidden layer on another draft', FLoaded.FindObject('B'));
@@ -177,7 +177,7 @@ procedure TTestPatternView.TestOldDraftIdsStayRetired;
 var
   Err: string;
 begin
-  AssertTrue(Err, LoadPatternFromText(FLoaded, OldFile, Err));
+  AssertTrue(Err, LoadPatternFromText(FLoaded, OLD_FILE, Err));
   AssertEquals('above the highest layer ID', '41', FLoaded.AddFreePoint('C', '0', '0').Key);
 end;
 
@@ -185,7 +185,7 @@ procedure TTestPatternView.TestOldFileSavesWithoutDrafts;
 var
   Err, Text: string;
 begin
-  AssertTrue(Err, LoadPatternFromText(FPattern, OldFile, Err));
+  AssertTrue(Err, LoadPatternFromText(FPattern, OLD_FILE, Err));
   Text := SavePatternToText(FPattern);
   AssertEquals('no drafts', 0, Pos('"drafts"', Text));
   AssertEquals('no layer', 0, Pos('"layer"', Text));

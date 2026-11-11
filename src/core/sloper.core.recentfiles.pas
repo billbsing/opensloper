@@ -34,7 +34,7 @@ type
   TRecentList = (rlPatterns, rlMeasurements, rlLayouts);
 
 const
-  MaxRecentFiles = 10;
+  MAX_RECENT_FILES = 10;
 
 type
   TRecentFiles = class
@@ -77,9 +77,9 @@ uses
   fpjson, Sloper.Core.JSON;
 
 const
-  RecentFormat = 'opensloper-recent-files';
-  RecentVersion = 1;
-  ListNames: array[TRecentList] of string = ('design', 'measurements', 'publish');
+  RECENT_FORMAT = 'opensloper-recent-files';
+  RECENT_VERSION = 1;
+  LIST_NAMES: array[TRecentList] of string = ('design', 'measurements', 'publish');
 
 function TRecentFiles.GetFiles(List: TRecentList): TStringArray;
 begin
@@ -104,8 +104,8 @@ begin
   FullName := ExpandFileName(FileName);
   Remove(List, FullName);
   Insert(FullName, FLists[List], 0);
-  if Length(FLists[List]) > MaxRecentFiles then
-    SetLength(FLists[List], MaxRecentFiles);
+  if Length(FLists[List]) > MAX_RECENT_FILES then
+    SetLength(FLists[List], MAX_RECENT_FILES);
 end;
 
 procedure TRecentFiles.Remove(List: TRecentList; const FileName: string);
@@ -133,12 +133,12 @@ var
 begin
   Obj := TJSONObject.Create;
   try
-    Obj.Add('format', RecentFormat);
-    Obj.Add('version', RecentVersion);
+    Obj.Add('format', RECENT_FORMAT);
+    Obj.Add('version', RECENT_VERSION);
     for List := Low(TRecentList) to High(TRecentList) do
     begin
       Names := TJSONArray.Create;
-      Obj.Add(ListNames[List], Names);
+      Obj.Add(LIST_NAMES[List], Names);
       for FileName in FLists[List] do
         Names.Add(FileName);
     end;
@@ -160,12 +160,12 @@ begin
   if not ParseJSONObject(Text, Obj, ErrorMessage) then
     Exit(False);
   try
-    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> RecentFormat) or not GetJSONInteger(Obj, 'version', Version) then
+    if not GetJSONString(Obj, 'format', TextValue) or (TextValue <> RECENT_FORMAT) or not GetJSONInteger(Obj, 'version', Version) then
     begin
       ErrorMessage := rsRecentWrongFormat;
       Exit(False);
     end;
-    if Version > RecentVersion then
+    if Version > RECENT_VERSION then
     begin
       FNewerVersion := True;
       ErrorMessage := Format(rsRecentNewerVersion, [Version]);
@@ -174,7 +174,7 @@ begin
     // Read oldest first, so Add keeps the order and drops repeats and blanks
     for List := Low(TRecentList) to High(TRecentList) do
     begin
-      Names := Obj.Find(ListNames[List]);
+      Names := Obj.Find(LIST_NAMES[List]);
       if Names is TJSONArray then
         for Index := TJSONArray(Names).Count - 1 downto 0 do
           if TJSONArray(Names)[Index].JSONType = jtString then

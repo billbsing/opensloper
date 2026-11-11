@@ -152,6 +152,9 @@ uses
   Sloper.Core.PieceDetect, Sloper.Output.LayoutSVG,
   Sloper.Output.LayoutDXF, Sloper.Output.LayoutExport, Sloper.Output.Packing, Sloper.Output.Tiling, Sloper.Output.DraftSVG, StrUtils;
 
+const
+  STROKES_PER_HOLE = 16;
+
 procedure TTestLayoutExports.SetUp;
 begin
   FFolder := IncludeTrailingPathDelimiter(GetTempDir) + 'sloper-exports-' + IntToStr(Random(MaxInt));
@@ -330,10 +333,10 @@ begin
   Shapes := FLayout.PlacedPieces;
   for Index := 0 to High(Shapes) do
     for Other := 0 to Index - 1 do
-      AssertFalse(Format('pieces %d and %d touch', [Other, Index]), (Shapes[Index].Bounds.MinX < Shapes[Other].Bounds.MaxX + PackGap - 0.001) and
-        (Shapes[Index].Bounds.MaxX + PackGap - 0.001 > Shapes[Other].Bounds.MinX) and
-        (Shapes[Index].Bounds.MinY < Shapes[Other].Bounds.MaxY + PackGap - 0.001) and
-        (Shapes[Index].Bounds.MaxY + PackGap - 0.001 > Shapes[Other].Bounds.MinY));
+      AssertFalse(Format('pieces %d and %d touch', [Other, Index]), (Shapes[Index].Bounds.MinX < Shapes[Other].Bounds.MaxX + PACK_GAP - 0.001) and
+        (Shapes[Index].Bounds.MaxX + PACK_GAP - 0.001 > Shapes[Other].Bounds.MinX) and
+        (Shapes[Index].Bounds.MinY < Shapes[Other].Bounds.MaxY + PACK_GAP - 0.001) and
+        (Shapes[Index].Bounds.MaxY + PACK_GAP - 0.001 > Shapes[Other].Bounds.MinY));
 end;
 
 // 100 mm square + 2 * 10 mm allowance + 2 * 5 mm margin
@@ -710,7 +713,7 @@ var
 begin
   AddMarkedPattern('a.sloper');
   FLayout.Output.OutputProfile := 'Plotter or laser cutter';
-  FLayout.Output.Profile := StandardProfileName;
+  FLayout.Output.Profile := STANDARD_PROFILE_NAME;
   FLayout.PlaceNewPieces;
   Text := LayoutToSVG(FLayout);
   AssertEquals('no score lines', 0, Pos('class="score"', Text));
@@ -732,8 +735,6 @@ end;
 
 // Paper keeps drawing every mark, holes as strokes, in one list
 procedure TTestLayoutExports.TestPaperMarksKeepEverything;
-const
-  StrokesPerHole = 16;
 var
   Shape: TPlacedPiece;
   Line: TPlacedLine;
@@ -747,7 +748,7 @@ begin
   for Line in Shape.Lines do
     Inc(LineStrokes, Length(Line.Points) - 1);
   AssertEquals('both lines', 2, Length(Shape.Lines));
-  AssertEquals(Length(Shape.MarkLines) + Length(Shape.ScoreLines) + Length(Shape.SlitLines) + StrokesPerHole * Length(Shape.Holes),
+  AssertEquals(Length(Shape.MarkLines) + Length(Shape.ScoreLines) + Length(Shape.SlitLines) + STROKES_PER_HOLE * Length(Shape.Holes),
     Length(Shape.Marks) + LineStrokes);
 end;
 
@@ -766,7 +767,7 @@ var
   Shape: TPlacedPiece;
 begin
   AddPattern('a.sloper', [100], [100], 1, True);
-  FLayout.Output.Profile := StandardProfileName;
+  FLayout.Output.Profile := STANDARD_PROFILE_NAME;
   FLayout.PlaceNewPieces;
   Shape := FLayout.PlacedPieces[0];
   AssertEquals('both halves', 220, Shape.Bounds.MaxX - Shape.Bounds.MinX, 1e-3);
@@ -1187,7 +1188,7 @@ var
 begin
   AddMarkedPattern('a.sloper');
   FLayout.PlaceNewPieces;
-  FLayout.Output.Profile := StandardProfileName;
+  FLayout.Output.Profile := STANDARD_PROFILE_NAME;
   Text := LayoutToSVG(FLayout);
   AssertTrue(Text, Pos('class="cut" data-layer="Cut" stroke="#ff0000"', Text) > 0);
   AssertTrue(Text, Pos('class="score" data-layer="Score" stroke="#0000ff"', Text) > 0);
@@ -1201,7 +1202,7 @@ var
 begin
   AddMarkedPattern('a.sloper');
   FLayout.PlaceNewPieces;
-  FLayout.Output.Profile := StandardProfileName;
+  FLayout.Output.Profile := STANDARD_PROFILE_NAME;
   Text := LayoutToSVG(FLayout);
   AssertTrue('score, mark', Pos('class="score"', Text) < Pos('class="mark"', Text));
   AssertTrue('mark, engrave', Pos('class="mark"', Text) < Pos('class="engrave"', Text));
@@ -1215,7 +1216,7 @@ var
 begin
   AddMarkedPattern('a.sloper');
   FLayout.PlaceNewPieces;
-  FLayout.Output.Profile := StandardProfileName;
+  FLayout.Output.Profile := STANDARD_PROFILE_NAME;
   Text := LayoutToSVG(FLayout);
   AssertEquals(6, Count('<circle', Text));
   AssertTrue(Text, Pos('<circle cx="40" cy="70" r="2"/>', Text) > 0);
@@ -1264,7 +1265,7 @@ begin
   FLayout.PlaceNewPieces;
   FLayout.Placements[0].Rotation := 90;
   AssertEquals('paper does not mind', 0, Length(FLayout.Problems));
-  FLayout.Output.Profile := StandardProfileName;
+  FLayout.Output.Profile := STANDARD_PROFILE_NAME;
   AssertEquals(1, Length(FLayout.Problems));
   FLayout.Placements[0].Rotation := 180;
   AssertEquals('a half turn stays on the grain', 0, Length(FLayout.Problems));
@@ -1366,7 +1367,7 @@ begin
   FLayout.PlaceNewPieces;
   for AFormat := Low(TExportFormat) to High(TExportFormat) do
   begin
-    Target := ConcatPaths([FFolder, 'out' + ExportExtensions[AFormat]]);
+    Target := ConcatPaths([FFolder, 'out' + EXPORT_EXTENSIONS[AFormat]]);
     AssertTrue(Reason, ExportLayout(FLayout, AFormat, Target, Reason));
     AssertTrue(Target, FileExists(Target));
   end;
@@ -1380,7 +1381,7 @@ begin
   AddPattern('a.sloper', [100], [100]);
   for AFormat := Low(TExportFormat) to High(TExportFormat) do
   begin
-    Target := ConcatPaths([FFolder, 'blocked' + ExportExtensions[AFormat]]);
+    Target := ConcatPaths([FFolder, 'blocked' + EXPORT_EXTENSIONS[AFormat]]);
     AssertFalse('nothing placed', ExportLayout(FLayout, AFormat, Target, Reason));
     AssertTrue(Reason, Pos(rsLayoutRefused, Reason) = 1);
     AssertFalse(Target, FileExists(Target));
