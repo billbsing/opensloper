@@ -59,6 +59,9 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+// Asks before Claude writes Path outside the folder of the pattern open in Document
+function ConfirmClaudeWrite(Document: TPatternDocument; const Path: string): boolean;
+
 resourcestring
   rsClaudeChange = 'Claude: ';
   rsClaudeConsentTitle = 'Claude';
@@ -177,14 +180,19 @@ begin
 end;
 
 // Writing beside the pattern is what saving it means; anywhere else is asked
-function TAutomation.ConfirmWrite(const Path: string): boolean;
+function ConfirmClaudeWrite(Document: TPatternDocument; const Path: string): boolean;
 var
   PatternFile: string;
 begin
-  PatternFile := FApi.Document.FileName;
+  PatternFile := Document.FileName;
   if (PatternFile <> '') and SameFileName(ExtractFileDir(ExpandFileName(PatternFile)), ExtractFileDir(Path)) then
     Exit(True);
   Result := QuestionDlg(rsClaudeWriteTitle, Format(rsClaudeWrite, [Path]), mtWarning, [mrYes, mrNo, 'IsDefault'], 0) = mrYes;
+end;
+
+function TAutomation.ConfirmWrite(const Path: string): boolean;
+begin
+  Result := ConfirmClaudeWrite(FApi.Document, Path);
 end;
 
 end.

@@ -38,6 +38,7 @@ nav = [
     "design/formulas.md",
     "design/pieces.md",
     "design/notes.md",
+    "design/claude.md",
   ] },
   { "Publish" = [
     "publish/index.md",

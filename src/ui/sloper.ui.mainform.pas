@@ -30,7 +30,7 @@ uses
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
   Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.Preferences,
-  Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion, Sloper.UI.Automation, fpjson;
+  Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion, Sloper.UI.Automation, Sloper.UI.AssistantPanel, fpjson;
 
 type
 
@@ -89,6 +89,8 @@ type
     FDocument: TPatternDocument;
     // Claude working on the pattern through opensloper-cli serve --connect
     FAutomation: TAutomation;
+    // Claude in the side panel, with the user's own API key
+    FAssistant: TAssistantPanel;
     FAutomationAction, FDisconnectClaudeAction: TAction;
     FSettings: TAppSettings;
     // The clipboard format of copied objects, registered on first use
@@ -286,6 +288,7 @@ resourcestring
   rsMenuViewFit = '&Fit Pattern';
   rsMenuViewTrueSize = '&True Size';
   rsTabMaterials = 'Materials';
+  rsTabClaude = 'Claude';
   rsTabLines = 'Lines';
   rsMenuViewSidePanel = '&Side Panel';
   rsMenuViewRulers = '&Rulers';
@@ -544,6 +547,9 @@ begin
   FMaterials.Document := FDocument;
   FMaterials.OnMessage := @ListPanelMessage;
   FMaterials.OnEdit := @MaterialsEditClick;
+  FAssistant := TAssistantPanel(AddSection('claude', rsTabClaude, TAssistantPanel.Create(Self)));
+  FAssistant.Document := FDocument;
+  FAssistant.WindowState := @WindowState;
   FSideSplitter := TSplitter.Create(Self);
   FSideSplitter.Parent := Self;
   FSideSplitter.Align := alRight;
@@ -1186,6 +1192,7 @@ begin
   SaveSettings;
   FreeAndNil(FSettings);
   // The canvas and panels listen to the document, so they let go first
+  FAssistant.Document := nil;
   FCanvas.Document := nil;
   FMaterials.Document := nil;
   FProperties.Document := nil;

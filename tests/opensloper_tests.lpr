@@ -93,7 +93,8 @@ uses
   Sloper.Tests.ApiMethods,
   Sloper.Tests.MCP,
   Sloper.Tests.DraftPNG,
-  Sloper.Tests.Automation;
+  Sloper.Tests.Automation,
+  Sloper.Tests.Assistant;
 
 var
   App: TTestRunner;

@@ -23,6 +23,7 @@ points and edges placed by formulas, then closed outlines become pieces.
     | Measurements | The measurement file's values, with a slider to try a size up or down |
     | Lines | Which kinds of line are shown |
     | Materials | The materials pieces are cut from |
+    | Claude | Ask Claude to change the pattern, see [Asking Claude](claude.md) |
 
 - **Status bar**, along the bottom: where the pointer is, what a click will
   make, and whether the pattern has problems.

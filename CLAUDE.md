@@ -11,6 +11,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/ui/` — forms, canvas, interaction tools, snapping, panels. Keep it thin: call into document and core.
 - `src/output/` — PDF, SVG, DXF and Blender exporters; read computed geometry only. `src/output/thirdparty/` holds our own units that draw with BGRABitmap built without the LCL (the draft as PNG); every standard applies there, and only those BGRA units are allowed besides.
 - `src/api/` — the Automation API (JSON-RPC 2.0), its MCP server, and the design window's automation socket (endpoint, listener, and the connection `serve --connect` uses). Depends only on the document, core and output; every edit goes through document commands.
+- `src/assistant/` — the in-app Claude assistant, without the LCL: the API key file, the streamed response, the HTTPS transport and the conversation's tool loop. Its panel is `Sloper.UI.AssistantPanel`.
 - `src/design/` — `opensloper-design`, the main design app.
 - `src/measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
 - `src/publish/` — `opensloper-publish`, layouts and printing.

@@ -46,8 +46,9 @@ my %allowed = (
   'src/output'   => [qw(Core Output)],
   'src/cli'      => [qw(Core Document Output API CLI Docs)],
   'src/docs'     => [qw(Core API CLI Docs)],
+  'src/assistant' => [qw(Core API Assistant)],
 );
-my %no_lcl = map { $_ => 1 } qw(src/core src/document src/api src/output src/cli src/docs);
+my %no_lcl = map { $_ => 1 } qw(src/core src/document src/api src/output src/cli src/docs src/assistant);
 
 # Units where single-letter names match the maths (coding-standards.md)
 my %math = map { $_ => 1 } qw(

@@ -63,12 +63,18 @@ resourcestring
   rsPreferencesMeasuredY = 'Measured down (%s)';
   rsPreferencesWorkOut = 'Work Out Factors';
   rsPreferencesNotSaved = 'The preferences could not be saved: %s';
+  rsPreferencesClaude = 'Claude assistant';
+  rsPreferencesClaudeKey = 'Anthropic API key';
+  rsPreferencesClaudeNote = 'The Claude tab in the side panel sends your questions and the pattern''s names, formulas ' +
+    'and drawings to Anthropic, using this key and billed to its account. The key is kept in a file only you can read.';
+  rsPreferencesClaudeFromEnvironment = 'Using the key in ANTHROPIC_API_KEY.';
+  rsPreferencesKeyNotSaved = 'The API key could not be saved: %s';
 
 implementation
 
 uses
   SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, Spin, ButtonPanel, Dialogs, Sloper.Core.Measurements,
-  Sloper.Core.Units, Sloper.UI.Spacing;
+  Sloper.Core.Units, Sloper.UI.Spacing, Sloper.Assistant.Key;
 
 const
   DIALOG_WIDTH = 560;
@@ -89,6 +95,8 @@ type
     FGridEdits: array[TMeasureUnit] of TFloatSpinEdit;
     FCalibrationXEdit, FCalibrationYEdit, FMeasuredXEdit, FMeasuredYEdit: TFloatSpinEdit;
     FMeasuredXLabel, FMeasuredYLabel: TLabel;
+    FKeyEdit: TEdit;
+    FKeyShown: string;
     // The unit the measured sizes are typed in, which follows the Units box
     FMeasuredUnit: TMeasureUnit;
     function AddTab(const ACaption: string): TTabSheet;
@@ -99,6 +107,7 @@ type
     function NewSpin(MinValue, MaxValue, Increment: double; Decimals: integer): TFloatSpinEdit;
     procedure BuildGeneralTab;
     procedure BuildDesignTab;
+    procedure BuildClaudeGroup;
     procedure BuildPublishTab;
     function ExpectedSide: double;
     procedure ShowMeasuredUnit;
@@ -109,6 +118,8 @@ type
     constructor CreateDialog(AOwner: TComponent);
     procedure ShowPreferences(const Preferences: TPreferences);
     function ReadPreferences: TPreferences;
+    // Writes the key file when the key was changed; False with a message
+    function SaveKey(out ErrorMessage: string): boolean;
   end;
 
 constructor TPreferencesDialog.CreateDialog(AOwner: TComponent);
@@ -238,6 +249,31 @@ begin
     AddRow(Rows, UNIT_CAPTIONS[AUnit], FGridEdits[AUnit]);
   end;
   AddNote(Group, rsPreferencesGridNote);
+  BuildClaudeGroup;
+end;
+
+// The key is shown masked; from the environment it cannot be changed here
+procedure TPreferencesDialog.BuildClaudeGroup;
+var
+  Group: TGroupBox;
+  Source: TKeySource;
+begin
+  Group := AddGroup(TTabSheet(FPages.Pages[FPages.PageCount - 1]), rsPreferencesClaude);
+  FKeyEdit := TEdit.Create(Self);
+  FKeyEdit.PasswordChar := '*';
+  FKeyShown := AssistantKey(Source);
+  FKeyEdit.Text := FKeyShown;
+  FKeyEdit.Enabled := Source <> ksEnvironment;
+  AddRow(AddRows(Group), rsPreferencesClaudeKey, FKeyEdit);
+  if Source = ksEnvironment then
+    AddNote(Group, rsPreferencesClaudeFromEnvironment);
+  AddNote(Group, rsPreferencesClaudeNote);
+end;
+
+function TPreferencesDialog.SaveKey(out ErrorMessage: string): boolean;
+begin
+  ErrorMessage := '';
+  Result := not FKeyEdit.Enabled or (FKeyEdit.Text = FKeyShown) or SaveAssistantKey(FKeyEdit.Text, ErrorMessage);
 end;
 
 procedure TPreferencesDialog.BuildPublishTab;
@@ -375,6 +411,8 @@ begin
     if Dialog.ShowModal <> mrOk then
       Exit(False);
     Preferences := Dialog.ReadPreferences;
+    if not Dialog.SaveKey(Reason) then
+      MessageDlg(Format(rsPreferencesKeyNotSaved, [Reason]), mtError, [mbOK], 0);
   finally
     FreeAndNil(Dialog);
   end;
