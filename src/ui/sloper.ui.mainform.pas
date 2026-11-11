@@ -941,8 +941,8 @@ begin
     Item.RadioItem := True;
     AddButton(FToolBar, FToolActions[Tool], True);
   end;
-  AddBreak;
   AddCommand(MenuTools, NewAction(rsMenuToolsArc, aiArc, @ArcClick));
+  AddBreak;
   SubMenu := AddSubmenu(rsMenuToolsEdge);
   AddCommand(SubMenu, NewAction(rsMenuToolsSplit, aiSplit, @SplitClick));
   AddCommand(SubMenu, NewAction(rsMenuToolsRoundCorner, aiRoundCorner, @RoundCornerClick));
