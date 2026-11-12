@@ -32,17 +32,6 @@ env:
   LAZARUS_RELEASE: "4.8"
 
 jobs:
-  # A version is published only with its notes, so a release without them
-  # stops here, before the builds are wasted on it
-  notes:
-    name: Release notes
-    if: github.ref == 'refs/heads/release'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: CHANGELOG.md has notes for this version
-        run: ./release-notes.sh
-
   linux:
     name: Linux x86_64
     runs-on: ubuntu-24.04
@@ -347,13 +336,17 @@ jobs:
 
   publish:
     name: Publish the release
-    needs: [notes, linux, macos, windows]
+    needs: [linux, macos, windows]
     if: github.ref == 'refs/heads/release'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
+      # All of the history and tags, for the commits since the last release
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: actions/download-artifact@v8
         with:

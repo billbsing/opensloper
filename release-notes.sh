@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Print the CHANGELOG.md section of a version, without its heading: by default
-# the APP_VERSION in Sloper.Core.Version. Fails when the section is missing or
-# has nothing in it, so the release workflow publishes no version without notes.
+# Print the release notes of a version, by default the APP_VERSION in
+# Sloper.Core.Version: its CHANGELOG.md section, without its heading, or when
+# that is missing or empty, the subjects of the commits since the previous
+# release's tag (vX.Y.Z), each with the issues it closes ("Closes #3").
 # Usage: ./release-notes.sh [VERSION]
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -19,8 +20,30 @@ SECTION=$(awk -v version="$VERSION" '
   found { print }
 ' CHANGELOG.md | sed -e '/./,$!d' | sed -e ':a' -e '/^\n*$/{$d;N;ba' -e '}')
 
-if ! grep -q '[^[:space:]]' <<< "$SECTION"; then
-  echo "CHANGELOG.md has no notes for $VERSION: add them under \"## $VERSION\"" >&2
-  exit 1
+if grep -q '[^[:space:]]' <<< "$SECTION"; then
+  printf '%s\n' "$SECTION"
+  exit 0
 fi
-printf '%s\n' "$SECTION"
+
+# The newest release tag before this version's own, which moves with it
+PREVIOUS=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude "v$VERSION" HEAD 2>/dev/null || true)
+if [ -z "$PREVIOUS" ]; then
+  echo "The first release of OpenSloper."
+  exit 0
+fi
+
+echo "Changes since ${PREVIOUS#v}:"
+echo
+COUNT=0
+while IFS= read -r commit; do
+  subject=$(git log -1 --format=%s "$commit")
+  issues=$(git log -1 --format=%B "$commit" |
+    grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+' | grep -oE '#[0-9]+' | sort -u -t'#' -k2n | paste -sd' ' - || true)
+  if [ -n "$issues" ]; then
+    echo "- $subject (${issues// /, })"
+  else
+    echo "- $subject"
+  fi
+  COUNT=$((COUNT + 1))
+done < <(git rev-list --no-merges --reverse "$PREVIOUS..HEAD")
+[ "$COUNT" -gt 0 ] || echo "- No changes"
