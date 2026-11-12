@@ -2,7 +2,8 @@
 # Build the GUI apps and the command-line tool.
 # Usage: ./build.sh [lazbuild options], e.g. ./build.sh --build-mode=Release
 # Toolchain overrides (LAZBUILD, LAZARUS_PCP, LCL_WIDGETSET) can go in build.local.sh.
-# On Linux the widgetset is qt6 when libQt6Pas is installed, else qt5.
+# On Linux the widgetset is qt6 when libQt6Pas is installed, else qt5; it is
+# cocoa on macOS and win32 on Windows (run from Git Bash).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -22,6 +23,7 @@ has_qt6pas() {
 
 case "$(uname -s)" in
   Darwin) WS="${LCL_WIDGETSET:-cocoa}" ;;
+  MINGW* | MSYS* | CYGWIN*) WS="${LCL_WIDGETSET:-win32}" ;;
   *)
     if [ -n "${LCL_WIDGETSET:-}" ]; then
       WS="$LCL_WIDGETSET"

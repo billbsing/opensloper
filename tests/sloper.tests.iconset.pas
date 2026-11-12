@@ -32,6 +32,7 @@ type
     procedure TestIconDirIsFound;
     procedure TestIconDirMissing;
     procedure TestIconDirFromAppFolder;
+    procedure TestDataInAppBundleResources;
     procedure TestEveryIconHasItsFile;
     procedure TestEveryIconTakesTheTextColour;
     procedure TestTintReplacesEveryCurrentColor;
@@ -60,6 +61,28 @@ begin
   AppDir := ConcatPaths([ExtractFilePath(ParamStr(0)), '..', 'src', 'design']);
   AssertEquals(TAppPaths.IconDir, TAppPaths.IconDirIn(AppDir));
   AssertEquals(TAppPaths.CatalogueFile, TAppPaths.CatalogueFileIn(AppDir));
+end;
+
+// A macOS app bundle has its programs in Contents/MacOS and its data in
+// Contents/Resources, since code signing takes only programs in MacOS
+procedure TTestIconSet.TestDataInAppBundleResources;
+var
+  Bundle, Programs, Icons: string;
+begin
+  Bundle := ConcatPaths([GetTempDir, 'opensloper-bundle-test.app', 'Contents']);
+  Programs := ConcatPaths([Bundle, 'MacOS']);
+  Icons := ConcatPaths([Bundle, 'Resources', 'data', 'icons']);
+  try
+    AssertTrue('made', ForceDirectories(Programs) and ForceDirectories(Icons));
+    AssertEquals(ExpandFileName(Icons), TAppPaths.IconDirIn(Programs));
+  finally
+    RemoveDir(Icons);
+    RemoveDir(ExtractFileDir(Icons));
+    RemoveDir(ConcatPaths([Bundle, 'Resources']));
+    RemoveDir(Programs);
+    RemoveDir(Bundle);
+    RemoveDir(ExtractFileDir(Bundle));
+  end;
 end;
 
 procedure TTestIconSet.TestEveryIconHasItsFile;

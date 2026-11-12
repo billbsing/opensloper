@@ -90,7 +90,9 @@ const
   PUBLISH_FILE_NAME = 'opensloper-publish';
   MEASUREMENTS_FILE_NAME = 'opensloper-measurements';
   {$ENDIF}
-  DATA_UP_LEVELS: array[0..2] of string = ('', '..', '..' + PathDelim + '..');
+  // Beside the program, one or two folders up (the source tree), and in
+  // Contents/Resources of a macOS app bundle, whose programs are in Contents/MacOS
+  DATA_UP_LEVELS: array[0..3] of string = ('', '..', '..' + PathDelim + '..', '..' + PathDelim + 'Resources');
 
 function HomeDir: string;
 begin
@@ -230,8 +232,9 @@ begin
     Result := '';
 end;
 
-// Path in data beside Folder when installed, or in the data folder of the
-// source tree: one folder up from tests and cli, two up from src/<app>
+// Path in data beside Folder when installed (in Resources in a macOS app
+// bundle), or in the data folder of the source tree: one folder up from tests
+// and cli, two up from src/<app>
 function DataPathIn(const Folder, Path: string; WantDir: boolean): string;
 var
   Up: string;
