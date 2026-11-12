@@ -80,7 +80,13 @@ jobs:
       # own sources for its Qt6 widgetset, and shipped in the download
       - name: Build the Qt6 Pascal bindings
         run: |
-          cp -R /usr/lib/lazarus/lcl/interfaces/qt6/cbindings "$RUNNER_TEMP/qt6pas"
+          # The .deb puts Lazarus in /usr/share/lazarus/VERSION
+          src=$(find /usr/share/lazarus /usr/lib/lazarus -type d -path '*/lcl/interfaces/qt6/cbindings' 2>/dev/null | head -1)
+          if [ -z "$src" ]; then
+            echo "::error::The Qt6 binding sources (lcl/interfaces/qt6/cbindings) are not in the Lazarus install"
+            exit 1
+          fi
+          cp -R "$src" "$RUNNER_TEMP/qt6pas"
           cd "$RUNNER_TEMP/qt6pas"
           qmake6 Qt6Pas.pro
           make -j"$(nproc)"
