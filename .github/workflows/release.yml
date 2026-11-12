@@ -128,7 +128,8 @@ jobs:
 
   macos:
     name: macOS arm64
-    runs-on: macos-14
+    # The current Apple silicon image: GitHub retires older ones (macos-14 is gone)
+    runs-on: macos-latest
     env:
       LAZARUS_ZIP: lazarus-darwin-aarch64-4.8.zip
       FPC_DMG: fpc-3.2.4rc1a.intelarm64-macosx.dmg
