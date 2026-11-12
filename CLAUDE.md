@@ -32,6 +32,7 @@ git submodule update --init --recursive
 ./run-tests.sh     # tests, with heaptrc leak check
 ./build.sh         # GUI apps and CLI, into release/ (not in git)
 ./package.sh       # pack the built apps for this platform into release/dist (the release workflow runs it)
+./release-notes.sh # the CHANGELOG.md notes of APP_VERSION, which a release needs
 ./format.sh        # format sources with jcfsettings.cfg (--check to list only)
 ./check-standards.sh  # rules the formatter cannot check (errors fail, warnings advise)
 ./build-docs.sh    # regenerate docs/reference/ and build the site into release/site_docs (--serve to preview)

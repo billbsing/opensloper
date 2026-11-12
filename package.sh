@@ -110,7 +110,7 @@ case "$(uname -s)" in
     cp resources/linux/*.desktop "$ROOT/share/applications/"
     # Named as the desktop entries' Icon lines name them
     cp resources/opensloper-design.svg resources/opensloper-publish.svg resources/opensloper-measure.svg "$ROOT/share/icons/"
-    cp LICENSE "$ROOT/"
+    cp LICENSE CHANGELOG.md "$ROOT/"
     write_readme "$ROOT/README.txt" Linux
     tar -C "$STAGE" -czf "$DIST/$NAME.tar.gz" "$NAME"
     echo "$DIST/$NAME.tar.gz"
@@ -160,7 +160,7 @@ EOF
     # Apple silicon runs only signed programs; an ad hoc signature is enough
     # to run once the download's quarantine is cleared
     codesign --force --deep --sign - "$BUNDLE"
-    cp LICENSE "$STAGE/$NAME/"
+    cp LICENSE CHANGELOG.md "$STAGE/$NAME/"
     write_readme "$STAGE/$NAME/README.txt" macOS
     (cd "$STAGE" && ditto -c -k --keepParent "$NAME" "../../$DIST/$NAME.zip")
     echo "$DIST/$NAME.zip"
@@ -177,6 +177,7 @@ EOF
     strip_programs "${PROGRAMS[@]}"
     cp -R data "$ROOT/data"
     cp LICENSE "$ROOT/LICENSE.txt"
+    cp CHANGELOG.md "$ROOT/CHANGELOG.md"
     write_readme "$ROOT/README.txt" Windows
     (cd "$STAGE" && 7z a -tzip -bso0 "../../$DIST/$NAME.zip" "$NAME")
     echo "$DIST/$NAME.zip"
