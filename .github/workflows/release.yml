@@ -41,13 +41,13 @@ jobs:
         fpc-src_3.2.2-210709_amd64.deb
         lazarus-project_4.8.0-0_amd64.deb
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Cache the Lazarus packages
         id: debs
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: debs
           key: lazarus-debs-${{ env.LAZARUS_RELEASE }}
@@ -120,7 +120,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: opensloper-linux-x86_64
           path: release/dist/*
@@ -134,13 +134,13 @@ jobs:
       LAZARUS_ZIP: lazarus-darwin-aarch64-4.8.zip
       FPC_DMG: fpc-3.2.4rc1a.intelarm64-macosx.dmg
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Cache the Lazarus downloads
         id: downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: downloads
           key: lazarus-macos-arm64-${{ env.LAZARUS_RELEASE }}
@@ -196,7 +196,7 @@ jobs:
           fi
           kill "$app"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: opensloper-macos-arm64
           path: release/dist/*
@@ -216,13 +216,13 @@ jobs:
       - name: Keep line ends
         run: git config --global core.autocrlf false
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Cache the Lazarus installer
         id: downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: downloads
           key: lazarus-windows-x86_64-${{ env.LAZARUS_RELEASE }}
@@ -280,7 +280,7 @@ jobs:
           if ($app.HasExited) { throw "opensloper-design exited with $($app.ExitCode) during start-up" }
           Stop-Process -Id $app.Id
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: opensloper-windows-x86_64
           path: release/dist/*
@@ -294,9 +294,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
