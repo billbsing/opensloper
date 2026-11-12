@@ -788,49 +788,6 @@ Built 2026-11-11 (`Sloper.Output.DraftPNG`). The CLI and the API draw the draft 
 
 Our units that use a third-party drawing library live in `src/output/thirdparty`: every standard applies there, and `check-standards.sh` allows only BGRABitmap's no-LCL units besides, so the rest of `src/output` stays vector-only and nothing below `src/ui` uses the LCL. The CLI and tests require the no-LCL package; the GUI apps keep the LCL build, which compiles the same units.
 
-## Garment view
-
-**History.** A Garment window (step 13) showed the finished garment flat, front and back, with pieces joined along their seams. It was taken out on 2026-11-03 with drafts and layers (see One canvas); the code is in the git history before that date (`Sloper.Core.Garment`, `Sloper.Output.GarmentSVG`, commit `b920e6c` removed them). It looked unfinished: darts stayed open, curved seams that differ left gaps, a sleeve sewn to a front and a back armhole did not join, and the flat outlines gave no sense of a body inside.
-
-**Bringing it back** (designed 2026-11-09, not built) as a **Garment tab** on the side panel, beside Properties and Objects, rather than a window of its own: it stays out of the way, needs no window management, and is there to glance at while drafting. It is read-only and shows each piece as sewn, darts closed and fold pieces opened, with shading that gives a rounded, semi-3D look. It shows proportions and shaping, not how pieces go together, fit or drape, which stay with the Blender export (see 3D preview).
-
-**Pieces side by side, not front and back** (changed 2026-11-09). The first design joined pieces along their seams into a front view and a back view, which needed a `garment` side (front, back, both) set on every piece, since the app cannot tell a front from a back, plus seam welding and registering the two views. Each piece is now shown on its own, arranged as on the canvas, so nothing has to be set and nothing is stored: the tab works on any pattern as soon as it has pieces. It gives up the assembled look, which the old window never got right (gaps at curved seams, a sleeve that joined only one armhole) and Blender does properly. A file from before 2026-11-03 that gives a piece `view` loads with it ignored, as now.
-
-### The tab
-
-- **Arranged as on the canvas.** Each piece keeps its drafted position, so the tab reads like the canvas with finished pieces. A piece with a grainline is turned so the grainline is upright, as it hangs on the body; one without keeps its canvas direction. Pieces that overlap, on the canvas (front drafted over back) or once their darts close and folds open, are drawn overlapping, in the canvas's stacking order, and not pushed apart (decided 2026-11-09): the tab stays a faithful mirror of the canvas, and separating pieces is the drafter's job there (see Overlapping pieces). Hidden pieces are left out, and while the canvas isolates a piece the tab shows only that piece. A piece cut more than once (a pair of sleeves) is shown once, as on the canvas.
-- **Material filter.** A list at the top of the tab chooses which materials show; it starts on the pattern's first material (Main), so lining and interfacing do not cover the main pieces. View state, not saved.
-- **Navigation.** The drawing fits the panel; the wheel zooms and a drag pans, and a double-click fits again. **Follow canvas**, a toggle off by default, makes the tab use the canvas's zoom and pan instead. Zoom and the toggle are view state, not saved.
-- **Live.** Pieces are recomputed after each evaluation while the tab is showing, and not at all while it is hidden; only pieces whose geometry changed are rebuilt. If building takes longer than a frame, a drag updates it on release only.
-- **Linked to the canvas.** Hovering a piece in the tab shows its name beside the pointer and highlights it on the canvas, and clicking selects it there; a piece selected on the canvas is outlined in the tab. A seam selected on the canvas is highlighted in the tab on both its sides, on whichever pieces they lie (two pieces, or one for a dart), following the warp, so matching edges are easy to find even with pieces apart. Nothing in the tab edits the pattern.
-- **Notes** under the drawing say what was left out: a dart that could not be closed, a failing piece.
-- **Export** (a button in the tab, and the API's `render` with `garment`) writes SVG; PNG at a chosen size from the tab, since the CLI has no LCL to draw it.
-
-### Building a piece
-
-Everything is computed from the evaluated pattern in the core (`Sloper.Core.Garment`, no LCL dependency, reading computed geometry); nothing is stored.
-
-1. **Close the darts.** A dart is a seam whose two sides are two edges of one piece meeting at a point, the apex (see Seams). Each is closed by turning the piece about its apex: with θ the dart angle and φ a point's angle measured from one leg round the piece to the other leg (0° to 360° − θ), the point moves to angle φ × 360° / (360° − θ), so the two legs land on one line and the rest of the piece opens slightly to take it up, most near the dart and not at all opposite it. Where the legs differ in length, their ends meet halfway. The closed dart is drawn as one stitch line from the apex to the outline. A dart wider than 90° or a dart with an edge that is not straight is left open and noted. A dart drawn as a marking line inside a piece is drawn as a stitch line, as it is.
-2. **Open the fold.** A piece cut on a fold is mirrored across it, so it shows whole, as cut.
-3. **Place.** The finished piece is placed so the part furthest from its darts stays where it is on the canvas (a piece with no darts keeps the centre of its bounding box), so closing a dart moves only the outline near it and the piece does not drift from its canvas place. Provisional: to be checked once the tab draws real pieces.
-
-The dart-closing warp is shared code (`Sloper.Core.Warp`): a map from piece coordinates to finished coordinates that the outline, stitch lines, markings and grainline all go through, so everything on a piece follows its darts.
-
-### Drawing
-
-The painter in the UI draws what the core hands it, and decides nothing; the same scene goes to the SVG export.
-
-- **Outlines** are the seam lines, not the cutting lines. An edge in a seam is drawn as a stitch: a fine dashed line just inside a solid edge, so the piece reads as sewn; other edges are plain. A fold has no line. Notches, labels, the seam allowance and construction are left out (a piece's name shows on hover); buttons and other point markers, stitch lines and topstitching (offset edges with a stitch role) are drawn.
-- **Fill** is the piece's material colour, or hatching, at full strength rather than the canvas's light tint.
-- **Shading (semi-3D).** Each piece is lit as if it were wrapped round a body: across each row, the shade follows a half-cylinder between the piece's left and right edges at that height, brighter in the middle and darker towards the sides, lit a little from the upper left, with a soft shadow just inside each seam edge on the side away from the light and a faint highlight on the other, so seams look slightly raised. Long narrow pieces (sleeves, straps), at least three times as long along the grainline as they are wide, are shaded along their length instead. The light, strength and an off switch are in Preferences, not the pattern. Shading is computed per row in the core (`GarmentShade`, a pure function of position and the piece's row widths), so it is tested without the LCL.
-- **Shadow.** A soft drop shadow under each piece separates it from the panel background, in both light and dark themes.
-
-The SVG export draws the shading as gradients (one horizontal gradient per row band, clipped to the piece), which is close but not exact; PNG is drawn as on screen.
-
-### Limits
-
-Pieces never bend beyond the dart warp, so a flared skirt shows flat, gathers and pleats do not show (pleats could be drawn as lines later), and how pieces join, fit and drape are not shown. Accessories (bags, hats) are drawn the same way.
-
 ## Accessories
 
 OpenSloper drafts accessories in fabric and leather (bags, pouches, wallets, hats, belts) as well as garments, with the same parametric core; the additions are useful for garments too.
