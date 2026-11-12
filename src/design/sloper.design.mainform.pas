@@ -18,7 +18,7 @@
 
 // Main application window: the canvas, menus and status bar around one
 // pattern document.
-unit Sloper.UI.MainForm;
+unit Sloper.Design.MainForm;
 
 {$mode ObjFPC}{$H+}
 
