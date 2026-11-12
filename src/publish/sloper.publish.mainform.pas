@@ -321,6 +321,8 @@ const
 constructor TPublishForm.Create(AOwner: TComponent);
 var
   ProblemsGroup: TGroupBox;
+  PreviewPanel: TPanel;
+  HorzBar, VertBar: TScrollBar;
 begin
   inherited CreateNew(AOwner);
   Caption := rsPublishTitle;
@@ -361,9 +363,22 @@ begin
   FPatternsSide := FTabs.AddSection('patterns', rsTabPatterns);
   FSide := FTabs.AddSection('output', rsTabOutput);
   FNotesSide := FTabs.AddSection('notes', rsTabNotes);
+  // The preview and its scroll bars share a panel, so the bars stay beside it
+  PreviewPanel := TPanel.Create(Self);
+  PreviewPanel.Parent := Self;
+  PreviewPanel.Align := alClient;
+  PreviewPanel.BevelOuter := bvNone;
+  HorzBar := TScrollBar.Create(Self);
+  HorzBar.Parent := PreviewPanel;
+  HorzBar.Align := alBottom;
+  VertBar := TScrollBar.Create(Self);
+  VertBar.Parent := PreviewPanel;
+  VertBar.Align := alRight;
   FPreview := TPreviewCanvas.Create(Self);
-  FPreview.Parent := Self;
+  FPreview.Parent := PreviewPanel;
   FPreview.Align := alClient;
+  FPreview.HorzBar := HorzBar;
+  FPreview.VertBar := VertBar;
   FPreview.Document := FDocument;
   FPreview.OnSelectionChange := @SelectionChanged;
   FPreview.OnZoomAreaChange := @PreviewZoomAreaChange;

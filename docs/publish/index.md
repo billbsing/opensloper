@@ -35,7 +35,7 @@ a pattern to start a layout for.
 
 The wheel zooms about the pointer, and View → Zoom In and Zoom Out
 (++ctrl+plus++ and ++ctrl+minus++) zoom about the middle; drag with the middle
-button, or hold ++space++ and drag, to pan. View → Fit Pages (++ctrl+0++)
+button, hold ++space++ and drag, or use the scroll bars, to pan. View → Fit Pages (++ctrl+0++)
 shows every page. View → Zoom Area (++z++) zooms to a box dragged over the
 pages; while it is on, a click zooms in, ++shift++ and click zooms out, and
 pieces stay put. Press ++z++ again, or ++escape++, to move pieces again.

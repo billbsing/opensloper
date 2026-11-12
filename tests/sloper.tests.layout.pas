@@ -156,6 +156,8 @@ type
     procedure TestExcludedPageIsNotPrinted;
     procedure TestBlankStaysBlankWhenExcluded;
     procedure TestPageCaptionAt;
+    procedure TestPagesBounds;
+    procedure TestPagesBoundsWithoutPages;
     procedure TestLargeIsOneSheet;
     procedure TestLargeSheetSize;
     procedure TestLargeRoundTrip;
@@ -1645,6 +1647,38 @@ begin
   FLayout.TogglePage('A2');
   Bytes := LayoutToPDF(FLayout);
   AssertTrue(Pos(Format(rsPDFPages, [2, 1, 0]), Bytes) > 0);
+end;
+
+function Box(MinX, MinY, MaxX, MaxY: double): TRect2;
+begin
+  Result.MinX := MinX;
+  Result.MinY := MinY;
+  Result.MaxX := MaxX;
+  Result.MaxY := MaxY;
+end;
+
+// Every page, overlaps and all, for the preview's scroll bars and Fit Pages
+procedure TTestLayout.TestPagesBounds;
+var
+  Pages: TTilePageArray;
+  Bounds: TRect2;
+begin
+  Pages := nil;
+  SetLength(Pages, 2);
+  Pages[0].Area := Box(10, 20, 200, 300);
+  Pages[1].Area := Box(-5, 250, 150, 520);
+  AssertTrue('found', PagesBounds(Pages, Bounds));
+  AssertNear('left', -5, Bounds.MinX);
+  AssertNear('top', 20, Bounds.MinY);
+  AssertNear('right', 200, Bounds.MaxX);
+  AssertNear('bottom', 520, Bounds.MaxY);
+end;
+
+procedure TTestLayout.TestPagesBoundsWithoutPages;
+var
+  Bounds: TRect2;
+begin
+  AssertFalse('none', PagesBounds(nil, Bounds));
 end;
 
 procedure TTestLayout.TestPageCaptionAt;

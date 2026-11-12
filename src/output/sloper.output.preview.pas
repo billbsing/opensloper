@@ -59,6 +59,8 @@ function NoteAt(const Notes: TSheetNoteArray; const Values: TFieldValues; const 
 // The caption of the page At falls on, nearest its middle where two overlap;
 // '' when there is none
 function PageCaptionAt(const Pages: TTilePageArray; const At: TVec2): string;
+// The area every page covers; False when there are none
+function PagesBounds(const Pages: TTilePageArray; out Bounds: TRect2): boolean;
 function RoundToStep(Value: double): double;
 
 implementation
@@ -177,6 +179,24 @@ begin
         Result := Page.Caption;
       end;
     end;
+end;
+
+function PagesBounds(const Pages: TTilePageArray; out Bounds: TRect2): boolean;
+var
+  Page: TTilePage;
+begin
+  Bounds := Default(TRect2);
+  Result := Length(Pages) > 0;
+  if not Result then
+    Exit;
+  Bounds := Pages[0].Area;
+  for Page in Pages do
+  begin
+    Bounds.MinX := Min(Bounds.MinX, Page.Area.MinX);
+    Bounds.MinY := Min(Bounds.MinY, Page.Area.MinY);
+    Bounds.MaxX := Max(Bounds.MaxX, Page.Area.MaxX);
+    Bounds.MaxY := Max(Bounds.MaxY, Page.Area.MaxY);
+  end;
 end;
 
 function RoundToStep(Value: double): double;

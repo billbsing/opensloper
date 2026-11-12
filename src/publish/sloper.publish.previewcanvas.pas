@@ -19,7 +19,9 @@
 // The publish preview: the pages with the pieces on them, drawn with
 // BGRABitmap. Blank pages are greyed out. Pieces are dragged here, and a drag
 // is one change; everything else goes through the main form. With Zoom Area
-// on, a drag zooms to its box instead and a click zooms a step.
+// on, a drag zooms to its box instead and a click zooms a step. Scroll bars
+// beside it, when given, follow the view over the pages, as on the design
+// canvas.
 unit Sloper.Publish.PreviewCanvas;
 
 {$mode ObjFPC}{$H+}
@@ -27,9 +29,9 @@ unit Sloper.Publish.PreviewCanvas;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Materials, Sloper.Core.Geometry, Sloper.Core.Note,
+  Classes, SysUtils, Controls, StdCtrls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Materials, Sloper.Core.Geometry, Sloper.Core.Note,
   Sloper.Core.TextFields, Sloper.Output.Layout,
-  Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling;
+  Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling, Sloper.UI.View;
 
 type
   // pmZoomPressed and pmZoomBoxing: Zoom Area's click, and its box being drawn
@@ -57,6 +59,15 @@ type
     FZoomKey: TShortCut;
     FOnSelectionChange: TNotifyEvent;
     FOnZoomAreaChange: TNotifyEvent;
+    FHorzBar, FVertBar: TScrollBar;
+    // A thumb is being dragged, so its bar is left alone until it lets go
+    FThumbHeld: boolean;
+    procedure TakeFocus;
+    procedure SetHorzBar(Value: TScrollBar);
+    procedure SetVertBar(Value: TScrollBar);
+    procedure BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: integer);
+    procedure ShowOnBar(Bar: TScrollBar; const Axis: TScrollAxis);
+    procedure UpdateScrollBars;
     procedure SetSelected(Value: integer);
     procedure SetSelectedNote(Value: integer);
     procedure SetZoomArea(Value: boolean);
@@ -96,6 +107,9 @@ type
     property ZoomArea: boolean read FZoomArea write SetZoomArea;
     // Zoom Area turned on or off, here by its key or Escape too
     property OnZoomAreaChange: TNotifyEvent read FOnZoomAreaChange write FOnZoomAreaChange;
+    // Scroll bars to keep in step with the view
+    property HorzBar: TScrollBar read FHorzBar write SetHorzBar;
+    property VertBar: TScrollBar read FVertBar write SetVertBar;
     property OnDragOver;
     property OnDragDrop;
   end;
@@ -111,7 +125,7 @@ resourcestring
 implementation
 
 uses
-  Math, LCLIntf, Menus, Sloper.Core.Draft, Sloper.Core.Shortcuts, Sloper.UI.Commands;
+  Math, LCLIntf, Forms, Menus, Sloper.Core.Draft, Sloper.Core.Shortcuts, Sloper.UI.Commands;
 
 const
   FIT_MARGIN = 24;
@@ -119,6 +133,8 @@ const
   CAPTION_HEIGHT = 13;
   LABEL_HEIGHT = 12;
   MIN_NOTE_HEIGHT = 6;
+  // A click on a scroll bar's arrow moves the view this far
+  SCROLL_STEP_PIXELS = 60;
 
 function Desk: TBGRAPixel;
 begin
@@ -316,18 +332,94 @@ begin
   FDocument.EndChange;
 end;
 
+// SetFocus does nothing while this is already the active control, even when a
+// menu closed with Escape has left Qt's menu bar holding the keyboard (see
+// TPatternCanvas.TakeFocus)
+procedure TPreviewCanvas.TakeFocus;
+begin
+  SetFocus;
+  if HandleAllocated and not Focused then
+    LCLIntf.SetFocus(Handle);
+end;
+
+procedure TPreviewCanvas.SetHorzBar(Value: TScrollBar);
+begin
+  FHorzBar := Value;
+  FHorzBar.Kind := sbHorizontal;
+  FHorzBar.OnScroll := @BarScroll;
+  FHorzBar.SmallChange := SCROLL_STEP_PIXELS;
+  FHorzBar.TabStop := False;
+end;
+
+procedure TPreviewCanvas.SetVertBar(Value: TScrollBar);
+begin
+  FVertBar := Value;
+  FVertBar.Kind := sbVertical;
+  FVertBar.OnScroll := @BarScroll;
+  FVertBar.SmallChange := SCROLL_STEP_PIXELS;
+  FVertBar.TabStop := False;
+end;
+
+// The bars are moved by hand only, so the view follows them, and the keys go
+// back to the preview afterwards
+procedure TPreviewCanvas.BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: integer);
+var
+  Moved: integer;
+begin
+  Moved := TScrollBar(Sender).Position - ScrollPos;
+  if Sender = FHorzBar then
+    FView.Pan(Moved, 0)
+  else
+    FView.Pan(0, Moved);
+  FThumbHeld := ScrollCode = scTrack;
+  TScrollBar(Sender).Position := ScrollPos;
+  if ScrollCode = scEndScroll then
+    TakeFocus;
+  Invalidate;
+end;
+
+procedure TPreviewCanvas.ShowOnBar(Bar: TScrollBar; const Axis: TScrollAxis);
+begin
+  Bar.Enabled := Axis.Active;
+  if not Axis.Active then
+    Exit;
+  Bar.Min := 0;
+  Bar.Max := Axis.Extent - 1;
+  Bar.PageSize := Axis.Page;
+  Bar.LargeChange := Axis.Page;
+  Bar.Position := Axis.Position;
+end;
+
+// The pages and the margin Fit Pages leaves round them, or just the view when
+// there are none
+procedure TPreviewCanvas.UpdateScrollBars;
+var
+  Bounds: TRect2;
+  TopLeft, BottomRight: TVec2;
+begin
+  if not Assigned(FHorzBar) or not Assigned(FVertBar) or FThumbHeld then
+    Exit;
+  if PagesBounds(FPages, Bounds) then
+  begin
+    TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MinY));
+    BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MaxY));
+    ShowOnBar(FHorzBar, ScrollAxisFor(TopLeft.X - FIT_MARGIN, BottomRight.X + FIT_MARGIN, ClientWidth));
+    ShowOnBar(FVertBar, ScrollAxisFor(TopLeft.Y - FIT_MARGIN, BottomRight.Y + FIT_MARGIN, ClientHeight));
+  end
+  else
+  begin
+    ShowOnBar(FHorzBar, ScrollAxisFor(0, ClientWidth, ClientWidth));
+    ShowOnBar(FVertBar, ScrollAxisFor(0, ClientHeight, ClientHeight));
+  end;
+end;
+
 procedure TPreviewCanvas.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
 var
   Hit: integer;
   At: TVec2;
 begin
   inherited MouseDown(Button, Shift, X, Y);
-  SetFocus;
-  // SetFocus does nothing while this is already the active control, even
-  // when a menu closed with Escape has left Qt's menu bar holding the
-  // keyboard (see TPatternCanvas.TakeFocus)
-  if HandleAllocated and not Focused then
-    LCLIntf.SetFocus(Handle);
+  TakeFocus;
   FPressPos := Point(X, Y);
   FLastPos := FPressPos;
   if (Button = mbMiddle) or ((Button = mbLeft) and FSpaceDown) then
@@ -636,14 +728,8 @@ var
 begin
   if (FBitmap.Width <> ClientWidth) or (FBitmap.Height <> ClientHeight) then
     FBitmap.SetSize(Max(ClientWidth, 1), Max(ClientHeight, 1));
-  if FNeedsFit and (Length(FPages) > 0) then
+  if FNeedsFit and PagesBounds(FPages, Whole) then
   begin
-    Whole := FPages[0].Area;
-    for Page in FPages do
-    begin
-      Whole.MaxX := Max(Whole.MaxX, Page.Area.MaxX);
-      Whole.MaxY := Max(Whole.MaxY, Page.Area.MaxY);
-    end;
     FView.Fit(Whole, ClientWidth, ClientHeight, FIT_MARGIN);
     FNeedsFit := False;
   end;
@@ -666,6 +752,7 @@ begin
   if FMode = pmZoomBoxing then
     DrawZoomBox;
   FBitmap.Draw(Canvas, 0, 0, True);
+  UpdateScrollBars;
 end;
 
 end.
