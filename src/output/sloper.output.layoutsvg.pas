@@ -153,9 +153,9 @@ begin
         [SVGNumber(Frame.MinX), SVGNumber(Frame.MinY), SVGNumber(Frame.MaxX - Frame.MinX), SVGNumber(Frame.MaxY - Frame.MinY)]);
     Lines := TextLines(ExpandFields(Note.Text, Values));
     for Index := 0 to High(Lines) do
-      Result := Result + Format('<text x="%s" y="%s" font-family="Helvetica, Arial, sans-serif" font-size="%s" fill="%s" stroke="none">%s</text>',
+      Result := Result + Format('<text x="%s" y="%s" %s font-size="%s" fill="%s" stroke="none">%s</text>',
         [SVGNumber(NoteLineLeft(Note, Values, Lines[Index])), SVGNumber(Note.Y + (Index + 1) * LineHeight(Note.Size)),
-        SVGNumber(Note.Size * POINTS_TO_MM), INK_COLOR, EscapeXML(Lines[Index])]);
+        NoteFontAttributes(Note.Style), SVGNumber(Note.Size * POINTS_TO_MM), INK_COLOR, EscapeXML(Lines[Index])]);
   end;
   if Result <> '' then
     Result := '<g class="notes">' + Result + '</g>' + #10;

@@ -55,6 +55,7 @@ uses
   Sloper.Tests.Completion,
   Sloper.Tests.API,
   Sloper.Tests.DraftSVG,
+  Sloper.Tests.Fonts,
   Sloper.Tests.Settings,
   Sloper.Tests.RecentFiles,
   Sloper.Tests.RulerTicks,

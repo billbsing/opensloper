@@ -298,6 +298,9 @@ resourcestring
   rsMemberLeader = 'A line to what it hangs from, making it a callout';
   rsMemberAlign = 'How its lines line up';
   rsMemberBox = 'Whether it has a white box behind it';
+  rsMemberFont = 'The font family it prints in; left out for the default sans-serif';
+  rsMemberBold = 'Whether it is bold';
+  rsMemberItalic = 'Whether it is italic';
 
 implementation
 
@@ -543,6 +546,9 @@ begin
   M('leader', mkChoice, rsMemberLeader, Joined(NOTE_LEADER_NAMES));
   M('align', mkChoice, rsMemberAlign, Joined(TEXT_ALIGN_NAMES));
   M('box', mkFlag, rsMemberBox);
+  M('font', mkText, rsMemberFont);
+  M('bold', mkFlag, rsMemberBold);
+  M('italic', mkFlag, rsMemberItalic);
 end;
 
 function OperationInfos: TOperationInfoArray;

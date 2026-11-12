@@ -541,6 +541,12 @@ begin
     Into.Add('align', TEXT_ALIGN_NAMES[Note.Align]);
   if Note.Boxed then
     Into.Add('box', True);
+  if Note.Style.Font <> '' then
+    Into.Add('font', Note.Style.Font);
+  if Note.Style.Bold then
+    Into.Add('bold', True);
+  if Note.Style.Italic then
+    Into.Add('italic', True);
 end;
 
 function SaveObject(DraftObject: TDraftObject): TJSONObject;
@@ -1556,13 +1562,14 @@ begin
 end;
 
 // Its fields other than an edge's position, text, size, print, leader,
-// alignment and box
+// alignment, box and font
 function TPatternLoader.ReadNoteValues(Item: TJSONObject; Note: TNoteObject): boolean;
 var
-  FieldName, Text: string;
+  FieldName, Text, Reason: string;
   Size: double;
   Print, Boxed: boolean;
   Choice: integer;
+  Style: TTextStyle;
 begin
   for FieldName in Note.PlaceFields do
     if not ReadFormula(Item, FieldName, Note, FieldName) then
@@ -1591,6 +1598,17 @@ begin
     Exit(False);
   Note.Align := TTextAlign(Choice);
   Note.Boxed := Boxed;
+  Style := Default(TTextStyle);
+  if Assigned(Item.Find('font')) then
+  begin
+    if not GetJSONString(Item, 'font', Text) then
+      Exit(Missing('font'));
+    if not CheckFontName(Text, Style.Font, Reason) then
+      Exit(Problem(Reason));
+  end;
+  if not ReadBoolean(Item, 'bold', Style.Bold) or not ReadBoolean(Item, 'italic', Style.Italic) then
+    Exit(False);
+  Note.Style := Style;
   Result := True;
 end;
 

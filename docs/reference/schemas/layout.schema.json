@@ -220,6 +220,18 @@
           "box": {
             "description": "Whether it has a white box behind it",
             "type": "boolean"
+          },
+          "font": {
+            "description": "The font family it prints in; left out for the default sans-serif",
+            "type": "string"
+          },
+          "bold": {
+            "description": "Whether it is bold",
+            "type": "boolean"
+          },
+          "italic": {
+            "description": "Whether it is italic",
+            "type": "boolean"
           }
         },
         "required": [

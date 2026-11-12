@@ -252,6 +252,11 @@
         <UnitName Value="Sloper.UI.Properties"/>
       </Unit>
       <Unit>
+        <Filename Value="../ui/sloper.ui.fontbox.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.UI.FontBox"/>
+      </Unit>
+      <Unit>
         <Filename Value="../core/sloper.core.settings.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Core.Settings"/>

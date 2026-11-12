@@ -33,9 +33,27 @@ from that instead.
 | Leader | None for a plain note; Arrow, Dot or Line for a callout |
 | Lines | Left, Centred or Right |
 | Box | On a white box, so it reads over lines and fills |
+| Font | The font it prints in: one from the list or a name typed in; the default is a plain sans-serif |
+| Style | Bold, italic, or both |
 
 A point, edge or piece cannot be deleted while a note hangs from it: make the
 note free first, or delete it.
+
+## Fonts
+
+A note is drawn and printed in its own font, so a print matches the screen.
+PDF files carry the font with them, cut down to the letters used, so they
+print the same on any computer. When the font has no bold or italic form, the
+PDF draws one from its regular form.
+
+A font that is not installed, that has PostScript (CFF) outlines rather than
+TrueType ones, or whose licence does not allow it to be embedded prints in the
+default font instead, and the publish app lists a warning. Most `.ttf` fonts
+embed; some `.otf` fonts do not.
+
+The default font prints as Helvetica, which every PDF reader has. Text that
+Helvetica cannot print, such as Greek or Cyrillic, prints in Noto Sans, which
+comes with OpenSloper.
 
 ## Values from the draft
 

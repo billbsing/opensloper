@@ -415,4 +415,7 @@ Text on the pattern, free or hung from a point, edge or piece, with draft values
 | `leader` | one of: `none`, `arrow`, `dot`, `line` | A line to what it hangs from, making it a callout |
 | `align` | one of: `left`, `centre`, `right` | How its lines line up |
 | `box` | true or false | Whether it has a white box behind it |
+| `font` | text | The font family it prints in; left out for the default sans-serif |
+| `bold` | true or false | Whether it is bold |
+| `italic` | true or false | Whether it is italic |
 

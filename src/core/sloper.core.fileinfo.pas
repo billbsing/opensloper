@@ -141,6 +141,9 @@ resourcestring
   rsFileSheetNoteSize = 'Its size in points';
   rsFileSheetNoteAlign = 'How its lines line up';
   rsFileSheetNoteBox = 'Whether it has a white box behind it';
+  rsFileSheetNoteFont = 'The font family it prints in; left out for the default sans-serif';
+  rsFileSheetNoteBold = 'Whether it is bold';
+  rsFileSheetNoteItalic = 'Whether it is italic';
   rsFileLayoutTitleBlock = 'The title block; no title block when left out';
   rsFileTitleCorner = 'The corner of the page it sits in';
   rsFileTitleFields = 'What it shows, in order';
@@ -441,6 +444,9 @@ begin
   M('sheetNotes[].size', mkSize, rsFileSheetNoteSize);
   M('sheetNotes[].align', mkChoice, rsFileSheetNoteAlign, Joined(TEXT_ALIGN_NAMES));
   M('sheetNotes[].box', mkFlag, rsFileSheetNoteBox);
+  M('sheetNotes[].font', mkText, rsFileSheetNoteFont);
+  M('sheetNotes[].bold', mkFlag, rsFileSheetNoteBold);
+  M('sheetNotes[].italic', mkFlag, rsFileSheetNoteItalic);
   M('titleBlock', mkGroup, rsFileLayoutTitleBlock);
   M('titleBlock.corner', mkChoice, rsFileTitleCorner, 'bottomRight, bottomLeft, topRight');
   M('titleBlock.fields[]', mkChoice, rsFileTitleFields, Joined([FIELD_PATTERN_NAME, FIELD_MEASUREMENTS_NAME, FIELD_LAYOUT_NAME,

@@ -307,6 +307,8 @@ type
     function SetNoteLeader(Note: TNoteObject; ALeader: TNoteLeader): boolean;
     procedure SetNoteAlign(Note: TNoteObject; AAlign: TTextAlign);
     procedure SetNoteBoxed(Note: TNoteObject; ABoxed: boolean);
+    // False when the font name is refused (see CheckFontName)
+    function SetNoteStyle(Note: TNoteObject; const AStyle: TTextStyle): boolean;
     // Hangs the note from another anchor, Ratio along an edge, keeping its
     // text where it was last drawn, as when a callout's tip is dragged. A
     // callout cannot be made free.
@@ -2830,6 +2832,18 @@ end;
 procedure TPattern.SetNoteBoxed(Note: TNoteObject; ABoxed: boolean);
 begin
   Note.Boxed := ABoxed;
+end;
+
+function TPattern.SetNoteStyle(Note: TNoteObject; const AStyle: TTextStyle): boolean;
+var
+  Kept: TTextStyle;
+  Reason: string;
+begin
+  Kept := AStyle;
+  if not CheckFontName(AStyle.Font, Kept.Font, Reason) then
+    Exit(SetError(Reason));
+  Note.Style := Kept;
+  Result := True;
 end;
 
 // Worked out from the anchor's last good place, as the note's own is

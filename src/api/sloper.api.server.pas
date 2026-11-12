@@ -302,6 +302,19 @@ begin
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
 end;
 
+// A note's font, bold and italic, each kept from Base when left out; an
+// empty font is the default
+function NoteStyleParam(Params: TJSONObject; const Base: TTextStyle): TTextStyle;
+begin
+  Result := Base;
+  if Assigned(Params.Find('font')) then
+    Result.Font := RequireString(Params, 'font');
+  if Assigned(Params.Find('bold')) then
+    Result.Bold := BooleanParam(Params, 'bold');
+  if Assigned(Params.Find('italic')) then
+    Result.Italic := BooleanParam(Params, 'italic');
+end;
+
 // A list of strings; anything else in it is refused
 function StringListParam(Params: TJSONObject; const AName: string): TStringArray;
 var
@@ -498,6 +511,9 @@ begin
       Result.Add('leader', NOTE_LEADER_NAMES[TNoteObject(Node).Leader]);
       Result.Add('align', TEXT_ALIGN_NAMES[TNoteObject(Node).Align]);
       Result.Add('box', TNoteObject(Node).Boxed);
+      Result.Add('font', TNoteObject(Node).Style.Font);
+      Result.Add('bold', TNoteObject(Node).Style.Bold);
+      Result.Add('italic', TNoteObject(Node).Style.Italic);
       Result.Add('anchor', NOTE_ANCHOR_NAMES[TNoteObject(Node).Anchor]);
       if TNoteObject(Node).Anchor <> naFree then
         Result.Add('anchorId', StrToInt(TNoteObject(Node).AnchorKey));
@@ -2126,6 +2142,7 @@ var
   Leader: TNoteLeader;
   Align: TTextAlign;
   Note: TNoteObject;
+  Style: TTextStyle;
 begin
   Text := RequireString(Params, 'text');
   Anchor := naFree;
@@ -2177,17 +2194,20 @@ begin
   Leader := TNoteLeader(ChoiceParam(Params, 'leader', NOTE_LEADER_NAMES));
   Align := TTextAlign(ChoiceParam(Params, 'align', TEXT_ALIGN_NAMES));
   Boxed := BooleanParam(Params, 'box');
+  Style := NoteStyleParam(Params, Default(TTextStyle));
   BeginChange(Format(rsApiAdd, [NOTE_TYPE]));
   Note := FDocument.Pattern.AddNote(OptionalString(Params, 'name'), Text, Anchor, AnchorKey, Position, First, Second, Size, Print, Leader);
   if Assigned(Note) then
   begin
     FDocument.Pattern.SetNoteAlign(Note, Align);
     FDocument.Pattern.SetNoteBoxed(Note, Boxed);
+    if not FDocument.Pattern.SetNoteStyle(Note, Style) then
+      RefuseChange;
   end;
   Result := AddedNode(Note);
 end;
 
-// Any of the text, size, printing, leader, alignment and box
+// Any of the text, size, printing, leader, alignment, box and font
 function TApiServer.DoSetText(Params: TJSONObject): TJSONData;
 var
   Target: TEvalNode;
@@ -2197,6 +2217,7 @@ var
   Print, Boxed: boolean;
   Leader: TNoteLeader;
   Align: TTextAlign;
+  Style: TTextStyle;
 begin
   Target := FindTarget(Params);
   if not (Target is TNoteObject) then
@@ -2220,11 +2241,13 @@ begin
   Boxed := Note.Boxed;
   if Assigned(Params.Find('box')) then
     Boxed := BooleanParam(Params, 'box');
+  Style := NoteStyleParam(Params, Note.Style);
   BeginChange(rsApiChangeNote);
   FDocument.Pattern.SetNotePrint(Note, Print);
   FDocument.Pattern.SetNoteAlign(Note, Align);
   FDocument.Pattern.SetNoteBoxed(Note, Boxed);
-  if not FDocument.Pattern.SetNoteText(Note, Text) or not FDocument.Pattern.SetNoteSize(Note, Size) or not FDocument.Pattern.SetNoteLeader(Note, Leader) then
+  if not FDocument.Pattern.SetNoteText(Note, Text) or not FDocument.Pattern.SetNoteSize(Note, Size) or not
+    FDocument.Pattern.SetNoteLeader(Note, Leader) or not FDocument.Pattern.SetNoteStyle(Note, Style) then
     RefuseChange;
   Result := AddedNode(Note);
 end;

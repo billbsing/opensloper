@@ -94,6 +94,7 @@ var
   Path: TPiecePath;
   Piece: TPieceObject;
   Side: TSeamSide;
+  Style: TTextStyle;
   Repeated: TRepeatObject;
   Reason: string;
 begin
@@ -194,6 +195,11 @@ begin
   Check(FPattern.AddNote('', 'Callout', naPoint, A, '', '10', '20', 12, True, nlArrow));
   FPattern.SetNoteAlign(TNoteObject(FPattern.Objects[FPattern.ObjectCount - 1]), taCentre);
   FPattern.SetNoteBoxed(TNoteObject(FPattern.Objects[FPattern.ObjectCount - 1]), True);
+  Style := Default(TTextStyle);
+  Style.Font := 'DejaVu Sans';
+  Style.Bold := True;
+  Style.Italic := True;
+  AssertTrue(FPattern.LastError, FPattern.SetNoteStyle(TNoteObject(FPattern.Objects[FPattern.ObjectCount - 1]), Style));
   Check(FPattern.AddNote('', 'On an edge', naEdge, AB, '0.5', '0', '10'));
   Check(FPattern.AddNote('', 'On the piece', naPiece, Piece.Key, '', '0', '0'));
   FPattern.Evaluate;
