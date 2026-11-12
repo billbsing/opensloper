@@ -144,9 +144,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Cache the Lazarus downloads
+      # Saved as soon as it is downloaded, as it is slow (20 minutes or more),
+      # so a build that fails later does not download it again
+      - name: Restore the Lazarus downloads
         id: downloads
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: downloads
           key: lazarus-macos-arm64-${{ env.LAZARUS_RELEASE }}
@@ -159,6 +161,18 @@ jobs:
           for file in "$LAZARUS_ZIP" "$FPC_DMG"; do
             curl -fsSL --retry 5 --retry-delay 10 -C - -o "downloads/$file" "$base/$file/download"
           done
+          cd downloads
+          shasum -a 256 -c <<'EOF'
+          e5e0bf52bca911d4605dc875bd924ff5c74a0d0f6cf5699b936b377cc1986d1b  lazarus-darwin-aarch64-4.8.zip
+          e7792c59a31982a00021566d1ab63b0c794ff87d63b6123fe0f45e8f5627f798  fpc-3.2.4rc1a.intelarm64-macosx.dmg
+          EOF
+
+      - name: Save the Lazarus downloads
+        if: steps.downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: downloads
+          key: lazarus-macos-arm64-${{ env.LAZARUS_RELEASE }}
 
       - name: Verify and install FPC and Lazarus
         run: |
@@ -176,6 +190,34 @@ jobs:
           fpc -iV
           echo "LAZBUILD=$RUNNER_TEMP/lazarus/lazbuild" >> "$GITHUB_ENV"
           echo "LAZARUS_PCP=$RUNNER_TEMP/lazarus-config" >> "$GITHUB_ENV"
+
+      # The linker of Xcode 15 and later rejects the Objective-C method lists
+      # FPC writes for the Cocoa widgetset ("malformed method list atom"), so
+      # FPC links with the classic one. When this Xcode has none, the newest
+      # installed Xcode that has it is chosen.
+      - name: Link with the classic linker
+        run: |
+          has_classic() {
+            echo 'int main(void) { return 0; }' | xcrun cc -x c - -Wl,-ld_classic -o "$RUNNER_TEMP/ld-test" 2>/dev/null
+          }
+          if ! has_classic; then
+            for xcode in $(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -rV); do
+              sudo xcode-select -s "$xcode/Contents/Developer"
+              has_classic && break
+            done
+            if ! has_classic; then
+              echo "::error::No installed Xcode has the classic linker (-ld_classic) that FPC's Cocoa code needs"
+              exit 1
+            fi
+          fi
+          xcode-select -p
+          # FPC reads ~/.fpc.cfg in place of the installed fpc.cfg, so it
+          # includes that one first
+          for cfg in /etc/fpc.cfg /usr/local/etc/fpc.cfg; do
+            [ -f "$cfg" ] && echo "#INCLUDE $cfg" >> ~/.fpc.cfg && break
+          done
+          echo '-k-ld_classic' >> ~/.fpc.cfg
+          cat ~/.fpc.cfg
 
       - name: Build
         run: ./build.sh --lazarusdir="$RUNNER_TEMP/lazarus" --compiler="$(command -v fpc)"
