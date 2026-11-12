@@ -112,6 +112,7 @@ type
     X, Y, Size: double;
     Align: TTextAlign;
     Boxed: boolean;
+    Style: TTextStyle;
     Leader: TNoteLeader;
     Tip: TVec2;
   end;
@@ -203,6 +204,7 @@ type
     function NewPlacement(const Item: TUnplacedCopy; out Piece: TPieceObject): TPlacement;
     function IsPlaced(SourceId: integer; const PieceKey: string; Copy: integer): boolean;
     procedure AddOverlapProblems(var Problems: TLayoutProblemArray);
+    procedure AddFontProblems(var Problems: TLayoutProblemArray);
     function PageIsExcluded(const Caption: string): boolean;
   public
     Name: string;
@@ -350,7 +352,8 @@ resourcestring
 implementation
 
 uses
-  Classes, Math, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes, Sloper.Core.PatternFile;
+  Classes, Math, StrUtils, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes,
+  Sloper.Core.PatternFile, Sloper.Output.Fonts;
 
 const
   CORNER_NAMES: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
@@ -417,7 +420,7 @@ begin
   Lines := TextLines(ExpandFields(Note.Text, Values));
   Widest := 0;
   for Line in Lines do
-    Widest := Max(Widest, TextWidth(Line, Note.Size));
+    Widest := Max(Widest, TextWidth(Line, Note.Size, Note.Style));
   Result.MinX := Note.X;
   Result.MinY := Note.Y;
   Result.MaxX := Note.X + Widest;
@@ -436,7 +439,7 @@ var
   Box: TRect2;
 begin
   Box := NoteBounds(Note, Values);
-  Result := AlignedLeft(Box.MinX, Box.MaxX - Box.MinX, TextWidth(Line, Note.Size), Note.Align);
+  Result := AlignedLeft(Box.MinX, Box.MaxX - Box.MinX, TextWidth(Line, Note.Size, Note.Style), Note.Align);
 end;
 
 function PrintedNotes(Layout: TLayout; const Shapes: TPlacedPieceArray): TSheetNoteArray;
@@ -810,6 +813,12 @@ begin
           Item.Add('align', TEXT_ALIGN_NAMES[Note.Align]);
         if Note.Boxed then
           Item.Add('box', True);
+        if Note.Style.Font <> '' then
+          Item.Add('font', Note.Style.Font);
+        if Note.Style.Bold then
+          Item.Add('bold', True);
+        if Note.Style.Italic then
+          Item.Add('italic', True);
       end;
     end;
     if Title.Enabled then
@@ -851,7 +860,7 @@ var
   Index: integer;
   Item: TJSONObject;
   Note: TSheetNote;
-  AlignText: string;
+  AlignText, FontText, Reason: string;
   Align: TTextAlign;
 begin
   if Data.JSONType <> jtArray then
@@ -871,6 +880,10 @@ begin
         if TEXT_ALIGN_NAMES[Align] = AlignText then
           Note.Align := Align;
     GetJSONBoolean(Item, 'box', Note.Boxed);
+    if GetJSONString(Item, 'font', FontText) and not CheckFontName(FontText, Note.Style.Font, Reason) then
+      Exit(False);
+    GetJSONBoolean(Item, 'bold', Note.Style.Bold);
+    GetJSONBoolean(Item, 'italic', Note.Style.Italic);
     Insert(Note, Notes, Length(Notes));
   end;
   Result := True;
@@ -1411,6 +1424,7 @@ begin
       Placed.Y := Point.Y - (Box.MaxY - Box.MinY) / 2;
       Placed.Align := Note.Align;
       Placed.Boxed := Note.Boxed;
+      Placed.Style := Note.Style;
       Placed.Leader := Note.Leader;
       if Note.Leader <> nlNone then
         Placed.Tip := Moved(Note.AnchorPosition);
@@ -1700,6 +1714,27 @@ begin
   end;
 end;
 
+// Once for each font that prints in the default font instead
+procedure TLayout.AddFontProblems(var Problems: TLayoutProblemArray);
+var
+  Note: TSheetNote;
+  Told: TStringArray;
+  Text: string;
+begin
+  Told := nil;
+  for Note in PrintedNotes(Self, PlacedPieces) do
+  begin
+    Text := FontProblem(Note.Style);
+    if (Text = '') or (IndexText(Text, Told) >= 0) then
+      Continue;
+    Insert(Text, Told, Length(Told));
+    SetLength(Problems, Length(Problems) + 1);
+    Problems[High(Problems)].Text := Text;
+    Problems[High(Problems)].Blocking := False;
+    Problems[High(Problems)].Unplaced := False;
+  end;
+end;
+
 procedure TLayout.AddOverlapProblems(var Problems: TLayoutProblemArray);
 var
   Shapes: TPlacedPieceArray;
@@ -1837,6 +1872,7 @@ begin
   if AllRead and (Output.Material <> '') and not MaterialExists then
     Add(Format(rsLayoutNoMaterial, [Output.Material]), False);
   AddOverlapProblems(Result);
+  AddFontProblems(Result);
 end;
 
 end.

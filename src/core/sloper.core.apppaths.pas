@@ -24,6 +24,9 @@ unit Sloper.Core.AppPaths;
 
 interface
 
+uses
+  SysUtils;
+
 type
   TAppPaths = class
   public
@@ -59,6 +62,9 @@ type
     // The fonts bundled for drawing text into images, data/fonts
     class function FontDir: string;
     class function FontDirIn(const Folder: string): string;
+    // The folders the system and the user install fonts in, which may not
+    // exist; PDF export looks there for a note's font
+    class function SystemFontDirs: TStringArray;
     // Creates Dir if missing and returns it; folders are made on first use
     class function ForceDir(const Dir: string): string;
     // XDG rule: EnvValue when it is an absolute path, else Home + Fallback
@@ -71,7 +77,7 @@ uses
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
-  SysUtils, Sloper.Core.Version;
+  Sloper.Core.Version;
 
 const
   PORTABLE_FILE_NAME = 'portable.ini';
@@ -286,6 +292,21 @@ end;
 class function TAppPaths.FontDirIn(const Folder: string): string;
 begin
   Result := DataPathIn(Folder, FONT_FOLDER, True);
+end;
+
+class function TAppPaths.SystemFontDirs: TStringArray;
+begin
+  {$IF DEFINED(WINDOWS)}
+  Result := [ConcatPaths([GetEnvironmentVariable('WINDIR'), 'Fonts']),
+    ConcatPaths([GetEnvironmentVariable('LOCALAPPDATA'), 'Microsoft', 'Windows', 'Fonts'])];
+  {$ELSEIF DEFINED(DARWIN)}
+  Result := [ConcatPaths([PathDelim + 'System', 'Library', 'Fonts']), ConcatPaths([PathDelim + 'Library', 'Fonts']),
+    ConcatPaths([HomeDir, 'Library', 'Fonts'])];
+  {$ELSE}
+  Result := [ConcatPaths([PathDelim + 'usr', 'share', 'fonts']), ConcatPaths([PathDelim + 'usr', 'local', 'share', 'fonts']),
+    ConcatPaths([ResolveXdgDir(GetEnvironmentVariable('XDG_DATA_HOME'), HomeDir, ConcatPaths(['.local', 'share'])), 'fonts']),
+    ConcatPaths([HomeDir, '.fonts'])];
+  {$ENDIF}
 end;
 
 class function TAppPaths.MeasurementsProgram: string;

@@ -1180,12 +1180,12 @@ begin
   Writer := TPDFWriter.Create;
   try
     Writer.BeginPage(100, 100);
-    Writer.Text(0, 0, 10, 'a(b)\c é 日');
+    Writer.Text(0, 0, 10, 'a(b)\c é');
     Bytes := Writer.Finish;
   finally
     FreeAndNil(Writer);
   end;
-  AssertTrue(Bytes, Pos('(a\(b\)\\c ' + #$E9 + ' ?)', Bytes) > 0);
+  AssertTrue(Bytes, Pos('(a\(b\)\\c ' + #$E9 + ')', Bytes) > 0);
 end;
 
 procedure TTestLayout.TestExportRefuses;

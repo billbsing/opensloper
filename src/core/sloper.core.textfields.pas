@@ -17,7 +17,9 @@
 }
 
 // Text placed on a pattern or layout: the {fields} it may hold, its lines, and
-// roughly how much room it takes in Helvetica, the one font printed so far.
+// how much room it takes. A named font is measured by the measurer the output
+// layer installs, from the font's own widths; the default font, or one that
+// cannot be measured, is estimated from Helvetica's average letter width.
 // No LCL dependency.
 unit Sloper.Core.TextFields;
 
@@ -39,6 +41,10 @@ const
   POINTS_TO_MM = 25.4 / 72;
 
 type
+  // How far Text runs, in mm, at Size points in Style's font; False when the
+  // font cannot be measured, so the estimate is used
+  TTextMeasurer = function(const Style: TTextStyle; const Text: string; Size: double; out Width: double): boolean;
+
   // What fields stand for in text; an empty value leaves the field as typed
   TFieldValues = record
     PatternName, MeasurementsName, LayoutName, Date, Page, Pages, CutList, Materials: string;
@@ -49,7 +55,11 @@ function ExpandFields(const Text: string; const Values: TFieldValues): string;
 // Text as lines, however it was broken
 function TextLines(const Text: string): TStringArray;
 // About how far a line of text runs, in mm, at Size points in Helvetica
-function TextWidth(const Text: string; Size: double): double;
+function TextWidth(const Text: string; Size: double): double; overload;
+// How far it runs in Style's font, measured when it can be
+function TextWidth(const Text: string; Size: double; const Style: TTextStyle): double; overload;
+// Measures named fonts from here on; nil goes back to estimating them
+procedure SetTextMeasurer(Measurer: TTextMeasurer);
 // The height of one line of text, in mm
 function LineHeight(Size: double): double;
 // Today's date as fields show it
@@ -70,6 +80,8 @@ const
   // Line spacing, and the average width of a Helvetica letter, as shares of its size
   LINE_SPACING = 1.25;
   LETTER_WIDTH = 0.52;
+  // Helvetica Bold's letters are this much wider
+  BOLD_LETTER_WIDTH = 0.57;
   // The title block fields only this unit fills in: the sheet's number and count
   FIELD_PAGE = 'page';
   FIELD_PAGES = 'pages';
@@ -111,9 +123,27 @@ begin
     end;
 end;
 
+var
+  InstalledMeasurer: TTextMeasurer;
+
 function TextWidth(const Text: string; Size: double): double;
 begin
   Result := Length(UTF8Decode(Text)) * Size * LETTER_WIDTH * POINTS_TO_MM;
+end;
+
+function TextWidth(const Text: string; Size: double; const Style: TTextStyle): double;
+begin
+  if (Style.Font <> '') and Assigned(InstalledMeasurer) and InstalledMeasurer(Style, Text, Size, Result) then
+    Exit;
+  if Style.Bold then
+    Result := Length(UTF8Decode(Text)) * Size * BOLD_LETTER_WIDTH * POINTS_TO_MM
+  else
+    Result := TextWidth(Text, Size);
+end;
+
+procedure SetTextMeasurer(Measurer: TTextMeasurer);
+begin
+  InstalledMeasurer := Measurer;
 end;
 
 function LineHeight(Size: double): double;
@@ -150,8 +180,8 @@ begin
   Lines := TextLines(ExpandFields(Note.ShownText, Values));
   Widest := 0;
   for Line in Lines do
-    if TextWidth(Line, Note.Size) > Widest then
-      Widest := TextWidth(Line, Note.Size);
+    if TextWidth(Line, Note.Size, Note.Style) > Widest then
+      Widest := TextWidth(Line, Note.Size, Note.Style);
   Result.MinX := Note.Position.X;
   Result.MinY := Note.Position.Y;
   Result.MaxX := Note.Position.X + Widest;

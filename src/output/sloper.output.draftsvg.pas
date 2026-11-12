@@ -26,7 +26,7 @@ unit Sloper.Output.DraftSVG;
 interface
 
 uses
-  SysUtils, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern;
+  SysUtils, Sloper.Core.Evaluator, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Pattern, Sloper.Core.Note;
 
 type
   TDraftSVGOptions = record
@@ -54,14 +54,21 @@ function DraftToSVG(Pattern: TPattern; const Options: TDraftSVGOptions): string;
 // A number as written in SVG
 function SVGNumber(Value: double): string;
 function EscapeXML(const Text: string): string;
+// A note's font as SVG attributes: its family first, then the default
+// families, and its weight and style when bold or italic
+function NoteFontAttributes(const Style: TTextStyle): string;
 
 implementation
 
 uses
   Math, Sloper.Core.Bezier, Sloper.Core.Bounds, Sloper.Core.Drag, Sloper.Core.EvalTypes, Sloper.Core.Materials, Sloper.Core.Piece,
-  Sloper.Core.Note, Sloper.Core.TextFields;
+  Sloper.Core.TextFields,
+  // Measures notes in a named font, here and wherever this unit is used
+  Sloper.Output.Fonts;
 
 const
+  // The default font of notes, and what follows a named one
+  NOTE_FONT_FAMILIES = 'Helvetica, Arial, sans-serif';
   COORDINATE_DECIMALS = 3;
   // Of the longer side, so a drawing reads the same at any size
   LINE_SHARE = 0.0015;
@@ -112,6 +119,19 @@ begin
   Result := StringReplace(Result, '<', '&lt;', [rfReplaceAll]);
   Result := StringReplace(Result, '>', '&gt;', [rfReplaceAll]);
   Result := StringReplace(Result, '"', '&quot;', [rfReplaceAll]);
+end;
+
+// CheckFontName keeps quotes out of the name
+function NoteFontAttributes(const Style: TTextStyle): string;
+begin
+  Result := NOTE_FONT_FAMILIES;
+  if Style.Font <> '' then
+    Result := '''' + EscapeXML(Style.Font) + ''', ' + Result;
+  Result := 'font-family="' + Result + '"';
+  if Style.Bold then
+    Result := Result + ' font-weight="bold"';
+  if Style.Italic then
+    Result := Result + ' font-style="italic"';
 end;
 
 function StateColor(State: TEvalState; const Normal: string): string;
@@ -356,9 +376,10 @@ begin
       [Note.Key, Num(Frame.MinX), Num(Frame.MinY), Num(Frame.MaxX - Frame.MinX), Num(Frame.MaxY - Frame.MinY)]) + #10;
   Lines := TextLines(ExpandFields(Note.ShownText, Values));
   for Index := 0 to High(Lines) do
-    Result := Result + Format('<text data-id="%s" x="%s" y="%s" font-family="Helvetica, Arial, sans-serif" font-size="%s" fill="%s">%s</text>',
-      [Note.Key, Num(AlignedLeft(Box.MinX, Box.MaxX - Box.MinX, TextWidth(Lines[Index], Note.Size), Note.Align)),
-      Num(Note.Position.Y + (Index + 1) * LineHeight(Note.Size)), Num(Note.Size * POINTS_TO_MM), Color, EscapeXML(Lines[Index])]) + #10;
+    Result := Result + Format('<text data-id="%s" x="%s" y="%s" %s font-size="%s" fill="%s">%s</text>',
+      [Note.Key, Num(AlignedLeft(Box.MinX, Box.MaxX - Box.MinX, TextWidth(Lines[Index], Note.Size, Note.Style), Note.Align)),
+      Num(Note.Position.Y + (Index + 1) * LineHeight(Note.Size)), NoteFontAttributes(Note.Style), Num(Note.Size * POINTS_TO_MM), Color,
+      EscapeXML(Lines[Index])]) + #10;
 end;
 
 function AllObjects(Pattern: TPattern): TDraftObjectArray;

@@ -23,7 +23,9 @@
 // text may hold draft values, {=Line_A_B.length}, each a formula field
 // (value1, value2 and so on), so they follow the draft and renames. Its size,
 // alignment, box and whether it prints are plain values; where it goes is
-// formulas. See Annotations in the design document. No LCL dependency.
+// formulas. Its font is a family name with bold and italic, the default
+// sans-serif when the name is empty. See Annotations in the design document.
+// No LCL dependency.
 unit Sloper.Core.Note;
 
 {$mode ObjFPC}{$H+}
@@ -54,6 +56,8 @@ const
   LEADER_DOT_RADIUS = 0.8;
   // Stands for a draft value in a note's template; never typed
   VALUE_MARK = #1;
+  // The longest font family name kept
+  MAX_FONT_NAME_LENGTH = 64;
 
 type
   TNoteAnchor = (naFree, naPoint, naEdge, naPiece);
@@ -62,6 +66,13 @@ type
   TNoteLeader = (nlNone, nlArrow, nlDot, nlLine);
   // How the lines of a note sit within its widest line
   TTextAlign = (taLeft, taCentre, taRight);
+
+  // The font text is drawn in: a family name, empty for the default
+  // sans-serif (Helvetica in PDF), and its style
+  TTextStyle = record
+    Font: string;
+    Bold, Italic: boolean;
+  end;
 
 const
   // As written in pattern and layout files and the Automation API
@@ -82,6 +93,7 @@ type
     FLeader: TNoteLeader;
     FAlign: TTextAlign;
     FBoxed: boolean;
+    FStyle: TTextStyle;
     FPosition, FAnchorPosition: TVec2;
     function AnchorAt(Context: TEvalContext; out At: TVec2): TEvalState;
     function GetValueCount: integer;
@@ -135,6 +147,8 @@ type
     property Align: TTextAlign read FAlign write FAlign;
     // Drawn on a white box, so it reads over lines
     property Boxed: boolean read FBoxed write FBoxed;
+    // Its font; the caller checks the name with CheckFontName
+    property Style: TTextStyle read FStyle write FStyle;
     // Last good top left of its text
     property Position: TVec2 read FPosition;
     // Last good place it hangs from, where a callout's tip is: the point, the
@@ -163,11 +177,18 @@ function LeaderDot(const Tip: TVec2): TVec2Array;
 function AlignedLeft(Left, BoxWidth, LineWidth: double; Align: TTextAlign): double;
 // The box grown by the white box's margin
 function PaddedBox(const Box: TRect2): TRect2;
+function SameTextStyle(const First, Second: TTextStyle): boolean;
+// A font name as kept, trimmed; False with Reason when it is too long or holds
+// a character that would break a file or an SVG attribute
+function CheckFontName(const AName: string; out Kept, Reason: string): boolean;
 
 resourcestring
   rsNoteNotAPiece = '%s is not a piece';
   rsNoteMissing = 'Uses object %s, which no longer exists';
   rsNoteUnclosed = 'A {= has no closing }';
+  rsNoteFontLong = 'A font name can have at most %d characters';
+  rsNoteFontCharacter = 'A font name cannot hold %s';
+  rsNoteFontControl = 'A font name cannot hold a line break or tab';
 
 implementation
 
@@ -186,6 +207,8 @@ const
   // Starts a draft value in a note's stored and shown text
   DRAFT_VALUE_OPEN = '{=';
   PLACE_FIELD_NAMES: array[0..4] of string = (NOTE_X_FIELD, NOTE_Y_FIELD, NOTE_POSITION_FIELD, NOTE_DX_FIELD, NOTE_DY_FIELD);
+  // Separate families in SVG and CSS, or quote or escape in SVG and PDF
+  FONT_NAME_FORBIDDEN = [',', ';', '"', '''', '<', '>', '&', '\', '(', ')', '{', '}'];
 
 function SplitDraftValues(const Text: string; out Template: string; out Expressions: TStringArray; out ErrorPos: integer): boolean;
 var
@@ -295,6 +318,34 @@ begin
   Result.MinY := Box.MinY - NOTE_BOX_PADDING;
   Result.MaxX := Box.MaxX + NOTE_BOX_PADDING;
   Result.MaxY := Box.MaxY + NOTE_BOX_PADDING;
+end;
+
+function SameTextStyle(const First, Second: TTextStyle): boolean;
+begin
+  Result := SameText(First.Font, Second.Font) and (First.Bold = Second.Bold) and (First.Italic = Second.Italic);
+end;
+
+function CheckFontName(const AName: string; out Kept, Reason: string): boolean;
+var
+  Letter: char;
+begin
+  Kept := Trim(AName);
+  Reason := '';
+  if Length(UTF8Decode(Kept)) > MAX_FONT_NAME_LENGTH then
+  begin
+    Reason := Format(rsNoteFontLong, [MAX_FONT_NAME_LENGTH]);
+    Exit(False);
+  end;
+  for Letter in Kept do
+    if (Letter < ' ') or (Letter in FONT_NAME_FORBIDDEN) then
+    begin
+      if Letter < ' ' then
+        Reason := rsNoteFontControl
+      else
+        Reason := Format(rsNoteFontCharacter, [Letter]);
+      Exit(False);
+    end;
+  Result := True;
 end;
 
 { TNoteObject }

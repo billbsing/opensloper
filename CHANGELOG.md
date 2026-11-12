@@ -12,6 +12,18 @@ Changed, Fixed and Removed under each version.
 
 ## 0.2.0
 
+### Added
+
+- Notes and sheet notes have a font, bold and italic (#7). The canvas draws
+  the font, SVG names it, and PDF embeds it from its TrueType file, cut down to
+  the letters used. A font that cannot be embedded prints in the default font,
+  with a warning.
+
+### Fixed
+
+- PDF prints text outside Latin-1, such as Greek or Cyrillic, in sheet notes,
+  piece labels and notes, in the bundled Noto Sans; it used to print `?`.
+
 ## 0.1.0
 
 The first release, for trying out: features and file formats may still change.

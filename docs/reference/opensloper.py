@@ -1082,6 +1082,9 @@ class OpenSloper:
         leader: Literal["none", "arrow", "dot", "line"] | None = None,
         align: Literal["left", "centre", "right"] | None = None,
         box: bool | None = None,
+        font: str | None = None,
+        bold: bool | None = None,
+        italic: bool | None = None,
         name: str | None = None,
     ) -> Any:
         """Adds a note, free or hung from a point, edge or piece; with a leader it is a callout.
@@ -1102,6 +1105,10 @@ class OpenSloper:
             leader: A line to what it hangs from.
             align: How its lines line up.
             box: A white box behind it.
+            font: The font family it prints in; empty for the default sans-serif. One not installed
+                prints in the default font.
+            bold: Bold.
+            italic: Italic.
             name: Its name.
 
         Returns:
@@ -1119,6 +1126,9 @@ class OpenSloper:
             "leader": leader,
             "align": align,
             "box": box,
+            "font": font,
+            "bold": bold,
+            "italic": italic,
             "name": name,
         })
 
@@ -1132,8 +1142,11 @@ class OpenSloper:
         leader: Literal["none", "arrow", "dot", "line"] | None = None,
         align: Literal["left", "centre", "right"] | None = None,
         box: bool | None = None,
+        font: str | None = None,
+        bold: bool | None = None,
+        italic: bool | None = None,
     ) -> Any:
-        """Changes a note's text, size, printing, leader, alignment or box.
+        """Changes a note's text, size, printing, leader, alignment, box or font.
 
         Args:
             target: The object, by its ID or its name.
@@ -1143,6 +1156,10 @@ class OpenSloper:
             leader: A line to what it hangs from.
             align: How its lines line up.
             box: A white box behind it.
+            font: The font family it prints in; empty for the default sans-serif. One not installed
+                prints in the default font.
+            bold: Bold.
+            italic: Italic.
 
         Returns:
             The object, as `get_object` gives it.
@@ -1154,6 +1171,9 @@ class OpenSloper:
             "leader": leader,
             "align": align,
             "box": box,
+            "font": font,
+            "bold": bold,
+            "italic": italic,
         })
 
     def evaluate(self) -> Any:

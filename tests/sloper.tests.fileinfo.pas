@@ -66,7 +66,8 @@ const
     ' "margin": 5, "overlap": 8, "marks": "halfCircle", "fill": "tint", "profile": "Laser", "outputProfile": "Leather",' +
     ' "materialWidth": 600, "materialLength": 400, "allowTurns": true, "material": "Main", "excludedPages": ["A1"]},' +
     ' "placements": [{"source": 1, "piece": 42, "copy": 2, "x": 20, "y": 30, "rotation": 90, "flipped": true}],' +
-    ' "sheetNotes": [{"text": "Cut 2", "x": 10, "y": 10, "size": 14, "align": "centre", "box": true}],' +
+    ' "sheetNotes": [{"text": "Cut 2", "x": 10, "y": 10, "size": 14, "align": "centre", "box": true, "font": "DejaVu Sans",' +
+    ' "bold": true, "italic": true}],' +
     ' "titleBlock": {"corner": "topRight", "fields": ["pattern.name", "date"], "everyPage": true}}';
 
 // The file as the program writes it after reading Text

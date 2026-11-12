@@ -44,8 +44,8 @@ type
     FCornerBox: TComboBox;
     FNoteMemo: TMemo;
     FNoteSizeEdit: TFloatSpinEdit;
-    FNoteAlignBox: TComboBox;
-    FNoteBoxCheck: TCheckBox;
+    FNoteAlignBox, FNoteFontBox: TComboBox;
+    FNoteBoxCheck, FNoteBoldCheck, FNoteItalicCheck: TCheckBox;
     FDeleteNoteButton: TButton;
     FStatus: TStatusBar;
     FPatternsSide: TWinControl;
@@ -245,6 +245,9 @@ resourcestring
   rsNoteAlignCentre = 'Centred';
   rsNoteAlignRight = 'Right';
   rsNoteBox = 'On a white box';
+  rsNoteFont = 'Font';
+  rsNoteBold = 'Bold';
+  rsNoteItalic = 'Italic';
   rsAddNote = 'Add note';
   rsDeleteNote = 'Delete note';
   rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages} {cutlist} {materials}';
@@ -292,7 +295,7 @@ implementation
 
 uses
   LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.RecentFiles,
-  Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Spacing,
+  Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Spacing, Sloper.UI.FontBox,
   Sloper.UI.About, Sloper.UI.Preferences, Sloper.Output.LayoutExport,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
 
@@ -577,6 +580,13 @@ begin
   FNoteAlignBox.OnChange := @NoteChange;
   FNoteBoxCheck := AddCheck(rsNoteBox);
   FNoteBoxCheck.OnChange := @NoteChange;
+  AddLabel(rsNoteFont);
+  FNoteFontBox := NewFontBox(Self, @NoteChange);
+  PlaceRow(FNoteFontBox);
+  FNoteBoldCheck := AddCheck(rsNoteBold);
+  FNoteBoldCheck.OnChange := @NoteChange;
+  FNoteItalicCheck := AddCheck(rsNoteItalic);
+  FNoteItalicCheck.OnChange := @NoteChange;
   FDeleteNoteButton := AddButton(rsDeleteNote, @DeleteNoteClick);
   EndGroup;
 end;
@@ -607,6 +617,9 @@ begin
   FNoteSizeEdit.Enabled := NoteChosen;
   FNoteAlignBox.Enabled := NoteChosen;
   FNoteBoxCheck.Enabled := NoteChosen;
+  FNoteFontBox.Enabled := NoteChosen;
+  FNoteBoldCheck.Enabled := NoteChosen;
+  FNoteItalicCheck.Enabled := NoteChosen;
   FDeleteNoteButton.Enabled := NoteChosen;
   if NoteChosen then
   begin
@@ -615,6 +628,10 @@ begin
     FNoteSizeEdit.Value := Layout.Notes[FPreview.SelectedNote].Size;
     FNoteAlignBox.ItemIndex := Ord(Layout.Notes[FPreview.SelectedNote].Align);
     FNoteBoxCheck.Checked := Layout.Notes[FPreview.SelectedNote].Boxed;
+    if not FNoteFontBox.Focused then
+      ShowFontName(FNoteFontBox, Layout.Notes[FPreview.SelectedNote].Style.Font);
+    FNoteBoldCheck.Checked := Layout.Notes[FPreview.SelectedNote].Style.Bold;
+    FNoteItalicCheck.Checked := Layout.Notes[FPreview.SelectedNote].Style.Italic;
   end
   else
     FNoteMemo.Clear;
@@ -639,10 +656,12 @@ begin
   FDocument.EndChange;
 end;
 
-// Typing merges into one undo step, as long as it keeps going
+// Typing merges into one undo step, as long as it keeps going. A font name
+// that is refused keeps the note's font, with the reason in the status bar.
 procedure TPublishForm.NoteChange(Sender: TObject);
 var
   Index: integer;
+  FontName, Reason: string;
 begin
   Index := FPreview.SelectedNote;
   if FRefreshing or (Index < 0) then
@@ -653,6 +672,12 @@ begin
   if FNoteAlignBox.ItemIndex >= 0 then
     FDocument.Layout.Notes[Index].Align := TTextAlign(FNoteAlignBox.ItemIndex);
   FDocument.Layout.Notes[Index].Boxed := FNoteBoxCheck.Checked;
+  if CheckFontName(FontBoxName(FNoteFontBox), FontName, Reason) then
+    FDocument.Layout.Notes[Index].Style.Font := FontName
+  else
+    ShowStatus(Reason);
+  FDocument.Layout.Notes[Index].Style.Bold := FNoteBoldCheck.Checked;
+  FDocument.Layout.Notes[Index].Style.Italic := FNoteItalicCheck.Checked;
   FDocument.EndChange('note:' + IntToStr(Index));
 end;
 

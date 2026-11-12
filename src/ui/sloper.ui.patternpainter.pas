@@ -28,7 +28,7 @@ interface
 
 uses
   Classes, SysUtils, Graphics, BGRABitmap, BGRABitmapTypes, Sloper.Core.Geometry, Sloper.Core.Draft, Sloper.Core.Piece, Sloper.Core.Seam,
-  Sloper.Core.Pattern, Sloper.Core.Units, Sloper.Core.TextFields, Sloper.UI.View, Sloper.UI.Snap, Sloper.UI.Scene;
+  Sloper.Core.Pattern, Sloper.Core.Units, Sloper.Core.TextFields, Sloper.Core.Note, Sloper.UI.View, Sloper.UI.Snap, Sloper.UI.Scene;
 
 type
   // What a drawing tool's second click would make, drawn from its first
@@ -96,10 +96,13 @@ type
     procedure DrawBox(const Corner, OtherCorner: TPoint);
   end;
 
+// Draws text from here on in a note's font, or in DefaultFont when it names none
+procedure UseNoteFont(Bitmap: TBGRABitmap; const Style: TTextStyle; const DefaultFont: string);
+
 implementation
 
 uses
-  Math, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Drag, Sloper.Core.Note, Sloper.Core.Transform,
+  Math, Sloper.Core.EvalTypes, Sloper.Core.Evaluator, Sloper.Core.Drag, Sloper.Core.Transform,
   Sloper.Core.Materials, Sloper.UI.RulerTicks;
 
 const
@@ -218,6 +221,22 @@ end;
 function ScreenPoint(const Point: TVec2): TPointF;
 begin
   Result := PointF(Point.X, Point.Y);
+end;
+
+procedure UseNoteFont(Bitmap: TBGRABitmap; const Style: TTextStyle; const DefaultFont: string);
+var
+  Styles: TFontStyles;
+begin
+  if Style.Font <> '' then
+    Bitmap.FontName := Style.Font
+  else
+    Bitmap.FontName := DefaultFont;
+  Styles := [];
+  if Style.Bold then
+    Include(Styles, fsBold);
+  if Style.Italic then
+    Include(Styles, fsItalic);
+  Bitmap.FontStyle := Styles;
 end;
 
 { TPatternPainter }
@@ -659,9 +678,11 @@ var
   EmPixels, LinePixels, BoxPixels: double;
   Stroke: TLine2;
   Selected: boolean;
+  DefaultFont: string;
 begin
   if FPattern.View.HideAnnotations then
     Exit;
+  DefaultFont := FBitmap.FontName;
   for Index := 0 to FPattern.ObjectCount - 1 do
   begin
     if not (FPattern.Objects[Index] is TNoteObject) or not FPattern.Objects[Index].HasResult then
@@ -727,6 +748,7 @@ begin
       Continue;
     end;
     FBitmap.FontHeight := Round(EmPixels);
+    UseNoteFont(FBitmap, Note.Style, DefaultFont);
     BoxPixels := BottomRight.X - TopLeft.X;
     Lines := TextLines(ExpandFields(Note.ShownText, Values));
     for LineIndex := 0 to High(Lines) do
@@ -735,6 +757,7 @@ begin
       FBitmap.TextOut(Spot.X, Spot.Y, Lines[LineIndex], InkColor);
     end;
   end;
+  UseNoteFont(FBitmap, Default(TTextStyle), DefaultFont);
   FBitmap.FontHeight := LABEL_FONT_HEIGHT;
 end;
 

@@ -125,7 +125,7 @@ resourcestring
 implementation
 
 uses
-  Math, LCLIntf, Forms, Menus, Sloper.Core.Draft, Sloper.Core.Shortcuts, Sloper.UI.Commands;
+  Math, LCLIntf, Forms, Menus, Sloper.Core.Draft, Sloper.Core.Shortcuts, Sloper.UI.Commands, Sloper.UI.PatternPainter;
 
 const
   FIT_MARGIN = 24;
@@ -669,6 +669,7 @@ var
   Values: TFieldValues;
   Shape: TPlacedPiece;
   Note: TSheetNote;
+  DefaultFont: string;
 
   procedure DrawNote(const Item: TSheetNote; const Ink: TBGRAPixel);
   var
@@ -701,6 +702,7 @@ var
     end;
     Lines := TextLines(ExpandFields(Item.Text, Values));
     FBitmap.FontHeight := Max(MIN_NOTE_HEIGHT, Round(LineHeight(Item.Size) * FView.Scale));
+    UseNoteFont(FBitmap, Item.Style, DefaultFont);
     for LineIndex := 0 to High(Lines) do
     begin
       Spot := FView.ToScreen(Vec2(NoteLineLeft(Item, Values, Lines[LineIndex]), Item.Y));
@@ -710,6 +712,7 @@ var
 
 begin
   Values := FDocument.Layout.FieldValues('', '');
+  DefaultFont := FBitmap.FontName;
   for Shape in FShapes do
     for Note in Shape.Notes do
       DrawNote(Note, PieceInk);
@@ -718,6 +721,7 @@ begin
       DrawNote(FDocument.Layout.Notes[Index], SelectedInk)
     else
       DrawNote(FDocument.Layout.Notes[Index], PieceInk);
+  UseNoteFont(FBitmap, Default(TTextStyle), DefaultFont);
 end;
 
 procedure TPreviewCanvas.Paint;

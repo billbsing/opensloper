@@ -54,6 +54,8 @@ The Notes tab sets what prints besides the pieces.
 - **Sheet notes**: text placed on the pages, selected and dragged like a
   piece. Notes can fill in fields as they print: `{pattern.name}`,
   `{measurements.name}`, `{date}`, `{page}`, `{pages}`, `{cutlist}` and
-  `{materials}`.
+  `{materials}`. Each has its own size, line alignment, white box, font, and
+  bold or italic, as notes on the pattern do (see
+  [Notes and callouts](../design/notes.md#fonts)).
 
 Notes written on the pieces in the design app print with their pieces.

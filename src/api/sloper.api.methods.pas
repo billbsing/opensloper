@@ -278,8 +278,11 @@ resourcestring
   rsApiNoteLeader = 'A line to what it hangs from';
   rsApiNoteAlign = 'How its lines line up';
   rsApiNoteBox = 'A white box behind it';
+  rsApiNoteFont = 'The font family it prints in; empty for the default sans-serif. One not installed prints in the default font';
+  rsApiNoteBold = 'Bold';
+  rsApiNoteItalic = 'Italic';
   rsApiNoteName = 'Its name';
-  rsApiSetText = 'Changes a note''s text, size, printing, leader, alignment or box.';
+  rsApiSetText = 'Changes a note''s text, size, printing, leader, alignment, box or font.';
 
   rsApiEvaluate = 'Works the pattern out again and lists its problems.';
   rsApiEvaluateReturns = 'The problems: objects that are invalid or blocked, gaps, and seams out of tolerance';
@@ -591,6 +594,9 @@ begin
   P('leader', apChoice, False, rsApiNoteLeader, Joined(NOTE_LEADER_NAMES));
   P('align', apChoice, False, rsApiNoteAlign, Joined(TEXT_ALIGN_NAMES));
   P('box', apFlag, False, rsApiNoteBox);
+  P('font', apText, False, rsApiNoteFont);
+  P('bold', apFlag, False, rsApiNoteBold);
+  P('italic', apFlag, False, rsApiNoteItalic);
   P('name', apText, False, rsApiNoteName);
   Method('set_text', agNotes, rsApiSetText, rsApiReturnsObject);
   Target;
@@ -600,6 +606,9 @@ begin
   P('leader', apChoice, False, rsApiNoteLeader, Joined(NOTE_LEADER_NAMES));
   P('align', apChoice, False, rsApiNoteAlign, Joined(TEXT_ALIGN_NAMES));
   P('box', apFlag, False, rsApiNoteBox);
+  P('font', apText, False, rsApiNoteFont);
+  P('bold', apFlag, False, rsApiNoteBold);
+  P('italic', apFlag, False, rsApiNoteItalic);
   // Checking and output
   Method('evaluate', agChecking, rsApiEvaluate, rsApiEvaluateReturns);
   ReadsOnly;

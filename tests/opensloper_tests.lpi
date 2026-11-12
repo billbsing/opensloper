@@ -106,6 +106,11 @@
         <UnitName Value="Sloper.Tests.Notes"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.fonts.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Fonts"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.layoutexports.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.LayoutExports"/>

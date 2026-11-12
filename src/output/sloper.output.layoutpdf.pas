@@ -395,7 +395,7 @@ begin
     for Index := 0 to High(Lines) do
     begin
       Spot := PagePoint(Page, Vec2(NoteLineLeft(Note, PageValues, Lines[Index]), Note.Y + (Index + 1) * LineHeight(Note.Size)));
-      FWriter.Text(Spot.X, Spot.Y, Note.Size, Lines[Index]);
+      FWriter.Text(Spot.X, Spot.Y, Note.Size, Lines[Index], Note.Style);
     end;
   end;
 end;

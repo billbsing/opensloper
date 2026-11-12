@@ -623,13 +623,16 @@ Adds a note, free or hung from a point, edge or piece; with a leader it is a cal
 | `leader` | one of: `none`, `arrow`, `dot`, `line` |  | A line to what it hangs from |
 | `align` | one of: `left`, `centre`, `right` |  | How its lines line up |
 | `box` | true or false |  | A white box behind it |
+| `font` | text |  | The font family it prints in; empty for the default sans-serif. One not installed prints in the default font |
+| `bold` | true or false |  | Bold |
+| `italic` | true or false |  | Italic |
 | `name` | text |  | Its name |
 
 Returns: The object, as `get_object` gives it.
 
 ### `set_text`
 
-Changes a note's text, size, printing, leader, alignment or box.
+Changes a note's text, size, printing, leader, alignment, box or font.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
@@ -640,6 +643,9 @@ Changes a note's text, size, printing, leader, alignment or box.
 | `leader` | one of: `none`, `arrow`, `dot`, `line` |  | A line to what it hangs from |
 | `align` | one of: `left`, `centre`, `right` |  | How its lines line up |
 | `box` | true or false |  | A white box behind it |
+| `font` | text |  | The font family it prints in; empty for the default sans-serif. One not installed prints in the default font |
+| `bold` | true or false |  | Bold |
+| `italic` | true or false |  | Italic |
 
 Returns: The object, as `get_object` gives it.
 

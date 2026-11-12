@@ -282,6 +282,11 @@ resourcestring
   rsPropNoteBox = 'Box';
   rsPropNoteBoxCaption = 'On a white box';
   rsPropChangeNoteLook = 'Change note';
+  rsPropNoteFont = 'Font';
+  rsPropNoteStyle = 'Style';
+  rsPropNoteBold = 'Bold';
+  rsPropNoteItalic = 'Italic';
+  rsPropChangeNoteFont = 'Change note font';
   rsPropNoteTextHint = 'Draft values go in {= }, such as {=Line_A_B.length}';
   rsPropLength = 'Length';
   rsPropPerimeter = 'Perimeter';
@@ -302,7 +307,8 @@ implementation
 
 uses
   Math, Spin, Sloper.Core.EvalTypes, Sloper.Core.Pattern, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Transform,
-  Sloper.Core.Note, Sloper.Core.Settings, Sloper.UI.GridColumns, Sloper.UI.ObjectList, Sloper.UI.PieceProperties, Sloper.UI.PropertyText, Sloper.UI.Spacing;
+  Sloper.Core.Note, Sloper.Core.Settings, Sloper.UI.GridColumns, Sloper.UI.ObjectList, Sloper.UI.PieceProperties, Sloper.UI.PropertyText, Sloper.UI.Spacing,
+  Sloper.UI.FontBox;
 
 type
   // Rows every object has: type, name and formula fields first; what made a
@@ -378,8 +384,8 @@ type
     FNoteSize: TFloatSpinEdit;
     FNotePrint: TCheckBox;
     FNoteAnchorText: TGridLabel;
-    FNoteLeaderBox, FNoteAlignBox: TComboBox;
-    FNoteBoxCheck: TCheckBox;
+    FNoteLeaderBox, FNoteAlignBox, FNoteFontBox: TComboBox;
+    FNoteBoxCheck, FNoteBoldCheck, FNoteItalicCheck: TCheckBox;
     procedure AddTextRow;
     procedure AddRows(Note: TNoteObject);
     procedure CommitText;
@@ -388,6 +394,7 @@ type
     procedure SizeChange(Sender: TObject);
     procedure PrintClick(Sender: TObject);
     procedure LookChange(Sender: TObject);
+    procedure FontChange(Sender: TObject);
     procedure FreeClick(Sender: TObject);
   public
     procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
@@ -1571,6 +1578,16 @@ begin
   FNoteBoxCheck.Caption := rsPropNoteBoxCaption;
   FNoteBoxCheck.OnClick := @LookChange;
   Panel.AddRow(rsPropNoteBox, FNoteBoxCheck);
+  FNoteFontBox := NewFontBox(Panel, @FontChange);
+  Panel.AddRow(rsPropNoteFont, FNoteFontBox);
+  FNoteBoldCheck := TCheckBox.Create(Panel);
+  FNoteBoldCheck.Caption := rsPropNoteBold;
+  FNoteBoldCheck.OnClick := @LookChange;
+  Panel.AddRow(rsPropNoteStyle, FNoteBoldCheck);
+  FNoteItalicCheck := TCheckBox.Create(Panel);
+  FNoteItalicCheck.Caption := rsPropNoteItalic;
+  FNoteItalicCheck.OnClick := @LookChange;
+  Panel.AddRow('', FNoteItalicCheck);
   // A free note has nothing to point at
   if Note.Anchor <> naFree then
     // In the order of TNoteLeader
@@ -1603,6 +1620,10 @@ begin
     end;
     FNoteAlignBox.ItemIndex := Ord(Note.Align);
     FNoteBoxCheck.Checked := Note.Boxed;
+    if not FNoteFontBox.Focused then
+      ShowFontName(FNoteFontBox, Note.Style.Font);
+    FNoteBoldCheck.Checked := Note.Style.Bold;
+    FNoteItalicCheck.Checked := Note.Style.Italic;
     if Assigned(FNoteLeaderBox) then
       FNoteLeaderBox.ItemIndex := Ord(Note.Leader);
     if not FNoteSize.Focused then
@@ -1667,7 +1688,7 @@ begin
   Key := 0;
 end;
 
-// The leader, alignment and box, as one undo step
+// The leader, alignment, box, bold and italic, as one undo step
 procedure TNoteSection.LookChange(Sender: TObject);
 var
   Node: TEvalNode;
@@ -1675,6 +1696,7 @@ var
   Pattern: TPattern;
   Leader: TNoteLeader;
   Reason: string;
+  Style: TTextStyle;
 begin
   if FFilling then
     Exit;
@@ -1686,17 +1708,52 @@ begin
   Leader := Note.Leader;
   if Assigned(FNoteLeaderBox) and (FNoteLeaderBox.ItemIndex >= 0) then
     Leader := TNoteLeader(FNoteLeaderBox.ItemIndex);
-  if (Leader = Note.Leader) and (Ord(Note.Align) = FNoteAlignBox.ItemIndex) and (Note.Boxed = FNoteBoxCheck.Checked) then
+  Style := Note.Style;
+  Style.Bold := FNoteBoldCheck.Checked;
+  Style.Italic := FNoteItalicCheck.Checked;
+  if (Leader = Note.Leader) and (Ord(Note.Align) = FNoteAlignBox.ItemIndex) and (Note.Boxed = FNoteBoxCheck.Checked) and
+    SameTextStyle(Style, Note.Style) then
     Exit;
   Panel.BeginEdit(rsPropChangeNoteLook);
   Pattern.SetNoteAlign(Note, TTextAlign(Max(0, FNoteAlignBox.ItemIndex)));
   Pattern.SetNoteBoxed(Note, FNoteBoxCheck.Checked);
   Reason := '';
-  if not Pattern.SetNoteLeader(Note, Leader) then
+  if not Pattern.SetNoteStyle(Note, Style) or not Pattern.SetNoteLeader(Note, Leader) then
     Reason := Pattern.LastError;
   Panel.EndEdit(Reason = '');
   if Reason <> '' then
     Panel.Report(Reason);
+end;
+
+// Picked from the list or typed; a name that is refused goes back to the
+// note's own, with the reason
+procedure TNoteSection.FontChange(Sender: TObject);
+var
+  Node: TEvalNode;
+  Note: TNoteObject;
+  Style: TTextStyle;
+  Done: boolean;
+  Reason: string;
+begin
+  if FFilling then
+    Exit;
+  Node := Panel.SelectedNode;
+  if not (Node is TNoteObject) then
+    Exit;
+  Note := TNoteObject(Node);
+  Style := Note.Style;
+  Style.Font := FontBoxName(FNoteFontBox);
+  if Style.Font = Note.Style.Font then
+    Exit;
+  Panel.BeginEdit(rsPropChangeNoteFont);
+  Done := Panel.Document.Pattern.SetNoteStyle(Note, Style);
+  Reason := Panel.Document.Pattern.LastError;
+  Panel.EndEdit(Done);
+  if not Done then
+  begin
+    ShowFontName(FNoteFontBox, Note.Style.Font);
+    Panel.Report(Reason);
+  end;
 end;
 
 procedure TNoteSection.SizeChange(Sender: TObject);

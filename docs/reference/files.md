@@ -210,6 +210,9 @@ Version 1. JSON Schema: [layout.schema.json](schemas/layout.schema.json).
 | `sheetNotes[].size` | number |  | Its size in points |
 | `sheetNotes[].align` | one of: `left`, `centre`, `right` |  | How its lines line up |
 | `sheetNotes[].box` | true or false |  | Whether it has a white box behind it |
+| `sheetNotes[].font` | text |  | The font family it prints in; left out for the default sans-serif |
+| `sheetNotes[].bold` | true or false |  | Whether it is bold |
+| `sheetNotes[].italic` | true or false |  | Whether it is italic |
 | `titleBlock` | group |  | The title block; no title block when left out |
 | `titleBlock.corner` | one of: `bottomRight`, `bottomLeft`, `topRight` |  | The corner of the page it sits in |
 | `titleBlock.fields[]` | list, each one of: `pattern.name`, `measurements.name`, `layout.name`, `date`, `cutlist`, `materials` |  | What it shows, in order |
