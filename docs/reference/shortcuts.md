@@ -46,6 +46,7 @@ On macOS, Cmd takes the place of Ctrl. Keys on the canvas work while the canvas 
 | Keys | What it does |
 | --- | --- |
 | ++s++ | Select tool |
+| ++z++ | Zoom tool |
 | ++p++ | Point tool |
 | ++l++ | Line tool |
 | ++c++ | Curve tool |
@@ -145,8 +146,16 @@ On macOS, Cmd takes the place of Ctrl. Keys on the canvas work while the canvas 
 
 | Keys | What it does |
 | --- | --- |
+| ++ctrl+plus++ | Zoom in |
+| ++ctrl+minus++ | Zoom out |
 | ++ctrl+0++ | Fit everything in the window |
 | ++ctrl+r++ | Read the patterns again |
+
+### Tools
+
+| Keys | What it does |
+| --- | --- |
+| ++z++ | Zoom tool |
 
 ### On the canvas
 

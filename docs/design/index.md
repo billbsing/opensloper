@@ -33,6 +33,7 @@ points and edges placed by formulas, then closed outlines become pieces.
 | Tool | Key | Click to |
 | --- | --- | --- |
 | Select | ++s++ | Select points, edges and pieces; drag to move points |
+| Zoom | ++z++ | Zoom in a step; ++shift++ and click zooms out, and dragging a box zooms to it |
 | Point | ++p++ | Add a point |
 | Line | ++l++ | Draw a straight edge between two points |
 | Curve | ++c++ | Draw a curved edge between two points |
@@ -50,7 +51,8 @@ points and edges placed by formulas, then closed outlines become pieces.
 
 | To | Do |
 | --- | --- |
-| Zoom | ++ctrl+plus++ and ++ctrl+minus++, or ++ctrl++ and the mouse wheel |
+| Zoom | ++ctrl+plus++ (or ++ctrl+equal++) and ++ctrl+minus++, or ++ctrl++ and the mouse wheel |
+| Zoom to an area | The Zoom tool (++z++): drag a box around it |
 | Pan | Drag with the middle button, or hold ++space++ and drag |
 | Scroll | The mouse wheel; ++shift++ and the wheel scrolls sideways |
 | See the whole pattern | ++ctrl+0++ (View → Fit Pattern) |

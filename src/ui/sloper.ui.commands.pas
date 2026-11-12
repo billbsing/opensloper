@@ -40,7 +40,8 @@ type
     constructor Create(Form: TCustomForm; Menu: TMainMenu); reintroduce;
     function NewAction(const ACaption: string; AIcon: TAppIcon; AHandler: TNotifyEvent; AShortCut: TShortCut = 0; ATag: PtrInt = 0): TAction;
     function AddMenuItem(Parent: TMenuItem; AAction: TAction): TMenuItem;
-    procedure AddButton(AAction: TAction);
+    // Check: the button stays down while the action is checked
+    procedure AddButton(AAction: TAction; Check: boolean = False);
     procedure AddDivider;
     property Actions: TActionList read FActions;
     property Bar: TToolBar read FBar;
@@ -62,8 +63,14 @@ procedure ShowMenuDividers;
 // The key of a command, as Sloper.Core.Shortcuts gives it; 0 when its keys
 // are not one key press, such as Arrows
 function CommandShortCut(Command: TKeyCommand): TShortCut;
-// Keys written as the shortcuts table writes them, such as Mod+Shift+S
+// Keys written as the shortcuts table writes them, such as Mod+Shift+S. Plus
+// is the keypad's, which is the key Qt shows as + in a menu (it shows the
+// main keyboard's as =); SetActionShortCut adds the main keyboard's.
 function KeysToShortCut(const Keys: string): TShortCut;
+// Sets the action's key, and for Plus or Minus the same on the other
+// keyboard too: Plus also as = and as Shift+= (which is +), Minus also on
+// the keypad
+procedure SetActionShortCut(AAction: TAction; AShortCut: TShortCut);
 
 implementation
 
@@ -81,7 +88,7 @@ const
   MENU_DIVIDER_GAP = 4;
   MENU_DIVIDER_INSET = 6;
   // In the order of SHORTCUT_KEY_NAMES
-  NAMED_KEYS: array[0..High(SHORTCUT_KEY_NAMES)] of word = (VK_OEM_COMMA, VK_OEM_PLUS, VK_OEM_MINUS, VK_DELETE, VK_ESCAPE,
+  NAMED_KEYS: array[0..High(SHORTCUT_KEY_NAMES)] of word = (VK_OEM_COMMA, VK_ADD, VK_OEM_MINUS, VK_DELETE, VK_ESCAPE,
     VK_RETURN, VK_TAB, VK_SPACE, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_F2);
 
 type
@@ -190,6 +197,25 @@ begin
   Result := KeysToShortCut(ShortcutInfo(Command).Keys);
 end;
 
+procedure SetActionShortCut(AAction: TAction; AShortCut: TShortCut);
+var
+  Key: word;
+  Shift: TShiftState;
+begin
+  AAction.ShortCut := AShortCut;
+  ShortCutToKey(AShortCut, Key, Shift);
+  case Key of
+    VK_ADD:
+    begin
+      AAction.SecondaryShortCuts.AddObject(ShortCutToText(ShortCut(VK_OEM_PLUS, Shift)), TObject(PtrUInt(ShortCut(VK_OEM_PLUS, Shift))));
+      AAction.SecondaryShortCuts.AddObject(ShortCutToText(ShortCut(VK_OEM_PLUS, Shift + [ssShift])),
+        TObject(PtrUInt(ShortCut(VK_OEM_PLUS, Shift + [ssShift]))));
+    end;
+    VK_OEM_MINUS:
+      AAction.SecondaryShortCuts.AddObject(ShortCutToText(ShortCut(VK_SUBTRACT, Shift)), TObject(PtrUInt(ShortCut(VK_SUBTRACT, Shift))));
+  end;
+end;
+
 procedure SetActionHint(AAction: TAction);
 begin
   AAction.Hint := StringReplace(StripHotkey(AAction.Caption), '...', '', []);
@@ -201,7 +227,9 @@ begin
   FToolIcons := CreateIconList(Self, Form.Scale96ToForm(TOOL_ICON_SIZE), clWindowText);
   FDisabledIcons := CreateIconList(Self, Form.Scale96ToForm(TOOL_ICON_SIZE), clGrayText);
   FMenuIcons := CreateIconList(Self, Form.Scale96ToForm(MENU_ICON_SIZE), clMenuText);
-  FActions := TActionList.Create(Self);
+  // Owned by the form, which then looks in it for keys; through the menu
+  // alone, an action's secondary keys would never be seen
+  FActions := TActionList.Create(Form);
   FActions.Images := FMenuIcons;
   Menu.Images := FMenuIcons;
   ShowMenuDividers;
@@ -227,7 +255,7 @@ begin
   Result.ActionList := FActions;
   Result.Caption := ACaption;
   Result.ImageIndex := Ord(AIcon);
-  Result.ShortCut := AShortCut;
+  SetActionShortCut(Result, AShortCut);
   Result.Tag := ATag;
   Result.OnExecute := AHandler;
   SetActionHint(Result);
@@ -240,13 +268,15 @@ begin
   Parent.Add(Result);
 end;
 
-procedure TCommandSet.AddButton(AAction: TAction);
+procedure TCommandSet.AddButton(AAction: TAction; Check: boolean);
 var
   Button: TToolButton;
 begin
   Button := TToolButton.Create(FBar);
   Button.Parent := FBar;
   Button.Action := AAction;
+  if Check then
+    Button.Style := tbsCheck;
 end;
 
 procedure TCommandSet.AddDivider;

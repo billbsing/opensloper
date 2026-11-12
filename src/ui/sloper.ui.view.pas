@@ -53,6 +53,8 @@ type
     // Centres Bounds (model) without zooming, unless all of it already shows,
     // Margin pixels clear of the edges of a Width x Height view
     procedure Reveal(const Bounds: TRect2; Width, Height, Margin: double);
+    // Fills a Width x Height view with the box between two screen corners
+    procedure ZoomToBox(const Corner, OtherCorner: TVec2; Width, Height: double);
   end;
 
   // One scroll bar, in pixels. Extent covers the content and the view, so the
@@ -160,6 +162,20 @@ begin
   if (Corner.X >= Margin) and (Corner.Y >= Margin) and (OtherCorner.X <= Width - Margin) and (OtherCorner.Y <= Height - Margin) then
     Exit;
   Pan(Width / 2 - (Corner.X + OtherCorner.X) / 2, Height / 2 - (Corner.Y + OtherCorner.Y) / 2);
+end;
+
+procedure TViewTransform.ZoomToBox(const Corner, OtherCorner: TVec2; Width, Height: double);
+var
+  First, Last: TVec2;
+  Box: TRect2;
+begin
+  First := ToModel(Corner);
+  Last := ToModel(OtherCorner);
+  Box.MinX := Min(First.X, Last.X);
+  Box.MaxX := Max(First.X, Last.X);
+  Box.MinY := Min(First.Y, Last.Y);
+  Box.MaxY := Max(First.Y, Last.Y);
+  Fit(Box, Width, Height, 0);
 end;
 
 end.

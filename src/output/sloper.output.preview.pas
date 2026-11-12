@@ -47,6 +47,8 @@ type
     procedure Pan(DX, DY: double);
     // Shows Area centred in a Width x Height view, with Margin pixels around it
     procedure Fit(const Area: TRect2; Width, Height, Margin: double);
+    // Fills a Width x Height view with the box between two screen corners
+    procedure ZoomToBox(const Corner, OtherCorner: TVec2; Width, Height: double);
   end;
 
 function DefaultPreviewView: TPreviewView;
@@ -110,6 +112,20 @@ begin
   Scale := EnsureRange(Min((Width - 2 * Margin) / AreaWidth, (Height - 2 * Margin) / AreaHeight), MIN_PREVIEW_SCALE, MAX_PREVIEW_SCALE);
   OriginX := (Width - AreaWidth * Scale) / 2 - Area.MinX * Scale;
   OriginY := (Height - AreaHeight * Scale) / 2 - Area.MinY * Scale;
+end;
+
+procedure TPreviewView.ZoomToBox(const Corner, OtherCorner: TVec2; Width, Height: double);
+var
+  First, Last: TVec2;
+  Box: TRect2;
+begin
+  First := ToLayout(Corner);
+  Last := ToLayout(OtherCorner);
+  Box.MinX := Min(First.X, Last.X);
+  Box.MaxX := Max(First.X, Last.X);
+  Box.MinY := Min(First.Y, Last.Y);
+  Box.MaxY := Max(First.Y, Last.Y);
+  Fit(Box, Width, Height, 0);
 end;
 
 function ShapeAt(const Shapes: TPlacedPieceArray; const At: TVec2): integer;

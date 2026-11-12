@@ -41,7 +41,7 @@ type
     kcNew, kcOpen, kcSave, kcSaveAs, kcImport, kcExportMeasurements, kcExportPDF, kcOpenMeasurements, kcPublish, kcQuit,
     kcUndo, kcRedo, kcCut, kcCopy, kcPaste, kcPreferences,
     kcZoomIn, kcZoomOut, kcFit, kcTrueSize, kcRulers, kcReload,
-    kcToolSelect, kcToolPoint, kcToolLine, kcToolCurve, kcToolCircle, kcToolRectangle, kcToolPiece, kcToolNotch,
+    kcToolSelect, kcToolZoom, kcToolPoint, kcToolLine, kcToolCurve, kcToolCircle, kcToolRectangle, kcToolPiece, kcToolNotch,
     kcToolSeam, kcToolText, kcToolCallout,
     kcCancel, kcDelete, kcNudge, kcNudgeFar, kcShowLabels, kcSeamNextSide, kcSeamPreviousSide, kcMakeSeam,
     kcRemovePiece, kcClearSelection,
@@ -97,6 +97,7 @@ resourcestring
   rsKeyRulers = 'Show or hide the rulers';
   rsKeyReload = 'Read the patterns again';
   rsKeyToolSelect = 'Select tool';
+  rsKeyToolZoom = 'Zoom tool';
   rsKeyToolPoint = 'Point tool';
   rsKeyToolLine = 'Line tool';
   rsKeyToolCurve = 'Curve tool';
@@ -169,13 +170,14 @@ begin
     kcCopy: Result := Info('Mod+C', skCommand, sgEdit, [saDesign], rsKeyCopy);
     kcPaste: Result := Info('Mod+V', skCommand, sgEdit, [saDesign], rsKeyPaste);
     kcPreferences: Result := Info('Mod+Comma', skCommand, sgEdit, ALL_APPS, rsKeyPreferences);
-    kcZoomIn: Result := Info('Mod+Plus', skCommand, sgView, [saDesign], rsKeyZoomIn);
-    kcZoomOut: Result := Info('Mod+Minus', skCommand, sgView, [saDesign], rsKeyZoomOut);
+    kcZoomIn: Result := Info('Mod+Plus', skCommand, sgView, [saDesign, saPublish], rsKeyZoomIn);
+    kcZoomOut: Result := Info('Mod+Minus', skCommand, sgView, [saDesign, saPublish], rsKeyZoomOut);
     kcFit: Result := Info('Mod+0', skCommand, sgView, [saDesign, saPublish], rsKeyFit);
     kcTrueSize: Result := Info('Mod+1', skCommand, sgView, [saDesign], rsKeyTrueSize);
     kcRulers: Result := Info('Mod+R', skCommand, sgView, [saDesign], rsKeyRulers);
     kcReload: Result := Info('Mod+R', skCommand, sgView, [saPublish], rsKeyReload);
     kcToolSelect: Result := Info('S', skCommand, sgTools, [saDesign], rsKeyToolSelect);
+    kcToolZoom: Result := Info('Z', skCommand, sgTools, [saDesign, saPublish], rsKeyToolZoom);
     kcToolPoint: Result := Info('P', skCommand, sgTools, [saDesign], rsKeyToolPoint);
     kcToolLine: Result := Info('L', skCommand, sgTools, [saDesign], rsKeyToolLine);
     kcToolCurve: Result := Info('C', skCommand, sgTools, [saDesign], rsKeyToolCurve);

@@ -63,6 +63,8 @@ type
     FTurnButton, FFlipButton, FRemoveButton, FPackButton: TButton;
     FCommands: TCommandSet;
     FUndoAction, FRedoAction: TAction;
+    // Checked while the preview zooms to boxes
+    FZoomAreaAction: TAction;
     FRecent: TRecentMenu;
     FWatch: TTimer;
     FRefreshing: boolean;
@@ -122,6 +124,10 @@ type
     procedure UndoClick(Sender: TObject);
     procedure RedoClick(Sender: TObject);
     procedure FitClick(Sender: TObject);
+    procedure ZoomInClick(Sender: TObject);
+    procedure ZoomOutClick(Sender: TObject);
+    procedure ZoomAreaClick(Sender: TObject);
+    procedure PreviewZoomAreaChange(Sender: TObject);
     procedure PlaceClick(Sender: TObject);
     procedure ReloadClick(Sender: TObject);
     procedure TurnClick(Sender: TObject);
@@ -160,6 +166,10 @@ resourcestring
   rsAboutSummary = 'Pattern layouts and printing.';
   rsMenuView = '&View';
   rsMenuFit = '&Fit Pages';
+  rsMenuZoomIn = 'Zoom &In';
+  rsMenuZoomOut = 'Zoom &Out';
+  // With its key
+  rsMenuZoomArea = '&Zoom Area (%s)';
   rsMenuReload = '&Reload Patterns';
   rsOutput = 'Output';
   rsOutputTiled = 'Tiled pages';
@@ -356,6 +366,7 @@ begin
   FPreview.Align := alClient;
   FPreview.Document := FDocument;
   FPreview.OnSelectionChange := @SelectionChanged;
+  FPreview.OnZoomAreaChange := @PreviewZoomAreaChange;
   FPreview.OnDragOver := @PreviewDragOver;
   FPreview.OnDragDrop := @PreviewDragDrop;
   FRowParent := FPiecesSide;
@@ -395,7 +406,7 @@ var
 
 var
   Group, OpenItem: TMenuItem;
-  OpenAction, SaveAction, FitAction, ReloadAction: TAction;
+  OpenAction, SaveAction, FitAction, ZoomInAction, ZoomOutAction, ReloadAction: TAction;
   ExportActions: array[TExportFormat] of TAction;
   ExportFormat: TExportFormat;
 begin
@@ -411,6 +422,11 @@ begin
   FUndoAction := FCommands.NewAction(rsMenuUndo, aiUndo, @UndoClick, CommandShortCut(kcUndo));
   FRedoAction := FCommands.NewAction(rsMenuRedo, aiRedo, @RedoClick, CommandShortCut(kcRedo));
   FitAction := FCommands.NewAction(rsMenuFit, aiFit, @FitClick, CommandShortCut(kcFit));
+  ZoomInAction := FCommands.NewAction(rsMenuZoomIn, aiZoomIn, @ZoomInClick, CommandShortCut(kcZoomIn));
+  ZoomOutAction := FCommands.NewAction(rsMenuZoomOut, aiZoomOut, @ZoomOutClick, CommandShortCut(kcZoomOut));
+  // The preview reads the key itself, so typing Z in a field types it; the
+  // key is in the caption only
+  FZoomAreaAction := FCommands.NewAction(Format(rsMenuZoomArea, [ShortcutInfo(kcToolZoom).Keys]), aiZoomArea, @ZoomAreaClick);
   ReloadAction := FCommands.NewAction(rsMenuReload, aiReload, @ReloadClick, CommandShortCut(kcReload));
 
   Group := AddMenu(rsMenuFile);
@@ -429,7 +445,11 @@ begin
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuPreferences, aiPreferences, @PreferencesClick, CommandShortCut(kcPreferences)));
   Group := AddMenu(rsMenuView);
+  FCommands.AddMenuItem(Group, ZoomInAction);
+  FCommands.AddMenuItem(Group, ZoomOutAction);
   FCommands.AddMenuItem(Group, FitAction);
+  FCommands.AddMenuItem(Group, FZoomAreaAction);
+  Group.AddSeparator;
   FCommands.AddMenuItem(Group, ReloadAction);
   Group := AddMenu(rsMenuHelp);
   FCommands.AddMenuItem(Group, FCommands.NewAction(Format(rsMenuAbout, [rsPublishTitle]), aiAbout, @AboutClick));
@@ -440,7 +460,10 @@ begin
   FCommands.AddButton(FUndoAction);
   FCommands.AddButton(FRedoAction);
   FCommands.AddDivider;
+  FCommands.AddButton(ZoomInAction);
+  FCommands.AddButton(ZoomOutAction);
   FCommands.AddButton(FitAction);
+  FCommands.AddButton(FZoomAreaAction, True);
   FCommands.AddButton(ReloadAction);
   FCommands.AddDivider;
   for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
@@ -1370,6 +1393,31 @@ end;
 procedure TPublishForm.FitClick(Sender: TObject);
 begin
   FPreview.ZoomToFit;
+end;
+
+procedure TPublishForm.ZoomInClick(Sender: TObject);
+begin
+  FPreview.ZoomIn;
+end;
+
+procedure TPublishForm.ZoomOutClick(Sender: TObject);
+begin
+  FPreview.ZoomOut;
+end;
+
+procedure TPublishForm.ZoomAreaClick(Sender: TObject);
+begin
+  FPreview.ZoomArea := not FPreview.ZoomArea;
+  FPreview.SetFocus;
+end;
+
+procedure TPublishForm.PreviewZoomAreaChange(Sender: TObject);
+begin
+  FZoomAreaAction.Checked := FPreview.ZoomArea;
+  if FPreview.ZoomArea then
+    ShowStatus(rsPreviewZoomAreaHint)
+  else
+    ShowStatus('');
 end;
 
 procedure TPublishForm.ReloadClick(Sender: TObject);

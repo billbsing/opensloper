@@ -57,6 +57,8 @@ type
     procedure TestZoomKeepsAnchor;
     procedure TestZoomLimits;
     procedure TestFit;
+    procedure TestZoomToBox;
+    procedure TestZoomToBoxCornersEitherWay;
     procedure TestTrueScale;
     procedure TestBoundsIncludeCurves;
     procedure TestNothingShownBeforeEvaluate;
@@ -186,6 +188,30 @@ begin
   View.Fit(Bounds, 1000, 700, 50);
   AssertNear('height limits the scale', 600 / 612, View.Scale);
   AssertPointsNear('centred', Vec2(500, 350), View.ToScreen(Vec2(240, -294)));
+end;
+
+// The box drawn on screen fills the view, the less room limiting the zoom
+procedure TTestCanvasModel.TestZoomToBox;
+var
+  View: TViewTransform;
+begin
+  View := DefaultView;
+  // Model (0, 0) to (100, 25) at 2 px/mm and origin (40, 40)
+  View.ZoomToBox(Vec2(40, 40), Vec2(240, 90), 1000, 500);
+  AssertNear('width limits the scale', 10, View.Scale);
+  AssertPointsNear('centred', Vec2(500, 250), View.ToScreen(Vec2(50, 12.5)));
+end;
+
+procedure TTestCanvasModel.TestZoomToBoxCornersEitherWay;
+var
+  View, Other: TViewTransform;
+begin
+  View := DefaultView;
+  Other := DefaultView;
+  View.ZoomToBox(Vec2(40, 40), Vec2(240, 90), 1000, 500);
+  Other.ZoomToBox(Vec2(240, 40), Vec2(40, 90), 1000, 500);
+  AssertNear('same scale', View.Scale, Other.Scale);
+  AssertPointsNear('same place', View.ToScreen(Vec2(0, 0)), Other.ToScreen(Vec2(0, 0)));
 end;
 
 procedure TTestCanvasModel.TestTrueScale;

@@ -107,6 +107,7 @@ type
     procedure TestViewRoundTrip;
     procedure TestViewZoomKeepsAnchor;
     procedure TestViewFit;
+    procedure TestViewZoomToBox;
     procedure TestShapeAt;
     procedure TestRoundToStep;
     procedure TestDocumentUndoRedo;
@@ -1276,6 +1277,17 @@ begin
   View.Fit(Area, 1000, 1000, 100);
   AssertNear('limited by the width', 2, View.Scale);
   AssertPointsNear('centred', Vec2(500, 500), View.ToScreen(Vec2(200, 100)));
+end;
+
+procedure TTestLayout.TestViewZoomToBox;
+var
+  View: TPreviewView;
+begin
+  View := DefaultPreviewView;
+  // Layout (100, 50) to (300, 150) at 1 px/mm, the corners given either way
+  View.ZoomToBox(Vec2(300, 50), Vec2(100, 150), 800, 800);
+  AssertNear('width limits the scale', 4, View.Scale);
+  AssertPointsNear('centred', Vec2(400, 400), View.ToScreen(Vec2(200, 100)));
 end;
 
 procedure TTestLayout.TestShapeAt;

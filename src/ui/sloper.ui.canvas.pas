@@ -16,8 +16,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 
-// The drafting canvas: shows the pattern (drawn by Sloper.UI.PatternPainter), pans and zooms,
-// selects points and edges, and drags points; the other tools are objects in
+// The drafting canvas: shows the pattern (drawn by Sloper.UI.PatternPainter), pans and zooms
+// (with the zoom tool's box too), selects points and edges, and drags points; the other tools are objects in
 // Sloper.UI.CanvasTools, which the canvas hands its clicks, moves and keys.
 // Objects are held by ID, since undo and redo replace the pattern's objects.
 // Every edit goes through the document as a change; a drag is one change.
@@ -121,6 +121,7 @@ type
     procedure MakeTransform(const Spec: TTransformSpec);
     procedure ToggleSelected(const Key: string);
     procedure SelectBox(X, Y: integer; Adding: boolean);
+    procedure ZoomClick(X, Y: integer; ZoomingOut: boolean);
     procedure DropMissingSelection;
     procedure StartDrag;
     procedure StartHandleDrag;
@@ -587,6 +588,16 @@ end;
 procedure TPatternCanvas.ZoomOut;
 begin
   FView.ZoomAt(1 / ZOOM_STEP, Vec2(ClientWidth / 2, ClientHeight / 2));
+  Invalidate;
+end;
+
+// A step about the point clicked, as the wheel zooms
+procedure TPatternCanvas.ZoomClick(X, Y: integer; ZoomingOut: boolean);
+begin
+  if ZoomingOut then
+    FView.ZoomAt(1 / ZOOM_STEP, Vec2(X, Y))
+  else
+    FView.ZoomAt(ZOOM_STEP, Vec2(X, Y));
   Invalidate;
 end;
 
@@ -1095,6 +1106,18 @@ begin
       PickHere(X, Y);
     Exit;
   end;
+  // The zoom tool's box is the select tool's, with nothing under it to drag
+  if FTool = ctZoom then
+  begin
+    if Button = mbLeft then
+    begin
+      FPressKey := '';
+      FPressTip := False;
+      FPressHandle := False;
+      FInput.Mode := cmPressed;
+    end;
+    Exit;
+  end;
   if FTool <> ctSelect then
   begin
     ActiveTool.Press(Pressed, Shift, X, Y);
@@ -1213,12 +1236,17 @@ begin
       end;
     cmBoxing:
     begin
-      SelectBox(X, Y, ssShift in Shift);
+      if FTool = ctZoom then
+        FView.ZoomToBox(Vec2(FPressPos.X, FPressPos.Y), Vec2(X, Y), ClientWidth, ClientHeight)
+      else
+        SelectBox(X, Y, ssShift in Shift);
       Invalidate;
     end;
     cmPressed:
+      if FTool = ctZoom then
+        ZoomClick(X, Y, ssShift in Shift)
       // A click on a handle or a callout's tip leaves the selection as it is
-      if not FPressHandle and not FPressTip then
+      else if not FPressHandle and not FPressTip then
         if FPressKey = '' then
         begin
           if not (ssShift in Shift) then

@@ -18,7 +18,8 @@
 
 // The publish preview: the pages with the pieces on them, drawn with
 // BGRABitmap. Blank pages are greyed out. Pieces are dragged here, and a drag
-// is one change; everything else goes through the main form.
+// is one change; everything else goes through the main form. With Zoom Area
+// on, a drag zooms to its box instead and a click zooms a step.
 unit Sloper.Publish.PreviewCanvas;
 
 {$mode ObjFPC}{$H+}
@@ -31,7 +32,8 @@ uses
   Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling;
 
 type
-  TPreviewMode = (pmIdle, pmPressed, pmDragging, pmPanning);
+  // pmZoomPressed and pmZoomBoxing: Zoom Area's click, and its box being drawn
+  TPreviewMode = (pmIdle, pmPressed, pmDragging, pmPanning, pmZoomPressed, pmZoomBoxing);
 
   TPreviewCanvas = class(TCustomControl)
   private
@@ -50,9 +52,16 @@ type
     FGrab: TVec2;
     FNeedsFit: boolean;
     FSpaceDown: boolean;
+    FZoomArea: boolean;
+    // The zoom tool's key, from the shortcuts table
+    FZoomKey: TShortCut;
     FOnSelectionChange: TNotifyEvent;
+    FOnZoomAreaChange: TNotifyEvent;
     procedure SetSelected(Value: integer);
     procedure SetSelectedNote(Value: integer);
+    procedure SetZoomArea(Value: boolean);
+    procedure ZoomBy(Factor: double; X, Y: double);
+    procedure DrawZoomBox;
     procedure DrawNotes;
     procedure DragTo(X, Y: integer);
     procedure TogglePageAt(const At: TVec2);
@@ -73,6 +82,8 @@ type
     // Picks up the layout after any change
     procedure Refresh; reintroduce;
     procedure ZoomToFit;
+    procedure ZoomIn;
+    procedure ZoomOut;
     // Layout position under a point of this control
     function LayoutAt(X, Y: integer): TVec2;
     // Sends the selected copy back to the tray, or deletes the selected note
@@ -81,6 +92,10 @@ type
     property Selected: integer read FSelected write SetSelected;
     property SelectedNote: integer read FSelectedNote write SetSelectedNote;
     property OnSelectionChange: TNotifyEvent read FOnSelectionChange write FOnSelectionChange;
+    // Pieces cannot be dragged while it is on
+    property ZoomArea: boolean read FZoomArea write SetZoomArea;
+    // Zoom Area turned on or off, here by its key or Escape too
+    property OnZoomAreaChange: TNotifyEvent read FOnZoomAreaChange write FOnZoomAreaChange;
     property OnDragOver;
     property OnDragDrop;
   end;
@@ -91,11 +106,12 @@ resourcestring
   rsPreviewRemove = 'Unplace piece';
   rsPreviewMoveNote = 'Move note';
   rsPreviewDeleteNote = 'Delete note';
+  rsPreviewZoomAreaHint = 'Zoom Area: drag a box to zoom to it, click to zoom in, Shift+click to zoom out';
 
 implementation
 
 uses
-  Math, LCLIntf, Sloper.Core.Draft;
+  Math, LCLIntf, Menus, Sloper.Core.Draft, Sloper.Core.Shortcuts, Sloper.UI.Commands;
 
 const
   FIT_MARGIN = 24;
@@ -139,6 +155,11 @@ begin
   Result := BGRA(37, 116, 214);
 end;
 
+function ZoomBoxFill: TBGRAPixel;
+begin
+  Result := BGRA(37, 116, 214, 40);
+end;
+
 function PieceTint(const Look: TPieceLook): TBGRAPixel;
 begin
   Result := BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, 50);
@@ -152,6 +173,7 @@ begin
   FSelected := -1;
   FSelectedNote := -1;
   FNeedsFit := True;
+  FZoomKey := CommandShortCut(kcToolZoom);
   TabStop := True;
   ControlStyle := ControlStyle + [csOpaque];
 end;
@@ -179,6 +201,38 @@ procedure TPreviewCanvas.ZoomToFit;
 begin
   FNeedsFit := True;
   Invalidate;
+end;
+
+procedure TPreviewCanvas.ZoomBy(Factor: double; X, Y: double);
+begin
+  FView.ZoomAt(Factor, Vec2(X, Y));
+  Invalidate;
+end;
+
+procedure TPreviewCanvas.ZoomIn;
+begin
+  ZoomBy(PREVIEW_ZOOM_STEP, ClientWidth / 2, ClientHeight / 2);
+end;
+
+procedure TPreviewCanvas.ZoomOut;
+begin
+  ZoomBy(1 / PREVIEW_ZOOM_STEP, ClientWidth / 2, ClientHeight / 2);
+end;
+
+procedure TPreviewCanvas.SetZoomArea(Value: boolean);
+begin
+  if Value = FZoomArea then
+    Exit;
+  FZoomArea := Value;
+  if FMode in [pmZoomPressed, pmZoomBoxing] then
+    FMode := pmIdle;
+  if Value then
+    Cursor := crCross
+  else
+    Cursor := crDefault;
+  Invalidate;
+  if Assigned(FOnZoomAreaChange) then
+    FOnZoomAreaChange(Self);
 end;
 
 function TPreviewCanvas.LayoutAt(X, Y: integer): TVec2;
@@ -281,6 +335,11 @@ begin
     FMode := pmPanning;
     Exit;
   end;
+  if FZoomArea and (Button = mbLeft) then
+  begin
+    FMode := pmZoomPressed;
+    Exit;
+  end;
   if not Assigned(FDocument) then
     Exit;
   At := FView.ToLayout(Vec2(X, Y));
@@ -334,6 +393,14 @@ begin
       end;
     pmDragging:
       DragTo(X, Y);
+    pmZoomPressed:
+      if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DRAG_THRESHOLD then
+      begin
+        FMode := pmZoomBoxing;
+        Invalidate;
+      end;
+    pmZoomBoxing:
+      Invalidate;
   end;
   FLastPos := Point(X, Y);
 end;
@@ -341,8 +408,20 @@ end;
 procedure TPreviewCanvas.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: integer);
 begin
   inherited MouseUp(Button, Shift, X, Y);
-  if FMode = pmDragging then
-    FDocument.EndChange;
+  case FMode of
+    pmDragging:
+      FDocument.EndChange;
+    pmZoomBoxing:
+    begin
+      FView.ZoomToBox(Vec2(FPressPos.X, FPressPos.Y), Vec2(X, Y), ClientWidth, ClientHeight);
+      Invalidate;
+    end;
+    pmZoomPressed:
+      if ssShift in Shift then
+        ZoomBy(1 / PREVIEW_ZOOM_STEP, X, Y)
+      else
+        ZoomBy(PREVIEW_ZOOM_STEP, X, Y);
+  end;
   FMode := pmIdle;
 end;
 
@@ -356,6 +435,12 @@ end;
 procedure TPreviewCanvas.KeyDown(var Key: word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
+  if (Key <> 0) and (FMode = pmIdle) and (ShortCut(Key, Shift) = FZoomKey) then
+  begin
+    SetZoomArea(not FZoomArea);
+    Key := 0;
+    Exit;
+  end;
   case Key of
     VK_SPACE:
       FSpaceDown := True;
@@ -367,6 +452,13 @@ begin
         FMode := pmIdle;
         FDocument.CancelChange;
       end
+      else if FMode = pmZoomBoxing then
+      begin
+        FMode := pmIdle;
+        Invalidate;
+      end
+      else if FZoomArea then
+        SetZoomArea(False)
       else
         SetSelected(-1);
     else
@@ -463,6 +555,20 @@ begin
   FBitmap.TextOut(Spot.X, Spot.Y, Shape.Caption, Ink);
 end;
 
+procedure TPreviewCanvas.DrawZoomBox;
+var
+  X1, Y1, X2, Y2: single;
+begin
+  X1 := Min(FPressPos.X, FLastPos.X) + 0.5;
+  X2 := Max(FPressPos.X, FLastPos.X) + 0.5;
+  Y1 := Min(FPressPos.Y, FLastPos.Y) + 0.5;
+  Y2 := Max(FPressPos.Y, FLastPos.Y) + 0.5;
+  FBitmap.FillRectAntialias(X1, Y1, X2, Y2, ZoomBoxFill);
+  FBitmap.PenStyle := psDot;
+  FBitmap.RectangleAntialias(X1, Y1, X2, Y2, SelectedInk, 1);
+  FBitmap.PenStyle := psSolid;
+end;
+
 // The layout's notes, which can be selected, and the pattern notes that print
 // with the pieces, which move with them
 procedure TPreviewCanvas.DrawNotes;
@@ -557,6 +663,8 @@ begin
     DrawShape(Shape);
   if Assigned(FDocument) then
     DrawNotes;
+  if FMode = pmZoomBoxing then
+    DrawZoomBox;
   FBitmap.Draw(Canvas, 0, 0, True);
 end;
 

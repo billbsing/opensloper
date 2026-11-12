@@ -670,7 +670,7 @@ begin
   Result.ActionList := FActions;
   Result.Caption := ACaption;
   Result.ImageIndex := Ord(AIcon);
-  Result.ShortCut := AShortCut;
+  SetActionShortCut(Result, AShortCut);
   Result.Tag := ATag;
   Result.OnExecute := AHandler;
   SetActionHint(Result);

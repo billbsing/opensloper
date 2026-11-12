@@ -33,12 +33,13 @@ uses
   Sloper.Document.PatternDocument, Sloper.UI.View, Sloper.UI.Snap, Sloper.UI.CanvasInput, Sloper.UI.PatternPainter, Sloper.UI.IconSet;
 
 type
-  // ctSelect selects and drags; ctPoint, ctLine and ctCurve add objects where
+  // ctSelect selects and drags; ctZoom zooms to a box, or in or out a step
+  // at a click; ctPoint, ctLine and ctCurve add objects where
   // the snap points; ctPiece makes a piece of the region clicked; ctNotch adds
   // or removes a notch on a piece's seam line; ctSeam picks the edges of the
   // two sides of a seam; ctText places a note, hung from what it snaps to;
   // ctCallout takes what its tip points at, then where its text goes
-  TCanvasTool = (ctSelect, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam, ctText, ctCallout);
+  TCanvasTool = (ctSelect, ctZoom, ctPoint, ctLine, ctCurve, ctCircle, ctRectangle, ctPiece, ctNotch, ctSeam, ctText, ctCallout);
 
   // How the tool is offered: its key in Sloper.Core.Shortcuts, its toolbar
   // icon and its menu caption
@@ -109,6 +110,7 @@ procedure FreeCanvasTools(var Tools: TCanvasToolHandlers);
 
 resourcestring
   rsToolSelect = 'Select';
+  rsToolZoom = 'Zoom';
   rsToolPoint = 'Point';
   rsToolLine = 'Line';
   rsToolCurve = 'Curve';
@@ -120,6 +122,7 @@ resourcestring
   rsToolText = 'Text';
   rsToolCallout = 'Callout';
   rsToolSelectHint = 'Select: click to select, drag a point to move it';
+  rsToolZoomHint = 'Zoom: drag a box to zoom to it, click to zoom in, Shift+click to zoom out';
   rsToolPointHint = 'Point: click to add a point where it snaps';
   rsToolLineHint = 'Line: click the start, then the end; Escape stops';
   rsToolCurveHint = 'Curve: click the start, then the end; Shift+click carries it on as one path; Escape stops';
@@ -172,6 +175,12 @@ const
 type
   // Selecting and dragging are the canvas's own gestures
   TSelectTool = class(TCanvasToolHandler)
+  public
+    function Hint: string; override;
+  end;
+
+  // So is zooming, which uses the select tool's box
+  TZoomTool = class(TCanvasToolHandler)
   public
     function Hint: string; override;
   end;
@@ -315,6 +324,7 @@ function CanvasToolInfo(Tool: TCanvasTool): TCanvasToolInfo;
 begin
   case Tool of
     ctSelect: Result := Info(kcToolSelect, aiSelect, rsToolSelect);
+    ctZoom: Result := Info(kcToolZoom, aiZoomArea, rsToolZoom);
     ctPoint: Result := Info(kcToolPoint, aiPoint, rsToolPoint);
     ctLine: Result := Info(kcToolLine, aiLine, rsToolLine);
     ctCurve: Result := Info(kcToolCurve, aiCurve, rsToolCurve);
@@ -333,6 +343,7 @@ begin
   Result := Default(TCanvasToolHandlers);
   try
     Result[ctSelect] := TSelectTool.Create(Host);
+    Result[ctZoom] := TZoomTool.Create(Host);
     Result[ctPoint] := TPointTool.Create(Host);
     Result[ctLine] := TEdgeTool.Create(Host, False);
     Result[ctCurve] := TEdgeTool.Create(Host, True);
@@ -423,6 +434,13 @@ end;
 function TSelectTool.Hint: string;
 begin
   Result := rsToolSelectHint;
+end;
+
+{ TZoomTool }
+
+function TZoomTool.Hint: string;
+begin
+  Result := rsToolZoomHint;
 end;
 
 { TSnapTool }
