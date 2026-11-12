@@ -136,6 +136,8 @@ case "$(uname -s)" in
     else
       echo "No rsvg-convert or iconutil, so the bundle has no icon" >&2
     fi
+    # No NSPrincipalClass: the LCL then makes its own TCocoaApplication, and
+    # naming NSApplication there gives it one without the LCL's methods
     cat > "$BUNDLE/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -152,7 +154,6 @@ case "$(uname -s)" in
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSPrincipalClass</key><string>NSApplication</string>
 </dict>
 </plist>
 EOF
