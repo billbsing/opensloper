@@ -547,7 +547,7 @@ Printer calibration is neither: it belongs to the user's printer, so it is a pre
 
 **Rotation in 90° steps**, so the grainline stays square to the sheet; there is no per-piece list of allowed turns. On paper the printed grainline shows how to cut, so a turn does not matter; on a projector, a material sheet or with a machine profile the piece is cut as it lies, so a quarter turn there is a warning. A piece cut twice gets two placements, the second flipped when `cut.mirrored` is set.
 
-**Problems.** A missing file, a deleted or failing piece, and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, overlaps, pieces off the sheet, notes over pieces and odd rotations are warnings.
+**Problems.** A missing file, a deleted or failing piece, and a layout with nothing placed block export, so a blank PDF is never written. Unplaced copies, overlaps, pieces off the sheet, notes over pieces and odd rotations are warnings. They are counted at the left of the status bar, as in the design app, with how many stop printing (decided 2026-11-13, issue #21, replacing the list under the side tabs); pointing at the count shows them and clicking it lists them. Unplaced copies are left to the tray.
 
 **Output kinds** (`kind` in `output`):
 

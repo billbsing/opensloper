@@ -30,8 +30,10 @@ a pattern to start a layout for.
     | Output | What it prints on, the paper, marks, fill and profiles, and the exports |
     | Notes | The title block and notes on the sheet |
 
-- **Problems**, under the tabs: anything that stops the layout printing, such
-  as a missing pattern, and warnings, such as overlapping pieces.
+- **Problems**, counted at the left of the status bar at the bottom: anything
+  that stops the layout printing, such as a missing pattern, and warnings,
+  such as overlapping pieces. Point at the count to read them, or click it
+  to list them.
 
 The wheel zooms about the pointer, and View → Zoom In and Zoom Out
 (++ctrl+plus++ and ++ctrl+minus++) zoom about the middle; drag with the middle

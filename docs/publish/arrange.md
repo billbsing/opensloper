@@ -36,7 +36,7 @@ Packing is one step to undo, and the pieces can still be dragged afterwards.
 
 ## Warnings
 
-The Problems list warns about pieces that overlap, pieces off the sheet,
+The problems count in the status bar (click it for the list) warns about pieces that overlap, pieces off the sheet,
 copies still in the tray and, where a piece is cut as it lies, a piece turned
 across the grain. Warnings do not stop printing; problems such as a missing
 pattern do, so a blank page is never printed.

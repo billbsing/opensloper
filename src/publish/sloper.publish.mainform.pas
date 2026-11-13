@@ -57,7 +57,10 @@ type
     FRemoveSourceButton, FChooseSetButton, FPatternSetButton: TButton;
     FPaperWidthEdit, FPaperHeightEdit, FRollEdit, FMaterialWidthEdit, FMaterialLengthEdit, FMarginEdit,
     FOverlapEdit: TFloatSpinEdit;
-    FTray, FProblems: TListBox;
+    FTray: TListBox;
+    // The problems, in plain words, that the status bar counts
+    FProblemTexts: TStringArray;
+    FProblemsMenu: TPopupMenu;
     // What each tray line stands for
     FTrayCopies: TUnplacedCopyArray;
     FTurnButton, FFlipButton, FRemoveButton, FPackButton: TButton;
@@ -103,6 +106,9 @@ type
     procedure AboutClick(Sender: TObject);
     procedure WatchTick(Sender: TObject);
     procedure RefreshProblems;
+    procedure StatusResize(Sender: TObject);
+    procedure StatusMouseMove(Sender: TObject; Shift: TShiftState; X, Y: integer);
+    procedure StatusMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
     procedure RefreshTray;
     procedure RefreshNotesTab;
     procedure BuildNotesTab;
@@ -198,7 +204,6 @@ resourcestring
   rsArrange = 'Arrange';
   rsContent = 'Content';
   rsExportGroup = 'Print and Export';
-  rsProblemsGroup = 'Problems';
   rsSheetNotes = 'Sheet Notes';
   rsTrayEmpty = 'Every piece is placed';
   rsTrayNoPieces = 'No pieces to place';
@@ -264,6 +269,10 @@ resourcestring
   rsAddNoteChange = 'Add note';
   rsCannotPlace = 'This piece has a problem in the pattern, so it cannot be placed yet';
   rsNoProblems = 'No problems';
+  rsProblemCount = 'Problems: %d';
+  // With how many of them stop printing and exporting
+  rsProblemCountBlocking = 'Problems: %d, %d stop printing';
+  rsProblemsHint = 'Click to list the problems';
   rsPlaceNew = 'Place new pieces';
   rsTurn = 'Turn 90°';
   rsFlip = 'Flip';
@@ -318,7 +327,12 @@ const
   // In the order of FFieldBoxes
   TITLE_FIELDS: array[0..5] of string = (FIELD_PATTERN_NAME, FIELD_MEASUREMENTS_NAME, FIELD_LAYOUT_NAME, FIELD_DATE, FIELD_CUT_LIST, FIELD_MATERIALS);
   SIDE_ROW_STEP = 100;
-  PROBLEMS_HEIGHT = 110;
+  // The status bar's panels: the problems count, then messages
+  PANEL_PROBLEMS = 0;
+  PANEL_MESSAGE = 1;
+  PROBLEMS_PANEL_WIDTH96 = 150;
+  PANEL_PADDING96 = 16;
+  MIN_MESSAGE_WIDTH = 50;
   WATCH_MILLISECONDS = 1000;
   SPIN_DECIMALS = 1;
   MAX_MILLIMETRES = 100;
@@ -333,7 +347,6 @@ const
 
 constructor TPublishForm.Create(AOwner: TComponent);
 var
-  ProblemsGroup: TGroupBox;
   PreviewPanel: TPanel;
   HorzBar, VertBar: TScrollBar;
 begin
@@ -351,23 +364,19 @@ begin
   BuildMenu;
   FStatus := TStatusBar.Create(Self);
   FStatus.Parent := Self;
+  FStatus.SimplePanel := False;
+  FStatus.Panels.Add;
+  FStatus.Panels.Add;
+  FStatus.ShowHint := True;
+  FStatus.OnResize := @StatusResize;
+  FStatus.OnMouseMove := @StatusMouseMove;
+  FStatus.OnMouseUp := @StatusMouseUp;
+  FProblemsMenu := TPopupMenu.Create(Self);
   FColumn := TPanel.Create(Self);
   FColumn.Parent := Self;
   FColumn.Align := alRight;
   FColumn.Width := SIDE_WIDTH;
   FColumn.BevelOuter := bvNone;
-  ProblemsGroup := TGroupBox.Create(Self);
-  ProblemsGroup.Parent := FColumn;
-  ProblemsGroup.Align := alBottom;
-  ProblemsGroup.AutoSize := True;
-  ProblemsGroup.BorderSpacing.Around := ControlGap;
-  ProblemsGroup.Caption := rsProblemsGroup;
-  FProblems := TListBox.Create(Self);
-  FProblems.Parent := ProblemsGroup;
-  FProblems.Align := alTop;
-  FProblems.Height := PROBLEMS_HEIGHT;
-  FProblems.ShowHint := True;
-  FProblems.BorderSpacing.Around := ControlGap;
   // One tab open at a time, as in the design app's side panel
   FTabs := TAccordion.Create(Self);
   FTabs.Parent := FColumn;
@@ -1049,7 +1058,47 @@ end;
 
 procedure TPublishForm.ShowStatus(const AText: string);
 begin
-  FStatus.SimpleText := AText;
+  FStatus.Panels[PANEL_MESSAGE].Text := AText;
+end;
+
+// Messages take what the problems count leaves
+procedure TPublishForm.StatusResize(Sender: TObject);
+begin
+  FStatus.Panels[PANEL_MESSAGE].Width := Max(MIN_MESSAGE_WIDTH, FStatus.ClientWidth - FStatus.Panels[PANEL_PROBLEMS].Width);
+end;
+
+// The problems in full over their count
+procedure TPublishForm.StatusMouseMove(Sender: TObject; Shift: TShiftState; X, Y: integer);
+var
+  Wanted: string;
+begin
+  Wanted := '';
+  if (FStatus.GetPanelIndexAt(X, Y) = PANEL_PROBLEMS) and (Length(FProblemTexts) > 0) then
+    Wanted := string.Join(LineEnding, FProblemTexts) + LineEnding + LineEnding + rsProblemsHint;
+  if FStatus.Hint <> Wanted then
+  begin
+    FStatus.Hint := Wanted;
+    Application.CancelHint;
+  end;
+end;
+
+procedure TPublishForm.StatusMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+var
+  Problem: string;
+  Item: TMenuItem;
+  At: TPoint;
+begin
+  if (FStatus.GetPanelIndexAt(X, Y) <> PANEL_PROBLEMS) or (Length(FProblemTexts) = 0) then
+    Exit;
+  FProblemsMenu.Items.Clear;
+  for Problem in FProblemTexts do
+  begin
+    Item := TMenuItem.Create(FProblemsMenu);
+    Item.Caption := Problem;
+    FProblemsMenu.Items.Add(Item);
+  end;
+  At := FStatus.ClientToScreen(Point(X, Y));
+  FProblemsMenu.PopUp(At.X, At.Y);
 end;
 
 procedure TPublishForm.DocumentChanged(Sender: TObject);
@@ -1150,23 +1199,33 @@ begin
   FPreview.RemoveSelected;
 end;
 
+// Counted in the status bar, as in the design app; the tray shows the
+// copies waiting to be placed
 procedure TPublishForm.RefreshProblems;
 var
   Problem: TLayoutProblem;
+  Blocking: integer;
+  Shown: string;
 begin
-  FProblems.Items.BeginUpdate;
-  try
-    FProblems.Items.Clear;
-    for Problem in FDocument.Layout.Problems do
-      if not Problem.Unplaced then
-        FProblems.Items.Add(Problem.Text);
-    if FProblems.Items.Count = 0 then
-      FProblems.Items.Add(rsNoProblems);
-  finally
-    FProblems.Items.EndUpdate;
-  end;
-  // The column is narrow, so long problems only fit in full here
-  FProblems.Hint := Trim(FProblems.Items.Text);
+  FProblemTexts := nil;
+  Blocking := 0;
+  for Problem in FDocument.Layout.Problems do
+    if not Problem.Unplaced then
+    begin
+      Insert(Problem.Text, FProblemTexts, Length(FProblemTexts));
+      if Problem.Blocking then
+        Inc(Blocking);
+    end;
+  if Length(FProblemTexts) = 0 then
+    Shown := rsNoProblems
+  else if Blocking = 0 then
+    Shown := Format(rsProblemCount, [Length(FProblemTexts)])
+  else
+    Shown := Format(rsProblemCountBlocking, [Length(FProblemTexts), Blocking]);
+  FStatus.Panels[PANEL_PROBLEMS].Text := Shown;
+  FStatus.Panels[PANEL_PROBLEMS].Width := Max(Scale96ToForm(PROBLEMS_PANEL_WIDTH96), FStatus.Canvas.TextWidth(Shown) +
+    Scale96ToForm(PANEL_PADDING96));
+  StatusResize(FStatus);
 end;
 
 procedure TPublishForm.RefreshControls;
