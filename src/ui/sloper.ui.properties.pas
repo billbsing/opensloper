@@ -307,7 +307,7 @@ resourcestring
   rsPropRename = 'Rename';
   rsPropChangeRole = 'Change role';
   rsPropLocked = 'Locked';
-  rsPropLockedCaption = 'Cannot be moved or edited';
+  // rsPropLockedCaption = 'Cannot be moved or edited';
   rsPropLockedHint = 'A locked object cannot be moved, edited or deleted, but its formulas still run';
   rsPropLock = 'Lock';
   rsPropUnlock = 'Unlock';
@@ -1232,7 +1232,7 @@ begin
       if Node is TDraftObject then
       begin
         FLockBox := TCheckBox.Create(Panel);
-        FLockBox.Caption := rsPropLockedCaption;
+        // FLockBox.Caption := rsPropLockedCaption;
         FLockBox.Hint := rsPropLockedHint;
         FLockBox.ShowHint := True;
         FLockBox.OnClick := @LockClick;
