@@ -1201,6 +1201,8 @@ class OpenSloper:
         hiddenRoles: list[Literal["construction", "outline", "placement", "stitch", "fold", "cut", "skive", "edgeFinish"]] | None = None,
         annotations: bool | None = None,
         region: dict[str, Any] | None = None,
+        garment: bool | None = None,
+        material: str | None = None,
     ) -> Any:
         """Draws the pattern as SVG or as a PNG image, as the drafting window shows it.
 
@@ -1216,6 +1218,10 @@ class OpenSloper:
             region.minY: The left or top. Required.
             region.maxX: The right or bottom. Required.
             region.maxY: The right or bottom. Required.
+            garment: The Garment view instead: each piece as sewn, darts closed and folds opened,
+                shaded, arranged as on the canvas; labels, hiddenRoles, annotations and region do
+                not apply. By default false.
+            material: garment: only the pieces cut from this material, by name; by default all.
 
         Returns:
             `format` and the `svg` text; or, for png, the `png` file as base64 and its `width`.
@@ -1227,6 +1233,8 @@ class OpenSloper:
             "hiddenRoles": hiddenRoles,
             "annotations": annotations,
             "region": region,
+            "garment": garment,
+            "material": material,
         })
 
     def ui_state(self) -> Any:

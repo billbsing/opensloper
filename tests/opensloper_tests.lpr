@@ -95,7 +95,8 @@ uses
   Sloper.Tests.MCP,
   Sloper.Tests.DraftPNG,
   Sloper.Tests.Automation,
-  Sloper.Tests.Assistant;
+  Sloper.Tests.Assistant,
+  Sloper.Tests.Garment;
 
 var
   App: TTestRunner;

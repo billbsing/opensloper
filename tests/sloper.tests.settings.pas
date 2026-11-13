@@ -289,6 +289,9 @@ begin
     AssertNear(MEASURE_UNIT_NAMES[AUnit], DEFAULT_GRID_STEPS[AUnit], FSettings.Preferences.GridSteps[AUnit]);
   AssertNear('across', 1, FSettings.Preferences.Calibration.X);
   AssertNear('down', 1, FSettings.Preferences.Calibration.Y);
+  AssertTrue('garment shaded', FSettings.Preferences.GarmentShading);
+  AssertNear('light', DEFAULT_GARMENT_LIGHT_ANGLE, FSettings.Preferences.GarmentLightAngle);
+  AssertNear('strength', DEFAULT_GARMENT_SHADE_STRENGTH, FSettings.Preferences.GarmentShadeStrength);
 end;
 
 procedure TTestSettings.TestPreferencesRoundTrip;
@@ -302,6 +305,9 @@ begin
   FSettings.Preferences.GridSteps[muInch] := 0.25;
   FSettings.Preferences.Calibration.X := 1.015;
   FSettings.Preferences.Calibration.Y := 0.99;
+  FSettings.Preferences.GarmentShading := False;
+  FSettings.Preferences.GarmentLightAngle := 45;
+  FSettings.Preferences.GarmentShadeStrength := 0.8;
   Other := TAppSettings.Create;
   try
     AssertTrue(Err, Other.LoadFromText(FSettings.SaveToText, Err));
@@ -311,6 +317,9 @@ begin
     AssertNear('inch grid', 0.25, Other.Preferences.GridSteps[muInch]);
     AssertNear('across', 1.015, Other.Preferences.Calibration.X);
     AssertNear('down', 0.99, Other.Preferences.Calibration.Y);
+    AssertFalse('garment flat', Other.Preferences.GarmentShading);
+    AssertNear('light', 45, Other.Preferences.GarmentLightAngle);
+    AssertNear('strength', 0.8, Other.Preferences.GarmentShadeStrength);
   finally
     FreeAndNil(Other);
   end;
@@ -329,6 +338,10 @@ begin
   AssertNear('only one factor', 1, FSettings.Preferences.Calibration.X);
   AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "calibrationX": 0, "calibrationY": 1}', Err));
   AssertNear('zero', 1, FSettings.Preferences.Calibration.X);
+  AssertTrue(Err, FSettings.LoadFromText('{"format": "opensloper-settings", "version": 1, "garmentShadeStrength": 3,' +
+    ' "garmentLightAngle": -45}', Err));
+  AssertNear('strength over 1', DEFAULT_GARMENT_SHADE_STRENGTH, FSettings.Preferences.GarmentShadeStrength);
+  AssertNear('angle taken round', 315, FSettings.Preferences.GarmentLightAngle);
 end;
 
 procedure TTestSettings.TestSavingPreferencesKeepsTheRest;

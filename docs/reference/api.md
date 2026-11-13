@@ -683,6 +683,8 @@ Draws the pattern as SVG or as a PNG image, as the drafting window shows it.
 | `region.minY` | number | yes | The left or top |
 | `region.maxX` | number | yes | The right or bottom |
 | `region.maxY` | number | yes | The right or bottom |
+| `garment` | true or false |  | The Garment view instead: each piece as sewn, darts closed and folds opened, shaded, arranged as on the canvas; labels, hiddenRoles, annotations and region do not apply. By default false |
+| `material` | text |  | garment: only the pieces cut from this material, by name; by default all |
 
 Returns: `format` and the `svg` text; or, for png, the `png` file as base64 and its `width`.
 

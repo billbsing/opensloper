@@ -105,6 +105,7 @@ type
     function DoUndo: TJSONData;
     function DoRedo: TJSONData;
     function DoRender(Params: TJSONObject): TJSONData;
+    function RenderGarment(Params: TJSONObject; const RenderFormat: string): TJSONData;
     function DoAddVariable(Params: TJSONObject): TJSONData;
     function DoAddPoint(Params: TJSONObject): TJSONData;
     function DoAddEdge(Params: TJSONObject): TJSONData;
@@ -246,7 +247,7 @@ uses
   Sloper.Core.Arrange, Sloper.Core.EvalTypes, Sloper.Core.JSON, Sloper.Core.Measurements, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.Pattern,
   Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry, Sloper.Core.PieceDetect, Sloper.Core.SeamSuggest, Sloper.Core.Transform,
   Sloper.Core.Settings, Sloper.Core.Note, Sloper.Core.Units, Sloper.Core.UnitConvert, Sloper.Core.Fragment, base64,
-  Sloper.Output.DraftSVG, Sloper.Output.DraftPNG, Sloper.Output.Layout,
+  Sloper.Output.DraftSVG, Sloper.Output.DraftPNG, Sloper.Output.Layout, Sloper.Core.Garment, Sloper.Output.GarmentSVG, Sloper.Output.GarmentPNG,
   Sloper.Output.LayoutExport, Sloper.Core.Version, Sloper.API.Methods;
 
 const
@@ -1144,6 +1145,39 @@ begin
   Result := DocumentInfo;
 end;
 
+// The Garment view, lit as by default
+function TApiServer.RenderGarment(Params: TJSONObject; const RenderFormat: string): TJSONData;
+var
+  Scene: TGarmentScene;
+  MaterialName, Err: string;
+  Material: TPatternMaterial;
+  Index, Width: integer;
+  Png: rawbytestring;
+  Info: TJSONObject;
+begin
+  Scene := BuildGarment(FDocument.Pattern);
+  MaterialName := OptionalString(Params, 'material');
+  if MaterialName <> '' then
+  begin
+    Material := FDocument.Pattern.FindMaterialNamed(MaterialName);
+    if not Assigned(Material) then
+      raise EApiError.Create(RPC_REFUSED, Format(rsApiNoMaterial, [MaterialName]));
+    for Index := 0 to FDocument.Pattern.MaterialCount - 1 do
+      if FDocument.Pattern.Materials[Index] = Material then
+        Scene := GarmentOfMaterial(Scene, Index);
+  end;
+  if RenderFormat = RENDER_FORMAT_SVG then
+    Exit(TJSONObject.Create(['format', RENDER_FORMAT_SVG, 'svg', GarmentToSVG(Scene, DefaultGarmentLight)]));
+  Width := PNG_DEFAULT_WIDTH;
+  if Assigned(Params.Find('width')) and not GetJSONInteger(Params, 'width', Width) then
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['width']));
+  if not GarmentToPNG(Scene, DefaultGarmentLight, Width, Png, Err) then
+    raise EApiError.Create(RPC_REFUSED, Err);
+  Info := TJSONObject.Create(['format', RENDER_FORMAT_PNG, 'width', Width]);
+  Info.Add('png', EncodeStringBase64(Png));
+  Result := Info;
+end;
+
 // The SVG comes back in the reply: file access is for open, save and export
 function TApiServer.DoRender(Params: TJSONObject): TJSONData;
 var
@@ -1160,6 +1194,8 @@ begin
     RenderFormat := RENDER_FORMAT_SVG;
   if (RenderFormat <> RENDER_FORMAT_SVG) and (RenderFormat <> RENDER_FORMAT_PNG) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiRenderFormat, [RenderFormat]));
+  if Assigned(Params.Find('garment')) and BooleanParam(Params, 'garment') then
+    Exit(RenderGarment(Params, RenderFormat));
   Options := DefaultDraftSVGOptions;
   GetJSONBoolean(Params, 'labels', Options.Labels);
   if Assigned(Params.Find('hiddenRoles')) and not NamesToRoles(StringListParam(Params, 'hiddenRoles'), Options.HiddenRoles) then

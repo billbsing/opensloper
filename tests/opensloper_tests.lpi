@@ -286,6 +286,11 @@
         <UnitName Value="Sloper.Tests.Assistant"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.garment.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Garment"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.canvasmodel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>

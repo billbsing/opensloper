@@ -93,6 +93,10 @@ Sewn edges usually run opposite ways round their pieces, so side B is paired
 from its far end. When that pairs the wrong ends, which is most likely with a
 mirrored piece, press Flip.
 
+A seam between a dart's two legs, one leg as side A and the other as side B,
+checks that the legs match, and lets [the Garment tab](garment.md) close the
+dart.
+
 A seam whose difference is outside its tolerance is a problem: the status bar
 counts it, the Objects tab's Problems filter lists it, and `opensloper-cli
 check` reports both lengths. The seam itself stays valid, so nothing else

@@ -328,7 +328,8 @@ end;
 
 function NormalizeAngle(AngleDeg: double): double;
 begin
-  Result := FMod(AngleDeg, 360);
+  // A double 360: with a whole number Math's FMod takes its single overload
+  Result := FMod(AngleDeg, double(360));
   if Result < 0 then
     Result := Result + 360;
   // A rounding error just below 0 (or 360) would otherwise read 359.999...

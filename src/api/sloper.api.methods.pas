@@ -297,6 +297,9 @@ resourcestring
   rsApiRenderRegion = 'Only this part, in mm';
   rsApiRenderMin = 'The left or top';
   rsApiRenderMax = 'The right or bottom';
+  rsApiRenderGarment = 'The Garment view instead: each piece as sewn, darts closed and folds opened, shaded, ' +
+    'arranged as on the canvas; labels, hiddenRoles, annotations and region do not apply. By default false';
+  rsApiRenderMaterial = 'garment: only the pieces cut from this material, by name; by default all';
   rsApiRenderReturns = '`format` and the `svg` text; or, for png, the `png` file as base64 and its `width`';
   rsApiExport = 'Exports a saved layout file as PDF, SVG, DXF or machine DXF.';
   rsApiExportLayout = 'The layout file (.slayout)';
@@ -626,6 +629,8 @@ begin
   P('region.minY', apNumber, True, rsApiRenderMin);
   P('region.maxX', apNumber, True, rsApiRenderMax);
   P('region.maxY', apNumber, True, rsApiRenderMax);
+  P('garment', apFlag, False, rsApiRenderGarment);
+  P('material', apText, False, rsApiRenderMaterial);
   Method('ui_state', agChecking, rsApiUIState, rsApiUIStateReturns);
   ReadsOnly;
   Method('export', agChecking, rsApiExport, rsApiExportReturns);

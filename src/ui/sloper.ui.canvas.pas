@@ -45,6 +45,7 @@ type
     FPainter: TPatternPainter;
     FSelection: TStringArray;
     FHoverKey: string;
+    FOutsideHoverKey: string;
     FInput: TCanvasInput;
     FPressPos, FLastPos: TPoint;
     FPressKey: string;
@@ -133,6 +134,7 @@ type
     procedure CMWantSpecialKey(var Message: TCMWantSpecialKey); message CM_WANTSPECIALKEY;
     procedure SetLabelMode(Value: TLabelMode);
     procedure SetShowPieceFills(Value: boolean);
+    procedure SetOutsideHoverKey(const Value: string);
     procedure SetLabelsHeld(Value: boolean);
     function ShownLabelMode: TLabelMode;
     procedure SetHorzBar(Value: TScrollBar);
@@ -231,6 +233,9 @@ type
     // The role of the lines, curves, circles, arcs and rectangles drawn next
     property DrawRole: TEdgeRole read FDrawRole write FDrawRole;
     property ShowPieceFills: boolean read FShowPieceFills write SetShowPieceFills;
+    // An object pointed at somewhere else, such as a piece in the Garment
+    // tab, shown as if hovered here while the pointer is not on the canvas
+    property OutsideHoverKey: string read FOutsideHoverKey write SetOutsideHoverKey;
     // The grid's spacing in AUnit, from the preferences
     procedure SetGrid(Step: double; AUnit: TMeasureUnit);
     // Scroll bars to keep in step with the view
@@ -1519,6 +1524,14 @@ begin
   end;
 end;
 
+procedure TPatternCanvas.SetOutsideHoverKey(const Value: string);
+begin
+  if Value = FOutsideHoverKey then
+    Exit;
+  FOutsideHoverKey := Value;
+  Invalidate;
+end;
+
 { Drawing }
 
 // What the painter needs to know of the canvas
@@ -1528,6 +1541,8 @@ begin
   Result.View := FView;
   Result.Selection := FSelection;
   Result.HoverKey := FHoverKey;
+  if Result.HoverKey = '' then
+    Result.HoverKey := FOutsideHoverKey;
   Result.ShowPieceFills := FShowPieceFills;
   Result.SmallPoints := ShownLabelMode = lmNone;
   if FTipDragging then

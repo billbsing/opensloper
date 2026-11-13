@@ -19,6 +19,7 @@ points and edges placed by formulas, then closed outlines become pieces.
     | --- | --- |
     | Properties | The selected object: its name, formulas and settings |
     | Objects | Every object, with its operation, value and state, searchable |
+    | Garment | The pieces as sewn, darts closed and shaded, see [The Garment tab](garment.md) |
     | Variables | The pattern's `#` variables |
     | Measurements | The measurement file's values, with a slider to try a size up or down |
     | Lines | Which kinds of line are shown |
