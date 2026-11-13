@@ -256,7 +256,7 @@ Construction lines are left out by their role, and an edge with outline split pa
 - **Seam allowance.** The piece's width, and an edge's own in a field such as `edge2.allowance` that exists only while it does. Clipper2's offset takes one width per path, so `OffsetOutline` builds the raw offset with a width per segment (mitred convex corners, bevelled past four times the allowance) and Clipper2's union removes the loops.
 - A piece is a node whose inputs are its edges, so they cannot be deleted while it uses them; a gap over 0.01 mm makes it invalid. A piece that takes on a newer point moves to the end of the object list, since files list inputs first.
 
-**View options for overlapping pieces** (planned, 2026-11-05), view state like zoom: Isolate Piece dims everything the piece does not use, found from the dependency graph so nothing is assigned to a piece; Bring to Front and Send to Back change only drawing order.
+**View options for overlapping pieces** (planned, 2026-11-05), view state like zoom: Isolate Piece dims everything the piece does not use, found from the dependency graph so nothing is assigned to a piece; Hide Piece takes a piece off the canvas until it is shown again (whether the edges only it uses go with it is to be decided; added 2026-11-13); Bring to Front and Send to Back change only drawing order. The Garment tab follows all three.
 
 **Align and distribute** (`Sloper.Core.Arrange`). Modelled on Inkscape's Align and Distribute, but each action rewrites the selected points' definitions so the arrangement holds when measurements change: align sets `x` to `{A}.x`; distribute makes inner points Between points at `i/(n+1)` or Along edge points at equal arc length. A point placed by a formula is only replaced on a yes, and nothing formula-driven is overwritten silently. A point's operation changes in place (`ConvertToFree`, `ConvertToBetween`, `ConvertToAlongEdge`), keeping its ID, name and users. The Align tab is hidden (2026-11-05) because the panel does not work correctly; the code is reached through the Automation API's `arrange`.
 
@@ -495,7 +495,7 @@ Pattern, measurement and layout files are JSON; SQLite is reserved for a later l
 - `materials` comes after `objects` but is read first, since pieces refer to it, and a pattern whose only material is the untouched Main writes neither `materials` nor a piece `material`.
 - `measurementFile` is relative to the pattern's folder unless absolute, with `/` separators; the core never loads it by itself. The size used from a size table is not saved.
 - Loading checks IDs (positive, unique across variables, materials and objects, below `nextId`), names, types and inputs, and fails naming the object by ID (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
-- Planned (2026-11-05): `view.pieceOrder` and `view.isolate`, for the overlapping-piece view options.
+- Planned (2026-11-05): `view.pieceOrder`, `view.isolate` and (2026-11-13) `view.hiddenPieces`, for the overlapping-piece view options.
 
 ## Measurements app
 
@@ -941,7 +941,7 @@ Agreed but not yet designed in detail or placed in the steps above.
 - **Locking an object.** A locked object cannot be moved, edited or deleted, but its formulas still run, bringing back locking per object after layers were taken out.
 - **Annotations stage 4**: SVG stamps (see Annotations).
 - **SVG stamps.** A drawing from another app (a logo, a fold or assembly diagram) placed and anchored like a note, so it moves with the geometry. Paths only: `<text>` is refused with a message asking for it to be converted to paths, which keeps fonts out. Drawn at true size from the SVG's own units (px taken at 96 per inch, with a warning), and stored in the pattern as path data, so the pattern does not depend on the outside file.
-- **Isolate piece and stacking order** (see Drafting experience).
+- **Isolate piece, hiding pieces and stacking order** (see Drafting experience; #10).
 - **Separate Piece command**: one command for separating front and back (see Transforms), only if the manual steps prove tedious.
 - **Material needed**: the area and minimum width and length a design needs, the length to buy for a given material width, and a warning when it cannot be cut from one piece.
 - **G-code export** from the publish app, for CNC machines.
