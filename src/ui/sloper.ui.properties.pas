@@ -145,6 +145,8 @@ type
     FSwallowEnterUp: boolean;
     // Undo or redo changed the pattern, so even the field being typed in follows it
     FRefreshFocused: boolean;
+    // The Locked box, which stays usable while the rest is read-only
+    FLockBox: TCheckBox;
     procedure SetDocument(ADocument: TPatternDocument);
     procedure DocumentChanged(Document: TPatternDocument; Changes: TDocumentChanges);
     procedure QueuedChangeDue(Data: PtrInt);
@@ -165,6 +167,8 @@ type
     procedure ShowRefusal(Edit: TEdit; const Reason: string);
     procedure ClearRefusal(Edit: TEdit);
     procedure RefreshValues;
+    // A locked object's rows are read-only, apart from the Locked box
+    procedure ApplyLock(Node: TEvalNode);
     function CurrentFieldNames: TStringArray;
     procedure EditKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
     procedure EditExit(Sender: TObject);
@@ -302,6 +306,11 @@ resourcestring
   rsPropEdit = 'Change %s';
   rsPropRename = 'Rename';
   rsPropChangeRole = 'Change role';
+  rsPropLocked = 'Locked';
+  rsPropLockedCaption = 'Cannot be moved or edited';
+  rsPropLockedHint = 'A locked object cannot be moved, edited or deleted, but its formulas still run';
+  rsPropLock = 'Lock';
+  rsPropUnlock = 'Unlock';
 
 implementation
 
@@ -315,11 +324,13 @@ type
   // copy, the result and the problem last
   TCommonSection = class(TPropertySection)
   private
+    FLockBox: TCheckBox;
     FMadeByText: TGridLabel;
     FResult: TGridLabel;
     FProblem: TLabel;
     procedure AddFieldRows(Node: TEvalNode);
     procedure AddResultRows(Node: TEvalNode);
+    procedure LockClick(Sender: TObject);
   public
     procedure Build(Node: TEvalNode; Place: TSectionPlace); override;
     procedure Refresh(Node: TEvalNode); override;
@@ -649,6 +660,8 @@ begin
   finally
     FCommitting := False;
   end;
+  if FDocument.ChangeRefused then
+    Report(FDocument.Pattern.LastError);
 end;
 
 procedure TPropertiesPanel.Report(const AText: string);
@@ -745,6 +758,7 @@ begin
     Controls[0].Free;
   FSections.Clear;
   FDivider := nil;
+  FLockBox := nil;
   FRows := nil;
   FFirstRow := nil;
   FLastRow := nil;
@@ -1019,6 +1033,27 @@ begin
     end;
   for Section in FSections do
     Section.Refresh(Node);
+  ApplyLock(Node);
+end;
+
+procedure TPropertiesPanel.ApplyLock(Node: TEvalNode);
+var
+  Index: integer;
+  Control: TControl;
+  Locked: boolean;
+begin
+  Locked := FDocument.Pattern.IsLocked(Node);
+  for Index := 0 to ControlCount - 1 do
+  begin
+    Control := Controls[Index];
+    if (Control = FLockBox) or not (Control is TWinControl) then
+      Continue;
+    // Text can still be selected and copied
+    if (Control is TEdit) or (Control is TMemo) then
+      TCustomEdit(Control).ReadOnly := Locked
+    else
+      Control.Enabled := not Locked;
+  end;
 end;
 
 procedure TPropertiesPanel.CommitEdit(Edit: TEdit);
@@ -1189,10 +1224,22 @@ begin
       if not CanChangeType(Node) then
         Panel.AddTextRow(rsPropType, TypeCaption(Node));
     spName:
+    begin
       if Node is TRepeatPoint then
         Panel.AddTextRow(rsPropName, TRepeatPoint(Node).Name)
       else if Node is TDraftObject then
         Panel.AddEditRow(rsPropName, frName, '');
+      if Node is TDraftObject then
+      begin
+        FLockBox := TCheckBox.Create(Panel);
+        FLockBox.Caption := rsPropLockedCaption;
+        FLockBox.Hint := rsPropLockedHint;
+        FLockBox.ShowHint := True;
+        FLockBox.OnClick := @LockClick;
+        Panel.AddRow(rsPropLocked, FLockBox);
+        Panel.FLockBox := FLockBox;
+      end;
+    end;
     spFields:
       AddFieldRows(Node);
     spResult:
@@ -1244,11 +1291,39 @@ begin
     FResult := Panel.AddTextRow(rsPropPosition, '');
 end;
 
+// Committing refreshes the rows, which become read-only or editable
+procedure TCommonSection.LockClick(Sender: TObject);
+var
+  APanel: TPropertiesPanel;
+  Node: TEvalNode;
+  Lock, Done: boolean;
+begin
+  if FFilling then
+    Exit;
+  APanel := Panel;
+  Node := APanel.SelectedNode;
+  if not Assigned(Node) then
+    Exit;
+  Lock := FLockBox.Checked;
+  if Lock then
+    APanel.BeginEdit(rsPropLock)
+  else
+    APanel.BeginEdit(rsPropUnlock);
+  Done := APanel.Document.Pattern.SetLocked(Node, Lock);
+  APanel.EndEdit(Done);
+end;
+
 procedure TCommonSection.Refresh(Node: TEvalNode);
 var
   Pattern: TPattern;
 begin
   Pattern := Panel.Document.Pattern;
+  if Assigned(FLockBox) then
+  begin
+    FFilling := True;
+    FLockBox.Checked := Pattern.IsLocked(Node);
+    FFilling := False;
+  end;
   if Assigned(FMadeByText) then
     FMadeByText.Caption := Pattern.FindNode(CopyTransformKey(Node)).DisplayName;
   if Assigned(FResult) then

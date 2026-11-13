@@ -93,6 +93,7 @@ resourcestring
   rsMemberRole = 'What the edge is: an outline makes pieces, the others are drawn and printed in their own style';
   rsMemberMarker = 'A marker drawn at the point: a hole, a button or a match dot';
   rsMemberMarkerSize = 'The marker''s size, when it has one';
+  rsMemberLocked = 'Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not';
 
   rsOpFreePoint = 'Free point';
   rsOpFreePointSummary = 'A point at a place of its own: the origin, or a point not yet tied to others.';
@@ -569,6 +570,7 @@ begin
     Insert(NewMember('marker', mkChoice, rsMemberMarker, Joined(POINT_MARKER_NAMES)), Result, Length(Result));
     Insert(NewMember(MARKER_SIZE_FIELD, mkLength, rsMemberMarkerSize), Result, Length(Result));
   end;
+  Insert(NewMember('locked', mkFlag, rsMemberLocked), Result, Length(Result));
 end;
 
 function FindOperationInfo(const TypeName: string; out Info: TOperationInfo): boolean;

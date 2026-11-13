@@ -113,6 +113,7 @@ type
     FName: string;
     FMarker: TPointMarker;
     FMarkerSize: double;
+    FLocked: boolean;
   public
     function DisplayName: string; override;
     // By the field's name, as points, edges and transforms use them
@@ -131,6 +132,9 @@ type
     // are merged; formulas are changed separately
     procedure RedirectPoint(const OldKey, NewKey: string); virtual;
     property Name: string read FName write FName;
+    // Cannot be moved, edited or deleted, though its formulas still run (see
+    // TPattern.SetLocked); a repeat's points follow the repeat
+    property Locked: boolean read FLocked write FLocked;
     property Marker: TPointMarker read FMarker;
     // Last good size, across in mm
     property MarkerSize: double read FMarkerSize;

@@ -275,8 +275,8 @@ class OpenSloper:
         return self._send("list_objects")
 
     def get_object(self, target: int | str) -> Any:
-        """Gives one object or variable: its name, ID, type, formulas (as shown), computed values
-        and state.
+        """Gives one object or variable: its name, ID, type, formulas (as shown), computed values,
+        state and whether it is locked.
 
         Args:
             target: The object, by its ID or its name.
@@ -327,6 +327,21 @@ class OpenSloper:
             is modified.
         """
         return self._send("delete", _target(target))
+
+    def set_locked(self, target: int | str, locked: bool) -> Any:
+        """Locks or unlocks an object. A locked object cannot be moved, edited or deleted, but its
+        formulas still run, so it follows what it uses; a change that would alter it is refused.
+
+        Args:
+            target: The object, by its ID or its name.
+            locked: true to lock, false to unlock.
+
+        Returns:
+            The object, as `get_object` gives it.
+        """
+        return self._send("set_locked", _target(target), {
+            "locked": locked,
+        })
 
     def add_variable(
         self,

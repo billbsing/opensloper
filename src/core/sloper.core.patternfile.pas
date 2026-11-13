@@ -54,6 +54,10 @@ function LoadPatternFromFile(Pattern: TPattern; const FileName: string; out Erro
 // A variable or object as a pattern file writes it
 function PatternVariableToJSON(Variable: TVariable): TJSONObject;
 function PatternObjectToJSON(DraftObject: TDraftObject): TJSONObject;
+// The object's definition as the file writes it, apart from whether it is
+// locked and the points of a repeat that others use, which change without
+// the object being edited; for telling whether a locked object was changed
+function LockedObjectText(DraftObject: TDraftObject): string;
 // Adds variables and objects, as a pattern file lists them, to what Pattern
 // already holds. Every ID they hold, their own or one they refer to, in an
 // input or a formula, is read through IdMap, so they can take new IDs and
@@ -706,6 +710,8 @@ begin
       Result.Add('role', EDGE_ROLE_NAMES[TEdgeObject(DraftObject).Role]);
     if DraftObject.Marker <> pmPlain then
       Result.Add('marker', POINT_MARKER_NAMES[DraftObject.Marker]);
+    if DraftObject.Locked then
+      Result.Add('locked', True);
   except
     FreeAndNil(Result);
     raise;
@@ -2027,7 +2033,7 @@ var
   DraftObject, Inserted: TDraftObject;
   TypeText, ObjectName, Msg: string;
   Index, Choice: integer;
-  HasName: boolean;
+  HasName, Locked: boolean;
 begin
   if not GetJSONString(Item, 'type', TypeText) then
     Exit(Missing('type'));
@@ -2071,6 +2077,10 @@ begin
       TEdgeObject(DraftObject).NameIsDerived := not HasName;
     end;
     DraftObject.Name := ObjectName;
+    // Last, as a locked object refuses changes
+    if not ReadBoolean(Item, 'locked', Locked) then
+      Exit(False);
+    DraftObject.Locked := Locked;
     Inserted := DraftObject;
     FPattern.InsertObject(DraftObject);
     DraftObject := nil;
@@ -2163,6 +2173,21 @@ end;
 function PatternObjectToJSON(DraftObject: TDraftObject): TJSONObject;
 begin
   Result := SaveObject(DraftObject);
+end;
+
+function LockedObjectText(DraftObject: TDraftObject): string;
+var
+  Item: TJSONObject;
+begin
+  Item := SaveObject(DraftObject);
+  try
+    Item.Delete('locked');
+    if DraftObject is TRepeatObject then
+      Item.Delete('points');
+    Result := JSONToText(Item);
+  finally
+    FreeAndNil(Item);
+  end;
 end;
 
 function AddPatternItems(Pattern: TPattern; Variables, Objects: TJSONArray; IdMap: TPatternIdMap; out ErrorMessage: string): boolean;

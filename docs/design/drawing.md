@@ -46,6 +46,25 @@ keys: 1 mm a press, 10 mm with ++shift++. Only plain numbers change: a point
 placed by a formula, or by other objects, stays put and the status bar says
 why. Change its formulas in the Properties tab instead.
 
+## Locking objects
+
+Lock a finished part of a pattern so it can't be changed by accident: select
+the objects and choose Edit → Lock, or tick Locked in the Properties tab.
+A locked object is drawn greyed. You can still select it, copy it and draw
+from it, and its formulas still work: when a measurement or a variable it
+uses changes, it moves as usual.
+
+What you can't do is move it, change its formulas, name or settings, or
+delete it; the Properties tab shows its values without letting you edit
+them, and the status bar says why when something is refused. Anything else
+that would change it is refused too, such as splitting one of a locked
+piece's edges or adding a notch to it. A line drawn inside a locked piece
+isn't added to it as a marking.
+
+Edit → Unlock, or clearing Locked, makes it editable again. Locking and
+unlocking are each one undo step, and the lock is saved with the pattern. A
+pasted copy of a locked object starts unlocked.
+
 ## Other operations
 
 | Command | Makes |

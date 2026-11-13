@@ -75,8 +75,12 @@ type
     FOpensFiles: boolean;
     FOnConfirmWrite: TApiConfirmWrite;
     FOnWindowState: TApiWindowState;
-    // Opens a change on the document, refusing while the user has one open
-    procedure BeginChange(const Description: string);
+    // Opens a change on the document, refusing while the user has one open;
+    // CheckLocks as in TPatternDocument.BeginChange
+    procedure BeginChange(const Description: string; CheckLocks: boolean = True);
+    // Ends the change, raising the reason when it was refused for changing a
+    // locked object
+    procedure EndChange;
     procedure ConfirmWrite(const Path: string);
     function DoWindowState: TJSONData;
     function FindTarget(Params: TJSONObject): TEvalNode;
@@ -101,6 +105,7 @@ type
     function DoSetFormula(Params: TJSONObject): TJSONData;
     function DoRename(Params: TJSONObject): TJSONData;
     function DoDelete(Params: TJSONObject): TJSONData;
+    function DoSetLocked(Params: TJSONObject): TJSONData;
     function DoEvaluate(WithReport: boolean): TJSONData;
     function DoUndo: TJSONData;
     function DoRedo: TJSONData;
@@ -189,6 +194,8 @@ resourcestring
   rsApiSetFormula = 'Change %s';
   rsApiRename = 'Rename';
   rsApiDelete = 'Delete';
+  rsApiLock = 'Lock';
+  rsApiUnlock = 'Unlock';
   rsApiAdd = 'Add %s';
   rsApiSplit = 'Split edge';
   rsApiUnknownType = 'There is no type "%s"; use one of: %s';
@@ -458,6 +465,7 @@ begin
         Result.Add('role', EDGE_ROLE_NAMES[TEdgeObject(Node).Role]);
       if TDraftObject(Node).Marker <> pmPlain then
         Result.Add('marker', POINT_MARKER_NAMES[TDraftObject(Node).Marker]);
+      Result.Add('locked', Document.Pattern.IsLocked(Node));
     end;
     Result.Add('state', StateName(Node.State));
     if Node.State <> esValid then
@@ -555,11 +563,18 @@ begin
   inherited Destroy;
 end;
 
-procedure TApiServer.BeginChange(const Description: string);
+procedure TApiServer.BeginChange(const Description: string; CheckLocks: boolean);
 begin
   if FDocument.ChangeOpen then
     raise EApiError.Create(RPC_REFUSED, rsApiBusy);
-  FDocument.BeginChange(FChangePrefix + Description);
+  FDocument.BeginChange(FChangePrefix + Description, CheckLocks);
+end;
+
+procedure TApiServer.EndChange;
+begin
+  FDocument.EndChange;
+  if FDocument.ChangeRefused then
+    raise EApiError.Create(RPC_REFUSED, FDocument.Pattern.LastError);
 end;
 
 procedure TApiServer.ConfirmWrite(const Path: string);
@@ -613,7 +628,7 @@ begin
   if not Assigned(Node) then
     RefuseChange;
   Key := Node.Key;
-  FDocument.EndChange;
+  EndChange;
   Result := NodeToJSON(FDocument, FDocument.Pattern.FindNode(Key));
 end;
 
@@ -819,7 +834,7 @@ begin
       FDocument.CancelChange;
       raise EApiError.Create(RPC_REFUSED, Err);
     end;
-    FDocument.Commit(True);
+    EndChange;
     Result := Info;
   except
     FreeAndNil(Info);
@@ -986,7 +1001,7 @@ begin
   Done := FDocument.Pattern.SetFormula(Node, FieldName, Text);
   if not Done then
     RefuseChange;
-  FDocument.EndChange;
+  EndChange;
   Result := NodeToJSON(FDocument, FindTarget(Params));
 end;
 
@@ -1059,13 +1074,14 @@ begin
         end;
       Exit(Reply);
     end;
-    BeginChange(rsApiConvertUnits);
+    // Converting rewrites every formula, locked objects' too
+    BeginChange(rsApiConvertUnits, False);
     if not ConvertPatternUnits(FDocument.Pattern, ToUnits, Analysis.Numbers, Err) then
     begin
       FDocument.CancelChange;
       raise EApiError.Create(RPC_REFUSED, Err);
     end;
-    FDocument.EndChange;
+    EndChange;
     Reply.Add('converted', True);
     Reply.Add('units', MEASURE_UNIT_NAMES[ToUnits]);
     Reply.Add('skipped', Length(Analysis.Skipped));
@@ -1086,7 +1102,7 @@ begin
   BeginChange(rsApiRename);
   if not FDocument.Pattern.Rename(Node, NewName) then
     RefuseChange;
-  FDocument.EndChange;
+  EndChange;
   Result := NodeToJSON(FDocument, FDocument.Pattern.FindNode(Node.Key));
 end;
 
@@ -1098,8 +1114,27 @@ begin
   BeginChange(rsApiDelete);
   if not FDocument.Pattern.Delete(Node) then
     RefuseChange;
-  FDocument.EndChange;
+  EndChange;
   Result := DocumentInfo;
+end;
+
+function TApiServer.DoSetLocked(Params: TJSONObject): TJSONData;
+var
+  Node: TEvalNode;
+  Locked: boolean;
+begin
+  Node := FindTarget(Params);
+  if not Assigned(Params.Find('locked')) then
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['locked']));
+  Locked := BooleanParam(Params, 'locked');
+  if Locked then
+    BeginChange(rsApiLock)
+  else
+    BeginChange(rsApiUnlock);
+  if not FDocument.Pattern.SetLocked(Node, Locked) then
+    RefuseChange;
+  EndChange;
+  Result := NodeToJSON(FDocument, FDocument.Pattern.FindNode(Node.Key));
 end;
 
 function TApiServer.ProblemsResult(WithReport: boolean): TJSONObject;
@@ -1476,7 +1511,7 @@ begin
     RefuseChange;
   for Index := 0 to 3 do
     Keys[Index] := Edges[Index].Key;
-  FDocument.EndChange;
+  EndChange;
   List := TJSONArray.Create;
   try
     for Index := 0 to 3 do
@@ -1512,7 +1547,7 @@ begin
     RefuseChange;
   FirstKey := First.Key;
   SecondKey := Second.Key;
-  FDocument.EndChange;
+  EndChange;
   Parts := TJSONArray.Create;
   try
     Parts.Add(NodeToJSON(FDocument, FDocument.Pattern.FindNode(FirstKey)));
@@ -1780,7 +1815,7 @@ begin
     Fill := TMaterialFill(ChoiceParam(Params, 'fill', MATERIAL_FILL_NAMES));
   if not Assigned(FDocument.Pattern.AddMaterial(OptionalString(Params, 'name'), OptionalString(Params, 'color'), Fill)) then
     RefuseChange;
-  FDocument.EndChange;
+  EndChange;
   Result := MaterialsToJSON;
 end;
 
@@ -1792,7 +1827,7 @@ begin
   BeginChange(rsApiMaterials);
   if not FDocument.Pattern.RenameMaterial(Material, RequireString(Params, 'name')) then
     RefuseChange;
-  FDocument.EndChange;
+  EndChange;
   Result := MaterialsToJSON;
 end;
 
@@ -1812,7 +1847,7 @@ begin
     RefuseChange;
   if Assigned(Params.Find('noAllowance')) and BooleanParam(Params, 'noAllowance') then
     FDocument.Pattern.SetMaterialAllowance(Material, False, 0);
-  FDocument.EndChange;
+  EndChange;
   Result := MaterialsToJSON;
 end;
 
@@ -1824,7 +1859,7 @@ begin
   BeginChange(rsApiMaterials);
   if not FDocument.Pattern.DeleteMaterial(Material) then
     RefuseChange;
-  FDocument.EndChange;
+  EndChange;
   Result := MaterialsToJSON;
 end;
 
@@ -2047,7 +2082,7 @@ begin
   Keys := nil;
   for Item in Broken do
     Insert(Item.Key, Keys, Length(Keys));
-  FDocument.EndChange;
+  EndChange;
   Result := TJSONObject.Create;
   try
     List := TJSONArray.Create;
@@ -2099,7 +2134,7 @@ begin
     FDocument.CancelChange;
     raise EApiError.Create(RPC_REFUSED, Reason);
   end;
-  FDocument.EndChange;
+  EndChange;
   Result := TJSONObject.Create;
   try
     List := TJSONArray.Create;
@@ -2395,6 +2430,7 @@ begin
     'set_formula': Result := DoSetFormula(Params);
     'rename': Result := DoRename(Params);
     'delete': Result := DoDelete(Params);
+    'set_locked': Result := DoSetLocked(Params);
     'evaluate': Result := DoEvaluate(False);
     'check': Result := DoEvaluate(True);
     'undo': Result := DoUndo;

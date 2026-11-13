@@ -79,6 +79,14 @@ type
 
   TCommandList = specialize TObjectList<TCommand>;
 
+  // A locked object's definition when a change began
+  TLockedDefinition = record
+    Key: string;
+    // As shown, for naming it after it is gone
+    Name: string;
+    Text: string;
+  end;
+
   TPatternDocument = class
   private
     FPattern: TPattern;
@@ -94,6 +102,9 @@ type
     FChangeOpen: boolean;
     FChangeDescription: string;
     FChangeBefore: string;
+    FCheckLocks: boolean;
+    FLockedBefore: array of TLockedDefinition;
+    FChangeRefused: boolean;
     FListeners: array of TDocumentListener;
     FClock: TDocumentClock;
     FUndoLimit: integer;
@@ -113,6 +124,8 @@ type
     function MeasurementFileFor(const PatternFileName: string): string;
     procedure ApplySnapshot(const Text: string);
     procedure SetMeasurementSet(ASet: TMeasurementSet; const APath: string);
+    procedure RecordLocked;
+    function ChangedLocked: string;
   public
     constructor Create;
     destructor Destroy; override;
@@ -155,8 +168,13 @@ type
     // to show them, e.g. while dragging), then EndChange to record them as
     // one undo step, or CancelChange to put the pattern back. Changes do not
     // nest; beginning one while another is open raises EDocumentError.
-    procedure BeginChange(const Description: string);
-    // Records the change. A change with the same non-empty MergeKey as the
+    // An object locked when the change begins must come out of it as it
+    // was, apart from being unlocked; CheckLocks False lets a change to the
+    // whole pattern, such as converting its unit, rewrite locked objects too.
+    procedure BeginChange(const Description: string; CheckLocks: boolean = True);
+    // Records the change. One that changed a locked object is undone
+    // instead, with Pattern.LastError naming the object and ChangeRefused
+    // set. A change with the same non-empty MergeKey as the
     // last step, within MergeSeconds, joins that step (arrow-key nudges,
     // spin box steps); if they cancel out, the step goes. False when nothing
     // changed.
@@ -189,6 +207,8 @@ type
     property FileName: string read FFileName;
     property Modified: boolean read GetModified;
     property ChangeOpen: boolean read FChangeOpen;
+    // The last change ended was undone because it changed a locked object
+    property ChangeRefused: boolean read FChangeRefused;
     property CanUndo: boolean read GetCanUndo;
     property CanRedo: boolean read GetCanRedo;
     property UndoDescription: string read GetUndoDescription;
@@ -209,7 +229,7 @@ resourcestring
 implementation
 
 uses
-  Sloper.Core.JSON, Sloper.Core.PatternFile;
+  Sloper.Core.JSON, Sloper.Core.PatternFile, Sloper.Core.Draft, Sloper.Core.Evaluator;
 
 const
   DEFAULT_UNDO_LIMIT = 500;
@@ -662,17 +682,55 @@ begin
   Result := True;
 end;
 
-procedure TPatternDocument.BeginChange(const Description: string);
+procedure TPatternDocument.BeginChange(const Description: string; CheckLocks: boolean);
 begin
   RequireNoChange;
   FChangeBefore := SavePatternToText(FPattern, False);
   FChangeDescription := Description;
+  FCheckLocks := CheckLocks;
+  FChangeRefused := False;
+  RecordLocked;
   FChangeOpen := True;
+end;
+
+procedure TPatternDocument.RecordLocked;
+var
+  Index, Count: integer;
+begin
+  FLockedBefore := nil;
+  if not FCheckLocks then
+    Exit;
+  Count := 0;
+  for Index := 0 to FPattern.ObjectCount - 1 do
+    if FPattern.Objects[Index].Locked then
+    begin
+      SetLength(FLockedBefore, Count + 1);
+      FLockedBefore[Count].Key := FPattern.Objects[Index].Key;
+      FLockedBefore[Count].Name := FPattern.Objects[Index].DisplayName;
+      FLockedBefore[Count].Text := LockedObjectText(FPattern.Objects[Index]);
+      Inc(Count);
+    end;
+end;
+
+// The name of an object locked when the change began that is now changed or
+// gone, or '' when there is none
+function TPatternDocument.ChangedLocked: string;
+var
+  Before: TLockedDefinition;
+  Node: TEvalNode;
+begin
+  for Before in FLockedBefore do
+  begin
+    Node := FPattern.FindNode(Before.Key);
+    if not (Node is TDraftObject) or (LockedObjectText(TDraftObject(Node)) <> Before.Text) then
+      Exit(Before.Name);
+  end;
+  Result := '';
 end;
 
 function TPatternDocument.EndChange(const MergeKey: string): boolean;
 var
-  After: string;
+  After, LockedName: string;
   Last: TPatternChange;
   Time: TDateTime;
   WasModified: boolean;
@@ -681,7 +739,18 @@ begin
   if not FChangeOpen then
     raise EDocumentError.Create(rsDocumentNoChange);
   FChangeOpen := False;
+  FChangeRefused := False;
   FPattern.Evaluate;
+  LockedName := ChangedLocked;
+  FLockedBefore := nil;
+  if LockedName <> '' then
+  begin
+    ApplySnapshot(FChangeBefore);
+    FChangeRefused := True;
+    FPattern.Refuse(Format(rsPatternLocked, [LockedName]));
+    Notify([dcPattern, dcObjectsReplaced]);
+    Exit(False);
+  end;
   After := SavePatternToText(FPattern, False);
   if After = FChangeBefore then
   begin
@@ -722,6 +791,7 @@ begin
   if not FChangeOpen then
     raise EDocumentError.Create(rsDocumentNoChange);
   FChangeOpen := False;
+  FLockedBefore := nil;
   if SavePatternToText(FPattern, False) <> FChangeBefore then
   begin
     ApplySnapshot(FChangeBefore);

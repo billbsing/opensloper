@@ -638,6 +638,10 @@
           "description": "The marker's size, when it has one",
           "type": "string"
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "x": {
           "description": "Distance to the right of the origin",
           "type": "string"
@@ -681,6 +685,10 @@
         "markerSize": {
           "description": "The marker's size, when it has one",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "base": {
           "description": "The point it is measured from",
@@ -746,6 +754,10 @@
           "description": "The marker's size, when it has one",
           "type": "string"
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "edge": {
           "description": "The edge it lies on",
           "type": "integer",
@@ -805,6 +817,10 @@
           "description": "The marker's size, when it has one",
           "type": "string"
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "a": {
           "description": "The first point",
           "type": "integer",
@@ -861,6 +877,10 @@
         "markerSize": {
           "description": "The marker's size, when it has one",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "edgeA": {
           "description": "The first edge",
@@ -920,6 +940,10 @@
           "description": "The marker's size, when it has one",
           "type": "string"
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "centre": {
           "description": "The point at the centre",
           "type": "integer",
@@ -978,6 +1002,10 @@
           "description": "The marker's size, when it has one",
           "type": "string"
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "centreA": {
           "description": "The first centre",
           "type": "integer",
@@ -1035,6 +1063,10 @@
         "markerSize": {
           "description": "The marker's size, when it has one",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "point": {
           "description": "The point it comes from",
@@ -1096,6 +1128,10 @@
         "markerSize": {
           "description": "The marker's size, when it has one",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "a": {
           "description": "The first point",
@@ -1177,6 +1213,10 @@
           "description": "The marker's size, when it has one",
           "type": "string"
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "arc": {
           "description": "The rounded corner",
           "type": "integer",
@@ -1221,6 +1261,10 @@
         "markerSize": {
           "description": "The marker's size, when it has one",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "transform": {
           "description": "The transform that made it",
@@ -1268,6 +1312,10 @@
             "edgeFinish"
           ]
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "start": {
           "description": "The point it starts at",
           "type": "integer",
@@ -1313,6 +1361,10 @@
             "skive",
             "edgeFinish"
           ]
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "start": {
           "description": "The point it starts at",
@@ -1375,6 +1427,10 @@
             "skive",
             "edgeFinish"
           ]
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "nodes": {
           "description": "The points it passes through, in order",
@@ -1439,6 +1495,10 @@
             "edgeFinish"
           ]
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "centre": {
           "description": "The point at the centre",
           "type": "integer",
@@ -1483,6 +1543,10 @@
             "skive",
             "edgeFinish"
           ]
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "centre": {
           "description": "The point at the centre",
@@ -1536,6 +1600,10 @@
             "skive",
             "edgeFinish"
           ]
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "edge": {
           "description": "One edge to follow, forwards; a run is written as edges instead",
@@ -1608,6 +1676,10 @@
             "edgeFinish"
           ]
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "edge": {
           "description": "The edge that was split",
           "type": "integer",
@@ -1657,6 +1729,10 @@
             "skive",
             "edgeFinish"
           ]
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "vertex": {
           "description": "The corner's point",
@@ -1713,6 +1789,10 @@
             "edgeFinish"
           ]
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "transform": {
           "description": "The transform that made it",
           "type": "integer",
@@ -1755,6 +1835,10 @@
         "name": {
           "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "sources": {
           "description": "The points and edges to copy; an edge brings its ends",
@@ -1799,6 +1883,10 @@
         "name": {
           "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "sources": {
           "description": "The points and edges to copy; an edge brings its ends",
@@ -1860,6 +1948,10 @@
         "name": {
           "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "sources": {
           "description": "The points and edges to copy; an edge brings its ends",
@@ -1927,6 +2019,10 @@
         "name": {
           "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "path": {
           "description": "The edges around the piece, clockwise",
@@ -2103,6 +2199,10 @@
           "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
           "type": "string"
         },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
+        },
         "sideA": {
           "description": "The edges of side A, in order along the seam",
           "type": "array",
@@ -2177,6 +2277,10 @@
         "name": {
           "description": "The name shown and used in formulas; an edge named after its ends leaves it out",
           "type": "string"
+        },
+        "locked": {
+          "description": "Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not",
+          "type": "boolean"
         },
         "anchor": {
           "description": "What it hangs from; left out for a free note",

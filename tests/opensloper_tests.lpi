@@ -296,6 +296,11 @@
         <UnitName Value="Sloper.Tests.PieceView"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.locking.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.Locking"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.canvasmodel.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.CanvasModel"/>

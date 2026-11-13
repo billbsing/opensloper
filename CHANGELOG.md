@@ -20,6 +20,11 @@ Changed, Fixed and Removed under each version.
   the canvas and a click selects it there; a selected seam is marked on both
   its sides. It exports SVG and PNG, the Automation API's `render` draws it
   with `garment`, and Preferences set its light.
+- Objects can be locked (#16) with Edit → Lock and Unlock, or Locked in the
+  Properties tab. A locked object is drawn greyed and cannot be moved, edited
+  or deleted, but it can still be selected and used, and its formulas still
+  run. The lock is saved with the pattern and is one undo step; the
+  Automation API has `set_locked`.
 - Overlapping pieces can be hidden, isolated and stacked (#10), from the View
   menu. Hide Piece takes a piece off the canvas with what only it uses; Isolate
   Piece dims everything the piece does not use and puts it out of reach; Bring

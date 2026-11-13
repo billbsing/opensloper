@@ -13,19 +13,20 @@ Every kind of object a pattern holds, with its members as they are written in a 
 | `id` | whole number | The object's ID, a whole number that never changes; other objects refer to it |
 | `type` | text | The kind of object, as in the headings on this page |
 | `name` | text | The name shown and used in formulas; an edge named after its ends leaves it out |
+| `locked` | true or false | Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not |
 
 Edges also have:
 
 | Member | Value | Description |
 | --- | --- | --- |
-| `role` | one of: `construction`, `outline`, `placement`, `stitch`, `fold`, `cut`, `skive`, `edgeFinish` | What the edge is: an outline makes pieces, the others are drawn and printed in their own style |
+| `locked` | true or false | Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not |
 
 Points and repeats also have:
 
 | Member | Value | Description |
 | --- | --- | --- |
-| `marker` | one of: `plain`, `hole`, `button`, `match` | A marker drawn at the point: a hole, a button or a match dot |
 | `markerSize` | length formula | The marker's size, when it has one |
+| `locked` | true or false | Locked: it cannot be moved, edited or deleted, but its formulas still run; left out when not |
 
 ## Points
 
