@@ -256,6 +256,13 @@ should be longer by. Its Difference is now within its tolerance, and the status
 bar shows no problems. Change `shoulder_ease` to `0` and the shoulder seam
 becomes a problem, until the back shoulder is shortened to match.
 
+Each dart is a seam too, its two sides sewn to each other. With the Seam tool,
+click Line_DB1_PB, press ++tab++, click Line_PB_DB2 and press ++enter++; do
+the same on the front with Line_DF1_BP and Line_BP_DF2, and name them
+**Back_dart** and **Front_dart**. Their sides are the same length, so they
+match, and the [Garment tab](../design/garment.md) now shows both pieces with
+their darts closed.
+
 ## 9. Notes
 
 Notes put instructions on the pattern, and print with their piece.
