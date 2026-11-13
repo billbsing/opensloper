@@ -491,7 +491,7 @@ Pattern, measurement and layout files are JSON; SQLite is reserved for a later l
 - A file that fails to load says why and leaves nothing half-loaded; a formula that does not parse is kept as text and shows as an error.
 - Pattern files stay at version 1 until the first public release: while nobody else has pattern files, format changes are made in place and the regression patterns rebuilt.
 
-**The formats are specified in the user documentation**, decided 2026-11-08 so that Claude and other tools can rely on them. `opensloper-cli doc files` writes the File formats page and `opensloper-cli doc pattern.schema.json` (and `measurements`, `layout`) a JSON Schema, draft 2020-12, for each, into `docs/reference/`. Both come from code tables: the members outside the objects from `Sloper.Core.FileInfo`, and the objects from `Sloper.Core.OperationInfo`. A schema lists exactly the members the apps write, marks those a file needs to load as required, and allows no others, so a misspelt member is caught; the loaders also accept a few members of older files that the schemas leave out. Tests hold the tables to the writers both ways (every member written is listed, every listed member is written) and check that each example on the page is a file exactly as the program writes it. `check-schemas.py`, run by `build-docs.sh` and the documentation workflow, checks the schemas with Python's `jsonschema` and every example and regression file against them.
+**The formats are specified in the user documentation**, decided 2026-11-08 so that Claude and other tools can rely on them. `opensloper-cli doc files` writes the File formats page and `opensloper-cli doc pattern.schema.json` (and `measurements`, `layout`) a JSON Schema, draft 2020-12, for each, into `docs/reference/`. Both come from code tables: the members outside the objects from `Sloper.Core.FileInfo`, and the objects from `Sloper.Core.OperationInfo`. A schema lists exactly the members the apps write, marks those a file needs to load as required, and allows no others, so a misspelt member is caught; the loaders also accept a few members of older files that the schemas leave out. Tests hold the tables to the writers both ways (every member written is listed, every listed member is written) and check that each example on the page is a file exactly as the program writes it. `check-schemas.py`, run by `opensloper-make.sh docs` and the documentation workflow, checks the schemas with Python's `jsonschema` and every example and regression file against them.
 
 **Pattern file rules** the schema cannot say:
 
@@ -691,7 +691,7 @@ Development is on Linux with the Qt widgetset, testing on macOS, and Windows def
 
 **App icons.** The SVGs in `resources/` are the masters. `resources/make-icons.sh` turns each app's SVG into the `.ico` beside its `.lpi` (bitmaps up to 128 px and a 256 px PNG, since the LCL's loader rejects smaller PNG entries), which lazbuild puts in the program as `MAINICON`; the generated files are committed. `resources/linux/` has a `.desktop` entry per app. A macOS `.icns` is left for packaging.
 
-**Release builds** (2026-11-12). Every push to the `release` branch runs `.github/workflows/release.yml`: Linux x86_64 (Qt6, Ubuntu 24.04), macOS arm64 (Cocoa, FPC 3.2.4rc1 as released with Lazarus 4.8 for macOS) and Windows x86_64 (Win32) are built with `build.sh`, packed by `package.sh` and started once from the unpacked download; the Linux job runs the tests first. The downloads become the GitHub release of `APP_VERSION` (tag `vVERSION`, a pre-release while 0.x), replaced on each push until the version changes. The release's notes are that version's section of `CHANGELOG.md`, written as the changes are made, or when it has none, the subjects of the commits since the previous release's tag with the issues they close (`release-notes.sh`). Linux is a `.tar.gz` with menu entries and icons, and the Qt6 Pascal bindings (`libQt6Pas.so.6`) in `lib/`, built from Lazarus's own sources since Ubuntu packages them only from 26.04, which the GUI programs find through an `$ORIGIN/lib` rpath; macOS one `OpenSloper.app` holding all four programs, opening on the design app, which opens the others from its menus, signed ad hoc; Windows a `.zip`. The programs are stripped of debug information.
+**Release builds** (2026-11-12). Every push to the `release` branch runs `.github/workflows/release.yml`: Linux x86_64 (Qt6, Ubuntu 24.04), macOS arm64 (Cocoa, FPC 3.2.4rc1 as released with Lazarus 4.8 for macOS) and Windows x86_64 (Win32) are built with `opensloper-make.sh build`, packed by `opensloper-make.sh package` and started once from the unpacked download; the Linux job runs the tests first. The downloads become the GitHub release of `APP_VERSION` (tag `vVERSION`, a pre-release while 0.x), replaced on each push until the version changes. The release's notes are that version's section of `CHANGELOG.md`, written as the changes are made, or when it has none, the subjects of the commits since the previous release's tag with the issues they close (`opensloper-make.sh release`). Linux is a `.tar.gz` with menu entries and icons, and the Qt6 Pascal bindings (`libQt6Pas.so.6`) in `lib/`, built from Lazarus's own sources since Ubuntu packages them only from 26.04, which the GUI programs find through an `$ORIGIN/lib` rpath; macOS one `OpenSloper.app` holding all four programs, opening on the design app, which opens the others from its menus, signed ad hoc; Windows a `.zip`. The programs are stripped of debug information.
 
 Known gaps: Linux needs Qt 6.4 or later and the glibc of Ubuntu 24.04 or later. The assistant's HTTPS goes through OpenSSL, which FPC 3.2.2 loads on Windows only as the OpenSSL 1.1 DLLs, past their end of life, so they are not shipped and the assistant cannot connect there. The assistant is untried on macOS, where the system's unversioned `libcrypto` must not be loaded; OpenSSL is loaded only on its first request, so the apps start either way.
 
@@ -701,7 +701,7 @@ Known gaps: Linux needs Qt 6.4 or later and the glibc of Ubuntu 24.04 or later. 
 
 Testing runs throughout development; the LCL-free core means most logic is tested without any UI.
 
-**Tools.** FPCUnit with the console runner, in a separate project in `tests/`, built and run by `run-tests.sh` with heaptrc (`-gh`), so leaks fail too. CI (`.github/workflows/ci.yml`) runs it with the formatter and the standards check.
+**Tools.** FPCUnit with the console runner, in a separate project in `tests/`, built and run by `opensloper-make.sh test` with heaptrc (`-gh`), so leaks fail too. CI (`.github/workflows/ci.yml`) runs it with the formatter and the standards check.
 
 **What is covered.** Geometry (with a tolerance helper, never exact float equality), the formula engine, the evaluator's order and states, names and IDs (never reused after delete, undo, save and reload), every operation against hand-checked cases and their failures, piece detection and seam allowance, marking assignment, transforms, seams, annotations, materials, pattern units and conversion, copy and paste, measurement files and merges, undo (execute then undo restores the exact earlier state), save → load → save giving identical JSON, tiling, packing, and the PDF, SVG and DXF bytes against stored files. Tables that document the program are held to it: the operations, file members, API methods, CLI options and shortcuts, and the committed reference pages and schemas must match what the program writes.
 
@@ -713,13 +713,13 @@ Testing runs throughout development; the LCL-free core means most logic is teste
 - Every bug gets a failing test before the fix
 - UI kept thin, so what matters can be tested without it
 - End-to-end checks drive `opensloper-cli serve` through the Automation API and its renders; the GUI is checked by hand on a private Xvfb display
-- `run-tests.sh` and `check-standards.sh` before every commit
+- `opensloper-make.sh test` and `opensloper-make.sh check` before every commit
 
 ## Documentation
 
 User documentation is Markdown in `docs/`, built into a static site with Zensical, published with GitHub Pages and to be shipped offline with the apps.
 
-**Tool.** Zensical, the successor to Material for MkDocs from the same team (MIT), configured in `zensical.toml` and built by `build-docs.sh` into `release/site_docs` in strict mode, so broken links fail; it is installed in a local `venv` from `requirements.txt`. Pages use only common extensions (admonitions, tables, code, keys), so moving to another generator means rewriting the navigation, not the pages. It runs at build time only and is not shipped with the apps. The manuals are CC BY-SA 4.0 (`docs/LICENSE`); code stays GPLv3 or later.
+**Tool.** Zensical, the successor to Material for MkDocs from the same team (MIT), configured in `zensical.toml` and built by `opensloper-make.sh docs` into `release/site_docs` in strict mode, so broken links fail; it is installed in a local `venv` from `requirements.txt`. Pages use only common extensions (admonitions, tables, code, keys), so moving to another generator means rewriting the navigation, not the pages. It runs at build time only and is not shipped with the apps. The manuals are CC BY-SA 4.0 (`docs/LICENSE`); code stays GPLv3 or later.
 
 **Structure.** One site for all the tools, since they share concepts: Getting started, Tutorials, Measure, Design, Publish and Reference. Pages are written by task ("Add a size"), not by menu. Still to come: more tutorials (moving a dart, a tote bag, a leather card wallet) and a page per app's icon.
 
@@ -737,7 +737,7 @@ User documentation is Markdown in `docs/`, built into a static site with Zensica
 
 ## Translation
 
-Planned for the community release; nothing is translated yet. Already in place: user-visible text is in `resourcestring` sections (`check-standards.sh` reports message text that is not), strings are UTF-8 throughout, and names in formulas and files are stable keys and IDs, kept apart from what is shown.
+Planned for the community release; nothing is translated yet. Already in place: user-visible text is in `resourcestring` sections (`opensloper-make.sh check` reports message text that is not), strings are UTF-8 throughout, and names in formulas and files are stable keys and IDs, kept apart from what is shown.
 
 Decision: the standard Free Pascal and Lazarus route, gettext `.po` files, so translators can use common tools (Poedit, Weblate, Crowdin).
 
@@ -851,7 +851,7 @@ Reviewed 2026-11-08.
 
 Built 2026-11-11 (`Sloper.Output.DraftPNG`). The CLI and the API draw the draft as PNG by drawing the draft's SVG with BGRABitmap's no-LCL build (`bgrabitmappack4nolcl_freetype`), so the image always matches the SVG and there is no second drawing routine. Text goes through Lazarus's own FreeType (`freetypelaz`, Pascal, no system library) with fonts bundled in `data/fonts`: Noto Sans, then DejaVu Sans if Noto is missing (BGRABitmap uses the first family it has; it does not fall back glyph by glyph). Bundling rather than reading system fonts gives the same image on every platform and in tests, and LazFreeType cannot read every system font. The SVG names the bundled families first in each `font-family`, since BGRABitmap cannot draw the generic `sans-serif` alone. Widths are 16 to 4096 pixels, 1600 by default, and the height follows the drawing.
 
-Our units that use a third-party drawing library live in `src/output/thirdparty`: every standard applies there, and `check-standards.sh` allows only BGRABitmap's no-LCL units besides, so the rest of `src/output` stays vector-only and nothing below `src/ui` uses the LCL. The CLI and tests require the no-LCL package; the GUI apps keep the LCL build, which compiles the same units.
+Our units that use a third-party drawing library live in `src/output/thirdparty`: every standard applies there, and `opensloper-make.sh check` allows only BGRABitmap's no-LCL units besides, so the rest of `src/output` stays vector-only and nothing below `src/ui` uses the LCL. The CLI and tests require the no-LCL package; the GUI apps keep the LCL build, which compiles the same units.
 
 ## Accessories
 

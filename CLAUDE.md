@@ -23,25 +23,26 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `tests/` — FPCUnit test project and regression patterns.
 - `src/core/clipper2/osclipper2.lpk` — Lazarus package that builds Clipper2 from the submodule; projects depend on it rather than adding Clipper2 to their search path.
 - `documents/` — internal development notes, the design document, `coding-standards.md`, `known-issues.md` and the GPL unit header (`gpl-header.txt`).
-- `docs/` — user documentation (Markdown, built with Zensical from `zensical.toml`, licensed CC BY-SA 4.0). `docs/examples/` holds the tutorial and example patterns with their measurements, which readers download from the site and a test opens. `docs/reference/` holds generated pages and the generated Python client `opensloper.py`, and `docs/reference/schemas/` the generated JSON Schemas of the user files: never edit them by hand; run `./build.sh` then `./build-docs.sh`, and a test fails while a committed page is out of date.
+- `docs/` — user documentation (Markdown, built with Zensical from `zensical.toml`, licensed CC BY-SA 4.0). `docs/examples/` holds the tutorial and example patterns with their measurements, which readers download from the site and a test opens. `docs/reference/` holds generated pages and the generated Python client `opensloper.py`, and `docs/reference/schemas/` the generated JSON Schemas of the user files: never edit them by hand; run `./opensloper-make.sh build` then `./opensloper-make.sh docs`, and a test fails while a committed page is out of date.
 
 ## Build and test
 
 ```
 git submodule update --init --recursive
-./run-tests.sh     # tests, with heaptrc leak check
-./build.sh         # GUI apps and CLI, into release/ (not in git)
-./package.sh       # pack the built apps for this platform into release/dist (the release workflow runs it)
-./release-notes.sh # a release's notes: APP_VERSION's CHANGELOG.md section, else its commits since the last release
-./format.sh        # format sources with jcfsettings.cfg (--check to list only)
-./check-standards.sh  # rules the formatter cannot check (errors fail, warnings advise)
-./build-docs.sh    # regenerate docs/reference/ and build the site into release/site_docs (--serve to preview)
-./venv/bin/python check-schemas.py  # check example and regression files against the file schemas (build-docs.sh runs it)
+./opensloper-make.sh help     # the commands and their options
+./opensloper-make.sh test     # tests, with heaptrc leak check
+./opensloper-make.sh build    # GUI apps and CLI, into release/ (not in git)
+./opensloper-make.sh package  # pack the built apps for this platform into release/dist (the release workflow runs it)
+./opensloper-make.sh release  # a release's notes: APP_VERSION's CHANGELOG.md section, else its commits since the last release
+./opensloper-make.sh format   # format sources with jcfsettings.cfg (--check to list only)
+./opensloper-make.sh check    # rules the formatter cannot check (errors fail, warnings advise)
+./opensloper-make.sh docs     # regenerate docs/reference/ and build the site into release/site_docs (--serve to preview)
+./venv/bin/python check-schemas.py  # check example and regression files against the file schemas (opensloper-make.sh docs runs it)
 ```
 
-Toolchain overrides (`LAZBUILD`, `LAZARUS_PCP`, `LCL_WIDGETSET`) go in the gitignored `build.local.sh`; see `build.local.sh.example`.
+Toolchain overrides (`LAZBUILD`, `LAZARUS_PCP`, `LCL_WIDGETSET`, `JCF_SOURCE`) go in the gitignored `build.local.sh`; see `build.local.sh.example`.
 
-Requires FPC 3.2.0 or later; CI (`.github/workflows/ci.yml`) uses the release Lazarus 4.8 with FPC 3.2.2, and its formatter is the reference. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa. Run `run-tests.sh` and `check-standards.sh` before every commit. Pull request rules are in `CONTRIBUTING.md`.
+Requires FPC 3.2.0 or later; CI (`.github/workflows/ci.yml`) uses the release Lazarus 4.8 with FPC 3.2.2, and its formatter is the reference. Linux uses the Qt5/Qt6 widgetset; macOS uses Cocoa. Run `opensloper-make.sh test` and `opensloper-make.sh check` before every commit. Pull request rules are in `CONTRIBUTING.md`.
 
 ## Conventions
 
@@ -53,7 +54,7 @@ Requires FPC 3.2.0 or later; CI (`.github/workflows/ci.yml`) uses the release La
 - Every user change is a `TCommand` with `Execute` and `Undo`; one drag is one undo step.
 - Evaluation failures are states (error, invalid, blocked), never exceptions that escape to the UI.
 - User-visible text goes in `resourcestring` sections.
-- Code style (naming, formatting, line length) follows `documents/coding-standards.md`; read it before writing code. Run `./format.sh` before committing.
+- Code style (naming, formatting, line length) follows `documents/coding-standards.md`; read it before writing code. Run `./opensloper-make.sh format` before committing.
 - File paths go through `TAppPaths`; build paths with `ConcatPaths` / `PathDelim`, never a hard-coded `/`.
 - Every program lists `Sloper.Core.CodePage` first in its uses clause and is compiled with `-FcUTF8`, so strings are UTF-8 throughout.
 - Files are written through `Sloper.Core.JSON` (`JSONToText`, `JSONFloat`) for a stable layout; loading reports errors as messages, never exceptions.

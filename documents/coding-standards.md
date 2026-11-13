@@ -6,9 +6,9 @@ How OpenSloper's Pascal code is named, laid out and formatted. Architecture rule
 
 Code is formatted with JEDI Code Format (JCF), the formatter built into the Lazarus IDE, using the project settings in `jcfsettings.cfg`.
 
-- **From the command line:** `./format.sh` formats every source file; `./format.sh --check` lists files that need formatting without changing them; `./format.sh FILE...` formats only those files. Run it before committing.
-- **In the IDE:** use the same settings, so the IDE and `format.sh` agree. Copy `jcfsettings.cfg` over the IDE's copy in the Lazarus configuration folder (for the fpcupdeluxe install, `~/Packages/fpc_build/config_lazarus/jcfsettings.cfg`), then use Source → JEDI Code Format → Format Current Editor Window.
-- **Formatter version:** `format.sh` builds the command-line formatter into `lib/jcf` on first use, from the source of the Lazarus that `lazbuild` belongs to (override with `JCF_SOURCE` in `build.local.sh`). The reference is the release Lazarus that CI uses (4.8): CI fails a pull request whose files that formatter would change. Delete `lib/jcf` to rebuild it.
+- **From the command line:** `./opensloper-make.sh format` formats every source file; `./opensloper-make.sh format --check` lists files that need formatting without changing them; `./opensloper-make.sh format FILE...` formats only those files. Run it before committing.
+- **In the IDE:** use the same settings, so the IDE and `opensloper-make.sh format` agree. Copy `jcfsettings.cfg` over the IDE's copy in the Lazarus configuration folder (for the fpcupdeluxe install, `~/Packages/fpc_build/config_lazarus/jcfsettings.cfg`), then use Source → JEDI Code Format → Format Current Editor Window.
+- **Formatter version:** `opensloper-make.sh format` builds the command-line formatter into `lib/jcf` on first use, from the source of the Lazarus that `lazbuild` belongs to (override with `JCF_SOURCE` in `build.local.sh`). The reference is the release Lazarus that CI uses (4.8): CI fails a pull request whose files that formatter would change. Delete `lib/jcf` to rebuild it.
 - **Not formatted:** `src/packages/` (third-party code) and `src/core/clipper2/osclipper2.pas`, which Lazarus regenerates.
 
 What the settings produce:
@@ -32,7 +32,7 @@ The project settings are the IDE's own settings with four changes: `RemoveExpres
 
 ## Checking the rules
 
-`./check-standards.sh` checks the rules below that a pattern match can find: the GPL header and `{$mode ObjFPC}{$H+}`, unit and file names, the layering of `uses` clauses (no LCL below `src/ui`, and which `Sloper.*` areas each folder may use), `Sloper.Core.CodePage` first in programs, `FreeAndNil`, `Assigned`, `ssModifier`, and message text that should be a `resourcestring`. These are errors. Single-letter names are warnings. CI runs it on the files each pull request changes. The rest, such as descriptive names, `try`/`finally` protection and undoable commands, is left to review. A `thirdparty` folder (`src/output/thirdparty`) belongs to its parent's area and layer and meets every rule, except that it may use BGRABitmap built without the LCL (`BGRABitmap`, `BGRABitmapTypes`, `BGRASVG`).
+`./opensloper-make.sh check` checks the rules below that a pattern match can find: the GPL header and `{$mode ObjFPC}{$H+}`, unit and file names, the layering of `uses` clauses (no LCL below `src/ui`, and which `Sloper.*` areas each folder may use), `Sloper.Core.CodePage` first in programs, `FreeAndNil`, `Assigned`, `ssModifier`, and message text that should be a `resourcestring`. These are errors. Single-letter names are warnings. CI runs it on the files each pull request changes. The rest, such as descriptive names, `try`/`finally` protection and undoable commands, is left to review. A `thirdparty` folder (`src/output/thirdparty`) belongs to its parent's area and layer and meets every rule, except that it may use BGRABitmap built without the LCL (`BGRABitmap`, `BGRABitmapTypes`, `BGRASVG`).
 
 ## Naming
 

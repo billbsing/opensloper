@@ -20,7 +20,7 @@
 // tables the code itself uses, so they cannot drift from it: the formula
 // functions and units, every kind of object and its members, the command
 // line, and the Automation API. opensloper-cli doc TOPIC writes
-// one; build-docs.sh writes them all into docs/reference/. No LCL dependency.
+// one; opensloper-make.sh docs writes them all into docs/reference/. No LCL dependency.
 unit Sloper.Docs.Reference;
 
 {$mode ObjFPC}{$H+}

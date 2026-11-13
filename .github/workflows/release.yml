@@ -95,15 +95,15 @@ jobs:
           echo "BUNDLE_LIBS=$(ldconfig -p | sed -n 's/.*libQt6Pas\.so\.6 .*=> //p' | head -1)" >> "$GITHUB_ENV"
 
       - name: Tests and leak check
-        run: ./run-tests.sh
+        run: ./opensloper-make.sh test
 
       - name: Build
         env:
           LCL_WIDGETSET: qt6
-        run: ./build.sh
+        run: ./opensloper-make.sh build
 
       - name: Package
-        run: ./package.sh
+        run: ./opensloper-make.sh package
 
       # From outside the source tree, so the data must come from the download,
       # and with the bindings built here removed, so they must come from it too
@@ -220,10 +220,10 @@ jobs:
           cat ~/.fpc.cfg
 
       - name: Build
-        run: ./build.sh --lazarusdir="$RUNNER_TEMP/lazarus" --compiler="$(command -v fpc)"
+        run: ./opensloper-make.sh build --lazarusdir="$RUNNER_TEMP/lazarus" --compiler="$(command -v fpc)"
 
       - name: Package
-        run: ./package.sh
+        run: ./opensloper-make.sh package
 
       - name: Try the download
         run: |
@@ -301,13 +301,13 @@ jobs:
         env:
           LAZBUILD: C:/lazarus/lazbuild.exe
         run: |
-          ./build.sh --pcp="$RUNNER_TEMP/lazarus-config" --lazarusdir=C:/lazarus \
+          ./opensloper-make.sh build --pcp="$RUNNER_TEMP/lazarus-config" --lazarusdir=C:/lazarus \
             --compiler=C:/lazarus/fpc/3.2.2/bin/x86_64-win64/fpc.exe
 
       - name: Package
         env:
           STRIP: C:/lazarus/fpc/3.2.2/bin/x86_64-win64/strip.exe
-        run: ./package.sh
+        run: ./opensloper-make.sh package
 
       - name: Try the download
         run: |
@@ -362,7 +362,7 @@ jobs:
           PRERELEASE=false
           case "$VERSION" in 0.*) PRERELEASE=true ;; esac
           {
-            ./release-notes.sh "$VERSION"
+            ./opensloper-make.sh release "$VERSION"
             echo
             echo "## Downloads"
             echo

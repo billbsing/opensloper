@@ -538,7 +538,7 @@ resourcestring
   end;
 
   // A reference page, to the file given or to standard output
-  // With no topic, lists the topics, one a line, for build-docs.sh
+  // With no topic, lists the topics, one a line, for opensloper-make.sh docs
   function RunDoc(const Topic, OutputFile: string): integer;
   var
     Markdown, Err, Name: string;

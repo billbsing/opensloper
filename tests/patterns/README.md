@@ -18,7 +18,7 @@ Current cases:
 Expected files are written by the CLI. Check the values by hand before committing them: spot-check points you can work out on paper.
 
 ```
-./build.sh
+./opensloper-make.sh build
 cd tests/patterns
 ../../release/opensloper-cli check skirt-block.sloper -m skirt-small.slm             # must report no problems
 ../../release/opensloper-cli check skirt-block.sloper -m skirt-small.slm --json > skirt-block.skirt-small.expected.json

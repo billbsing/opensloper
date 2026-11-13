@@ -11,8 +11,8 @@ Use the release toolchain that CI uses: **Lazarus 4.8 with FPC 3.2.2**. The form
 ```
 git clone --recursive https://github.com/billbsing/opensloper.git
 cd opensloper
-./run-tests.sh
-./build.sh
+./opensloper-make.sh test
+./opensloper-make.sh build
 ```
 
 ## Before you open a pull request
@@ -20,13 +20,13 @@ cd opensloper
 Run all four of these and fix anything they report:
 
 ```
-./format.sh             # format the sources (./format.sh --check lists files only)
-./check-standards.sh    # rules the formatter cannot check
-./run-tests.sh          # tests, with the heaptrc leak check
-./build.sh              # the GUI apps and the CLI
+./opensloper-make.sh format  # format the sources (./opensloper-make.sh format --check lists files only)
+./opensloper-make.sh check   # rules the formatter cannot check
+./opensloper-make.sh test    # tests, with the heaptrc leak check
+./opensloper-make.sh build   # the GUI apps and the CLI
 ```
 
-CI runs the same checks on every pull request, and they must pass before a merge. `check-standards.sh` also prints warnings, such as single-letter names. Warnings don't fail the check, but please fix them in code you add.
+CI runs the same checks on every pull request, and they must pass before a merge. `opensloper-make.sh check` also prints warnings, such as single-letter names. Warnings don't fail the check, but please fix them in code you add.
 
 ## What a good pull request looks like
 

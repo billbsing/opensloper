@@ -1,6 +1,6 @@
 # Items to do
 
-Review and testing before moving on to step 10, from `ffed2e4` on `development`. Run `./build.sh` first, which builds all three programs, including `release/opensloper-publish`.
+Review and testing before moving on to step 10, from `ffed2e4` on `development`. Run `./opensloper-make.sh build` first, which builds all three programs, including `release/opensloper-publish`.
 
 ## To test
 
@@ -48,7 +48,7 @@ Each store file type has currently a version number, and the JSON specification,
 
 Decided 2026-11-08: user documentation pages and JSON Schema, both generated from the code, as the reference pages are. Done together with more documentation, in stages:
 
-- [x] **Stage 1, file formats.** A table of each user file's members outside the objects (pattern, measurements, layout), as `Sloper.Core.OperationInfo` is for objects, with a test that every member a saved file writes is listed. `opensloper-cli doc files` writes a File formats page: the shared rules, then each file's members and an example. `opensloper-cli doc` also writes `docs/reference/schemas/pattern.schema.json`, `measurements.schema.json` and `layout.schema.json` (JSON Schema 2020-12), the pattern's objects from the operations table. The committed-pages test covers the schemas, and `build-docs.sh` checks the examples and regression files against them with Python's `jsonschema`. The design document's File format section keeps the decisions and points to the page.
+- [x] **Stage 1, file formats.** A table of each user file's members outside the objects (pattern, measurements, layout), as `Sloper.Core.OperationInfo` is for objects, with a test that every member a saved file writes is listed. `opensloper-cli doc files` writes a File formats page: the shared rules, then each file's members and an example. `opensloper-cli doc` also writes `docs/reference/schemas/pattern.schema.json`, `measurements.schema.json` and `layout.schema.json` (JSON Schema 2020-12), the pattern's objects from the operations table. The committed-pages test covers the schemas, and `opensloper-make.sh docs` checks the examples and regression files against them with Python's `jsonschema`. The design document's File format section keeps the decisions and points to the page.
 - [x] **Stage 2, keyboard shortcuts.** A shortcuts table outside the LCL that the three apps take their shortcuts from, and a generated Keyboard shortcuts page.
 - [x] **Stage 3, Measure section.** Pages for the measurements app: a set, size tables, the catalogue and body figure, importing and exporting Valentina and Seamly2D files, and the measurements panel in the design app.
 - [x] **Stage 4, Publish section.** Pages for the publish app: making a layout, arranging and packing pieces, printing tiles and checking the scale, calibration, large-format and projector output, and exports.

@@ -17,7 +17,7 @@ on Linux and macOS.
 ```
 git clone --recursive https://github.com/billbsing/opensloper.git
 cd opensloper
-./build.sh
+./opensloper-make.sh build
 ```
 
 The apps are built into `release/`:

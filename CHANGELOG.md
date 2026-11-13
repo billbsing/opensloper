@@ -5,7 +5,7 @@ version being worked on, the `APP_VERSION` in
 `src/core/sloper.core.version.pas`, and the release workflow puts that
 version's section in the notes of its GitHub release. A version left without
 notes here gets the list of its commits since the last release instead
-(`release-notes.sh`). Issue numbers (#3) link to GitHub.
+(`opensloper-make.sh release`). Issue numbers (#3) link to GitHub.
 
 The layout follows [Keep a Changelog](https://keepachangelog.com): Added,
 Changed, Fixed and Removed under each version.
@@ -35,6 +35,13 @@ Changed, Fixed and Removed under each version.
   the font, SVG names it, and PDF embeds it from its TrueType file, cut down to
   the letters used. A font that cannot be embedded prints in the default font,
   with a warning.
+
+### Changed
+
+- The development scripts are one, `opensloper-make.sh`, with the commands
+  `test`, `build`, `check`, `format`, `docs`, `package` and `release` in place
+  of `run-tests.sh`, `build.sh`, `check-standards.sh`, `format.sh`,
+  `build-docs.sh`, `package.sh` and `release-notes.sh` (#22).
 
 ### Fixed
 

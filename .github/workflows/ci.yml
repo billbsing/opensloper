@@ -46,9 +46,9 @@ jobs:
               echo "No Pascal sources changed."
               exit 0
             fi
-            ./check-standards.sh "${FILES[@]}"
+            ./opensloper-make.sh check "${FILES[@]}"
           else
-            ./check-standards.sh
+            ./opensloper-make.sh check
           fi
 
       - name: Third-party code is changed upstream
@@ -100,15 +100,15 @@ jobs:
 
       - name: Formatting
         run: |
-          if ! ./format.sh --check; then
-            echo "::error::The files above need formatting. Run ./format.sh (with Lazarus ${LAZARUS_RELEASE}) and commit the result."
+          if ! ./opensloper-make.sh format --check; then
+            echo "::error::The files above need formatting. Run ./opensloper-make.sh format (with Lazarus ${LAZARUS_RELEASE}) and commit the result."
             exit 1
           fi
 
       - name: Tests and leak check
-        run: ./run-tests.sh
+        run: ./opensloper-make.sh test
 
       - name: Build the apps
         env:
           LCL_WIDGETSET: qt5
-        run: ./build.sh
+        run: ./opensloper-make.sh build
