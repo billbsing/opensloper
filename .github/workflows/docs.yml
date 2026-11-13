@@ -1,6 +1,6 @@
 # Builds the user documentation with Zensical and publishes it to GitHub
 # Pages. The reference pages in docs/reference/ are generated from the
-# program and committed (see build-docs.sh), so no Pascal build is needed here.
+# program and committed (see opensloper-make.sh docs), so no Pascal build is needed here.
 # The example and regression files are checked against the file schemas first.
 name: Documentation
 on:

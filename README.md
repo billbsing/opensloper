@@ -15,17 +15,17 @@ Build with the release toolchain that CI uses: Lazarus 4.8 with FPC 3.2.2 (from 
 ```
 git clone --recursive https://github.com/billbsing/opensloper.git
 cd opensloper
-./build.sh
+./opensloper-make.sh build
 ```
 
 ## Building
 
-Requires Lazarus with FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset (`libQt5Pas`, `libQt6Pas`); `build.sh` picks Qt6 when `libQt6Pas` is installed, else Qt5 (set `LCL_WIDGETSET` to choose). macOS uses Cocoa.
+Requires Lazarus with FPC 3.2.0 or later. Linux uses the Qt5/Qt6 widgetset (`libQt5Pas`, `libQt6Pas`); `opensloper-make.sh build` picks Qt6 when `libQt6Pas` is installed, else Qt5 (set `LCL_WIDGETSET` to choose). macOS uses Cocoa.
 
 ```
 git submodule update --init --recursive
-./run-tests.sh     # build and run the tests (with leak checking)
-./build.sh         # build the three GUI apps and the CLI into release/
+./opensloper-make.sh test   # build and run the tests (with leak checking)
+./opensloper-make.sh build  # build the three GUI apps and the CLI into release/
 ```
 
 To contribute, see `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`. To report a security problem, see `SECURITY.md`.

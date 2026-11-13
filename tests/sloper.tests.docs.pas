@@ -73,7 +73,7 @@ begin
   Pattern.Evaluate;
 end;
 
-// Run ./build-docs.sh after ./build.sh to write them again
+// Run ./opensloper-make.sh docs after ./opensloper-make.sh build to write them again
 procedure TTestDocs.TestCommittedPagesAreCurrent;
 var
   Topic, Expected, Committed, Err: string;
@@ -83,7 +83,7 @@ begin
     AssertTrue(Topic, ReferencePage(Topic, Expected));
     AssertTrue(Err, ReadTextFile(ConcatPaths([ReferenceFolder, StringReplace(DocTopicPath(Topic), '/', PathDelim, [rfReplaceAll])]),
       Committed, Err));
-    AssertEquals('docs/reference/' + DocTopicPath(Topic) + ' is out of date: run ./build.sh then ./build-docs.sh', Expected,
+    AssertEquals('docs/reference/' + DocTopicPath(Topic) + ' is out of date: run ./opensloper-make.sh build then ./opensloper-make.sh docs', Expected,
       Committed);
   end;
 end;

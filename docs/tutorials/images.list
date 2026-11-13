@@ -1,4 +1,4 @@
-# Pictures for the tutorials, drawn by build-docs.sh with opensloper-cli
+# Pictures for the tutorials, drawn by opensloper-make.sh docs with opensloper-cli
 # export-draft into docs/tutorials/images/: the image, the pattern (from
 # docs/), and the object to draw up to, or "-" for the whole pattern. Each is
 # drawn with labels.
