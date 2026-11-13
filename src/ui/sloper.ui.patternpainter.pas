@@ -59,6 +59,8 @@ type
     FEdgeSlots: TEdgeSlotArray;
     FCopyLinks: TCopyLinkArray;
     function IsSelected(const Key: string): boolean;
+    // Normal, greyed when the object is locked, then in its state's colour
+    function InkFor(Node: TDraftObject; const Normal: TBGRAPixel): TBGRAPixel;
     procedure DrawPieceFill(Piece: TPieceObject; const Points: TVec2Array; const Screen: array of TPointF);
     procedure DrawPiece(Piece: TPieceObject);
     procedure DrawChevron(const Position: TVec2; Angle: double; const AColor: TBGRAPixel);
@@ -222,6 +224,16 @@ begin
   end;
 end;
 
+// A locked object is drawn greyed: its ink without colour, half way to the paper
+function Greyed(const Color: TBGRAPixel): TBGRAPixel;
+var
+  Grey: integer;
+begin
+  Grey := (Color.red * 30 + Color.green * 59 + Color.blue * 11) div 100;
+  Grey := (Grey + Paper.red) div 2;
+  Result := BGRA(Grey, Grey, Grey, Color.alpha);
+end;
+
 // Failing objects are drawn faded at their last good result
 function Faded(const Color: TBGRAPixel; State: TEvalState): TBGRAPixel;
 begin
@@ -252,6 +264,14 @@ begin
 end;
 
 { TPatternPainter }
+
+function TPatternPainter.InkFor(Node: TDraftObject; const Normal: TBGRAPixel): TBGRAPixel;
+begin
+  Result := Normal;
+  if FPattern.IsLocked(Node) then
+    Result := Greyed(Result);
+  Result := Faded(StateInk(Node.State, Result), Node.State);
+end;
 
 constructor TPatternPainter.Create;
 begin
@@ -340,16 +360,20 @@ procedure TPatternPainter.DrawPieceFill(Piece: TPieceObject; const Points: TVec2
 var
   Look: TPieceLook;
   Stroke: TLine2;
+  Color: TBGRAPixel;
 begin
   Look := FPattern.PieceLook(Piece);
   if not FState.ShowPieceFills or not Look.Filled then
     Exit;
+  Color := BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue);
+  if Piece.Locked then
+    Color := Greyed(Color);
   if Look.Fill = ffTint then
-    FBitmap.FillPolyAntialias(Screen, BGRA(Look.Color.Red, Look.Color.Green, Look.Color.Blue, MATERIAL_TINT_ALPHA))
+    FBitmap.FillPolyAntialias(Screen, BGRA(Color.red, Color.green, Color.blue, MATERIAL_TINT_ALPHA))
   else
     for Stroke in HatchLines(Points, MATERIAL_HATCH_PIXELS, Look.HatchAngle) do
-      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Look.Color.Red, Look.Color.Green,
-        Look.Color.Blue, MATERIAL_HATCH_ALPHA), 1);
+      FBitmap.DrawLineAntialias(Stroke.P1.X, Stroke.P1.Y, Stroke.P2.X, Stroke.P2.Y, BGRA(Color.red, Color.green,
+        Color.blue, MATERIAL_HATCH_ALPHA), 1);
 end;
 
 // The cutting line, filled with its material; the seam line is the edges drawn over it
@@ -375,7 +399,7 @@ begin
   DrawPieceFill(Piece, Points, Screen);
   if Piece.Key = FState.HoverKey then
     FBitmap.FillPolyAntialias(Screen, PieceHoverTint);
-  LineColor := Faded(StateInk(Piece.State, ConstructionInk), Piece.State);
+  LineColor := InkFor(Piece, ConstructionInk);
   LineWidth := 1;
   if IsSelected(Piece.Key) then
   begin
@@ -455,7 +479,7 @@ var
   LineColor: TBGRAPixel;
   First, Last: TVec2;
 begin
-  LineColor := Faded(StateInk(Piece.State, ConstructionInk), Piece.State);
+  LineColor := InkFor(Piece, ConstructionInk);
   if IsSelected(Piece.Key) then
     LineColor := SelectedInk;
   for Stroke in Concat(Piece.GrainArrow, Piece.FoldArrow, Piece.MarkingStrokes) do
@@ -521,7 +545,7 @@ begin
       LineWidth := MARKING_LINE_WIDTH;
     end;
   end;
-  LineColor := Faded(StateInk(Edge.State, LineColor), Edge.State);
+  LineColor := InkFor(Edge, LineColor);
   if Edge.Key = FState.HoverKey then
     FBitmap.DrawPolyLineAntialias(Screen, HoverHalo, LineWidth + 6);
   // Selecting a transform shows its copies
@@ -561,7 +585,7 @@ var
   Radius: single;
 begin
   Screen := FState.View.ToScreen(Point.Position);
-  InkColor := Faded(StateInk(Point.State, Ink), Point.State);
+  InkColor := InkFor(Point, Ink);
   if FState.SmallPoints then
     Radius := SMALL_POINT_RADIUS
   else
@@ -734,7 +758,7 @@ begin
     if Selected then
       InkColor := SelectedInk
     else
-      InkColor := Faded(StateInk(Note.State, Ink), Note.State);
+      InkColor := InkFor(Note, Ink);
     // A screen-only note is drawn lighter, as it never prints
     if not Note.Print then
       InkColor.alpha := InkColor.alpha div 2;
@@ -811,7 +835,7 @@ var
 begin
   if DraftObject.MarkerSize <= 0 then
     Exit;
-  LineColor := Faded(StateInk(DraftObject.State, Ink), DraftObject.State);
+  LineColor := InkFor(DraftObject, Ink);
   if IsSelected(DraftObject.Key) then
     LineColor := SelectedInk;
   for Centre in MarkerPositions(DraftObject) do
@@ -879,7 +903,7 @@ begin
     if IsSelected(Key) then
       InkColor := SelectedInk
     else
-      InkColor := Faded(StateInk(Node.State, Ink), Node.State);
+      InkColor := InkFor(TDraftObject(Node), Ink);
     if Node is TPieceObject then
       FBitmap.TextOut(Screen.X, Screen.Y, FPattern.PieceCaption(TPieceObject(Node)), InkColor)
     else

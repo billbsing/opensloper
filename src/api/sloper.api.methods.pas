@@ -110,13 +110,16 @@ resourcestring
 
   rsApiListObjects = 'Lists the variables and objects with their formulas, values and state.';
   rsApiListReturns = '`variables` and `objects`, each as `get_object` gives it';
-  rsApiGetObject = 'Gives one object or variable: its name, ID, type, formulas (as shown), computed values and state.';
+  rsApiGetObject = 'Gives one object or variable: its name, ID, type, formulas (as shown), computed values, state and whether it is locked.';
   rsApiSetFormula = 'Changes one formula of an object or variable.';
   rsApiSetFormulaField = 'The field, such as length or formula';
   rsApiSetFormulaFormula = 'The new formula';
   rsApiRename = 'Renames an object or variable; formulas that use it follow.';
   rsApiRenameNewName = 'The new name';
   rsApiDelete = 'Deletes an object or variable that nothing uses.';
+  rsApiSetLocked = 'Locks or unlocks an object. A locked object cannot be moved, edited or deleted, but its formulas ' +
+    'still run, so it follows what it uses; a change that would alter it is refused.';
+  rsApiSetLockedLocked = 'true to lock, false to unlock';
   rsApiAddVariable = 'Adds a variable.';
   rsApiVariableName = 'Its name, used in formulas as #name';
   rsApiVariableFormula = 'Its formula';
@@ -422,6 +425,9 @@ begin
   P('newName', apText, True, rsApiRenameNewName);
   Method('delete', agObjects, rsApiDelete, rsApiReturnsDocument);
   Target;
+  Method('set_locked', agObjects, rsApiSetLocked, rsApiReturnsObject);
+  Target;
+  P('locked', apFlag, True, rsApiSetLockedLocked);
   Method('add_variable', agObjects, rsApiAddVariable, rsApiReturnsObject);
   P('name', apText, True, rsApiVariableName);
   P('formula', apFormula, True, rsApiVariableFormula);

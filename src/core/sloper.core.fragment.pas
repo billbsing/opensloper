@@ -269,6 +269,7 @@ function TFragmentBuilder.ObjectsJSON: TJSONArray;
 var
   Index: integer;
   DraftObject: TDraftObject;
+  Item: TJSONObject;
 begin
   Result := TJSONArray.Create;
   try
@@ -280,7 +281,12 @@ begin
       if (DraftObject is TPointCopy) or (DraftObject is TEdgeCopy) then
         Result.Add(PlainCopyJSON(FPattern, DraftObject))
       else
-        Result.Add(PatternObjectToJSON(DraftObject));
+      begin
+        Item := PatternObjectToJSON(DraftObject);
+        // A pasted copy starts unlocked
+        Item.Delete('locked');
+        Result.Add(Item);
+      end;
     end;
   except
     FreeAndNil(Result);

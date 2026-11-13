@@ -97,7 +97,8 @@ uses
   Sloper.Tests.Automation,
   Sloper.Tests.Assistant,
   Sloper.Tests.Garment,
-  Sloper.Tests.PieceView;
+  Sloper.Tests.PieceView,
+  Sloper.Tests.Locking;
 
 var
   App: TTestRunner;

@@ -192,6 +192,8 @@ type
     procedure BreakClick(Sender: TObject);
     procedure TransformClick(Sender: TObject);
     procedure GoToSourceClick(Sender: TObject);
+    procedure EditLockClick(Sender: TObject);
+    procedure EditUnlockClick(Sender: TObject);
     procedure ArcClick(Sender: TObject);
     procedure OffsetClick(Sender: TObject);
     procedure OffsetPieceClick(Sender: TObject);
@@ -293,6 +295,8 @@ resourcestring
   rsMenuEditCopy = '&Copy';
   rsMenuEditPaste = '&Paste';
   rsMenuEditDelete = '&Delete';
+  rsMenuEditLock = '&Lock';
+  rsMenuEditUnlock = 'U&nlock';
   rsMenuEditPreferences = 'Pre&ferences...';
   rsMenuEditMaterials = '&Materials...';
   rsMenuView = '&View';
@@ -835,6 +839,9 @@ begin
   // The canvas handles the Delete key, so typing in a field can still delete text
   MenuEditDelete.Action := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
   MenuEdit.AddSeparator;
+  AddMenuItem(MenuEdit, NewAction(rsMenuEditLock, aiLock, @EditLockClick));
+  AddMenuItem(MenuEdit, NewAction(rsMenuEditUnlock, aiUnlock, @EditUnlockClick));
+  MenuEdit.AddSeparator;
   AddMenuItem(MenuEdit, NewAction(rsMenuEditMaterials, aiPieceFills, @MaterialsEditClick));
   AddMenuItem(MenuEdit, NewAction(rsMenuEditPreferences, aiPreferences, @PreferencesClick, CommandShortCut(kcPreferences)));
   MenuViewZoomIn.Action := NewAction(rsMenuViewZoomIn, aiZoomIn, @MenuViewZoomInClick, CommandShortCut(kcZoomIn));
@@ -1349,7 +1356,8 @@ var
 begin
   if not ChooseUnitConversion(Self, FDocument.Pattern, ToUnits, Numbers) then
     Exit;
-  FDocument.BeginChange(rsConvertUnitsChange);
+  // Converting rewrites every formula, locked objects' too
+  FDocument.BeginChange(rsConvertUnitsChange, False);
   if not ConvertPatternUnits(FDocument.Pattern, ToUnits, Numbers, Err) then
   begin
     FDocument.CancelChange;
@@ -1882,6 +1890,16 @@ end;
 procedure TMainForm.MenuEditDeleteClick(Sender: TObject);
 begin
   FCanvas.DeleteSelection;
+end;
+
+procedure TMainForm.EditLockClick(Sender: TObject);
+begin
+  FCanvas.LockSelection(True);
+end;
+
+procedure TMainForm.EditUnlockClick(Sender: TObject);
+begin
+  FCanvas.LockSelection(False);
 end;
 
 // Before Delete

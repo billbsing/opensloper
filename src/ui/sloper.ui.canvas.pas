@@ -194,6 +194,8 @@ type
     // Selects the sources of the selected transform copies, or of a selected
     // transform, and brings them into view
     procedure GoToSource;
+    // Locks or unlocks the selected objects
+    procedure LockSelection(Lock: boolean);
     // mkPoint makes the selected points and repeats holes, which join the
     // pieces they lie in; the others add a marking to the selected piece
     // from the edge (or, for mkLine, the marked point) selected with it
@@ -836,6 +838,12 @@ begin
     ApplyEdit(Sloper.UI.SelectionEdits.BreakSelection(FDocument, FSelection));
 end;
 
+procedure TPatternCanvas.LockSelection(Lock: boolean);
+begin
+  if Assigned(FDocument) then
+    ApplyEdit(Sloper.UI.SelectionEdits.LockSelection(FDocument, FSelection, Lock));
+end;
+
 procedure TPatternCanvas.GoToSource;
 var
   Edit: TSelectionEdit;
@@ -1169,7 +1177,12 @@ begin
     end;
     cmPressed:
       if Max(Abs(X - FPressPos.X), Abs(Y - FPressPos.Y)) >= DRAG_THRESHOLD then
-        if FPressTip then
+        if FPressTip and FDocument.Pattern.IsLocked(FDocument.Pattern.FindNode(FPressKey)) then
+        begin
+          ShowMessageText(Format(rsPatternLocked, [FDocument.Pattern.FindNode(FPressKey).DisplayName]));
+          FInput.Mode := cmRefused;
+        end
+        else if FPressTip then
         begin
           FTipDragging := True;
           FInput.Mode := cmDragging;

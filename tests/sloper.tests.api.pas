@@ -53,6 +53,7 @@ type
     procedure TestMarkings;
     procedure TestSetRole;
     procedure TestSetMarker;
+    procedure TestSetLocked;
     procedure TestOffsetRun;
     procedure TestRenderHidesRoles;
     procedure TestMaterialMethods;
@@ -658,6 +659,32 @@ begin
   AssertEquals(RPC_REFUSED, ErrorCode);
   AssertTrue('says what uses it', Pos('B', ErrorText) > 0);
   AssertNotNull(ObjectNamed('A'));
+end;
+
+procedure TTestAPI.TestSetLocked;
+begin
+  OpenTestPattern;
+  Call('set_locked', '{"name": "A", "locked": true}');
+  AssertTrue('locked', Answer.Get('locked', False));
+  Call('rename', '{"name": "A", "newName": "Start"}');
+  AssertEquals('rename refused', RPC_REFUSED, ErrorCode);
+  AssertTrue('says it is locked', Pos('locked', ErrorText) > 0);
+  // B reads A but is not locked itself
+  Call('set_formula', '{"name": "B", "field": "angle", "formula": "10"}');
+  AssertEquals('10', FormulaOf(Answer, 'angle'));
+  // The role has no check of its own; the document refuses it
+  Call('set_locked', '{"name": "Hem", "locked": true}');
+  Call('set_role', '{"name": "Hem", "role": "construction"}');
+  AssertEquals('role refused', RPC_REFUSED, ErrorCode);
+  AssertEquals('outline', ObjectNamed('Hem').Get('role', ''));
+  Call('set_locked', '{"name": "A", "locked": false}');
+  AssertFalse('unlocked', Answer.Get('locked', True));
+  Call('set_formula', '{"name": "A", "field": "x", "formula": "5"}');
+  AssertNotNull('editable again', FReply.Find('result'));
+  Call('set_locked', '{"name": "ease", "locked": true}');
+  AssertEquals('a variable cannot be locked', RPC_REFUSED, ErrorCode);
+  Call('set_locked', '{"name": "A"}');
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
 end;
 
 procedure TTestAPI.TestDelete;

@@ -319,6 +319,16 @@ type
     // Sets LastError, for a caller that refuses before changing anything;
     // always False
     function Refuse(const Msg: string): boolean;
+    // A locked object, or a point of a locked repeat. A locked object cannot
+    // be moved, edited or deleted, but its formulas still run, so it follows
+    // what it reads. Rename, Delete and SetFormula refuse it here; the
+    // document refuses any other change to one (see TPatternDocument.EndChange).
+    function IsLocked(Node: TEvalNode): boolean;
+    // Locks or unlocks an object; a repeat's point stands for its repeat.
+    // False with LastError for a variable or measurement.
+    function SetLocked(Node: TEvalNode; Value: boolean): boolean;
+    // False with LastError naming the object when it is locked
+    function CheckUnlocked(Node: TEvalNode): boolean;
     function AddStitchMarking(Piece: TPieceObject; const EdgeId, Spacing, Size: string): boolean;
     function RemoveMarking(Piece: TPieceObject; Index: integer): boolean;
     function SetCut(Piece: TPieceObject; Count: integer; Mirrored: boolean): boolean;
@@ -536,6 +546,8 @@ resourcestring
   rsPatternNoField = '%s has no formula "%s"';
   rsPatternCannotRename = '%s cannot be renamed';
   rsPatternCannotDelete = '%s cannot be deleted';
+  rsPatternLocked = '%s is locked; unlock it to change it';
+  rsPatternCannotLock = '%s cannot be locked; only objects can';
   rsPatternSameEdge = 'An edge cannot cross itself';
   rsPatternBadPick = 'The crossing number must be 1 or more';
   rsPatternPathTooShort = 'A curve path needs at least two points';
@@ -2483,6 +2495,30 @@ begin
   Result := SetError(Msg);
 end;
 
+function TPattern.IsLocked(Node: TEvalNode): boolean;
+begin
+  if Node is TRepeatPoint then
+    Node := TRepeatPoint(Node).Source;
+  Result := (Node is TDraftObject) and TDraftObject(Node).Locked;
+end;
+
+function TPattern.SetLocked(Node: TEvalNode; Value: boolean): boolean;
+begin
+  if Node is TRepeatPoint then
+    Node := TRepeatPoint(Node).Source;
+  if not (Node is TDraftObject) then
+    Exit(SetError(Format(rsPatternCannotLock, [Node.DisplayName])));
+  TDraftObject(Node).Locked := Value;
+  Result := True;
+end;
+
+function TPattern.CheckUnlocked(Node: TEvalNode): boolean;
+begin
+  Result := not IsLocked(Node);
+  if not Result then
+    SetError(Format(rsPatternLocked, [Node.DisplayName]));
+end;
+
 function TPattern.IsHidden(DraftObject: TDraftObject): boolean;
 begin
   Result := ((DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in View.HiddenRoles)) or
@@ -2833,7 +2869,9 @@ begin
       if Other is TPieceObject then
       begin
         Piece := TPieceObject(Other);
-        if (Piece.PathIndexOf(Key) >= 0) or (Piece.LineMarkingOf(Key) >= 0) or (Piece.PointMarkingOf(Key) >= 0) or not LiesInside(DraftObject, Piece) then
+        // A locked piece takes no new markings
+        if Piece.Locked or (Piece.PathIndexOf(Key) >= 0) or (Piece.LineMarkingOf(Key) >= 0) or (Piece.PointMarkingOf(Key) >= 0) or
+          not LiesInside(DraftObject, Piece) then
           Continue;
         if DraftObject is TEdgeObject then
           Piece.AddMarking(mkLine, '', Key)
@@ -3277,6 +3315,8 @@ function TPattern.SetFormula(Node: TEvalNode; const AField, Text: string): boole
 var
   NewFormula: TFormula;
 begin
+  if not CheckUnlocked(Node) then
+    Exit(False);
   if not Assigned(Node.Field(AField)) then
     Exit(SetError(Format(rsPatternNoField, [Node.DisplayName, AField]), AField));
   NewFormula := TFormula.Create;
@@ -3494,6 +3534,8 @@ function TPattern.Rename(Node: TEvalNode; const NewName: string): boolean;
 var
   Msg: string;
 begin
+  if not CheckUnlocked(Node) then
+    Exit(False);
   if Node is TVariable then
   begin
     if not CheckVariableName(NewName, TVariable(Node), Msg) then
@@ -3581,6 +3623,8 @@ end;
 
 function TPattern.Delete(Node: TEvalNode): boolean;
 begin
+  if not CheckUnlocked(Node) then
+    Exit(False);
   if CopyTransformKey(Node) <> '' then
     Exit(SetError(Format(rsPatternCopyOfTransform, [Node.DisplayName, FindNode(CopyTransformKey(Node)).DisplayName])));
   if Node is TTransformObject then

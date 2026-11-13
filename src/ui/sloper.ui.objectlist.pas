@@ -104,6 +104,8 @@ function SelectionAfterClick(const Visible, Selected: TStringArray; const Anchor
 
 resourcestring
   rsObjectPosition = '%s, %s %s';
+  // A state, such as OK, of a locked object
+  rsObjectLocked = '%s, locked';
   rsObjectSeamLengths = 'A %s, B %s';
   rsObjectSeamDifference = '%s, expected %s';
   rsObjectSeamEntry = '%s: %s';
@@ -417,6 +419,8 @@ begin
   Result.Formulas := FormulasText(Pattern, DraftObject);
   Result.State := DraftObject.State;
   Result.StateText := StateCaption(DraftObject.State);
+  if Pattern.IsLocked(DraftObject) then
+    Result.StateText := Format(rsObjectLocked, [Result.StateText]);
   Result.Text := '';
   if DraftObject is TNoteObject then
     Result.Text := TNoteObject(DraftObject).DisplayText(Pattern.Resolver);

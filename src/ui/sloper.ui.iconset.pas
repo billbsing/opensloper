@@ -40,7 +40,9 @@ type
     // Notes
     aiText, aiAnnotations, aiCallout,
     // Overlapping pieces
-    aiHidePiece, aiShowPieces, aiIsolate, aiBringToFront, aiSendToBack);
+    aiHidePiece, aiShowPieces, aiIsolate, aiBringToFront, aiSendToBack,
+    // Locked objects
+    aiLock, aiUnlock);
 
 const
   APP_ICON_NAMES: array[TAppIcon] of string = ('file-plus', 'folder-open', 'device-floppy', 'file-pencil',
@@ -56,7 +58,7 @@ const
     'file-type-pdf', 'file-type-svg', 'file-vector', 'cut', 'refresh',
     'ruler-2', 'settings',
     'typography', 'notes', 'message',
-    'eye-off', 'eye', 'focus-2', 'stack-front', 'stack-back');
+    'eye-off', 'eye', 'focus-2', 'stack-front', 'stack-back', 'lock', 'lock-open');
 
 function IconFileName(const Dir: string; Icon: TAppIcon): string;
 // Tabler draws in currentColor; this gives it Color, such as #202020

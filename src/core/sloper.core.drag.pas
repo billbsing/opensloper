@@ -56,16 +56,17 @@ function RoundedText(Value: double; Decimals: integer): string;
 // is written in, with its suffix (2in stays in inches), or as a plain number
 // in the pattern unit
 function DraggedLength(Target: TDraftObject; const FieldName: string; Millimetres: double; Units: TMeasureUnit): string;
-// True when Point can be dragged: its type moves freely, and every field the
-// drag would change is a plain number. Otherwise ErrorMessage says why; for a
-// transform copy it names the source and transform.
+// True when Point can be dragged: it is not locked, its type moves freely,
+// and every field the drag would change is a plain number. Otherwise
+// ErrorMessage says why; for a transform copy it names the source and
+// transform.
 function CanDrag(Pattern: TPattern; Point: TPointObject; out ErrorMessage: string): boolean;
 // Sets Point's fields so it lies at Target, or as near as its operation
 // allows (a point along an edge stays on the edge). Call inside a document
 // change and evaluate afterwards. False, with ErrorMessage, when the point
 // cannot be dragged.
 function DragPoint(Pattern: TPattern; Point: TPointObject; const Target: TVec2; out ErrorMessage: string): boolean;
-// True when the note's offset, or a free note's place, is plain numbers
+// True when the note is not locked and its offset, or a free note's place, is plain numbers
 function CanDragNote(Note: TNoteObject; out ErrorMessage: string): boolean;
 // Sets the note's offset, or a free note's place, so its top left lies at
 // Target. Call inside a document change and evaluate afterwards.
@@ -73,7 +74,7 @@ function DragNote(Pattern: TPattern; Note: TNoteObject; const Target: TVec2; out
 // The handles of a curve or curve path, as computed; empty for other edges,
 // and for one not computed. A split part follows its source and has none.
 function CurveHandles(Edge: TEdgeObject): TCurveHandleArray;
-// True when both of the handle's fields are plain numbers
+// True when the edge is not locked and both of the handle's fields are plain numbers
 function CanDragHandle(Edge: TEdgeObject; const Handle: TCurveHandle; out ErrorMessage: string): boolean;
 // Sets the handle's angle and length so its end lies at Target. At the anchor
 // the length is 0 and the angle is kept. Call inside a document change and
@@ -83,6 +84,7 @@ function DragHandle(Pattern: TPattern; Edge: TEdgeObject; const Handle: TCurveHa
 
 resourcestring
   rsDragFormula = '%s is placed by a formula; change it in its properties';
+  rsDragLocked = '%s is locked; unlock it to move it';
   rsDragPlaced = '%s is placed by other objects and cannot be dragged';
   // A_r1 follows A (Move Copy 'Back'). Edit A to change it.
   rsDragCopy = '%0:s follows %1:s (%2:s ''%3:s''). Edit %1:s to change it.';
@@ -153,6 +155,11 @@ var
   FieldName: string;
   Fields: TStringArray;
 begin
+  if Pattern.IsLocked(Point) then
+  begin
+    ErrorMessage := Format(rsDragLocked, [Point.DisplayName]);
+    Exit(False);
+  end;
   ErrorMessage := CopyRefusal(Pattern, Point);
   if ErrorMessage <> '' then
     Exit(False);
@@ -188,6 +195,11 @@ function CanDragNote(Note: TNoteObject; out ErrorMessage: string): boolean;
 var
   FieldName: string;
 begin
+  if Note.Locked then
+  begin
+    ErrorMessage := Format(rsDragLocked, [Note.DisplayName]);
+    Exit(False);
+  end;
   ErrorMessage := '';
   for FieldName in Note.PlaceFields do
     if not Note.Field(FieldName).IsLiteral then
@@ -298,6 +310,11 @@ end;
 
 function CanDragHandle(Edge: TEdgeObject; const Handle: TCurveHandle; out ErrorMessage: string): boolean;
 begin
+  if Edge.Locked then
+  begin
+    ErrorMessage := Format(rsDragLocked, [Edge.DisplayName]);
+    Exit(False);
+  end;
   ErrorMessage := '';
   Result := Edge.Field(Handle.AngleField).IsLiteral and Edge.Field(Handle.LengthField).IsLiteral;
   if not Result then

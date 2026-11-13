@@ -81,6 +81,8 @@ function AddTransform(Document: TPatternDocument; const Spec: TTransformSpec): T
 // Selects what the selected transform copies follow, and what a selected
 // transform copies; changes nothing in the pattern
 function GoToSource(Document: TPatternDocument; const Selection: TStringArray): TSelectionEdit;
+// Locks or unlocks every selected object, as one undo step
+function LockSelection(Document: TPatternDocument; const Selection: TStringArray; Lock: boolean): TSelectionEdit;
 // For the status bar: "A, B, Line_A_B"
 function ObjectNames(Pattern: TPattern; const Keys: TStringArray): string;
 
@@ -126,6 +128,11 @@ resourcestring
   rsSelectionPickCopy = 'Select a transform copy, or a transform, to go to its source';
   rsSelectionSourceOf = '%s follows %s';
   rsSelectionSources = 'Selected the sources: %s';
+  rsSelectionLock = 'Lock';
+  rsSelectionUnlock = 'Unlock';
+  rsSelectionPickToLock = 'Select the objects to lock or unlock first';
+  rsSelectionLocked = 'Locked %s';
+  rsSelectionUnlocked = 'Unlocked %s';
 
 implementation
 
@@ -154,6 +161,9 @@ begin
   Reason := Document.Pattern.LastError;
   Result := Default(TSelectionEdit);
   Result.Done := Document.Commit(Done);
+  // Undone for changing a locked object
+  if Document.ChangeRefused then
+    Reason := Document.Pattern.LastError;
   if not Result.Done then
     Result.Message := Reason;
 end;
@@ -249,6 +259,8 @@ begin
     Moved := True;
   end;
   Result.Done := Document.Commit(Moved, MergeKey);
+  if Document.ChangeRefused then
+    Result.Message := Document.Pattern.LastError;
 end;
 
 function DeleteSelection(Document: TPatternDocument; const Selection: TStringArray; const Description: string): TSelectionEdit;
@@ -271,7 +283,8 @@ begin
       Exit;
     end;
   end;
-  Document.EndChange;
+  if not Document.EndChange and Document.ChangeRefused then
+    Exit(Refused(Document.Pattern.LastError));
   Result.Done := True;
   Result.Reselect := True;
 end;
@@ -611,8 +624,40 @@ begin
       Done := Document.Pattern.RemoveMarking(Piece, Index) or Done;
   Result := Default(TSelectionEdit);
   Result.Done := Document.Commit(Done);
-  if not Result.Done then
+  if Document.ChangeRefused then
+    Result.Message := Document.Pattern.LastError
+  else if not Result.Done then
     Result.Message := rsSelectionPickMarkingToRemove;
+end;
+
+function LockSelection(Document: TPatternDocument; const Selection: TStringArray; Lock: boolean): TSelectionEdit;
+var
+  Key: string;
+  Node: TEvalNode;
+  Changed: TStringArray;
+begin
+  if Length(Selection) = 0 then
+    Exit(Refused(rsSelectionPickToLock));
+  if Lock then
+    Document.BeginChange(rsSelectionLock)
+  else
+    Document.BeginChange(rsSelectionUnlock);
+  Changed := nil;
+  for Key in Selection do
+  begin
+    Node := Document.Pattern.FindNode(Key);
+    if not (Node is TDraftObject) or (Document.Pattern.IsLocked(Node) = Lock) then
+      Continue;
+    Document.Pattern.SetLocked(Node, Lock);
+    Insert(Key, Changed, Length(Changed));
+  end;
+  Result := Commit(Document, Length(Changed) > 0);
+  if not Result.Done then
+    Exit;
+  if Lock then
+    Result.Message := Format(rsSelectionLocked, [ObjectNames(Document.Pattern, Changed)])
+  else
+    Result.Message := Format(rsSelectionUnlocked, [ObjectNames(Document.Pattern, Changed)]);
 end;
 
 function AddTransform(Document: TPatternDocument; const Spec: TTransformSpec): TSelectionEdit;
