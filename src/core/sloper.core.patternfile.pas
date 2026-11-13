@@ -736,9 +736,24 @@ begin
   end;
 end;
 
+// The IDs of those keys that are still pieces, or nil for none
+function PieceIdList(Pattern: TPattern; const Keys: TStringArray): TJSONArray;
+var
+  Key: string;
+begin
+  Result := nil;
+  for Key in Keys do
+    if Pattern.FindNode(Key) is TPieceObject then
+    begin
+      if not Assigned(Result) then
+        Result := TJSONArray.Create;
+      Result.Add(StrToInt(Key));
+    end;
+end;
+
 function SaveView(Pattern: TPattern): TJSONObject;
 var
-  Centre, Roles: TJSONArray;
+  Centre, Roles, Pieces: TJSONArray;
   RoleName: string;
 begin
   Result := TJSONObject.Create;
@@ -762,15 +777,39 @@ begin
     // Left out when they show
     if Pattern.View.HideAnnotations then
       Result.Add('hideAnnotations', True);
+    // Each left out when no piece is hidden, isolated or reordered
+    Pieces := PieceIdList(Pattern, Pattern.View.HiddenPieces);
+    if Assigned(Pieces) then
+      Result.Add('hiddenPieces', Pieces);
+    if Assigned(Pattern.IsolatedPiece) then
+      Result.Add('isolate', StrToInt(Pattern.View.Isolated));
+    Pieces := PieceIdList(Pattern, Pattern.View.PieceOrder);
+    if Assigned(Pieces) then
+      Result.Add('pieceOrder', Pieces);
   except
     FreeAndNil(Result);
     raise;
   end;
 end;
 
+// Whole positive numbers from a list, as keys; anything else is passed over
+function ViewIds(List: TJSONData): TStringArray;
+var
+  Index: integer;
+begin
+  Result := nil;
+  if not Assigned(List) or (List.JSONType <> jtArray) then
+    Exit;
+  for Index := 0 to List.Count - 1 do
+    if (List.Items[Index].JSONType = jtNumber) and (TJSONNumber(List.Items[Index]).NumberType = ntInteger) and
+      (List.Items[Index].AsInteger > 0) then
+      Insert(IntToStr(List.Items[Index].AsInteger), Result, Length(Result));
+end;
+
 // The view is only a convenience, so anything odd in it is passed over
 procedure ReadPatternViewData(Pattern: TPattern; Data: TJSONData);
 var
+  Isolate: integer;
   Root: TJSONObject;
   List: TJSONData;
   Zoom: double;
@@ -801,6 +840,11 @@ begin
             Pattern.View.HiddenRoles := Pattern.View.HiddenRoles + [Role];
   if GetJSONBoolean(Root, 'hideAnnotations', Hide) then
     Pattern.View.HideAnnotations := Hide;
+  // IDs that are not pieces are passed over when the view is used
+  Pattern.View.HiddenPieces := ViewIds(Root.Find('hiddenPieces'));
+  Pattern.View.PieceOrder := ViewIds(Root.Find('pieceOrder'));
+  if GetJSONInteger(Root, 'isolate', Isolate) and (Isolate > 0) then
+    Pattern.View.Isolated := IntToStr(Isolate);
 end;
 
 function PatternViewToText(Pattern: TPattern): string;
@@ -857,7 +901,8 @@ begin
     // The untouched Main writes nothing, so simple files stay simple
     if Pattern.Materials[0].Key <> '' then
       Root.Add('materials', SaveMaterials(Pattern));
-    if WithNextId and (Pattern.View.HasView or (Pattern.View.HiddenRoles <> []) or Pattern.View.HideAnnotations) then
+    if WithNextId and (Pattern.View.HasView or (Pattern.View.HiddenRoles <> []) or Pattern.View.HideAnnotations or
+      (Pattern.HiddenPieceCount > 0) or Assigned(Pattern.IsolatedPiece) or (Length(Pattern.View.PieceOrder) > 0)) then
       Root.Add('view', SaveView(Pattern));
     Result := JSONToText(Root);
   finally

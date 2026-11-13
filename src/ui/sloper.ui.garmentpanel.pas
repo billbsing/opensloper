@@ -343,7 +343,8 @@ begin
     FMaterialChosen := False;
     FFitted := True;
   end;
-  if Changes * [dcPattern, dcObjectsReplaced, dcMeasurements, dcHistory] = [] then
+  // dcView too, for hidden, isolated and reordered pieces
+  if Changes * [dcPattern, dcObjectsReplaced, dcMeasurements, dcHistory, dcView] = [] then
     Exit;
   FDirty := True;
   RefreshMaterials;
@@ -363,7 +364,7 @@ begin
     Exit;
   end;
   Started := GetTickCount64;
-  FScene := FBuilder.Build(FDocument.Pattern);
+  FScene := FBuilder.Build(FDocument.Pattern, True);
   FSlow := GetTickCount64 - Started > FRAME_MILLISECONDS;
   ChooseShown;
 end;

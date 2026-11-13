@@ -72,6 +72,7 @@ type
     procedure DrawSourceHalos;
     procedure DrawCopyLinks;
     procedure DrawMarker(DraftObject: TDraftObject);
+    procedure DrawLayer(Dimmed: boolean);
   public
     constructor Create;
     destructor Destroy; override;
@@ -106,6 +107,10 @@ uses
   Sloper.Core.Materials, Sloper.UI.RulerTicks;
 
 const
+  // How much of the paper covers what an isolated piece does not use
+  DIM_WASH_ALPHA = 200;
+  // How strongly a dimmed note's ink shows
+  DIM_NOTE_ALPHA = 60;
   // How strongly a material's colour shows under the lines
   MATERIAL_TINT_ALPHA = 60;
   MATERIAL_HATCH_ALPHA = 130;
@@ -182,6 +187,13 @@ end;
 function BoxFill: TBGRAPixel;
 begin
   Result := BGRA(37, 116, 214, 20);
+end;
+
+// Laid over what an isolated piece does not use
+function DimWash: TBGRAPixel;
+begin
+  Result := Paper;
+  Result.alpha := DIM_WASH_ALPHA;
 end;
 
 function PieceHoverTint: TBGRAPixel;
@@ -620,48 +632,74 @@ begin
   FBitmap.PenStyle := psSolid;
 end;
 
+// Pieces under edges, edges under points, with seams and markers. While a
+// piece is isolated, what it does not use is drawn first and washed over with
+// paper, so it shows faintly under the piece.
 procedure TPatternPainter.DrawPattern;
+begin
+  FEdgeSlots := CoincidentEdges(FPattern);
+  if not Assigned(FPattern.IsolatedPiece) then
+  begin
+    DrawLayer(False);
+    Exit;
+  end;
+  DrawLayer(True);
+  FBitmap.FillRect(0, 0, FBitmap.Width, FBitmap.Height, DimWash, dmDrawWithTransparency);
+  DrawLayer(False);
+end;
+
+procedure TPatternPainter.DrawLayer(Dimmed: boolean);
 var
   Point: TPointObject;
   Shown: TDraftObjectArray;
   DraftObject: TDraftObject;
+  Piece: TPieceObject;
   Key: string;
   Node: TEvalNode;
 begin
-  // Pieces under edges, edges under points
-  Shown := ShownObjects(FPattern);
-  FEdgeSlots := CoincidentEdges(FPattern);
-  FCopyLinks := CopyLinks(FPattern, FState.Selection, FState.HoverKey);
-  for DraftObject in Shown do
-    if (DraftObject is TPieceObject) and DraftObject.HasResult then
-      DrawPiece(TPieceObject(DraftObject));
-  DrawSourceHalos;
+  Shown := nil;
+  for DraftObject in ShownObjects(FPattern) do
+    if FPattern.IsDimmed(DraftObject) = Dimmed then
+      Insert(DraftObject, Shown, Length(Shown));
+  if not Dimmed then
+    FCopyLinks := CopyLinks(FPattern, FState.Selection, FState.HoverKey)
+  else
+    FCopyLinks := nil;
+  // In the view's drawing order
+  for Piece in FPattern.PiecesInDrawOrder do
+    if Piece.HasResult and not FPattern.IsHidden(Piece) and (FPattern.IsDimmed(Piece) = Dimmed) then
+      DrawPiece(Piece);
+  if not Dimmed then
+    DrawSourceHalos;
   for DraftObject in EdgesInDrawOrder(Shown) do
     if DraftObject.HasResult then
       DrawEdge(TEdgeObject(DraftObject));
   // A hidden line shows while it is selected, as from the Objects panel
-  for Key in FState.Selection do
+  if not Dimmed then
+    for Key in FState.Selection do
+    begin
+      Node := FPattern.FindNode(Key);
+      if (Node is TEdgeObject) and FPattern.IsHidden(TEdgeObject(Node)) and Node.HasResult then
+        DrawEdge(TEdgeObject(Node));
+    end;
+  for Piece in FPattern.PiecesInDrawOrder do
   begin
-    Node := FPattern.FindNode(Key);
-    if (Node is TEdgeObject) and FPattern.IsHidden(TEdgeObject(Node)) and Node.HasResult then
-      DrawEdge(TEdgeObject(Node));
-  end;
-  for DraftObject in Shown do
-  begin
-    if not (DraftObject is TPieceObject) or not DraftObject.HasResult then
+    if not Piece.HasResult or FPattern.IsHidden(Piece) or (FPattern.IsDimmed(Piece) <> Dimmed) then
       Continue;
-    DrawPieceMarks(TPieceObject(DraftObject));
-    if IsSelected(DraftObject.Key) or (DraftObject.Key = FState.HoverKey) then
-      DrawChevrons(TPieceObject(DraftObject));
+    DrawPieceMarks(Piece);
+    if not Dimmed and (IsSelected(Piece.Key) or (Piece.Key = FState.HoverKey)) then
+      DrawChevrons(Piece);
   end;
-  DrawSeams;
+  if not Dimmed then
+    DrawSeams;
   // A marker shows at its point whether or not it is on a piece yet
   for DraftObject in Shown do
     if (DraftObject.Marker <> pmPlain) and DraftObject.HasResult then
       DrawMarker(DraftObject);
-  DrawCopyLinks;
+  if not Dimmed then
+    DrawCopyLinks;
   for Point in ShownPoints(FPattern) do
-    if Point.HasResult then
+    if Point.HasResult and (FPattern.IsDimmed(Point) = Dimmed) then
       DrawPoint(Point);
 end;
 
@@ -685,7 +723,7 @@ begin
   DefaultFont := FBitmap.FontName;
   for Index := 0 to FPattern.ObjectCount - 1 do
   begin
-    if not (FPattern.Objects[Index] is TNoteObject) or not FPattern.Objects[Index].HasResult then
+    if not (FPattern.Objects[Index] is TNoteObject) or not FPattern.Objects[Index].HasResult or FPattern.IsHidden(FPattern.Objects[Index]) then
       Continue;
     Note := TNoteObject(FPattern.Objects[Index]);
     Selected := IsSelected(Note.Key);
@@ -700,6 +738,9 @@ begin
     // A screen-only note is drawn lighter, as it never prints
     if not Note.Print then
       InkColor.alpha := InkColor.alpha div 2;
+    // Notes are drawn over the wash, so a dimmed one is faded here
+    if FPattern.IsDimmed(Note) then
+      InkColor.alpha := DIM_NOTE_ALPHA;
     // A callout's leader, to where its tip is being dragged while it is
     Tip := Note.AnchorPosition;
     if (FState.DraggedTipKey <> '') and (Note.Key = FState.DraggedTipKey) then

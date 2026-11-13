@@ -57,6 +57,12 @@ type
     FZoom, FCentreX, FCentreY: double;
     FHiddenRoles: TEdgeRoles;
     FHideAnnotations: boolean;
+    FHiddenPieces, FPieceOrder: TStringArray;
+    FIsolated: string;
+    FVersion: integer;
+    procedure SetHiddenPieces(const Value: TStringArray);
+    procedure SetPieceOrder(const Value: TStringArray);
+    procedure SetIsolated(const Value: string);
   public
     // Back to a pattern never shown, with every role and the notes showing
     procedure Reset;
@@ -70,12 +76,24 @@ type
     property HiddenRoles: TEdgeRoles read FHiddenRoles write FHiddenRoles;
     // Notes are not drawn on the canvas or in draft export
     property HideAnnotations: boolean read FHideAnnotations write FHideAnnotations;
+    // Pieces the canvas does not show, with what only they use (see View
+    // options for overlapping pieces in the design); they still print
+    property HiddenPieces: TStringArray read FHiddenPieces write SetHiddenPieces;
+    // The piece being worked on alone, everything it does not use dimmed and
+    // out of reach; '' for none
+    property Isolated: string read FIsolated write SetIsolated;
+    // Pieces in drawing order, lowest first, once any has been brought to
+    // front or sent to back; a piece not listed goes on top, in pattern order
+    property PieceOrder: TStringArray read FPieceOrder write SetPieceOrder;
+    // Goes up with every change to the three above
+    property Version: integer read FVersion;
   end;
 
   TMeasurementNodeList = specialize TObjectList<TMeasurementNode>;
   TVariableList = specialize TObjectList<TVariable>;
   TDraftObjectList = specialize TObjectList<TDraftObject>;
   TEvalNodeMap = specialize TDictionary<string, TEvalNode>;
+  TKeySet = specialize TDictionary<string, boolean>;
 
   TPattern = class
   private
@@ -99,11 +117,19 @@ type
     FMaterialSet: TPatternMaterials;
     FNotes, FMeasurementFile, FIdentity: string;
     FView: TPatternView;
+    // What hidden and isolated pieces leave off the canvas, worked out from
+    // the graph when the view, the evaluation or the objects have changed
+    FHiddenKeys, FDimmedKeys: TKeySet;
+    FEvaluations, FVisibleViewVersion, FVisibleEvaluations, FVisibleObjectCount: integer;
+    FVisibilityKnown: boolean;
     // Marking lines and marked points to give a piece after the next
     // evaluation, which works out where they lie; FAssignLoose adds every one
     // without a piece
     FPendingMarkings: TStringArray;
     FAssignLoose: boolean;
+    procedure CollectUsed(const StartKey: string; Into: TKeySet);
+    procedure UpdateVisibility;
+    function VisibilityKey(DraftObject: TDraftObject): string;
     procedure QueueMarking(DraftObject: TDraftObject);
     function AssignPendingMarkings: boolean;
     // Takes the object's marking lines or marked points off every piece
@@ -114,7 +140,6 @@ type
     // A refused new object's ID goes back, unless something took one since
     procedure GiveBackId(const Key: string);
     // Every piece, in pattern order
-    function PieceList: TPieceObjectArray;
     function GetMaterialCount: integer;
     function GetMaterial(Index: integer): TPatternMaterial;
     function DeleteTransform(Transform: TTransformObject): boolean;
@@ -271,8 +296,26 @@ type
     function PiecesWithMarking(const Key: string): TPieceObjectArray;
     // A marking line or a point or repeat with a marker
     function IsMarking(DraftObject: TDraftObject): boolean;
-    // An edge whose role the view hides, or a note while notes are hidden
+    // Not drawn on the canvas: an edge whose role the view hides, a note
+    // while notes are hidden, or a hidden piece and what only hidden pieces use
     function IsHidden(DraftObject: TDraftObject): boolean;
+    // Drawn faintly and out of reach, while another piece is isolated
+    function IsDimmed(DraftObject: TDraftObject): boolean;
+    // Shown and not dimmed: what the canvas lets you click, snap to and select
+    function IsActive(DraftObject: TDraftObject): boolean;
+    // The isolated piece, or nil when none is, or it is gone
+    function IsolatedPiece: TPieceObject;
+    // Every piece, in pattern order
+    function PieceList: TPieceObjectArray;
+    // Every piece, lowest first, in the view's drawing order
+    function PiecesInDrawOrder: TPieceObjectArray;
+    function IsPieceHidden(Piece: TPieceObject): boolean;
+    procedure SetPieceHidden(Piece: TPieceObject; Hidden: boolean);
+    procedure ShowAllPieces;
+    // How many pieces that still exist are hidden
+    function HiddenPieceCount: integer;
+    procedure BringToFront(Piece: TPieceObject);
+    procedure SendToBack(Piece: TPieceObject);
     // Sets LastError, for a caller that refuses before changing anything;
     // always False
     function Refuse(const Msg: string): boolean;
@@ -556,6 +599,28 @@ begin
   FCentreY := 0;
   FHiddenRoles := [];
   FHideAnnotations := False;
+  FHiddenPieces := nil;
+  FPieceOrder := nil;
+  FIsolated := '';
+  Inc(FVersion);
+end;
+
+procedure TPatternView.SetHiddenPieces(const Value: TStringArray);
+begin
+  FHiddenPieces := Copy(Value);
+  Inc(FVersion);
+end;
+
+procedure TPatternView.SetPieceOrder(const Value: TStringArray);
+begin
+  FPieceOrder := Copy(Value);
+  Inc(FVersion);
+end;
+
+procedure TPatternView.SetIsolated(const Value: string);
+begin
+  FIsolated := Value;
+  Inc(FVersion);
 end;
 
 const
@@ -757,6 +822,8 @@ begin
   Host.Refuse := @Refuse;
   FMaterialSet := TPatternMaterials.Create(Host);
   FView := TPatternView.Create;
+  FHiddenKeys := TKeySet.Create;
+  FDimmedKeys := TKeySet.Create;
   FMeasurementScale := 1;
   Clear;
 end;
@@ -774,6 +841,8 @@ begin
   FreeAndNil(FContext);
   FreeAndNil(FMaterialSet);
   FreeAndNil(FView);
+  FreeAndNil(FHiddenKeys);
+  FreeAndNil(FDimmedKeys);
   inherited Destroy;
 end;
 
@@ -2418,6 +2487,246 @@ function TPattern.IsHidden(DraftObject: TDraftObject): boolean;
 begin
   Result := ((DraftObject is TEdgeObject) and (TEdgeObject(DraftObject).Role in View.HiddenRoles)) or
     ((DraftObject is TNoteObject) and View.HideAnnotations);
+  if Result or (Length(View.HiddenPieces) = 0) then
+    Exit;
+  UpdateVisibility;
+  Result := FHiddenKeys.ContainsKey(VisibilityKey(DraftObject));
+end;
+
+function TPattern.IsDimmed(DraftObject: TDraftObject): boolean;
+begin
+  if View.Isolated = '' then
+    Exit(False);
+  UpdateVisibility;
+  Result := FDimmedKeys.ContainsKey(VisibilityKey(DraftObject));
+end;
+
+function TPattern.IsActive(DraftObject: TDraftObject): boolean;
+begin
+  Result := not IsHidden(DraftObject) and not IsDimmed(DraftObject);
+end;
+
+// A repeat's points come and go with the repeat
+function TPattern.VisibilityKey(DraftObject: TDraftObject): string;
+begin
+  if DraftObject is TRepeatPoint then
+    Result := TRepeatPoint(DraftObject).Source.Key
+  else
+    Result := DraftObject.Key;
+end;
+
+function TPattern.IsolatedPiece: TPieceObject;
+var
+  Node: TEvalNode;
+begin
+  Result := nil;
+  if View.Isolated = '' then
+    Exit;
+  Node := FindNode(View.Isolated);
+  if Node is TPieceObject then
+    Result := TPieceObject(Node);
+end;
+
+// The object and every drawn object it is made from, through inputs and formulas
+procedure TPattern.CollectUsed(const StartKey: string; Into: TKeySet);
+var
+  Waiting: TStringArray;
+  Key, Used: string;
+  Node: TEvalNode;
+begin
+  Waiting := [StartKey];
+  while System.Length(Waiting) > 0 do
+  begin
+    Key := Waiting[High(Waiting)];
+    SetLength(Waiting, High(Waiting));
+    if Into.ContainsKey(Key) then
+      Continue;
+    Node := FindNode(Key);
+    if not (Node is TDraftObject) then
+      Continue;
+    Into.Add(VisibilityKey(TDraftObject(Node)), True);
+    for Used in Node.DependencyKeys do
+      if not Into.ContainsKey(Used) then
+        System.Insert(Used, Waiting, System.Length(Waiting));
+  end;
+end;
+
+// Hidden: the hidden pieces, and what they use that nothing still showing
+// uses. Seams are not drawn, so they keep nothing showing; a note goes with
+// its pieces when every one is hidden. Dimmed: everything the isolated piece
+// does not use, but its notes.
+procedure TPattern.UpdateVisibility;
+var
+  InPieces, Kept, Hiding, Used: TKeySet;
+  Piece: TPieceObject;
+  DraftObject: TDraftObject;
+  NotePiece: TPieceObject;
+  Key: string;
+  AllHidden: boolean;
+  Isolated: TPieceObject;
+begin
+  if FVisibilityKnown and (FVisibleViewVersion = View.Version) and (FVisibleEvaluations = FEvaluations) and
+    (FVisibleObjectCount = FObjects.Count) then
+    Exit;
+  FVisibilityKnown := True;
+  FVisibleViewVersion := View.Version;
+  FVisibleEvaluations := FEvaluations;
+  FVisibleObjectCount := FObjects.Count;
+  FHiddenKeys.Clear;
+  FDimmedKeys.Clear;
+  InPieces := TKeySet.Create;
+  Kept := TKeySet.Create;
+  Hiding := TKeySet.Create;
+  Used := TKeySet.Create;
+  try
+    if HiddenPieceCount > 0 then
+    begin
+      for Piece in PieceList do
+      begin
+        CollectUsed(Piece.Key, InPieces);
+        if IsPieceHidden(Piece) then
+          CollectUsed(Piece.Key, Hiding)
+        else
+          CollectUsed(Piece.Key, Kept);
+      end;
+      for DraftObject in FObjects do
+      begin
+        if InPieces.ContainsKey(DraftObject.Key) or (DraftObject is TSeamObject) then
+          Continue;
+        if DraftObject is TNoteObject then
+        begin
+          AllHidden := System.Length(NotePieces(TNoteObject(DraftObject))) > 0;
+          for NotePiece in NotePieces(TNoteObject(DraftObject)) do
+            AllHidden := AllHidden and IsPieceHidden(NotePiece);
+          if AllHidden then
+          begin
+            FHiddenKeys.AddOrSetValue(DraftObject.Key, True);
+            Continue;
+          end;
+        end;
+        CollectUsed(DraftObject.Key, Kept);
+      end;
+      for Key in Hiding.Keys do
+        if not Kept.ContainsKey(Key) then
+          FHiddenKeys.AddOrSetValue(Key, True);
+    end;
+    Isolated := IsolatedPiece;
+    if Assigned(Isolated) then
+    begin
+      CollectUsed(Isolated.Key, Used);
+      for DraftObject in FObjects do
+        if DraftObject is TNoteObject then
+          for NotePiece in NotePieces(TNoteObject(DraftObject)) do
+            if NotePiece = Isolated then
+              Used.AddOrSetValue(DraftObject.Key, True);
+      for DraftObject in FObjects do
+        if not Used.ContainsKey(DraftObject.Key) then
+          FDimmedKeys.AddOrSetValue(DraftObject.Key, True);
+    end;
+  finally
+    FreeAndNil(Used);
+    FreeAndNil(Hiding);
+    FreeAndNil(Kept);
+    FreeAndNil(InPieces);
+  end;
+end;
+
+function TPattern.PiecesInDrawOrder: TPieceObjectArray;
+var
+  Key: string;
+  Node: TEvalNode;
+  Piece: TPieceObject;
+  Listed: TKeySet;
+begin
+  Result := nil;
+  Listed := TKeySet.Create;
+  try
+    for Key in View.PieceOrder do
+    begin
+      Node := FindNode(Key);
+      if (Node is TPieceObject) and not Listed.ContainsKey(Key) then
+      begin
+        Listed.Add(Key, True);
+        System.Insert(TPieceObject(Node), Result, System.Length(Result));
+      end;
+    end;
+    for Piece in PieceList do
+      if not Listed.ContainsKey(Piece.Key) then
+        System.Insert(Piece, Result, System.Length(Result));
+  finally
+    FreeAndNil(Listed);
+  end;
+end;
+
+function TPattern.IsPieceHidden(Piece: TPieceObject): boolean;
+var
+  Key: string;
+begin
+  Result := False;
+  for Key in View.HiddenPieces do
+    if Key = Piece.Key then
+      Exit(True);
+end;
+
+procedure TPattern.SetPieceHidden(Piece: TPieceObject; Hidden: boolean);
+var
+  Keys: TStringArray;
+  Key: string;
+begin
+  if IsPieceHidden(Piece) = Hidden then
+    Exit;
+  Keys := nil;
+  for Key in View.HiddenPieces do
+    if (Key <> Piece.Key) and (FindNode(Key) is TPieceObject) then
+      System.Insert(Key, Keys, System.Length(Keys));
+  if Hidden then
+  begin
+    System.Insert(Piece.Key, Keys, System.Length(Keys));
+    // A hidden piece cannot be worked on alone
+    if View.Isolated = Piece.Key then
+      View.Isolated := '';
+  end;
+  View.HiddenPieces := Keys;
+end;
+
+procedure TPattern.ShowAllPieces;
+begin
+  View.HiddenPieces := nil;
+end;
+
+function TPattern.HiddenPieceCount: integer;
+var
+  Key: string;
+begin
+  Result := 0;
+  for Key in View.HiddenPieces do
+    if FindNode(Key) is TPieceObject then
+      Inc(Result);
+end;
+
+procedure TPattern.BringToFront(Piece: TPieceObject);
+var
+  Keys: TStringArray;
+  Each: TPieceObject;
+begin
+  Keys := nil;
+  for Each in PiecesInDrawOrder do
+    if Each <> Piece then
+      System.Insert(Each.Key, Keys, System.Length(Keys));
+  System.Insert(Piece.Key, Keys, System.Length(Keys));
+  View.PieceOrder := Keys;
+end;
+
+procedure TPattern.SendToBack(Piece: TPieceObject);
+var
+  Keys: TStringArray;
+  Each: TPieceObject;
+begin
+  Keys := [Piece.Key];
+  for Each in PiecesInDrawOrder do
+    if Each <> Piece then
+      System.Insert(Each.Key, Keys, System.Length(Keys));
+  View.PieceOrder := Keys;
 end;
 
 function TPattern.IsMarking(DraftObject: TDraftObject): boolean;
@@ -3404,6 +3713,7 @@ begin
   RebuildMeasurementNodes;
   FEvaluator.Rebuild(AllNodes, FContext);
   FEvaluator.Run(FContext);
+  Inc(FEvaluations);
   // Where a new marking line lies is only known once it is computed
   if AssignPendingMarkings then
   begin

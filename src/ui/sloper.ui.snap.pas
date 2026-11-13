@@ -151,9 +151,10 @@ begin
   end;
 end;
 
+// Valid, computed, and neither hidden nor dimmed by an isolated piece
 function IsUsable(Pattern: TPattern; DraftObject: TDraftObject): boolean;
 begin
-  Result := (DraftObject.State = esValid) and DraftObject.HasResult;
+  Result := (DraftObject.State = esValid) and DraftObject.HasResult and Pattern.IsActive(DraftObject);
 end;
 
 // Valid edges within Radius of At, in pattern order
@@ -167,7 +168,7 @@ begin
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TEdgeObject) or not IsUsable(Pattern, DraftObject) or Pattern.IsHidden(DraftObject) then
+    if not (DraftObject is TEdgeObject) or not IsUsable(Pattern, DraftObject) then
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
     if Offset <= Radius then

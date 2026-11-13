@@ -59,6 +59,24 @@ Points and lines inside a piece can be marked on it: a point with a marker
 skive or edge-finish line are added to the pieces they lie in. Tools → Markings
 adds them by hand, and stitch holes along an edge.
 
+## Overlapping pieces
+
+Front and back are usually drafted over each other, as on paper. The View
+menu has ways to see one at a time without moving anything. None of them
+changes the pattern or is an undo step, and every piece still prints.
+
+| Command | What it does |
+| --- | --- |
+| Hide Piece | Takes the selected pieces off the canvas, with the lines and points only they use. Lines another piece shares, and construction lines, stay. The status bar says how many pieces are hidden |
+| Show All Pieces | Brings every hidden piece back |
+| Isolate Piece | Works on the selected piece alone: everything it doesn't use is shown faintly and can't be clicked or snapped to. Choose it again, or press ++escape++ with nothing selected, to see everything |
+| Bring to Front, Send to Back | Draws the selected pieces over or under the others |
+
+Hidden pieces, an isolated piece and the drawing order are saved with the
+pattern, so it opens as you left it. File → Export Draft and the
+[Garment tab](garment.md) leave hidden pieces out, as the canvas does; the
+publish app always lays out every piece.
+
 ## Seams
 
 A seam says which edges are sewn together, so their lengths can be checked: a

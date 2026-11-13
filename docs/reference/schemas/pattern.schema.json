@@ -148,6 +148,24 @@
         "hideAnnotations": {
           "description": "Whether notes are hidden",
           "type": "boolean"
+        },
+        "hiddenPieces": {
+          "description": "Pieces hidden on the canvas, by ID, with what only they use; they still print",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "isolate": {
+          "description": "The piece worked on alone on the canvas, by ID; everything it does not use is dimmed",
+          "type": "integer"
+        },
+        "pieceOrder": {
+          "description": "Pieces in drawing order on the canvas, lowest first, by ID; a piece not listed goes on top",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
         }
       },
       "additionalProperties": false

@@ -11,8 +11,10 @@ saved with the pattern.
 ## What it shows
 
 - **Each piece on its own, where it is on the canvas.** Pieces that overlap on
-  the canvas, such as a front drafted over a back, overlap here too, the later
-  piece on top. Move them apart on the canvas to see them apart here.
+  the canvas, such as a front drafted over a back, overlap here too, in the
+  canvas's drawing order. Move them apart on the canvas to see them apart here.
+  Hidden pieces are left out, and while a piece is isolated only it is shown
+  (see [Overlapping pieces](pieces.md#overlapping-pieces)).
 - **Upright by its grainline.** A piece with a grainline is turned so the
   grainline points up, as the piece hangs on the body. A waistband drafted
   upright with a sideways grainline is shown lying across.

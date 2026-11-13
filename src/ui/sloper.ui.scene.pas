@@ -238,7 +238,7 @@ begin
   Best := Radius;
   for Point in Pattern.AllPoints do
   begin
-    if not Point.HasResult then
+    if not Point.HasResult or not Pattern.IsActive(Point) then
       Continue;
     Gap := Distance(Point.Position, At);
     if Gap <= Best then
@@ -269,7 +269,7 @@ function ObjectsInBox(Pattern: TPattern; const Box: TRect2): TStringArray;
     Empty: boolean;
   begin
     if not ((DraftObject is TPointObject) or (DraftObject is TEdgeObject) or (DraftObject is TPieceObject) or (DraftObject is TNoteObject)) or
-      Pattern.IsHidden(DraftObject) then
+      not Pattern.IsActive(DraftObject) then
       Exit;
     Empty := True;
     IncludeObject(Bounds, Empty, DraftObject);
@@ -305,8 +305,13 @@ begin
 end;
 
 function ShownPoints(Pattern: TPattern): TPointObjectArray;
+var
+  Point: TPointObject;
 begin
-  Result := Pattern.AllPoints;
+  Result := nil;
+  for Point in Pattern.AllPoints do
+    if not Pattern.IsHidden(Point) then
+      Insert(Point, Result, Length(Result));
 end;
 
 function PieceAt(Pattern: TPattern; const At: TVec2): TPieceObject;
@@ -318,7 +323,7 @@ begin
   Result := nil;
   Best := Infinity;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult then
+    if (Pattern.Objects[Index] is TPieceObject) and Pattern.Objects[Index].HasResult and Pattern.IsActive(Pattern.Objects[Index]) then
     begin
       Piece := TPieceObject(Pattern.Objects[Index]);
       Size := Abs(SignedArea(Piece.CutLine));
@@ -384,7 +389,7 @@ var
 begin
   Found := nil;
   for Point in Pattern.AllPoints do
-    if Point.HasResult and (Distance(Point.Position, At) <= PointRadius) then
+    if Point.HasResult and Pattern.IsActive(Point) and (Distance(Point.Position, At) <= PointRadius) then
       Add(Point.Key, Distance(Point.Position, At));
   SortFrom(0);
   First := Length(Found);
@@ -393,7 +398,7 @@ begin
   begin
     DraftObject := Pattern.Objects[Index];
     if not (DraftObject is TEdgeObject) or not DraftObject.HasResult or (Length(TEdgeObject(DraftObject).Segments) = 0) or
-      Pattern.IsHidden(DraftObject) then
+      not Pattern.IsActive(DraftObject) then
       Continue;
     TEdgeObject(DraftObject).Locate(At, Position, Offset);
     if Offset <= EdgeRadius then
@@ -425,7 +430,7 @@ begin
   for Index := Pattern.ObjectCount - 1 downto 0 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if not (DraftObject is TNoteObject) or not DraftObject.HasResult or Pattern.IsHidden(DraftObject) then
+    if not (DraftObject is TNoteObject) or not DraftObject.HasResult or not Pattern.IsActive(DraftObject) then
       Continue;
     Box := NoteFrame(TNoteObject(DraftObject), Values);
     if (At.X >= Box.MinX - Margin) and (At.X <= Box.MaxX + Margin) and (At.Y >= Box.MinY - Margin) and (At.Y <= Box.MaxY + Margin) then
@@ -613,7 +618,7 @@ begin
   Best := Radius;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
-    if not (Pattern.Objects[Index] is TPieceObject) or not Pattern.Objects[Index].HasResult then
+    if not (Pattern.Objects[Index] is TPieceObject) or not Pattern.Objects[Index].HasResult or not Pattern.IsActive(Pattern.Objects[Index]) then
       Continue;
     Piece := TPieceObject(Pattern.Objects[Index]);
     for PathEntry in Piece.Path do
@@ -730,7 +735,7 @@ begin
   Result := False;
   Best := Radius;
   for Index := 0 to Pattern.ObjectCount - 1 do
-    if (Pattern.Objects[Index] is TPieceObject) then
+    if (Pattern.Objects[Index] is TPieceObject) and Pattern.IsActive(Pattern.Objects[Index]) then
     begin
       Piece := TPieceObject(Pattern.Objects[Index]);
       for Entry := 0 to High(Piece.Path) do
@@ -849,7 +854,7 @@ begin
       // label, and a hidden line shows only while it is selected
       if DraftObject.HasResult and not (DraftObject is TSeamObject) and not (DraftObject is TTransformObject) and not (DraftObject is TNoteObject) and
         ((Mode = lmAll) or Wanted.Contains(DraftObject.Key)) and
-        (not Pattern.IsHidden(DraftObject) or (IndexStr(DraftObject.Key, Selection) >= 0)) then
+        (Pattern.IsActive(DraftObject) or (IndexStr(DraftObject.Key, Selection) >= 0)) then
       begin
         Result[Count] := DraftObject.Key;
         Inc(Count);

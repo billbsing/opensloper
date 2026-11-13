@@ -20,6 +20,12 @@ Changed, Fixed and Removed under each version.
   the canvas and a click selects it there; a selected seam is marked on both
   its sides. It exports SVG and PNG, the Automation API's `render` draws it
   with `garment`, and Preferences set its light.
+- Overlapping pieces can be hidden, isolated and stacked (#10), from the View
+  menu. Hide Piece takes a piece off the canvas with what only it uses; Isolate
+  Piece dims everything the piece does not use and puts it out of reach; Bring
+  to Front and Send to Back change the drawing order. They are saved with the
+  pattern, outside undo, and the Garment tab and Export Draft follow them;
+  every piece still prints.
 - Notes and sheet notes have a font, bold and italic (#7). The canvas draws
   the font, SVG names it, and PDF embeds it from its TrueType file, cut down to
   the letters used. A font that cannot be embedded prints in the default font,

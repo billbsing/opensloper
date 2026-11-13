@@ -84,6 +84,9 @@ resourcestring
   rsFileViewCentre = 'The point in the middle of the window, as x and y in mm';
   rsFileViewHiddenRoles = 'The kinds of line hidden on the canvas';
   rsFileViewHideAnnotations = 'Whether notes are hidden';
+  rsFileViewHiddenPieces = 'Pieces hidden on the canvas, by ID, with what only they use; they still print';
+  rsFileViewIsolate = 'The piece worked on alone on the canvas, by ID; everything it does not use is dimmed';
+  rsFileViewPieceOrder = 'Pieces in drawing order on the canvas, lowest first, by ID; a piece not listed goes on top';
 
   rsFileMeasurementsTitle = 'Measurements';
   rsFileMeasurementsSummary = 'Made by opensloper-measurements: one person''s measurements, with a value each, or a ' +
@@ -386,6 +389,9 @@ begin
   M('view.centre[]', mkSize, rsFileViewCentre);
   M('view.hiddenRoles[]', mkChoice, rsFileViewHiddenRoles, RoleChoices);
   M('view.hideAnnotations', mkFlag, rsFileViewHideAnnotations);
+  M('view.hiddenPieces[]', mkWhole, rsFileViewHiddenPieces);
+  M('view.isolate', mkWhole, rsFileViewIsolate);
+  M('view.pieceOrder[]', mkWhole, rsFileViewPieceOrder);
 
   FileFormat(MEASUREMENT_FORMAT, MEASUREMENT_EXTENSION_NAME, MEASUREMENT_VERSION, rsFileMeasurementsTitle, rsFileMeasurementsSummary,
     MEASUREMENTS_EXAMPLE);
