@@ -28,7 +28,7 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Core.TextFields, Sloper.Core.Note,
   Sloper.Output.Layout, Sloper.Output.LayoutDocument,
-  Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu, Sloper.UI.Accordion;
+  Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu, Sloper.UI.Accordion, Sloper.UI.SavePrompt;
 
 type
   TPublishForm = class(TForm)
@@ -137,7 +137,10 @@ type
     function ConfirmDiscard: boolean;
     procedure OpenPath(const Path: string);
     procedure RecentOpen(Sender: TObject; const FileName: string);
-    procedure SaveLayout(const FileName: string);
+    function SaveLayout(const FileName: string): boolean;
+    // False when the save failed or the user cancelled the file dialog
+    function Save: boolean;
+    function SaveAs: boolean;
     procedure ShowStatus(const AText: string);
   public
     constructor Create(AOwner: TComponent); override;
@@ -278,7 +281,6 @@ resourcestring
   rsPlaceOne = 'Place piece';
   rsTurnChange = 'Turn piece';
   rsFlipChange = 'Flip piece';
-  rsDiscardQuestion = 'Discard the changes to this layout?';
   rsPages = '%d pages, %d blank, %d left out. Right-click a page to leave it out.';
   rsLargeSheet = 'One sheet %s mm wide, %s mm long';
   rsReloaded = '%s changed on disk, so it was read again';
@@ -1321,19 +1323,50 @@ begin
     OpenPath(FileName);
 end;
 
-procedure TPublishForm.SaveLayout(const FileName: string);
+function TPublishForm.SaveLayout(const FileName: string): boolean;
 var
   Reason: string;
 begin
-  if FDocument.Save(FileName, Reason) then
+  Result := FDocument.Save(FileName, Reason);
+  if Result then
     FRecent.Remember(FileName)
   else
     ShowStatus(Reason);
 end;
 
+function TPublishForm.Save: boolean;
+begin
+  if FDocument.Layout.FileName = '' then
+    Result := SaveAs
+  else
+    Result := SaveLayout(FDocument.Layout.FileName);
+end;
+
+function TPublishForm.SaveAs: boolean;
+var
+  Dialog: TSaveDialog;
+begin
+  Dialog := TSaveDialog.Create(Self);
+  try
+    Dialog.Filter := rsFilterLayout;
+    Dialog.DefaultExt := LAYOUT_EXTENSION;
+    Dialog.FileName := FDocument.Layout.FileName;
+    Result := Dialog.Execute and SaveLayout(Dialog.FileName);
+  finally
+    FreeAndNil(Dialog);
+  end;
+end;
+
 function TPublishForm.ConfirmDiscard: boolean;
 begin
-  Result := not FDocument.Modified or (MessageDlg(rsDiscardQuestion, mtConfirmation, [mbYes, mbNo], 0) = mrYes);
+  if not FDocument.Modified then
+    Exit(True);
+  case AskSaveChanges(ExtractFileName(FDocument.Layout.FileName)) of
+    mrYes: Result := Save;
+    mrNo: Result := True;
+    else
+      Result := False;
+  end;
 end;
 
 // The open tab is kept for next time; a settings file that cannot be read is
@@ -1365,26 +1398,12 @@ end;
 
 procedure TPublishForm.SaveClick(Sender: TObject);
 begin
-  if FDocument.Layout.FileName = '' then
-    SaveAsClick(Sender)
-  else
-    SaveLayout(FDocument.Layout.FileName);
+  Save;
 end;
 
 procedure TPublishForm.SaveAsClick(Sender: TObject);
-var
-  Dialog: TSaveDialog;
 begin
-  Dialog := TSaveDialog.Create(Self);
-  try
-    Dialog.Filter := rsFilterLayout;
-    Dialog.DefaultExt := LAYOUT_EXTENSION;
-    Dialog.FileName := FDocument.Layout.FileName;
-    if Dialog.Execute then
-      SaveLayout(Dialog.FileName);
-  finally
-    FreeAndNil(Dialog);
-  end;
+  SaveAs;
 end;
 
 procedure TPublishForm.ExportClick(Sender: TObject);

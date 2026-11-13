@@ -29,7 +29,7 @@ uses
   Sloper.Core.Piece,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.CanvasTools, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
-  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
+  Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.SavePrompt, Sloper.UI.Ruler,
   Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.Preferences,
   Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion, Sloper.UI.Automation, Sloper.UI.AssistantPanel,
   Sloper.UI.GarmentPanel, Sloper.Core.Garment, fpjson;
@@ -384,11 +384,9 @@ resourcestring
   rsMenuHelp = '&Help';
   rsMenuHelpAbout = '&About OpenSloper';
   rsAboutSummary = 'Parametric sewing pattern drafting.';
-  rsUntitled = 'Untitled';
   rsTitle = '%s%s - %s';
   rsPatternFilter = 'OpenSloper patterns (*.sloper)|*.sloper|All files|%s';
   rsMeasurementFilter = 'Measurement sets (*.slm)|*.slm|All files|%s';
-  rsSaveChanges = 'Save the changes to %s?';
   rsOpenFailed = 'Could not open %s:'#10'%s';
   rsSaveFailed = 'Could not save %s:'#10'%s';
   rsMeasurementsFailed = 'Could not use %s:'#10'%s';
@@ -1680,7 +1678,7 @@ begin
     Exit(False);
   if not FDocument.Modified then
     Exit(True);
-  case MessageDlg(Format(rsSaveChanges, [DisplayName]), mtConfirmation, [mbYes, mbNo, mbCancel], 0) of
+  case AskSaveChanges(DisplayName) of
     mrYes: Result := Save;
     mrNo: Result := True;
     else

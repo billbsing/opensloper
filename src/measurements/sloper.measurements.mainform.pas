@@ -28,7 +28,7 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Dialogs, Grids, ActnList, Sloper.Core.Catalogue,
   Sloper.Core.Measurements, Sloper.Core.Units,
-  Sloper.Document.MeasurementDocument, Sloper.Measurements.BodyFigure, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu;
+  Sloper.Document.MeasurementDocument, Sloper.Measurements.BodyFigure, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu, Sloper.UI.SavePrompt;
 
 type
   TMeasurementsForm = class(TForm)
@@ -136,6 +136,9 @@ type
     procedure CloseAsked(Sender: TObject; var CanClose: boolean);
     function ConfirmDiscard: boolean;
     function SaveTo(const FileName: string): boolean;
+    // False when the save failed or the user cancelled the file dialog
+    function Save: boolean;
+    function SaveAs: boolean;
     procedure OpenPath(const Path: string);
     procedure RecentOpen(Sender: TObject; const FileName: string);
     procedure ShowStatus(const AText: string);
@@ -150,7 +153,6 @@ type
 resourcestring
   rsMeasurementsTitle = 'OpenSloper Measurements';
   rsMeasurementsTitleFile = '%s%s - OpenSloper Measurements';
-  rsUntitled = 'Untitled';
   rsMenuFile = '&File';
   rsMenuNew = '&New';
   rsMenuOpen = '&Open...';
@@ -206,7 +208,6 @@ resourcestring
   rsRenameSizeTitle = 'Rename size %s';
   rsDeleteSizeQuestion = 'Delete size %s and its values?';
   rsDeleteQuestion = 'Delete @%s? Patterns using it will show it as missing.';
-  rsDiscardQuestion = 'Discard the changes to this file?';
   rsChooseASize = 'Click a value in the size''s column first';
   rsChooseAMeasurement = 'Click a measurement first';
   rsRenamed = 'Renamed to @%s. Patterns using @%s will show it as missing';
@@ -1159,12 +1160,20 @@ end;
 
 function TMeasurementsForm.ConfirmDiscard: boolean;
 begin
-  Result := not FDocument.Modified or (MessageDlg(rsDiscardQuestion, mtConfirmation, [mbYes, mbNo], 0) = mrYes);
+  if not FDocument.Modified then
+    Exit(True);
+  case AskSaveChanges(ExtractFileName(FDocument.FileName)) of
+    mrYes: Result := Save;
+    mrNo: Result := True;
+    else
+      Result := False;
+  end;
 end;
 
 procedure TMeasurementsForm.CloseAsked(Sender: TObject; var CanClose: boolean);
 begin
   FGrid.EditingDone;
+  HeaderDone(Self);
   CanClose := ConfirmDiscard;
 end;
 
@@ -1221,33 +1230,42 @@ begin
     MessageDlg(Format(rsSaveFailed, [FileName, Reason]), mtError, [mbOK], 0);
 end;
 
-procedure TMeasurementsForm.SaveClick(Sender: TObject);
+function TMeasurementsForm.Save: boolean;
 begin
   FGrid.EditingDone;
-  HeaderDone(Sender);
+  HeaderDone(Self);
   if FDocument.FileName = '' then
-    SaveAsClick(Sender)
+    Result := SaveAs
   else
-    SaveTo(FDocument.FileName);
+    Result := SaveTo(FDocument.FileName);
 end;
 
-procedure TMeasurementsForm.SaveAsClick(Sender: TObject);
+function TMeasurementsForm.SaveAs: boolean;
 var
   Dialog: TSaveDialog;
 begin
   FGrid.EditingDone;
-  HeaderDone(Sender);
+  HeaderDone(Self);
   Dialog := TSaveDialog.Create(Self);
   try
     Dialog.Filter := rsFilter;
     Dialog.DefaultExt := MEASUREMENT_EXTENSION;
     Dialog.FileName := FDocument.FileName;
     Dialog.Options := Dialog.Options + [ofOverwritePrompt];
-    if Dialog.Execute then
-      SaveTo(Dialog.FileName);
+    Result := Dialog.Execute and SaveTo(Dialog.FileName);
   finally
     FreeAndNil(Dialog);
   end;
+end;
+
+procedure TMeasurementsForm.SaveClick(Sender: TObject);
+begin
+  Save;
+end;
+
+procedure TMeasurementsForm.SaveAsClick(Sender: TObject);
+begin
+  SaveAs;
 end;
 
 // So nothing is altered silently, whatever changed on the way is shown
