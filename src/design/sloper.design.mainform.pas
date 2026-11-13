@@ -25,7 +25,8 @@ unit Sloper.Design.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry, Sloper.Core.Draft,
+  Classes, SysUtils, StrUtils, Forms, Controls, Menus, Dialogs, ComCtrls, ExtCtrls, StdCtrls, LCLType, ActnList, Sloper.Core.Geometry, Sloper.Core.Draft,
+  Sloper.Core.Piece,
   Sloper.Core.Settings, Sloper.Document.PatternDocument, Sloper.UI.Canvas, Sloper.UI.CanvasTools, Sloper.UI.Properties,
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
@@ -105,6 +106,7 @@ type
     FToolIcons, FDisabledIcons, FMenuIcons: TImageList;
     FCommandBar, FToolBar: TToolBar;
     FUndoAction, FRedoAction, FPieceFillsAction, FSideAction, FRulersAction, FAnnotationsAction: TAction;
+    FHidePieceAction, FShowPiecesAction, FIsolateAction, FBringToFrontAction, FSendToBackAction: TAction;
     FRulerTop: TPanel;
     FRulerCorner: TRulerCorner;
     FHorzRuler, FVertRuler: TCanvasRuler;
@@ -159,6 +161,13 @@ type
     procedure CreateDrawRoleBox;
     procedure PieceFillsClick(Sender: TObject);
     procedure AnnotationsClick(Sender: TObject);
+    function SelectedPieces: TPieceObjectArray;
+    procedure PieceViewChanged(const AText: string);
+    procedure HidePieceClick(Sender: TObject);
+    procedure ShowPiecesClick(Sender: TObject);
+    procedure IsolateClick(Sender: TObject);
+    procedure BringToFrontClick(Sender: TObject);
+    procedure SendToBackClick(Sender: TObject);
     procedure CanvasNoteAdded(Sender: TObject);
     procedure CreateSidePanel;
     procedure SetSideShown(Shown: boolean);
@@ -228,7 +237,7 @@ var
 implementation
 
 uses
-  Math, process, Graphics, Clipbrd, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Output.DraftSVG,
+  Math, process, Graphics, Clipbrd, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
   Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.UnitConvert,
   Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout, Sloper.Core.Evaluator, Sloper.API.Server;
@@ -305,6 +314,22 @@ resourcestring
   rsMenuViewLabels = '&Labels';
   rsMenuViewPieceFills = 'Piece &Fills';
   rsMenuViewAnnotations = '&Annotations';
+  rsMenuViewHidePiece = '&Hide Piece';
+  rsMenuViewShowPieces = 'Show All &Pieces';
+  rsMenuViewIsolate = '&Isolate Piece';
+  rsMenuViewBringToFront = 'Bring to &Front';
+  rsMenuViewSendToBack = 'Send to &Back';
+  rsPieceNoneSelected = 'Select a piece first';
+  rsPieceIsolateOne = 'Select one piece to isolate';
+  rsPiecesHiddenNow = 'Hid %s; View → Show All Pieces brings it back';
+  rsPiecesShownNow = 'Every piece is shown';
+  rsPieceIsolatedNow = 'Working on %s alone; press Escape or choose View → Isolate Piece again to see everything';
+  rsPieceIsolationEnded = 'Showing everything';
+  rsPiecesBroughtToFront = 'Brought %s to the front';
+  rsPiecesSentToBack = 'Sent %s to the back';
+  rsPieceHiddenStatus = '%s; 1 piece hidden';
+  rsPiecesHiddenStatus = '%s; %d pieces hidden';
+  rsPieceIsolatedStatus = '%s; %s isolated';
   rsLabelsContextual = '&Contextual';
   rsLabelsAll = '&All (hold N)';
   rsLabelsNone = '&None';
@@ -868,6 +893,154 @@ begin
   AddMenuItem(MenuView, FPieceFillsAction);
   FAnnotationsAction := NewAction(rsMenuViewAnnotations, aiAnnotations, @AnnotationsClick);
   AddMenuItem(MenuView, FAnnotationsAction);
+  // For overlapping pieces: view state, outside undo
+  MenuView.Add(NewLine);
+  FHidePieceAction := NewAction(rsMenuViewHidePiece, aiHidePiece, @HidePieceClick);
+  AddMenuItem(MenuView, FHidePieceAction);
+  FShowPiecesAction := NewAction(rsMenuViewShowPieces, aiShowPieces, @ShowPiecesClick);
+  AddMenuItem(MenuView, FShowPiecesAction);
+  FIsolateAction := NewAction(rsMenuViewIsolate, aiIsolate, @IsolateClick);
+  AddMenuItem(MenuView, FIsolateAction);
+  FBringToFrontAction := NewAction(rsMenuViewBringToFront, aiBringToFront, @BringToFrontClick);
+  AddMenuItem(MenuView, FBringToFrontAction);
+  FSendToBackAction := NewAction(rsMenuViewSendToBack, aiSendToBack, @SendToBackClick);
+  AddMenuItem(MenuView, FSendToBackAction);
+end;
+
+function TMainForm.SelectedPieces: TPieceObjectArray;
+var
+  Key: string;
+  Node: TEvalNode;
+begin
+  Result := nil;
+  for Key in FCanvas.Selection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if Node is TPieceObject then
+      Insert(TPieceObject(Node), Result, Length(Result));
+  end;
+end;
+
+// The names of the pieces, for the status bar
+function PieceNames(const Pieces: TPieceObjectArray): string;
+var
+  Piece: TPieceObject;
+begin
+  Result := '';
+  for Piece in Pieces do
+  begin
+    if Result <> '' then
+      Result := Result + ', ';
+    Result := Result + Piece.DisplayName;
+  end;
+end;
+
+procedure TMainForm.PieceViewChanged(const AText: string);
+begin
+  FDocument.ViewChanged;
+  FCanvas.Invalidate;
+  StatusBar.Panels[PANEL_MESSAGE].Text := AText;
+end;
+
+// What only the pieces use goes with them; they still print
+procedure TMainForm.HidePieceClick(Sender: TObject);
+var
+  Pieces: TPieceObjectArray;
+  Piece: TPieceObject;
+  Kept: TStringArray;
+  Key: string;
+begin
+  Pieces := SelectedPieces;
+  if Length(Pieces) = 0 then
+  begin
+    StatusBar.Panels[PANEL_MESSAGE].Text := rsPieceNoneSelected;
+    Exit;
+  end;
+  for Piece in Pieces do
+    FDocument.Pattern.SetPieceHidden(Piece, True);
+  // What went out of sight leaves the selection
+  Kept := nil;
+  for Key in FCanvas.Selection do
+    if (FDocument.Pattern.FindNode(Key) is TDraftObject) and not FDocument.Pattern.IsHidden(TDraftObject(FDocument.Pattern.FindNode(Key))) then
+      Insert(Key, Kept, Length(Kept));
+  FCanvas.SelectObjects(Kept);
+  PieceViewChanged(Format(rsPiecesHiddenNow, [PieceNames(Pieces)]));
+end;
+
+procedure TMainForm.ShowPiecesClick(Sender: TObject);
+begin
+  FDocument.Pattern.ShowAllPieces;
+  PieceViewChanged(rsPiecesShownNow);
+end;
+
+// A toggle: with a piece isolated it shows everything again
+procedure TMainForm.IsolateClick(Sender: TObject);
+var
+  Pieces: TPieceObjectArray;
+  Kept: TStringArray;
+  Key: string;
+  Node: TEvalNode;
+begin
+  if Assigned(FDocument.Pattern.IsolatedPiece) then
+  begin
+    FDocument.Pattern.View.Isolated := '';
+    PieceViewChanged(rsPieceIsolationEnded);
+    Exit;
+  end;
+  Pieces := SelectedPieces;
+  if Length(Pieces) <> 1 then
+  begin
+    StatusBar.Panels[PANEL_MESSAGE].Text := rsPieceIsolateOne;
+    Exit;
+  end;
+  FDocument.Pattern.SetPieceHidden(Pieces[0], False);
+  FDocument.Pattern.View.Isolated := Pieces[0].Key;
+  // Only what can still be reached stays selected
+  Kept := nil;
+  for Key in FCanvas.Selection do
+  begin
+    Node := FDocument.Pattern.FindNode(Key);
+    if (Node is TDraftObject) and FDocument.Pattern.IsActive(TDraftObject(Node)) then
+      Insert(Key, Kept, Length(Kept));
+  end;
+  FCanvas.SelectObjects(Kept);
+  PieceViewChanged(Format(rsPieceIsolatedNow, [Pieces[0].DisplayName]));
+end;
+
+procedure TMainForm.BringToFrontClick(Sender: TObject);
+var
+  Pieces: TPieceObjectArray;
+  Piece: TPieceObject;
+begin
+  Pieces := SelectedPieces;
+  if Length(Pieces) = 0 then
+  begin
+    StatusBar.Panels[PANEL_MESSAGE].Text := rsPieceNoneSelected;
+    Exit;
+  end;
+  // In the order they were drawn, so they keep it among themselves
+  for Piece in FDocument.Pattern.PiecesInDrawOrder do
+    if IndexStr(Piece.Key, FCanvas.Selection) >= 0 then
+      FDocument.Pattern.BringToFront(Piece);
+  PieceViewChanged(Format(rsPiecesBroughtToFront, [PieceNames(Pieces)]));
+end;
+
+procedure TMainForm.SendToBackClick(Sender: TObject);
+var
+  Pieces, Order: TPieceObjectArray;
+  Index: integer;
+begin
+  Pieces := SelectedPieces;
+  if Length(Pieces) = 0 then
+  begin
+    StatusBar.Panels[PANEL_MESSAGE].Text := rsPieceNoneSelected;
+    Exit;
+  end;
+  Order := FDocument.Pattern.PiecesInDrawOrder;
+  for Index := High(Order) downto 0 do
+    if IndexStr(Order[Index].Key, FCanvas.Selection) >= 0 then
+      FDocument.Pattern.SendToBack(Order[Index]);
+  PieceViewChanged(Format(rsPiecesSentToBack, [PieceNames(Pieces)]));
 end;
 
 // Kept in the pattern's view, outside undo, like the hidden roles
@@ -1450,6 +1623,8 @@ begin
     FRedoAction.Caption := rsMenuEditRedo;
   SetActionHint(FRedoAction);
   FAnnotationsAction.Checked := not FDocument.Pattern.View.HideAnnotations;
+  FIsolateAction.Checked := Assigned(FDocument.Pattern.IsolatedPiece);
+  FShowPiecesAction.Enabled := FDocument.Pattern.HiddenPieceCount > 0;
 end;
 
 procedure TMainForm.UpdateStatus;
@@ -1473,6 +1648,13 @@ begin
     ProblemText := Format(rsRoleHidden, [ProblemText])
   else if Hidden > 1 then
     ProblemText := Format(rsRolesHidden, [ProblemText, Hidden]);
+  Hidden := FDocument.Pattern.HiddenPieceCount;
+  if Hidden = 1 then
+    ProblemText := Format(rsPieceHiddenStatus, [ProblemText])
+  else if Hidden > 1 then
+    ProblemText := Format(rsPiecesHiddenStatus, [ProblemText, Hidden]);
+  if Assigned(FDocument.Pattern.IsolatedPiece) then
+    ProblemText := Format(rsPieceIsolatedStatus, [ProblemText, FDocument.Pattern.IsolatedPiece.DisplayName]);
   StatusBar.Panels[PANEL_PROBLEMS].Text := ProblemText;
   StatusBar.Panels[PANEL_PROBLEMS].Width := Max(Scale96ToForm(PROBLEMS_PANEL_WIDTH96), StatusBar.Canvas.TextWidth(ProblemText) + Scale96ToForm(16));
   StatusBarResize(StatusBar);
@@ -1628,6 +1810,7 @@ begin
     Options.NoFills := not FCanvas.ShowPieceFills;
     Options.HiddenRoles := FDocument.Pattern.View.HiddenRoles;
     Options.HideAnnotations := FDocument.Pattern.View.HideAnnotations;
+    Options.FollowPieceView := True;
     Options.PatternFileName := FDocument.FileName;
     // The names the canvas is showing: all, none, or for Contextual the
     // selection and what it uses and is used by

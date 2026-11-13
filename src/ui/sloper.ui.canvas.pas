@@ -1386,6 +1386,13 @@ begin
       begin
         if FTool <> ctSelect then
           SetTool(ctSelect)
+        // Last, with nothing selected, it leaves an isolated piece
+        else if (Length(FSelection) = 0) and Assigned(FDocument) and Assigned(FDocument.Pattern.IsolatedPiece) then
+        begin
+          FDocument.Pattern.View.Isolated := '';
+          FDocument.ViewChanged;
+          Invalidate;
+        end
         else
           SelectNone;
       end;

@@ -48,6 +48,9 @@ Version 1. JSON Schema: [pattern.schema.json](schemas/pattern.schema.json).
 | `view.centre[]` | list, each number |  | The point in the middle of the window, as x and y in mm |
 | `view.hiddenRoles[]` | list, each one of: `construction`, `outline`, `placement`, `stitch`, `fold`, `cut`, `skive`, `edgeFinish` |  | The kinds of line hidden on the canvas |
 | `view.hideAnnotations` | true or false |  | Whether notes are hidden |
+| `view.hiddenPieces[]` | list, each whole number |  | Pieces hidden on the canvas, by ID, with what only they use; they still print |
+| `view.isolate` | whole number |  | The piece worked on alone on the canvas, by ID; everything it does not use is dimmed |
+| `view.pieceOrder[]` | list, each whole number |  | Pieces in drawing order on the canvas, lowest first, by ID; a piece not listed goes on top |
 
 Each entry in `objects` is an object whose members depend on its `type`; they are listed on [Operations and objects](operations.md).
 

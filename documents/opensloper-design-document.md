@@ -256,7 +256,13 @@ Construction lines are left out by their role, and an edge with outline split pa
 - **Seam allowance.** The piece's width, and an edge's own in a field such as `edge2.allowance` that exists only while it does. Clipper2's offset takes one width per path, so `OffsetOutline` builds the raw offset with a width per segment (mitred convex corners, bevelled past four times the allowance) and Clipper2's union removes the loops.
 - A piece is a node whose inputs are its edges, so they cannot be deleted while it uses them; a gap over 0.01 mm makes it invalid. A piece that takes on a newer point moves to the end of the object list, since files list inputs first.
 
-**View options for overlapping pieces** (planned, 2026-11-05), view state like zoom: Isolate Piece dims everything the piece does not use, found from the dependency graph so nothing is assigned to a piece; Hide Piece takes a piece off the canvas until it is shown again (whether the edges only it uses go with it is to be decided; added 2026-11-13); Bring to Front and Send to Back change only drawing order. The Garment tab follows all three.
+**View options for overlapping pieces** (planned 2026-11-05, hiding added and built 2026-11-13, #10). View state like zoom, kept out of undo, in the View menu, working on the selected pieces:
+
+- **Hide Piece** takes the piece off the canvas with everything only hidden pieces use (decided 2026-11-13): what the piece is made from, through inputs and formulas (`DependencyKeys`), less what a shown piece, or an object in no piece (a construction line, a note), still uses. A line shared by front and back stays; a construction line drawn from a hidden piece's point keeps that point. Seams keep nothing showing, as they are not drawn, and a note goes with its pieces when all of them are hidden. **Show All Pieces** brings them back, and the status bar says how many are hidden. Hidden pieces still print (decided 2026-11-13): layouts, the publish app, the CLI and the API's `render` include every piece; File → Export Draft follows the screen, as it does for hidden roles.
+- **Isolate Piece** works on one piece alone: everything it does not use, but its notes, is drawn faintly under a wash of paper and cannot be clicked, snapped to, box-selected or labelled (decided 2026-11-13). Choosing it again, or Escape on the Select tool with nothing selected, shows everything. Isolating a hidden piece shows it; hiding the isolated piece ends isolation. Export ignores isolation.
+- **Bring to Front** and **Send to Back** change only the order pieces are drawn in. Clicking inside overlapping pieces still picks the smallest, as before.
+
+The core works these out (`TPattern.IsHidden`, `IsDimmed`, `IsActive`, `PiecesInDrawOrder`) and keeps them until the view, an evaluation or the object count changes; the canvas, snapping and the painter only ask. The Garment tab follows all three (see Garment view).
 
 **Align and distribute** (`Sloper.Core.Arrange`). Modelled on Inkscape's Align and Distribute, but each action rewrites the selected points' definitions so the arrangement holds when measurements change: align sets `x` to `{A}.x`; distribute makes inner points Between points at `i/(n+1)` or Along edge points at equal arc length. A point placed by a formula is only replaced on a yes, and nothing formula-driven is overwritten silently. A point's operation changes in place (`ConvertToFree`, `ConvertToBetween`, `ConvertToAlongEdge`), keeping its ID, name and users. The Align tab is hidden (2026-11-05) because the panel does not work correctly; the code is reached through the Automation API's `arrange`.
 
@@ -367,7 +373,7 @@ A pattern is one drafting area: every object is on the same canvas, drawn in pat
 
 **One garment or product per file.** Garments that share no geometry (a skirt and a top) are separate files, brought together in the publish app. Pieces whose geometry depends on each other (a sleeve cap from the armhole, a collar from the neckline, a gusset from the panel edge it is sewn to) stay in one file. References between files would need a dependency graph across files and IDs unique beyond one file, so they are not planned.
 
-**Overlapping pieces.** Front and back are drafted overlapping, as on paper, and separated with Move Copy (see Transforms). Layers or a tab per piece were rejected (2026-11-05): front and back share points and lines, which would have to belong to one layer, and a tab per piece means deciding the pieces before drawing, against making a piece by clicking inside an outline. Isolate piece and stacking order cover what layers were wanted for, as view state.
+**Overlapping pieces.** Front and back are drafted overlapping, as on paper, and separated with Move Copy (see Transforms). Layers or a tab per piece were rejected (2026-11-05): front and back share points and lines, which would have to belong to one layer, and a tab per piece means deciding the pieces before drawing, against making a piece by clicking inside an outline. Isolating, hiding and stacking pieces cover what layers were wanted for, as view state.
 
 **View state is kept out of undo.** Zoom, centre, hidden roles and hidden annotations are saved in the pattern's `view`, so it reopens as it was left, but are left out of the undo snapshots and the modified flag. The ID counter is also kept out of the snapshots, though it is not view state.
 
@@ -383,7 +389,7 @@ Built 2026-11-13 (#4) as the **Garment** tab of the side panel, after Properties
 
 ### The tab
 
-- **Arranged as on the canvas.** Each piece keeps its drafted place. A piece with a grainline is turned about the middle of its outline so the grainline as drafted is upright, as it hangs on the body; one without keeps its canvas direction. Pieces that overlap, on the canvas (front drafted over back) or once darts close and folds open, are drawn overlapping in pattern order and not pushed apart (decided 2026-11-09): the tab mirrors the canvas, and separating pieces is the drafter's job there (see Overlapping pieces). A piece cut more than once is shown once. Hidden pieces and isolating a piece are not built on the canvas yet; when they are, the tab leaves out what the canvas hides and shows only an isolated piece.
+- **Arranged as on the canvas.** Each piece keeps its drafted place. A piece with a grainline is turned about the middle of its outline so the grainline as drafted is upright, as it hangs on the body; one without keeps its canvas direction. Pieces that overlap, on the canvas (front drafted over back) or once darts close and folds open, are drawn overlapping in the canvas's drawing order and not pushed apart (decided 2026-11-09): the tab mirrors the canvas, and separating pieces is the drafter's job there (see Overlapping pieces). A piece cut more than once is shown once. It follows the canvas view (built 2026-11-13, #10): hidden pieces are left out, an isolated piece is shown alone, and pieces are drawn in the view's drawing order (`TGarmentBuilder.Build` with `FollowView`); the API's `render` with `garment` shows every piece, in pattern order, as output does.
 - **Material filter.** A list at the top shows one material's pieces, or all; it starts on the pattern's first material, so lining and interfacing do not cover the main pieces, and goes back to it when another pattern opens. View state, not saved.
 - **Navigation.** The drawing fits the panel; the wheel zooms about the pointer, a drag pans and a double-click fits again. **Follow canvas**, off by default, uses the canvas's zoom and puts the middle of what the canvas shows in the middle of the tab instead. View state, not saved.
 - **Live.** The scene is rebuilt after each change while the tab is showing, and not at all while it is hidden (it builds when it next paints). `TGarmentBuilder` keeps each piece with a fingerprint of everything its finished shape follows from (edges, outline, grainline, fold, markings, look, material and the seams that use it) and rebuilds only pieces whose fingerprint changed. If a build takes longer than a frame (16 ms), a drag updates the tab on release only.
@@ -495,7 +501,7 @@ Pattern, measurement and layout files are JSON; SQLite is reserved for a later l
 - `materials` comes after `objects` but is read first, since pieces refer to it, and a pattern whose only material is the untouched Main writes neither `materials` nor a piece `material`.
 - `measurementFile` is relative to the pattern's folder unless absolute, with `/` separators; the core never loads it by itself. The size used from a size table is not saved.
 - Loading checks IDs (positive, unique across variables, materials and objects, below `nextId`), names, types and inputs, and fails naming the object by ID (`Object 6 uses object 9, which is not defined before it`), leaving the pattern empty.
-- Planned (2026-11-05): `view.pieceOrder`, `view.isolate` and (2026-11-13) `view.hiddenPieces`, for the overlapping-piece view options.
+- `view.hiddenPieces`, `view.isolate` and `view.pieceOrder` (2026-11-13) hold the overlapping-piece view options by ID, each left out when empty. `pieceOrder` lists every piece once one has been moved; a piece not in it, new or from an older file, goes on top in pattern order. IDs that are not pieces are passed over, and saving writes only pieces that still exist.
 
 ## Measurements app
 
@@ -941,7 +947,6 @@ Agreed but not yet designed in detail or placed in the steps above.
 - **Locking an object.** A locked object cannot be moved, edited or deleted, but its formulas still run, bringing back locking per object after layers were taken out.
 - **Annotations stage 4**: SVG stamps (see Annotations).
 - **SVG stamps.** A drawing from another app (a logo, a fold or assembly diagram) placed and anchored like a note, so it moves with the geometry. Paths only: `<text>` is refused with a message asking for it to be converted to paths, which keeps fonts out. Drawn at true size from the SVG's own units (px taken at 96 per inch, with a warning), and stored in the pattern as path data, so the pattern does not depend on the outside file.
-- **Isolate piece, hiding pieces and stacking order** (see Drafting experience; #10).
 - **Separate Piece command**: one command for separating front and back (see Transforms), only if the manual steps prove tedious.
 - **Material needed**: the area and minimum width and length a design needs, the length to buy for a given material width, and a warning when it cannot be cut from one piece.
 - **G-code export** from the publish app, for CNC machines.
@@ -950,5 +955,3 @@ Agreed but not yet designed in detail or placed in the steps above.
 - **Finding an open publish window**: Publish… opens another window each time, rather than finding the one already open.
 - **Preferences across open apps**: an app already open picks up a preference changed in another only when restarted.
 
-
-**Open question:** whether `view.pieceOrder` should list every piece or only those moved, and where a piece left out goes when another is brought to front.

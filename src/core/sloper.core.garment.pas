@@ -110,8 +110,11 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    // Call after Evaluate. Failing pieces are left out with a note.
-    function Build(Pattern: TPattern): TGarmentScene;
+    // Call after Evaluate. Failing pieces are left out with a note. With
+    // FollowView, as the canvas shows them: hidden pieces left out, only an
+    // isolated piece, and in the view's drawing order; otherwise every piece
+    // in pattern order, as for output.
+    function Build(Pattern: TPattern; FollowView: boolean = False): TGarmentScene;
     procedure Clear;
     // How many pieces the last Build worked out afresh
     property Rebuilt: integer read FRebuilt;
@@ -697,9 +700,9 @@ begin
   FEntries.Clear;
 end;
 
-function TGarmentBuilder.Build(Pattern: TPattern): TGarmentScene;
+function TGarmentBuilder.Build(Pattern: TPattern; FollowView: boolean): TGarmentScene;
 var
-  Index: integer;
+  Pieces: TPieceObjectArray;
   Piece: TPieceObject;
   Entry: TGarmentEntry;
   Print, Note: string;
@@ -710,11 +713,14 @@ begin
   FRebuilt := 0;
   Kept := TGarmentEntryMap.Create;
   try
-    for Index := 0 to Pattern.ObjectCount - 1 do
+    if FollowView then
+      Pieces := Pattern.PiecesInDrawOrder
+    else
+      Pieces := Pattern.PieceList;
+    for Piece in Pieces do
     begin
-      if not (Pattern.Objects[Index] is TPieceObject) then
+      if FollowView and (Pattern.IsHidden(Piece) or (Assigned(Pattern.IsolatedPiece) and (Piece <> Pattern.IsolatedPiece))) then
         Continue;
-      Piece := TPieceObject(Pattern.Objects[Index]);
       if (Piece.State <> esValid) or (Length(Piece.Outline) < 3) then
       begin
         Insert(Format(rsGarmentPieceFails, [Piece.DisplayName]), Result.Notes, Length(Result.Notes));

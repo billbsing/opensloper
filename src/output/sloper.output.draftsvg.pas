@@ -45,6 +45,9 @@ type
     HiddenRoles: TEdgeRoles;
     // Notes are left out, as View -> Annotations off hides them
     HideAnnotations: boolean;
+    // Pieces the canvas hides are left out, with what only they use, and
+    // pieces drawn in the view's order; an isolated piece changes nothing
+    FollowPieceView: boolean;
     // For {pattern.name} in notes; empty leaves it as typed
     PatternFileName: string;
   end;
@@ -411,50 +414,56 @@ var
     Result := False;
   end;
 
+  function Shown(DraftObject: TDraftObject): boolean;
+  begin
+    Result := DraftObject.HasResult and (not Options.FollowPieceView or (Pattern.HiddenPieceCount = 0) or not Pattern.IsHidden(DraftObject));
+  end;
+
+var
+  Pieces: TPieceObjectArray;
+  Piece: TPieceObject;
 begin
   View := DraftView(Pattern, Options);
   Result := SVGStart(View);
+  if Options.FollowPieceView then
+    Pieces := Pattern.PiecesInDrawOrder
+  else
+    Pieces := Pattern.PieceList;
   // Pieces under edges, edges under points
-  for Index := 0 to Pattern.ObjectCount - 1 do
-  begin
-    DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult then
-      Result := Result + PieceElement(Pattern, TPieceObject(DraftObject), View.Extent, Options.NoFills);
-  end;
+  for Piece in Pieces do
+    if Shown(Piece) then
+      Result := Result + PieceElement(Pattern, Piece, View.Extent, Options.NoFills);
   for DraftObject in EdgesInDrawOrder(AllObjects(Pattern)) do
   begin
-    if DraftObject.HasResult and (Length(TEdgeObject(DraftObject).Segments) > 0) and not (TEdgeObject(DraftObject).Role in Options.HiddenRoles) then
+    if Shown(DraftObject) and (Length(TEdgeObject(DraftObject).Segments) > 0) and not (TEdgeObject(DraftObject).Role in Options.HiddenRoles) then
     begin
       Result := Result + EdgeElement(TEdgeObject(DraftObject), View.Extent);
       if Labelled(DraftObject) then
         Result := Result + EdgeLabelElement(TEdgeObject(DraftObject), View.Extent);
     end;
   end;
-  for Index := 0 to Pattern.ObjectCount - 1 do
-  begin
-    DraftObject := Pattern.Objects[Index];
-    if (DraftObject is TPieceObject) and DraftObject.HasResult then
+  for Piece in Pieces do
+    if Shown(Piece) then
     begin
-      Result := Result + PieceMarksElement(TPieceObject(DraftObject), View.Extent);
-      if Labelled(DraftObject) then
-        Result := Result + PieceLabelElement(Pattern, TPieceObject(DraftObject), View.Extent);
+      Result := Result + PieceMarksElement(Piece, View.Extent);
+      if Labelled(Piece) then
+        Result := Result + PieceLabelElement(Pattern, Piece, View.Extent);
     end;
-  end;
   for Index := 0 to Pattern.ObjectCount - 1 do
   begin
     DraftObject := Pattern.Objects[Index];
-    if (DraftObject.Marker <> pmPlain) and DraftObject.HasResult then
+    if (DraftObject.Marker <> pmPlain) and Shown(DraftObject) then
       Result := Result + MarkerElement(DraftObject, View.Extent);
   end;
   for Point in Pattern.AllPoints do
-    if Point.HasResult then
+    if Shown(Point) then
       Result := Result + PointElement(Point, View.Extent, Labelled(Point));
   // Screen-only notes never leave the app
   if not Options.HideAnnotations then
     for Index := 0 to Pattern.ObjectCount - 1 do
     begin
       DraftObject := Pattern.Objects[Index];
-      if (DraftObject is TNoteObject) and DraftObject.HasResult and TNoteObject(DraftObject).Print then
+      if (DraftObject is TNoteObject) and Shown(DraftObject) and TNoteObject(DraftObject).Print then
         Result := Result + NoteElement(TNoteObject(DraftObject), PatternFieldValues(Pattern, Options.PatternFileName));
     end;
   Result := Result + '</svg>' + #10;

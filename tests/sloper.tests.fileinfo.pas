@@ -48,11 +48,17 @@ const
   // Every member outside the objects, with values that make the writer write it
   FULL_PATTERN =
     '{"format": "pattern", "version": 1, "units": "cm", "notes": "Notes", "measurementFile": "bill.slm",' +
-    ' "identity": "3021d120-7482-45c9-8c9a-1b9c1b60be87", "nextId": 9,' +
+    ' "identity": "3021d120-7482-45c9-8c9a-1b9c1b60be87", "nextId": 16,' +
     ' "variables": [{"id": 1, "name": "ease", "formula": "2", "description": "Ease"}],' +
-    ' "objects": [{"id": 2, "type": "freePoint", "name": "A", "x": "0", "y": "0"}],' +
+    ' "objects": [{"id": 2, "type": "freePoint", "name": "A", "x": "0", "y": "0"},' +
+    ' {"id": 10, "type": "freePoint", "name": "B", "x": "10", "y": "0"}, {"id": 11, "type": "freePoint", "name": "C", "x": "0", "y": "10"},' +
+    ' {"id": 12, "type": "line", "start": 2, "end": 10, "role": "outline"}, {"id": 13, "type": "line", "start": 10, "end": 11, "role": "outline"},' +
+    ' {"id": 14, "type": "line", "start": 11, "end": 2, "role": "outline"},' +
+    ' {"id": 15, "type": "piece", "name": "P", "path": [{"edge": 12, "reversed": false}, {"edge": 13, "reversed": false},' +
+    ' {"edge": 14, "reversed": false}], "allowance": "1", "grainline": {"angle": "90"}, "cut": {"count": 1, "mirrored": false}}],' +
     ' "materials": [{"id": 3, "name": "Main", "color": "#5B8DB8", "fill": "hatch", "allowance": 1.5}],' +
-    ' "view": {"zoom": 1.5, "centre": [120, -200], "hiddenRoles": ["construction"], "hideAnnotations": true}}';
+    ' "view": {"zoom": 1.5, "centre": [120, -200], "hiddenRoles": ["construction"], "hideAnnotations": true,' +
+    ' "hiddenPieces": [15], "isolate": 15, "pieceOrder": [15]}}';
   FULL_MEASUREMENTS =
     '{"format": "measurements", "version": 1, "units": "mm", "name": "Bill", "notes": "Notes",' +
     ' "measurements": [{"key": "waist", "value": 820, "description": "Waist"}]}';
