@@ -79,11 +79,13 @@ implementation
 
 uses
   SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls, Spin, ButtonPanel, Dialogs, Sloper.Core.Measurements,
-  Sloper.Core.Units, Sloper.UI.Spacing, Sloper.Assistant.Key;
+  Sloper.Core.Units, Sloper.UI.Spacing, Sloper.Assistant.Key, Types;
 
 const
   DIALOG_WIDTH = 560;
   DIALOG_HEIGHT = 700;
+  // Room left round the dialog for its title bar and frame
+  FRAME_MARGIN = 48;
   CALIBRATION_DECIMALS = 4;
   MEASURED_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 3);
   GRID_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 4);
@@ -106,22 +108,31 @@ type
     FKeyShown: string;
     // The unit the measured sizes are typed in, which follows the Units box
     FMeasuredUnit: TMeasureUnit;
-    function AddTab(const ACaption: string): TTabSheet;
-    function AddGroup(Sheet: TTabSheet; const ACaption: string): TGroupBox;
+    // Each tab's contents, and the caption and control rows, which the
+    // dialog is sized to show in full
+    FHosts: array of TScrollBox;
+    FRowPanels: array of TPanel;
+    function AddTab(const ACaption: string): TScrollBox;
+    function AddGroup(Host: TScrollBox; const ACaption: string): TGroupBox;
     function AddRows(Host: TWinControl): TPanel;
     function AddNote(Host: TWinControl; const AText: string): TLabel;
     function AddRow(Rows: TPanel; const ACaption: string; Control: TControl): TLabel;
     function NewSpin(MinValue, MaxValue, Increment: double; Decimals: integer): TFloatSpinEdit;
     procedure BuildGeneralTab;
     procedure BuildDesignTab;
-    procedure BuildGarmentGroup(Sheet: TTabSheet);
-    procedure BuildClaudeGroup;
+    procedure BuildGarmentGroup(Host: TScrollBox);
+    procedure BuildClaudeGroup(Host: TScrollBox);
     procedure BuildPublishTab;
     function ExpectedSide: double;
     procedure ShowMeasuredUnit;
     procedure UnitChange(Sender: TObject);
     procedure SquareChange(Sender: TObject);
     procedure WorkOutClick(Sender: TObject);
+    function WorkArea: TRect;
+    // Sizes the dialog to its contents, within the screen
+    procedure FitContents;
+  protected
+    procedure DoShow; override;
   public
     constructor CreateDialog(AOwner: TComponent);
     procedure ShowPreferences(const Preferences: TPreferences);
@@ -153,10 +164,19 @@ begin
   BuildPublishTab;
 end;
 
-function TPreferencesDialog.AddTab(const ACaption: string): TTabSheet;
+// A sheet scrolls only when the screen is too small for the whole dialog
+function TPreferencesDialog.AddTab(const ACaption: string): TScrollBox;
+var
+  Sheet: TTabSheet;
 begin
-  Result := FPages.AddTabSheet;
-  Result.Caption := ACaption;
+  Sheet := FPages.AddTabSheet;
+  Sheet.Caption := ACaption;
+  Result := TScrollBox.Create(Self);
+  Result.BorderStyle := bsNone;
+  Result.Align := alClient;
+  Result.HorzScrollBar.Visible := False;
+  Result.Parent := Sheet;
+  Insert(Result, FHosts, Length(FHosts));
 end;
 
 // Below everything already in Host, since top-aligned controls are stacked
@@ -176,12 +196,12 @@ begin
 end;
 
 // A captioned box around one section of a sheet
-function TPreferencesDialog.AddGroup(Sheet: TTabSheet; const ACaption: string): TGroupBox;
+function TPreferencesDialog.AddGroup(Host: TScrollBox; const ACaption: string): TGroupBox;
 begin
   Result := TGroupBox.Create(Self);
   Result.Caption := ACaption;
   Result.AutoSize := True;
-  StackIn(Sheet, Result);
+  StackIn(Host, Result);
 end;
 
 // Controls in two columns, captions on the left
@@ -196,6 +216,7 @@ begin
   Result.ChildSizing.VerticalSpacing := ControlGap;
   Result.ChildSizing.EnlargeHorizontal := crsHomogenousChildResize;
   StackIn(Host, Result);
+  Insert(Result, FRowPanels, Length(FRowPanels));
 end;
 
 // Wrapped text across the host
@@ -247,10 +268,10 @@ var
   Group: TGroupBox;
   Rows: TPanel;
   AUnit: TMeasureUnit;
-  Sheet: TTabSheet;
+  Host: TScrollBox;
 begin
-  Sheet := AddTab(rsPreferencesDesign);
-  Group := AddGroup(Sheet, rsPreferencesGrid);
+  Host := AddTab(rsPreferencesDesign);
+  Group := AddGroup(Host, rsPreferencesGrid);
   Rows := AddRows(Group);
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
   begin
@@ -259,16 +280,16 @@ begin
     AddRow(Rows, UNIT_CAPTIONS[AUnit], FGridEdits[AUnit]);
   end;
   AddNote(Group, rsPreferencesGridNote);
-  BuildGarmentGroup(Sheet);
-  BuildClaudeGroup;
+  BuildGarmentGroup(Host);
+  BuildClaudeGroup(Host);
 end;
 
-procedure TPreferencesDialog.BuildGarmentGroup(Sheet: TTabSheet);
+procedure TPreferencesDialog.BuildGarmentGroup(Host: TScrollBox);
 var
   Group: TGroupBox;
   Rows: TPanel;
 begin
-  Group := AddGroup(Sheet, rsPreferencesGarment);
+  Group := AddGroup(Host, rsPreferencesGarment);
   FShadeBox := TCheckBox.Create(Self);
   FShadeBox.Caption := rsPreferencesGarmentShade;
   StackIn(Group, FShadeBox);
@@ -281,12 +302,12 @@ begin
 end;
 
 // The key is shown masked; from the environment it cannot be changed here
-procedure TPreferencesDialog.BuildClaudeGroup;
+procedure TPreferencesDialog.BuildClaudeGroup(Host: TScrollBox);
 var
   Group: TGroupBox;
   Source: TKeySource;
 begin
-  Group := AddGroup(TTabSheet(FPages.Pages[FPages.PageCount - 1]), rsPreferencesClaude);
+  Group := AddGroup(Host, rsPreferencesClaude);
   FKeyEdit := TEdit.Create(Self);
   FKeyEdit.PasswordChar := '*';
   FKeyShown := AssistantKey(Source);
@@ -306,20 +327,20 @@ end;
 
 procedure TPreferencesDialog.BuildPublishTab;
 var
-  Sheet: TTabSheet;
+  Host: TScrollBox;
   Group: TGroupBox;
   Rows: TPanel;
   WorkOut: TButton;
 begin
-  Sheet := AddTab(rsPreferencesPublish);
-  Group := AddGroup(Sheet, rsPreferencesCalibration);
+  Host := AddTab(rsPreferencesPublish);
+  Group := AddGroup(Host, rsPreferencesCalibration);
   Rows := AddRows(Group);
   FCalibrationXEdit := NewSpin(MIN_CALIBRATION, MAX_CALIBRATION, CALIBRATION_INCREMENT, CALIBRATION_DECIMALS);
   AddRow(Rows, rsPreferencesCalibrationX, FCalibrationXEdit);
   FCalibrationYEdit := NewSpin(MIN_CALIBRATION, MAX_CALIBRATION, CALIBRATION_INCREMENT, CALIBRATION_DECIMALS);
   AddRow(Rows, rsPreferencesCalibrationY, FCalibrationYEdit);
   AddNote(Group, rsPreferencesCalibrationNote);
-  Group := AddGroup(Sheet, rsPreferencesTestPrint);
+  Group := AddGroup(Host, rsPreferencesTestPrint);
   AddNote(Group, rsPreferencesTestPrintNote);
   Rows := AddRows(Group);
   FSquareBox := TComboBox.Create(Self);
@@ -338,6 +359,62 @@ begin
   WorkOut.AutoSize := True;
   WorkOut.OnClick := @WorkOutClick;
   AddRow(Rows, '', WorkOut);
+end;
+
+// The screen the dialog opens on, less the panels and a margin for the
+// window frame, which the form's size leaves out
+function TPreferencesDialog.WorkArea: TRect;
+var
+  Frame: integer;
+begin
+  if Owner is TCustomForm then
+    Result := TCustomForm(Owner).Monitor.WorkareaRect
+  else
+    Result := Screen.WorkAreaRect;
+  Frame := Scale96ToForm(FRAME_MARGIN);
+  Result.Right := Result.Right - Frame;
+  Result.Bottom := Result.Bottom - Frame;
+end;
+
+// The sizes are only known once the controls are laid out with the real font,
+// which can be larger than the screen resolution alone gives. The width
+// comes first, since wrapped notes are taller in a narrower dialog.
+procedure TPreferencesDialog.FitContents;
+var
+  Index, Content, Extra, PreferredWidth, PreferredHeight: integer;
+  Limit: TRect;
+  Control: TControl;
+begin
+  Limit := WorkArea;
+  Extra := 0;
+  for Index := 0 to High(FRowPanels) do
+  begin
+    PreferredWidth := 0;
+    PreferredHeight := 0;
+    FRowPanels[Index].GetPreferredSize(PreferredWidth, PreferredHeight, True);
+    Extra := Max(Extra, PreferredWidth - FRowPanels[Index].Width);
+  end;
+  Width := Min(Width + Extra, Limit.Width);
+  // Laid out again at the new width before the notes are measured
+  DisableAutoSizing;
+  EnableAutoSizing;
+  Extra := Low(integer);
+  for Index := 0 to High(FHosts) do
+  begin
+    Content := 0;
+    for Control in FHosts[Index].GetEnumeratorControls do
+      Content := Max(Content, Control.Top + Control.Height + Control.BorderSpacing.Around + Control.BorderSpacing.Bottom);
+    Extra := Max(Extra, Content - FHosts[Index].ClientHeight);
+  end;
+  Height := Min(Height + Extra, Limit.Height);
+end;
+
+// Only a shown dialog is laid out, so it is fitted here and centred again
+procedure TPreferencesDialog.DoShow;
+begin
+  inherited DoShow;
+  FitContents;
+  MoveToDefaultPosition;
 end;
 
 procedure TPreferencesDialog.ShowPreferences(const Preferences: TPreferences);
