@@ -5,7 +5,7 @@
   "notes": "A close-fitting bodice block: half back and half front, each cut on the fold, with a waist dart in each. The pattern of the bodice block tutorial.",
   "measurementFile": "bodice.slm",
   "identity": "a9d27dd4-466a-4988-a917-5754d4ea4b19",
-  "nextId": 69,
+  "nextId": 71,
   "variables": [
     {
       "id": 1,
@@ -723,6 +723,46 @@
       "size": 10,
       "print": true,
       "leader": "arrow"
+    },
+    {
+      "id": 69,
+      "type": "seam",
+      "name": "Back_dart",
+      "sideA": [
+        {
+          "piece": 63,
+          "edge": 33
+        }
+      ],
+      "sideB": [
+        {
+          "piece": 63,
+          "edge": 34
+        }
+      ],
+      "reversed": false,
+      "ease": "0",
+      "tolerance": "0.1"
+    },
+    {
+      "id": 70,
+      "type": "seam",
+      "name": "Front_dart",
+      "sideA": [
+        {
+          "piece": 64,
+          "edge": 60
+        }
+      ],
+      "sideB": [
+        {
+          "piece": 64,
+          "edge": 61
+        }
+      ],
+      "reversed": false,
+      "ease": "0",
+      "tolerance": "0.1"
     }
   ]
 }
