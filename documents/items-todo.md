@@ -8,6 +8,7 @@ These could not be tested properly during development.
 
 - [x] **Export PDF in the window:** never clicked through a file dialog; all test exports went through the CLI.
 - [ ] **A real print:** measure the 10 cm test square with a ruler, then tape two tiles together using the diamonds.
+- [ ] **Print… (issue #13):** print through CUPS to a real printer; check the test square is 10 cm (no scaling), the media matches the paper, and Cover only / Pages 2 to N print the right pages. Try it on macOS, and on Windows with a PDF viewer that has a print command (and one without, for the error).
 - [x] **A real projector:** the line thicknesses are a best guess.
 - [ ] **Publish… save prompt:** in the drafting app, try this with a modified pattern, and from a real save.
 - [x] **Publish window:** Flip, Reload Patterns, panning, the Delete key and the every-page title block.

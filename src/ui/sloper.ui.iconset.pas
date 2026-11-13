@@ -35,7 +35,7 @@ type
     aiRotate, aiMirror, aiMove, aiSuggestSeams,
     // The measurements and publish apps
     aiImport, aiExport, aiCheckPattern, aiStopCheck,
-    aiExportPDF, aiExportSVG, aiExportDXF, aiExportMachineDXF, aiReload,
+    aiExportPDF, aiExportSVG, aiExportDXF, aiExportMachineDXF, aiReload, aiPrint,
     aiRulers, aiPreferences,
     // Notes
     aiText, aiAnnotations, aiCallout,
@@ -55,7 +55,7 @@ const
     'circle-dot', 'line-dashed', 'line-dotted', 'eraser',
     'rotate', 'flip-vertical', 'arrows-move', 'sparkles',
     'file-import', 'file-export', 'file-search', 'player-stop',
-    'file-type-pdf', 'file-type-svg', 'file-vector', 'cut', 'refresh',
+    'file-type-pdf', 'file-type-svg', 'file-vector', 'cut', 'refresh', 'printer',
     'ruler-2', 'settings',
     'typography', 'notes', 'message',
     'eye-off', 'eye', 'focus-2', 'stack-front', 'stack-back', 'lock', 'lock-open');

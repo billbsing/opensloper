@@ -79,6 +79,7 @@ uses
   Sloper.Tests.Transform,
   Sloper.Tests.Layout,
   Sloper.Tests.LayoutExports,
+  Sloper.Tests.Printing,
   Sloper.Tests.MeasurementDocument,
   Sloper.Tests.Catalogue,
   Sloper.Tests.SeamlyFormat,

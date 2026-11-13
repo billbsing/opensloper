@@ -51,6 +51,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Publish.PreviewCanvas"/>
       </Unit>
+      <Unit>
+        <Filename Value="sloper.publish.printdialog.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Publish.PrintDialog"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

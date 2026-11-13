@@ -65,6 +65,8 @@ type
     FUndoAction, FRedoAction: TAction;
     // Checked while the preview zooms to boxes
     FZoomAreaAction: TAction;
+    FPrintAction: TAction;
+    FPrintButton: TButton;
     FRecent: TRecentMenu;
     FWatch: TTimer;
     FRefreshing: boolean;
@@ -120,6 +122,7 @@ type
     procedure SaveClick(Sender: TObject);
     procedure SaveAsClick(Sender: TObject);
     procedure ExportClick(Sender: TObject);
+    procedure PrintClick(Sender: TObject);
     procedure QuitClick(Sender: TObject);
     procedure UndoClick(Sender: TObject);
     procedure RedoClick(Sender: TObject);
@@ -158,6 +161,7 @@ resourcestring
   rsMenuExportSVG = 'Export S&VG...';
   rsMenuExportDXF = 'Export &DXF...';
   rsMenuExportMachineDXF = 'Export &Machine DXF...';
+  rsMenuPrint = '&Print...';
   rsMenuQuit = '&Quit';
   rsMenuEdit = '&Edit';
   rsMenuUndo = '&Undo';
@@ -193,7 +197,7 @@ resourcestring
   rsSelectedPiece = 'Selected Piece';
   rsArrange = 'Arrange';
   rsContent = 'Content';
-  rsExportGroup = 'Export';
+  rsExportGroup = 'Print and Export';
   rsProblemsGroup = 'Problems';
   rsSheetNotes = 'Sheet Notes';
   rsTrayEmpty = 'Every piece is placed';
@@ -263,6 +267,7 @@ resourcestring
   rsPlaceNew = 'Place new pieces';
   rsTurn = 'Turn 90°';
   rsFlip = 'Flip';
+  rsPrint = 'Print...';
   rsExportPDF = 'Export PDF...';
   rsExportSVG = 'Export SVG...';
   rsExportDXF = 'Export DXF...';
@@ -285,6 +290,8 @@ resourcestring
   rsLargeSheet = 'One sheet %s mm wide, %s mm long';
   rsReloaded = '%s changed on disk, so it was read again';
   rsExported = 'Wrote %s';
+  // With what the print service said, such as its job number
+  rsPrinted = 'Sent to the printer: %s';
   rsFilterOpen = 'Layouts and patterns (*.slayout;*.sloper)|*.slayout;*.sloper';
   rsFilterLayout = 'Layouts (*.slayout)|*.slayout';
   rsFilterPattern = 'Patterns (*.sloper)|*.sloper';
@@ -299,7 +306,8 @@ uses
   LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.RecentFiles,
   Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Spacing, Sloper.UI.FontBox,
   Sloper.UI.About, Sloper.UI.Preferences, Sloper.Output.LayoutExport,
-  Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Tiling;
+  Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Printing, Sloper.Output.Tiling,
+  Sloper.Publish.PrintDialog;
 
 const
   SIDE_WIDTH = 340;
@@ -448,6 +456,7 @@ begin
   // key is in the caption only
   FZoomAreaAction := FCommands.NewAction(Format(rsMenuZoomArea, [ShortcutInfo(kcToolZoom).Keys]), aiZoomArea, @ZoomAreaClick);
   ReloadAction := FCommands.NewAction(rsMenuReload, aiReload, @ReloadClick, CommandShortCut(kcReload));
+  FPrintAction := FCommands.NewAction(rsMenuPrint, aiPrint, @PrintClick, CommandShortCut(kcPrint));
 
   Group := AddMenu(rsMenuFile);
   OpenItem := FCommands.AddMenuItem(Group, OpenAction);
@@ -455,6 +464,7 @@ begin
   FCommands.AddMenuItem(Group, SaveAction);
   FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, CommandShortCut(kcSaveAs)));
   Group.AddSeparator;
+  FCommands.AddMenuItem(Group, FPrintAction);
   for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
     FCommands.AddMenuItem(Group, ExportActions[ExportFormat]);
   Group.AddSeparator;
@@ -486,6 +496,7 @@ begin
   FCommands.AddButton(FZoomAreaAction, True);
   FCommands.AddButton(ReloadAction);
   FCommands.AddDivider;
+  FCommands.AddButton(FPrintAction);
   for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
     FCommands.AddButton(ExportActions[ExportFormat]);
 end;
@@ -794,6 +805,7 @@ begin
   FProfileBox := AddChoice(rsProfile);
   FMaterialBox := AddChoice(rsMaterialLimit);
   BeginGroup(rsExportGroup);
+  FPrintButton := AddButton(rsPrint, @PrintClick);
   AddButton(rsExportPDF, @ExportClick).Tag := Ord(efPDF);
   AddButton(rsExportSVG, @ExportClick).Tag := Ord(efSVG);
   AddButton(rsExportDXF, @ExportClick).Tag := Ord(efDXF);
@@ -1203,6 +1215,9 @@ begin
   FFlipButton.Enabled := FPreview.Selected >= 0;
   FRemoveButton.Enabled := FPreview.Selected >= 0;
   FPackButton.Enabled := FDocument.Layout.Output.Kind <> okProjector;
+  // A projector sheet is dark all over: it is shown, not printed
+  FPrintAction.Enabled := FDocument.Layout.Output.Kind <> okProjector;
+  FPrintButton.Enabled := FPrintAction.Enabled;
   FUndoAction.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
     FUndoAction.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])
@@ -1432,6 +1447,38 @@ begin
   finally
     FreeAndNil(Dialog);
   end;
+end;
+
+procedure TPublishForm.PrintClick(Sender: TObject);
+var
+  Request: TPrintRequest;
+  Reply: string;
+begin
+  if not FPrintAction.Enabled then
+    Exit;
+  // Refused before the dialog, so its choices are not made for nothing
+  Reply := FDocument.Layout.Refusal;
+  if Reply = '' then
+  begin
+    if not CanPrint then
+      Reply := rsPrintNoSystem
+    else if not ChoosePrintOptions(Self, FDocument.Layout, Request) then
+      Exit
+    else
+    begin
+      Screen.BeginWaitCursor;
+      try
+        if PrintLayout(FDocument.Layout, Request, Reply) then
+        begin
+          ShowStatus(Format(rsPrinted, [Reply]));
+          Exit;
+        end;
+      finally
+        Screen.EndWaitCursor;
+      end;
+    end;
+  end;
+  MessageDlg(Reply, mtError, [mbOK], 0);
 end;
 
 procedure TPublishForm.QuitClick(Sender: TObject);

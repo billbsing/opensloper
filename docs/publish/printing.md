@@ -18,7 +18,16 @@ nothing on them are left out. To reprint some pages, or leave some out,
 right-click a page: it turns grey and crossed, and the page map strikes it
 through. Right-click it again to put it back.
 
-**Export PDF…** (++ctrl+e++) writes the PDF to print.
+**Print…** (++ctrl+p++), on the File menu, the toolbar and the Output tab,
+prints the layout directly. The dialog chooses the printer and the number of
+copies, and for tiled pages whether to print everything, **the cover only**,
+to measure the test square first, or **the pages after the cover**, once the
+square is right. It prints the same PDF as Export PDF, at 100%, never scaled
+to fit. On Windows it goes to your PDF viewer, which prints on the default
+printer: if the viewer asks, choose 100% or actual size.
+
+**Export PDF…** (++ctrl+e++) writes the PDF, to print later or from another
+computer. A projector layout is shown, not printed, so Print is off for it.
 
 ## Print at true size
 

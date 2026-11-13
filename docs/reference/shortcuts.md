@@ -132,6 +132,7 @@ On macOS, Cmd takes the place of Ctrl. Keys on the canvas work while the canvas 
 | ++ctrl+s++ | Save |
 | ++ctrl+shift+s++ | Save under another name |
 | ++ctrl+e++ | Export the layout as a PDF |
+| ++ctrl+p++ | Print the layout |
 | ++ctrl+q++ | Quit |
 
 ### Edit

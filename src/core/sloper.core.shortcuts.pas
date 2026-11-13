@@ -38,7 +38,7 @@ type
     skMouse);   // a mouse action, perhaps with keys held
 
   TKeyCommand = (
-    kcNew, kcOpen, kcSave, kcSaveAs, kcImport, kcExportMeasurements, kcExportPDF, kcOpenMeasurements, kcPublish, kcQuit,
+    kcNew, kcOpen, kcSave, kcSaveAs, kcImport, kcExportMeasurements, kcExportPDF, kcPrint, kcOpenMeasurements, kcPublish, kcQuit,
     kcUndo, kcRedo, kcCut, kcCopy, kcPaste, kcPreferences,
     kcZoomIn, kcZoomOut, kcFit, kcTrueSize, kcRulers, kcReload,
     kcToolSelect, kcToolZoom, kcToolPoint, kcToolLine, kcToolCurve, kcToolCircle, kcToolRectangle, kcToolPiece, kcToolNotch,
@@ -81,6 +81,7 @@ resourcestring
   rsKeyImport = 'Import a Valentina or Seamly2D file';
   rsKeyExportMeasurements = 'Export a Valentina or Seamly2D file';
   rsKeyExportPDF = 'Export the layout as a PDF';
+  rsKeyPrint = 'Print the layout';
   rsKeyOpenMeasurements = 'Open a measurement set for the pattern';
   rsKeyPublish = 'Lay out and print the pattern in the publish app';
   rsKeyQuit = 'Quit';
@@ -161,6 +162,7 @@ begin
     kcImport: Result := Info('Mod+I', skCommand, sgFile, [saMeasurements], rsKeyImport);
     kcExportMeasurements: Result := Info('Mod+E', skCommand, sgFile, [saMeasurements], rsKeyExportMeasurements);
     kcExportPDF: Result := Info('Mod+E', skCommand, sgFile, [saPublish], rsKeyExportPDF);
+    kcPrint: Result := Info('Mod+P', skCommand, sgFile, [saPublish], rsKeyPrint);
     kcOpenMeasurements: Result := Info('Mod+M', skCommand, sgFile, [saDesign], rsKeyOpenMeasurements);
     kcPublish: Result := Info('Mod+P', skCommand, sgFile, [saDesign], rsKeyPublish);
     kcQuit: Result := Info('Mod+Q', skCommand, sgFile, ALL_APPS, rsKeyQuit);
