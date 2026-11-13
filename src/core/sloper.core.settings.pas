@@ -63,6 +63,12 @@ type
     // The drafting canvas grid's spacing for each unit
     GridSteps: TGridSteps;
     Calibration: TCalibration;
+    // How the Garment tab lights its pieces (see Garment view in the design):
+    // whether they are shaded, where the light comes from (degrees, 135 is
+    // upper left) and how strongly, 0 to 1
+    GarmentShading: boolean;
+    GarmentLightAngle: double;
+    GarmentShadeStrength: double;
   end;
 
 const
@@ -74,6 +80,8 @@ const
   // Calibration factors further off than this are typing mistakes
   MIN_CALIBRATION = 0.5;
   MAX_CALIBRATION = 2;
+  DEFAULT_GARMENT_LIGHT_ANGLE = 135;
+  DEFAULT_GARMENT_SHADE_STRENGTH = 0.5;
   // The sides of the PDF's test square: 4 in on Letter, 10 cm elsewhere
   METRIC_TEST_SQUARE_SIDE = 100;
   INCH_TEST_SQUARE_SIDE = 101.6;
@@ -153,7 +161,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.AppPaths;
+  SysUtils, fpjson, Sloper.Core.JSON, Sloper.Core.AppPaths, Sloper.Core.Geometry;
 
 const
   SETTINGS_FORMAT = 'opensloper-settings';
@@ -164,6 +172,9 @@ begin
   Result.MeasureUnit := muMillimetre;
   Result.GridSteps := DEFAULT_GRID_STEPS;
   Result.Calibration := NoCalibration;
+  Result.GarmentShading := True;
+  Result.GarmentLightAngle := DEFAULT_GARMENT_LIGHT_ANGLE;
+  Result.GarmentShadeStrength := DEFAULT_GARMENT_SHADE_STRENGTH;
 end;
 
 function NoCalibration: TCalibration;
@@ -337,6 +348,9 @@ begin
     Obj.Add('gridSteps', GridStepsToJSON(Preferences.GridSteps));
     Obj.Add('calibrationX', JSONFloat(Preferences.Calibration.X));
     Obj.Add('calibrationY', JSONFloat(Preferences.Calibration.Y));
+    Obj.Add('garmentShading', Preferences.GarmentShading);
+    Obj.Add('garmentLightAngle', JSONFloat(Preferences.GarmentLightAngle));
+    Obj.Add('garmentShadeStrength', JSONFloat(Preferences.GarmentShadeStrength));
     if Length(MachineProfiles) > 0 then
       Obj.Add('machineProfiles', MachineProfilesToJSON(MachineProfiles));
     if Length(OutputProfiles) > 0 then
@@ -354,7 +368,7 @@ var
   Obj: TJSONObject;
   TextValue: string;
   Version: integer;
-  Share: double;
+  Share, Number: double;
   Split: integer;
   Mode: TLabelMode;
   AUnit: TMeasureUnit;
@@ -398,6 +412,12 @@ begin
           Preferences.MeasureUnit := AUnit;
     ReadGridSteps(Obj, Preferences.GridSteps);
     ReadCalibration(Obj, Preferences.Calibration);
+    if GetJSONBoolean(Obj, 'garmentShading', Shown) then
+      Preferences.GarmentShading := Shown;
+    if GetJSONNumber(Obj, 'garmentLightAngle', Number) then
+      Preferences.GarmentLightAngle := NormalizeAngle(Number);
+    if GetJSONNumber(Obj, 'garmentShadeStrength', Number) and (Number >= 0) and (Number <= 1) then
+      Preferences.GarmentShadeStrength := Number;
     MachineProfiles := MachineProfilesFromJSON(Obj.Find('machineProfiles'));
     OutputProfiles := OutputProfilesFromJSON(Obj.Find('outputProfiles'));
     RolePresets := RolePresetsFromJSON(Obj.Find('rolePresets'));

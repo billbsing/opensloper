@@ -108,6 +108,7 @@ type
     procedure TestRenderFollowsEdits;
     procedure TestRenderRefusals;
     procedure TestRenderPng;
+    procedure TestRenderGarment;
     procedure TestRenderWithoutParams;
     procedure TestBuildFromNothing;
     procedure TestEveryPointType;
@@ -1058,6 +1059,25 @@ begin
   Png := DecodeStringBase64(Answer.Get('png', ''));
   AssertEquals('a PNG file', #137'PNG', Copy(Png, 1, 4));
   AssertEquals('as wide as asked', 400, BEtoN(PLongWord(@Png[17])^));
+end;
+
+procedure TTestAPI.TestRenderGarment;
+var
+  Png: string;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Flap"}');
+  Call('render', '{"garment": true}');
+  AssertTrue('svg', Pos('<svg', Answer.Get('svg', '')) = 1);
+  AssertTrue('the piece', Pos('data-piece="Flap"', Answer.Get('svg', '')) > 0);
+  Call('render', '{"garment": true, "material": "Main"}');
+  AssertTrue('of its material', Pos('data-piece="Flap"', Answer.Get('svg', '')) > 0);
+  Call('render', '{"garment": true, "material": "Nothing"}');
+  AssertTrue('refused', Assigned(FReply.Find('error')));
+  Call('render', '{"garment": true, "format": "png", "width": 300}');
+  Png := DecodeStringBase64(Answer.Get('png', ''));
+  AssertEquals('a PNG file', #137'PNG', Copy(Png, 1, 4));
+  AssertEquals('as wide as asked', 300, BEtoN(PLongWord(@Png[17])^));
 end;
 
 procedure TTestAPI.TestRenderWithoutParams;

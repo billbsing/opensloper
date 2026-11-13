@@ -62,6 +62,11 @@ resourcestring
   rsPreferencesMeasuredX = 'Measured across (%s)';
   rsPreferencesMeasuredY = 'Measured down (%s)';
   rsPreferencesWorkOut = 'Work Out Factors';
+  rsPreferencesGarment = 'Garment View';
+  rsPreferencesGarmentShade = 'Shade pieces as if round a body';
+  rsPreferencesGarmentLight = 'Light from (degrees)';
+  rsPreferencesGarmentStrength = 'Shading strength (%)';
+  rsPreferencesGarmentNote = 'How the Garment tab lights the pieces. 0° is from the right and 90° from above, so 135° is the upper left.';
   rsPreferencesNotSaved = 'The preferences could not be saved: %s';
   rsPreferencesClaude = 'Claude assistant';
   rsPreferencesClaudeKey = 'Anthropic API key';
@@ -78,7 +83,7 @@ uses
 
 const
   DIALOG_WIDTH = 560;
-  DIALOG_HEIGHT = 500;
+  DIALOG_HEIGHT = 700;
   CALIBRATION_DECIMALS = 4;
   MEASURED_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 3);
   GRID_DECIMALS: array[TMeasureUnit] of integer = (1, 2, 4);
@@ -94,6 +99,8 @@ type
     FUnitBox, FSquareBox: TComboBox;
     FGridEdits: array[TMeasureUnit] of TFloatSpinEdit;
     FCalibrationXEdit, FCalibrationYEdit, FMeasuredXEdit, FMeasuredYEdit: TFloatSpinEdit;
+    FShadeBox: TCheckBox;
+    FLightEdit, FStrengthEdit: TFloatSpinEdit;
     FMeasuredXLabel, FMeasuredYLabel: TLabel;
     FKeyEdit: TEdit;
     FKeyShown: string;
@@ -107,6 +114,7 @@ type
     function NewSpin(MinValue, MaxValue, Increment: double; Decimals: integer): TFloatSpinEdit;
     procedure BuildGeneralTab;
     procedure BuildDesignTab;
+    procedure BuildGarmentGroup(Sheet: TTabSheet);
     procedure BuildClaudeGroup;
     procedure BuildPublishTab;
     function ExpectedSide: double;
@@ -239,8 +247,10 @@ var
   Group: TGroupBox;
   Rows: TPanel;
   AUnit: TMeasureUnit;
+  Sheet: TTabSheet;
 begin
-  Group := AddGroup(AddTab(rsPreferencesDesign), rsPreferencesGrid);
+  Sheet := AddTab(rsPreferencesDesign);
+  Group := AddGroup(Sheet, rsPreferencesGrid);
   Rows := AddRows(Group);
   for AUnit := Low(TMeasureUnit) to High(TMeasureUnit) do
   begin
@@ -249,7 +259,25 @@ begin
     AddRow(Rows, UNIT_CAPTIONS[AUnit], FGridEdits[AUnit]);
   end;
   AddNote(Group, rsPreferencesGridNote);
+  BuildGarmentGroup(Sheet);
   BuildClaudeGroup;
+end;
+
+procedure TPreferencesDialog.BuildGarmentGroup(Sheet: TTabSheet);
+var
+  Group: TGroupBox;
+  Rows: TPanel;
+begin
+  Group := AddGroup(Sheet, rsPreferencesGarment);
+  FShadeBox := TCheckBox.Create(Self);
+  FShadeBox.Caption := rsPreferencesGarmentShade;
+  StackIn(Group, FShadeBox);
+  Rows := AddRows(Group);
+  FLightEdit := NewSpin(0, 359, 15, 0);
+  AddRow(Rows, rsPreferencesGarmentLight, FLightEdit);
+  FStrengthEdit := NewSpin(0, 100, 10, 0);
+  AddRow(Rows, rsPreferencesGarmentStrength, FStrengthEdit);
+  AddNote(Group, rsPreferencesGarmentNote);
 end;
 
 // The key is shown masked; from the environment it cannot be changed here
@@ -321,6 +349,9 @@ begin
     FGridEdits[AUnit].Value := Preferences.GridSteps[AUnit];
   FCalibrationXEdit.Value := Preferences.Calibration.X;
   FCalibrationYEdit.Value := Preferences.Calibration.Y;
+  FShadeBox.Checked := Preferences.GarmentShading;
+  FLightEdit.Value := Preferences.GarmentLightAngle;
+  FStrengthEdit.Value := Preferences.GarmentShadeStrength * 100;
   FSquareBox.ItemIndex := 0;
   FMeasuredUnit := Preferences.MeasureUnit;
   ShowMeasuredUnit;
@@ -342,6 +373,9 @@ begin
   Result.Calibration.Y := FCalibrationYEdit.Value;
   if not CalibrationIsUsable(Result.Calibration) then
     Result.Calibration := NoCalibration;
+  Result.GarmentShading := FShadeBox.Checked;
+  Result.GarmentLightAngle := FLightEdit.Value;
+  Result.GarmentShadeStrength := EnsureRange(FStrengthEdit.Value / 100, 0, 1);
 end;
 
 // The side of the test square chosen, in mm

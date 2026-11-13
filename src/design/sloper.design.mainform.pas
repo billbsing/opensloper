@@ -30,7 +30,8 @@ uses
   Sloper.UI.ListPanel, Sloper.UI.ObjectsPanel, Sloper.UI.VariablesPanel,
   Sloper.UI.MeasurementsPanel, Sloper.UI.AlignPanel, Sloper.UI.SuggestSeams, Sloper.UI.ConvertUnits, Sloper.UI.RecentMenu, Sloper.UI.Ruler,
   Sloper.UI.MaterialPanel, Sloper.UI.MaterialDialog, Sloper.UI.RolesPanel, Sloper.UI.IconSet, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.Preferences,
-  Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion, Sloper.UI.Automation, Sloper.UI.AssistantPanel, fpjson;
+  Sloper.Core.Transform, Sloper.Core.Fragment, Sloper.UI.Accordion, Sloper.UI.Automation, Sloper.UI.AssistantPanel,
+  Sloper.UI.GarmentPanel, Sloper.Core.Garment, fpjson;
 
 type
 
@@ -118,6 +119,7 @@ type
     FRoles: TRolesPanel;
     FCanvasHorzBar, FCanvasVertBar: TScrollBar;
     FObjects: TObjectsPanel;
+    FGarment: TGarmentPanel;
     FVariables: TVariablesPanel;
     FMeasurements: TMeasurementsPanel;
     FAlign: TAlignPanel;
@@ -162,6 +164,8 @@ type
     procedure SetSideShown(Shown: boolean);
     procedure SideItemClick(Sender: TObject);
     procedure ListPanelMessage(Sender: TObject; const AText: string);
+    procedure GarmentHoverPiece(Sender: TObject; const PieceKey: string);
+    procedure GarmentSelectPiece(Sender: TObject; const PieceKey: string);
     procedure ObjectsSelect(Sender: TObject);
     procedure AlignSelect(Sender: TObject; const Key: string);
     procedure ObjectsZoom(Sender: TObject);
@@ -294,6 +298,7 @@ resourcestring
   rsMenuViewRulers = '&Rulers';
   rsTabProperties = 'Properties';
   rsTabObjects = 'Objects';
+  rsTabGarment = 'Garment';
   rsTabVariables = 'Variables';
   rsTabMeasurements = 'Measurements';
   rsTabAlign = 'Align';
@@ -480,6 +485,7 @@ begin
   FVertRuler.MeasureUnit := AUnit;
   FRulerCorner.MeasureUnit := AUnit;
   FCanvas.SetGrid(FPreferences.GridSteps[AUnit], AUnit);
+  FGarment.Light := GarmentLightOf(FPreferences);
 end;
 
 procedure TMainForm.PreferencesClick(Sender: TObject);
@@ -528,6 +534,11 @@ begin
   FObjects.OnSelect := @ObjectsSelect;
   FObjects.OnZoom := @ObjectsZoom;
   FObjects.OnDelete := @ObjectsDelete;
+  FGarment := TGarmentPanel(AddSection('garment', rsTabGarment, TGarmentPanel.Create(Self)));
+  FGarment.Document := FDocument;
+  FGarment.OnMessage := @ListPanelMessage;
+  FGarment.OnHoverPiece := @GarmentHoverPiece;
+  FGarment.OnSelectPiece := @GarmentSelectPiece;
   FVariables := TVariablesPanel(AddList('variables', rsTabVariables, TVariablesPanel.Create(Self)));
   FMeasurements := TMeasurementsPanel(AddList('measurements', rsTabMeasurements, TMeasurementsPanel.Create(Self)));
   FMeasurements.OnNewSet := @MeasurementsNewSet;
@@ -569,6 +580,17 @@ end;
 procedure TMainForm.SideItemClick(Sender: TObject);
 begin
   SetSideShown(not FSidePanel.Visible);
+end;
+
+// A piece pointed at in the Garment tab shows on the canvas
+procedure TMainForm.GarmentHoverPiece(Sender: TObject; const PieceKey: string);
+begin
+  FCanvas.OutsideHoverKey := PieceKey;
+end;
+
+procedure TMainForm.GarmentSelectPiece(Sender: TObject; const PieceKey: string);
+begin
+  FCanvas.SelectObjects([PieceKey]);
 end;
 
 procedure TMainForm.ListPanelMessage(Sender: TObject; const AText: string);
@@ -1183,6 +1205,7 @@ begin
   FObjects.ShowSelection(FCanvas.Selection);
   FAlign.Selection := FCanvas.Selection;
   FProperties.ShowSelection(FCanvas.Selection);
+  FGarment.ShowSelection(FCanvas.Selection);
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -1195,6 +1218,7 @@ begin
   FAssistant.Document := nil;
   FCanvas.Document := nil;
   FMaterials.Document := nil;
+  FGarment.Document := nil;
   FProperties.Document := nil;
   FObjects.Document := nil;
   FVariables.Document := nil;
@@ -1336,6 +1360,7 @@ procedure TMainForm.CanvasViewChange(Sender: TObject);
 begin
   FHorzRuler.SetView(FCanvas.View);
   FVertRuler.SetView(FCanvas.View);
+  FGarment.ShowCanvasView(FCanvas.View, FCanvas.ClientWidth, FCanvas.ClientHeight);
 end;
 
 // Along the top and left of the canvas, which they must line up with: the

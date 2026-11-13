@@ -193,7 +193,7 @@ begin
     Handle := Edge.Length / 3;
   end;
   // The end handle points back along the edge
-  BackAngle := FMod(Direction + 180, 360);
+  BackAngle := NormalizeAngle(Direction + 180);
   Result := TCurveObject.Create(Edge.Key, Edge.StartKey, Edge.EndKey);
   if not Pattern.ReplaceEdge(Edge, Result, ['angle1', 'length1', 'angle2', 'length2'],
     [Text(Direction), RoundLengthFormulaText(Handle, Pattern.Units), Text(BackAngle), RoundLengthFormulaText(Handle, Pattern.Units)]) then

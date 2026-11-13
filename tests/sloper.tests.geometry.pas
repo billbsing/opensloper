@@ -111,6 +111,9 @@ begin
   // A rounding error just below 0 must not come back as 359.999...
   AssertNear('tiny negative', 0, NormalizeAngle(-1e-12));
   AssertNear('just under 360', 0, NormalizeAngle(360 - 1e-12));
+  // In double precision: Math's FMod with a whole 360 takes its single overload
+  AssertNear('keeps precision', 18.92464441605123, NormalizeAngle(18.92464441605123), 1e-12);
+  AssertNear('keeps precision going round', 18.92464441605123, NormalizeAngle(378.92464441605123), 1e-10);
 end;
 
 procedure TTestGeometry.TestPointsNearUsesTolerance;
