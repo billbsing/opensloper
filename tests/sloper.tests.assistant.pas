@@ -86,6 +86,8 @@ type
     procedure TestStepLimit;
     procedure TestSystemPrompt;
     procedure TestKeyFile;
+    // A key file that cannot be removed says why, naming the file
+    procedure TestKeyFileErrorSaid;
   end;
 
   // The HTTPS transport against a TLS server of its own on 127.0.0.1
@@ -695,6 +697,35 @@ begin
     UseAssistantKeyFolder('');
     RemoveDir(Folder);
   end;
+end;
+
+procedure TTestAssistant.TestKeyFileErrorSaid;
+{$IFDEF UNIX}
+const
+  READ_ONLY_FOLDER = &500;
+  OWN_FOLDER = &700;
+var
+  Folder, Err: string;
+{$ENDIF}
+begin
+  {$IFDEF UNIX}
+  // The superuser may write anywhere, so nothing would fail
+  if fpGetUID = 0 then
+    Exit;
+  Folder := ConcatPaths([GetTempDir, 'opensloper-key-error-test']);
+  UseAssistantKeyFolder(Folder);
+  try
+    AssertTrue(Err, SaveAssistantKey('sk-ant-test', Err));
+    AssertEquals(0, fpChmod(Folder, READ_ONLY_FOLDER));
+    AssertFalse('not removed', SaveAssistantKey('', Err));
+    AssertTrue('says why: ' + Err, Pos(AssistantKeyFile, Err) > 0);
+  finally
+    fpChmod(Folder, OWN_FOLDER);
+    DeleteFile(AssistantKeyFile);
+    UseAssistantKeyFolder('');
+    RemoveDir(Folder);
+  end;
+  {$ENDIF}
 end;
 
 { TTestHttpsTransport }

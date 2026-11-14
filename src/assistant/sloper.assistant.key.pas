@@ -50,6 +50,10 @@ const
   PRIVATE_FILE_MODE = &600;
   {$ENDIF}
 
+resourcestring
+  rsKeyCannotRemove = 'The key file %s could not be removed: %s';
+  rsKeyCannotProtect = 'The key file %s could not be made private, so the key was not saved: %s';
+
 var
   FolderOverride: string;
 
@@ -100,15 +104,22 @@ begin
   if Trim(Key) = '' then
   begin
     Result := not FileExists(Path) or DeleteFile(Path);
+    if not Result then
+      ErrorMessage := Format(rsKeyCannotRemove, [Path, SysErrorMessage(GetLastOSError)]);
     Exit;
   end;
   ForceDirectories(ExtractFileDir(Path));
   // Made empty and closed to others before the key goes in
-  Result := WriteTextFile(Path, '', ErrorMessage);
+  if not WriteTextFile(Path, '', ErrorMessage) then
+    Exit(False);
   {$IFDEF UNIX}
-  Result := Result and (fpChmod(Path, PRIVATE_FILE_MODE) = 0);
+  if fpChmod(Path, PRIVATE_FILE_MODE) <> 0 then
+  begin
+    ErrorMessage := Format(rsKeyCannotProtect, [Path, SysErrorMessage(fpGetErrno)]);
+    Exit(False);
+  end;
   {$ENDIF}
-  Result := Result and WriteTextFile(Path, Trim(Key), ErrorMessage);
+  Result := WriteTextFile(Path, Trim(Key), ErrorMessage);
 end;
 
 end.
