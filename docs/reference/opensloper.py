@@ -1284,6 +1284,7 @@ class OpenSloper:
         *,
         format: Literal["pdf", "svg", "dxf", "machine-dxf"] | None = None,
         profile: str | None = None,
+        overwrite: bool | None = None,
     ) -> Any:
         """Exports a saved layout file as PDF, SVG, DXF or machine DXF.
 
@@ -1292,6 +1293,8 @@ class OpenSloper:
             path: The file to write, ending in the format's extension (.pdf, .svg or .dxf).
             format: By default, from the file name's extension.
             profile: A machine profile from the settings, in place of the layout's.
+            overwrite: True to replace a file already at path; without it, an existing file is
+                refused.
 
         Returns:
             The `path` written.
@@ -1301,4 +1304,5 @@ class OpenSloper:
             "path": path,
             "format": format,
             "profile": profile,
+            "overwrite": overwrite,
         })

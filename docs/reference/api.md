@@ -720,6 +720,7 @@ Exports a saved layout file as PDF, SVG, DXF or machine DXF.
 | `path` | text | yes | The file to write, ending in the format's extension (.pdf, .svg or .dxf) |
 | `format` | one of: `pdf`, `svg`, `dxf`, `machine-dxf` |  | By default, from the file name's extension |
 | `profile` | text |  | A machine profile from the settings, in place of the layout's |
+| `overwrite` | true or false |  | True to replace a file already at path; without it, an existing file is refused |
 
 Returns: The `path` written.
 

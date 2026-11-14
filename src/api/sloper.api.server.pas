@@ -234,6 +234,7 @@ resourcestring
   rsApiBusy = 'The window is in the middle of a change; try again when the user has finished';
   rsApiOpenInWindow = 'Patterns are opened in the design window, not through the API; this works on the pattern open there';
   rsApiWriteDeclined = 'The user did not allow writing %s';
+  rsApiExportExists = '%s already exists; give "overwrite": true to replace it';
   rsApiNoWindow = 'ui_state needs the design window: start it with --automation and run opensloper-cli serve --connect';
   rsApiBadMarks = 'Parameter "marks" must be a list of objects with an "id" or "name", a "field", a "token" and a "role"';
 
@@ -980,6 +981,9 @@ begin
     Description := Existing.Description;
   if Assigned(Params.Find('description')) then
     Description := RequireString(Params, 'description');
+  // The file is rewritten at once and is no undo step, so the window asks as for save
+  if FDocument.MeasurementPath <> '' then
+    ConfirmWrite(FDocument.MeasurementPath);
   if not FDocument.ChangeMeasurement(Key, Value, Description, Change, Err) then
     raise EApiError.Create(RPC_REFUSED, Err);
   Info := TJSONObject.Create;
@@ -2425,6 +2429,10 @@ begin
   // So an export cannot be written over a file of another kind
   if not SameText(ExtractFileExt(Target), EXPORT_EXTENSIONS[Chosen]) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiExportExtension, [EXPORT_NAMES[Chosen], EXPORT_EXTENSIONS[Chosen]]));
+  // Nor over one of the same kind that may not be an export: a client steered
+  // by a shared pattern could otherwise replace any PDF it can name
+  if FileExists(Target) and not BooleanParam(Params, 'overwrite') then
+    raise EApiError.Create(RPC_REFUSED, Format(rsApiExportExists, [Target]));
   ConfirmWrite(Target);
   Layout := TLayout.Create;
   try

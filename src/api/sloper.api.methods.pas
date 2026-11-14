@@ -312,6 +312,7 @@ resourcestring
   rsApiExportPath = 'The file to write, ending in the format''s extension (.pdf, .svg or .dxf)';
   rsApiExportFormat = 'By default, from the file name''s extension';
   rsApiExportProfile = 'A machine profile from the settings, in place of the layout''s';
+  rsApiExportOverwrite = 'True to replace a file already at path; without it, an existing file is refused';
   rsApiUIState = 'Gives the design window''s state: its pattern file, the selection, the label mode and the part ' +
     'of the draft in view. Only through opensloper-cli serve --connect, with the window in automation mode.';
   rsApiUIStateReturns = '`file`, `modified`, `units`, `selection` (each with `id`, `name` and `type`), `labels` and ' +
@@ -650,6 +651,7 @@ begin
   P('path', apText, True, rsApiExportPath);
   P('format', apChoice, False, rsApiExportFormat, 'pdf, svg, dxf, machine-dxf');
   P('profile', apText, False, rsApiExportProfile);
+  P('overwrite', apFlag, False, rsApiExportOverwrite);
 end;
 
 function ApiMethods: TApiMethodArray;

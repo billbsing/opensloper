@@ -31,6 +31,9 @@ type
     FServer: TApiServer;
     FFolder, FPatternPath, FCopyPath, FSetPath: string;
     FReply: TJSONObject;
+    FAskedToWrite: string;
+    // An OnConfirmWrite that keeps the path and says no
+    function DeclineWrite(const Path: string): boolean;
     procedure WriteFiles;
     procedure OpenTestPattern;
     // Replaces the set with a size table where waist has no value for M
@@ -83,6 +86,8 @@ type
     procedure TestGetMeasurements;
     procedure TestSetMeasurement;
     procedure TestSetMeasurementKeepsDescription;
+    // The measurement file is written only when the window allows it
+    procedure TestSetMeasurementAsksToWrite;
     procedure TestSizesInGetMeasurements;
     procedure TestOpenWithASize;
     procedure TestSetMeasurementInASize;
@@ -789,6 +794,27 @@ begin
   Call('get_measurements');
   AssertEquals('path', FSetPath, Answer.Get('path', ''));
   AssertEquals('waist', TJSONObject(TJSONArray(Answer.Find('measurements'))[0]).Get('key', ''));
+end;
+
+function TTestAPI.DeclineWrite(const Path: string): boolean;
+begin
+  FAskedToWrite := Path;
+  Result := False;
+end;
+
+procedure TTestAPI.TestSetMeasurementAsksToWrite;
+var
+  Before, After, Err: string;
+begin
+  OpenTestPattern;
+  AssertTrue(Err, ReadTextFile(FSetPath, Before, Err));
+  FServer.OnConfirmWrite := @DeclineWrite;
+  Call('set_measurement', '{"key": "waist", "value": 1000}');
+  AssertEquals(RPC_REFUSED, ErrorCode);
+  AssertEquals(ExpandFileName(FSetPath), FAskedToWrite);
+  AssertTrue(Err, ReadTextFile(FSetPath, After, Err));
+  AssertEquals('the file is not written', Before, After);
+  AssertNear('the pattern keeps the old value', 210, ObjectNamed('B').Get('x', 0.0));
 end;
 
 procedure TTestAPI.TestSetMeasurement;
@@ -1529,6 +1555,12 @@ begin
     Call('export', Format('{"layout": %s, "path": %s}', [AsJSONString(Layout), AsJSONString(Target)]));
     AssertEquals('path', Target, Answer.Get('path', ''));
     AssertTrue('written', FileExists(Target));
+    // A file already there, perhaps not an export at all, is kept unless asked
+    Call('export', Format('{"layout": %s, "path": %s}', [AsJSONString(Layout), AsJSONString(Target)]));
+    AssertEquals('exists', RPC_REFUSED, ErrorCode);
+    AssertEquals(Format(rsApiExportExists, [Target]), ErrorText);
+    Call('export', Format('{"layout": %s, "path": %s, "overwrite": true}', [AsJSONString(Layout), AsJSONString(Target)]));
+    AssertEquals('replaced', Target, Answer.Get('path', ''));
   finally
     DeleteFile(Pattern);
     DeleteFile(Layout);
