@@ -35,6 +35,9 @@ type
     procedure TestEmptyContainers;
     procedure TestEscapes;
     procedure TestParseErrors;
+    // Nesting deeper than any file needs is refused before parsing, which
+    // recurses once a level and would overflow the stack
+    procedure TestDeepNestingRefused;
     procedure TestTypedAccess;
   end;
 
@@ -144,6 +147,27 @@ begin
   finally
     FreeAndNil(Obj);
   end;
+end;
+
+procedure TTestJSON.TestDeepNestingRefused;
+const
+  // Far past the stack's depth for fpjson's recursion
+  CRASH_DEPTH = 1000000;
+  NEEDED_DEPTH = 40;
+var
+  Obj: TJSONObject;
+  Err: string;
+begin
+  AssertFalse(ParseJSONObject('{"a":' + StringOfChar('[', CRASH_DEPTH) + StringOfChar(']', CRASH_DEPTH) + '}', Obj, Err));
+  AssertEquals(Format(rsJSONTooDeep, [JSON_MAX_DEPTH]), Err);
+  AssertNull(Obj);
+  // Deeper than a file needs, but well within the limit
+  AssertTrue(Err, ParseJSONObject('{"a":' + StringOfChar('[', NEEDED_DEPTH) + StringOfChar(']', NEEDED_DEPTH) + '}', Obj, Err));
+  FreeAndNil(Obj);
+  // Brackets in strings, escaped quotes too, are text, not nesting
+  AssertTrue(Err, ParseJSONObject('{"a":"\"' + StringOfChar('[', CRASH_DEPTH) + '"}', Obj, Err));
+  AssertEquals('"' + StringOfChar('[', CRASH_DEPTH), Obj.Get('a', ''));
+  FreeAndNil(Obj);
 end;
 
 procedure TTestJSON.TestParseErrors;

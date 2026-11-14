@@ -41,6 +41,13 @@ function FormatJSONFloat(Value: double): string;
 function JSONFloat(Value: double): TJSONData;
 // Two-space indent, "key": value, members in insertion order, LF line ends
 function JSONToText(Data: TJSONData): string;
+
+const
+  // The deepest nesting ParseJSONObject reads. Our files need a few levels;
+  // the parser recurses once a level, so text nested far deeper, from a file
+  // made to, would overflow the stack and end the program
+  JSON_MAX_DEPTH = 256;
+
 // Parses Text, which must hold a JSON object. The caller frees Obj.
 function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): boolean;
 function ReadTextFile(const FileName: string; out Text: string; out ErrorMessage: string): boolean;
@@ -59,6 +66,7 @@ function GetJSONBoolean(Obj: TJSONObject; const Name: string; out Value: boolean
 resourcestring
   rsJSONNotObject = 'The file does not contain a JSON object';
   rsJSONSyntax = 'The file is not valid JSON: %s';
+  rsJSONTooDeep = 'The file is nested more than %d levels deep, which no OpenSloper file needs';
   rsFileRead = 'Could not read "%s": %s';
   rsFileWrite = 'Could not write "%s": %s';
 
@@ -183,12 +191,53 @@ begin
   end;
 end;
 
+// The deepest nesting of arrays and objects in Text, brackets inside strings
+// left out; it stops counting once past Limit
+function NestingDepth(const Text: string; Limit: integer): integer;
+var
+  Index, Depth: integer;
+  InString: boolean;
+begin
+  Result := 0;
+  Depth := 0;
+  InString := False;
+  Index := 1;
+  while Index <= Length(Text) do
+  begin
+    if InString then
+      case Text[Index] of
+        // The escaped character is skipped, so \" does not end the string
+        '\': Inc(Index);
+        '"': InString := False;
+      end
+    else
+      case Text[Index] of
+        '"': InString := True;
+        '[', '{':
+        begin
+          Inc(Depth);
+          if Depth > Result then
+            Result := Depth;
+          if Result > Limit then
+            Exit;
+        end;
+        ']', '}': Dec(Depth);
+      end;
+    Inc(Index);
+  end;
+end;
+
 function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): boolean;
 var
   Data: TJSONData;
 begin
   Obj := nil;
   ErrorMessage := '';
+  if NestingDepth(Text, JSON_MAX_DEPTH) > JSON_MAX_DEPTH then
+  begin
+    ErrorMessage := Format(rsJSONTooDeep, [JSON_MAX_DEPTH]);
+    Exit(False);
+  end;
   try
     Data := GetJSON(Text);
   except
