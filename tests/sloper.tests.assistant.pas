@@ -96,6 +96,8 @@ type
     procedure TestTrustedCertificateAccepted;
     // Trusted, but for otherhost.test, not localhost
     procedure TestCertificateForAnotherHostRefused;
+    // A key changed after the transport was made is the one sent
+    procedure TestChangedKeySent;
   end;
 
 implementation
@@ -113,6 +115,7 @@ type
     FPort: word;
     FCertificate: string;
     FRequests: integer;
+    FLastRequest: string;
     procedure CreateHandler(Sender: TObject; out AHandler: TSocketHandler);
     procedure Connected(Sender: TObject; Data: TSocketStream);
     procedure Idle(Sender: TObject);
@@ -124,6 +127,8 @@ type
     destructor Destroy; override;
     property Port: word read FPort;
     property Requests: integer read FRequests;
+    // The last request as it came, headers and body
+    property LastRequest: string read FLastRequest;
   end;
 
 const
@@ -202,6 +207,7 @@ begin
       if Count > 0 then
         Received := Received + Copy(PChar(@Buffer[0]), 1, Count);
     until (Count <= 0) or (Pos(#13#10#13#10, Received) > 0) and Received.EndsWith('}');
+    FLastRequest := Received;
     Data.WriteBuffer(ANSWER[1], Length(ANSWER));
   finally
     FreeAndNil(Data);
@@ -714,6 +720,30 @@ var
 begin
   AssertFalse('refused', Answered('otherhost.pem', TlsTestFile('otherhost.pem'), Requests));
   AssertEquals('no request was read', 0, Requests);
+end;
+
+procedure TTestHttpsTransport.TestChangedKeySent;
+var
+  Server: TTlsTestServer;
+  Transport: THttpsTransport;
+  Sink: TStringStream;
+  ErrorText: string;
+  RetryAfter: integer;
+begin
+  Server := TTlsTestServer.Create(TlsTestFile('localhost.pem'));
+  Sink := TStringStream.Create('');
+  Transport := THttpsTransport.Create('old-key', Format('https://localhost:%d/v1/messages', [Server.Port]));
+  try
+    Transport.TrustedFile := TlsTestFile('localhost.pem');
+    Transport.Key := 'new-key';
+    AssertEquals(200, Transport.Post('{}', Sink, ErrorText, RetryAfter));
+    AssertTrue(Server.LastRequest, Pos('x-api-key: new-key', Server.LastRequest) > 0);
+    AssertEquals('only the new key', 0, Pos('old-key', Server.LastRequest));
+  finally
+    FreeAndNil(Transport);
+    FreeAndNil(Sink);
+    FreeAndNil(Server);
+  end;
 end;
 
 initialization

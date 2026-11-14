@@ -50,6 +50,8 @@ type
     function Post(const Body: string; Sink: TStream; out ErrorText: string; out RetryAfter: integer): integer; override;
     // A PEM file of the certificates to trust in place of the system's, for tests
     property TrustedFile: string read FTrustedFile write FTrustedFile;
+    // Read at each Post; not while one runs
+    property Key: string read FKey write FKey;
   end;
 
 // The Messages endpoint: ANTHROPIC_BASE_URL, as the SDKs take it for a proxy, or the API's own

@@ -29,7 +29,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, ExtCtrls, StdCtrls, fpjson, Sloper.Document.PatternDocument, Sloper.API.Server,
-  Sloper.Assistant.Conversation;
+  Sloper.Assistant.Conversation, Sloper.Assistant.Http;
 
 type
   TAssistantPanel = class;
@@ -64,6 +64,8 @@ type
     FDocument: TPatternDocument;
     FApi: TApiServer;
     FConversation: TAssistantConversation;
+    // The conversation's, which owns it; given the key at each question
+    FTransport: THttpsTransport;
     FWorker: TAssistantWorker;
     // The worker answered and is ending; freed before the next question
     FWorkerDone: boolean;
@@ -120,7 +122,7 @@ resourcestring
 implementation
 
 uses
-  LCLType, Sloper.Assistant.Key, Sloper.Assistant.Http, Sloper.UI.Automation;
+  LCLType, Sloper.Assistant.Key, Sloper.UI.Automation;
 
 const
   INPUT_HEIGHT96 = 64;
@@ -364,7 +366,6 @@ begin
     Append(LineEnding + LineEnding + rsAssistantNoKeyYet);
     Exit;
   end;
-  // Made again when the key changes; the conversation goes with it
   StopWorker;
   if Assigned(FConversation) and (FGeneration <> FDocument.Generation) then
   begin
@@ -373,10 +374,13 @@ begin
   end;
   if not Assigned(FConversation) then
   begin
-    FConversation := TAssistantConversation.Create(THttpsTransport.Create(Key));
+    FTransport := THttpsTransport.Create(Key);
+    FConversation := TAssistantConversation.Create(FTransport);
     FGeneration := FDocument.Generation;
     MakeApi;
   end;
+  // The key as Preferences has it now, so a corrected key works at once
+  FTransport.Key := Key;
   FInput.Clear;
   Append(LineEnding + LineEnding + Format(rsAssistantYou, [Question]) + LineEnding + LineEnding + rsAssistantClaude);
   FWorkerDone := False;
@@ -395,7 +399,6 @@ begin
   if Running then
     Exit;
   StopWorker;
-  // A new key, if the user changed it, takes effect here
   FreeAndNil(FConversation);
   FTranscript.Text := rsAssistantWelcome;
 end;
