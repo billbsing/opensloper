@@ -53,6 +53,8 @@ Changed, Fixed and Removed under each version.
   single-precision form.
 - PDF prints text outside Latin-1, such as Greek or Cyrillic, in sheet notes,
   piece labels and notes, in the bundled Noto Sans; it used to print `?`.
+- The publish app's Print dialog sizes itself to its contents once shown; with
+  a larger font its note was cut off at the bottom.
 
 ## 0.1.0
 
