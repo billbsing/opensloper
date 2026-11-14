@@ -27,7 +27,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, fpjson, Sloper.Core.TextFields,
-  Sloper.Core.Note, Sloper.API.AppLink, Sloper.Output.Layout, Sloper.Output.LayoutDocument,
+  Sloper.Core.Note, Sloper.API.AppLink, Sloper.Output.Layout, Sloper.Output.LayoutDocument, Sloper.Output.LayoutExport,
   Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu, Sloper.UI.Accordion, Sloper.UI.SavePrompt;
 
 type
@@ -69,6 +69,9 @@ type
     // Checked while the preview zooms to boxes
     FZoomAreaAction: TAction;
     FPrintAction: TAction;
+    // Enabled only while there is something for them to work on
+    FSaveAction, FSaveAsAction, FFitAction, FZoomInAction, FZoomOutAction, FReloadAction: TAction;
+    FExportActions: array[TExportFormat] of TAction;
     FPrintButton: TButton;
     FRecent: TRecentMenu;
     FWatch: TTimer;
@@ -104,6 +107,7 @@ type
     procedure DocumentChanged(Sender: TObject);
     procedure SelectionChanged(Sender: TObject);
     procedure RefreshControls;
+    procedure RefreshCommands;
     procedure PreferencesClick(Sender: TObject);
     procedure AboutClick(Sender: TObject);
     procedure WatchTick(Sender: TObject);
@@ -318,7 +322,7 @@ implementation
 uses
   LCLType, Math, Sloper.Core.Geometry, Sloper.Core.MachineProfiles, Sloper.Core.OutputProfiles, Sloper.Core.RecentFiles,
   Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Spacing, Sloper.UI.FontBox,
-  Sloper.UI.About, Sloper.UI.Preferences, Sloper.Output.LayoutExport,
+  Sloper.UI.About, Sloper.UI.Preferences,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Printing, Sloper.Output.Tiling,
   Sloper.Publish.PrintDialog, Sloper.Core.JSON, Sloper.API.Endpoint;
 
@@ -451,39 +455,39 @@ var
 
 var
   Group, OpenItem: TMenuItem;
-  OpenAction, SaveAction, FitAction, ZoomInAction, ZoomOutAction, ReloadAction: TAction;
-  ExportActions: array[TExportFormat] of TAction;
+  OpenAction: TAction;
   ExportFormat: TExportFormat;
 begin
   Bar := TMainMenu.Create(Self);
   Menu := Bar;
   FCommands := TCommandSet.Create(Self, Bar);
   OpenAction := FCommands.NewAction(rsMenuOpen, aiOpen, @OpenClick, CommandShortCut(kcOpen));
-  SaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, CommandShortCut(kcSave));
-  ExportActions[efPDF] := FCommands.NewAction(rsMenuExport, aiExportPDF, @ExportClick, CommandShortCut(kcExportPDF), Ord(efPDF));
-  ExportActions[efSVG] := FCommands.NewAction(rsMenuExportSVG, aiExportSVG, @ExportClick, 0, Ord(efSVG));
-  ExportActions[efDXF] := FCommands.NewAction(rsMenuExportDXF, aiExportDXF, @ExportClick, 0, Ord(efDXF));
-  ExportActions[efMachineDXF] := FCommands.NewAction(rsMenuExportMachineDXF, aiExportMachineDXF, @ExportClick, 0, Ord(efMachineDXF));
+  FSaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, CommandShortCut(kcSave));
+  FExportActions[efPDF] := FCommands.NewAction(rsMenuExport, aiExportPDF, @ExportClick, CommandShortCut(kcExportPDF), Ord(efPDF));
+  FExportActions[efSVG] := FCommands.NewAction(rsMenuExportSVG, aiExportSVG, @ExportClick, 0, Ord(efSVG));
+  FExportActions[efDXF] := FCommands.NewAction(rsMenuExportDXF, aiExportDXF, @ExportClick, 0, Ord(efDXF));
+  FExportActions[efMachineDXF] := FCommands.NewAction(rsMenuExportMachineDXF, aiExportMachineDXF, @ExportClick, 0, Ord(efMachineDXF));
   FUndoAction := FCommands.NewAction(rsMenuUndo, aiUndo, @UndoClick, CommandShortCut(kcUndo));
   FRedoAction := FCommands.NewAction(rsMenuRedo, aiRedo, @RedoClick, CommandShortCut(kcRedo));
-  FitAction := FCommands.NewAction(rsMenuFit, aiFit, @FitClick, CommandShortCut(kcFit));
-  ZoomInAction := FCommands.NewAction(rsMenuZoomIn, aiZoomIn, @ZoomInClick, CommandShortCut(kcZoomIn));
-  ZoomOutAction := FCommands.NewAction(rsMenuZoomOut, aiZoomOut, @ZoomOutClick, CommandShortCut(kcZoomOut));
+  FFitAction := FCommands.NewAction(rsMenuFit, aiFit, @FitClick, CommandShortCut(kcFit));
+  FZoomInAction := FCommands.NewAction(rsMenuZoomIn, aiZoomIn, @ZoomInClick, CommandShortCut(kcZoomIn));
+  FZoomOutAction := FCommands.NewAction(rsMenuZoomOut, aiZoomOut, @ZoomOutClick, CommandShortCut(kcZoomOut));
   // The preview reads the key itself, so typing Z in a field types it; the
   // key is in the caption only
   FZoomAreaAction := FCommands.NewAction(Format(rsMenuZoomArea, [ShortcutInfo(kcToolZoom).Keys]), aiZoomArea, @ZoomAreaClick);
-  ReloadAction := FCommands.NewAction(rsMenuReload, aiReload, @ReloadClick, CommandShortCut(kcReload));
+  FReloadAction := FCommands.NewAction(rsMenuReload, aiReload, @ReloadClick, CommandShortCut(kcReload));
+  FSaveAsAction := FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, CommandShortCut(kcSaveAs));
   FPrintAction := FCommands.NewAction(rsMenuPrint, aiPrint, @PrintClick, CommandShortCut(kcPrint));
 
   Group := AddMenu(rsMenuFile);
   OpenItem := FCommands.AddMenuItem(Group, OpenAction);
   FRecent := TRecentMenu.Create(Self, Group, OpenItem, rlLayouts, @RecentOpen);
-  FCommands.AddMenuItem(Group, SaveAction);
-  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, CommandShortCut(kcSaveAs)));
+  FCommands.AddMenuItem(Group, FSaveAction);
+  FCommands.AddMenuItem(Group, FSaveAsAction);
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, FPrintAction);
   for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
-    FCommands.AddMenuItem(Group, ExportActions[ExportFormat]);
+    FCommands.AddMenuItem(Group, FExportActions[ExportFormat]);
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuQuit, aiQuit, @QuitClick, CommandShortCut(kcQuit)));
   Group := AddMenu(rsMenuEdit);
@@ -492,30 +496,30 @@ begin
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuPreferences, aiPreferences, @PreferencesClick, CommandShortCut(kcPreferences)));
   Group := AddMenu(rsMenuView);
-  FCommands.AddMenuItem(Group, ZoomInAction);
-  FCommands.AddMenuItem(Group, ZoomOutAction);
-  FCommands.AddMenuItem(Group, FitAction);
+  FCommands.AddMenuItem(Group, FZoomInAction);
+  FCommands.AddMenuItem(Group, FZoomOutAction);
+  FCommands.AddMenuItem(Group, FFitAction);
   FCommands.AddMenuItem(Group, FZoomAreaAction);
   Group.AddSeparator;
-  FCommands.AddMenuItem(Group, ReloadAction);
+  FCommands.AddMenuItem(Group, FReloadAction);
   Group := AddMenu(rsMenuHelp);
   FCommands.AddMenuItem(Group, FCommands.NewAction(Format(rsMenuAbout, [rsPublishTitle]), aiAbout, @AboutClick));
 
   FCommands.AddButton(OpenAction);
-  FCommands.AddButton(SaveAction);
+  FCommands.AddButton(FSaveAction);
   FCommands.AddDivider;
   FCommands.AddButton(FUndoAction);
   FCommands.AddButton(FRedoAction);
   FCommands.AddDivider;
-  FCommands.AddButton(ZoomInAction);
-  FCommands.AddButton(ZoomOutAction);
-  FCommands.AddButton(FitAction);
+  FCommands.AddButton(FZoomInAction);
+  FCommands.AddButton(FZoomOutAction);
+  FCommands.AddButton(FFitAction);
   FCommands.AddButton(FZoomAreaAction, True);
-  FCommands.AddButton(ReloadAction);
+  FCommands.AddButton(FReloadAction);
   FCommands.AddDivider;
   FCommands.AddButton(FPrintAction);
   for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
-    FCommands.AddButton(ExportActions[ExportFormat]);
+    FCommands.AddButton(FExportActions[ExportFormat]);
 end;
 
 // For a tab with more rows than a small window has room for
@@ -1236,6 +1240,29 @@ begin
   StatusResize(FStatus);
 end;
 
+// A new layout has no patterns and nothing placed, so there is nothing to
+// save, view or send out until there is
+procedure TPublishForm.RefreshCommands;
+var
+  HasPatterns, HasPlaced: boolean;
+  ExportFormat: TExportFormat;
+begin
+  HasPatterns := FDocument.Layout.Sources.Count > 0;
+  HasPlaced := Length(FDocument.Layout.Placements) > 0;
+  FSaveAction.Enabled := FDocument.Modified;
+  FSaveAsAction.Enabled := FDocument.Modified or (FDocument.Layout.FileName <> '');
+  FReloadAction.Enabled := HasPatterns;
+  FFitAction.Enabled := HasPatterns;
+  FZoomInAction.Enabled := HasPatterns;
+  FZoomOutAction.Enabled := HasPatterns;
+  FZoomAreaAction.Enabled := HasPatterns;
+  for ExportFormat := Low(TExportFormat) to High(TExportFormat) do
+    FExportActions[ExportFormat].Enabled := HasPlaced;
+  // A projector sheet is dark all over: it is shown, not printed
+  FPrintAction.Enabled := HasPlaced and (FDocument.Layout.Output.Kind <> okProjector);
+  FPrintButton.Enabled := FPrintAction.Enabled;
+end;
+
 procedure TPublishForm.RefreshControls;
 var
   Layout: TLayout;
@@ -1282,9 +1309,7 @@ begin
   FFlipButton.Enabled := FPreview.Selected >= 0;
   FRemoveButton.Enabled := FPreview.Selected >= 0;
   FPackButton.Enabled := FDocument.Layout.Output.Kind <> okProjector;
-  // A projector sheet is dark all over: it is shown, not printed
-  FPrintAction.Enabled := FDocument.Layout.Output.Kind <> okProjector;
-  FPrintButton.Enabled := FPrintAction.Enabled;
+  RefreshCommands;
   FUndoAction.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
     FUndoAction.Caption := Format(rsMenuUndoNamed, [FDocument.UndoDescription])

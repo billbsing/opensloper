@@ -107,6 +107,9 @@ type
     FCommandBar, FToolBar: TToolBar;
     FUndoAction, FRedoAction, FPieceFillsAction, FSideAction, FRulersAction, FAnnotationsAction: TAction;
     FHidePieceAction, FShowPiecesAction, FIsolateAction, FBringToFrontAction, FSendToBackAction: TAction;
+    // Enabled only while there is something for them to work on
+    FSaveAction, FSaveAsAction, FExportDraftAction, FPublishAction, FFitAction: TAction;
+    FDeleteAction, FLockAction, FUnlockAction: TAction;
     FRulerTop: TPanel;
     FRulerCorner: TRulerCorner;
     FHorzRuler, FVertRuler: TCanvasRuler;
@@ -815,8 +818,10 @@ procedure TMainForm.CreateCommands;
 begin
   MenuFileNew.Action := NewAction(rsMenuFileNew, aiNew, @MenuFileNewClick, CommandShortCut(kcNew));
   MenuFileOpen.Action := NewAction(rsMenuFileOpen, aiOpen, @MenuFileOpenClick, CommandShortCut(kcOpen));
-  MenuFileSave.Action := NewAction(rsMenuFileSave, aiSave, @MenuFileSaveClick, CommandShortCut(kcSave));
-  MenuFileSaveAs.Action := NewAction(rsMenuFileSaveAs, aiSaveAs, @MenuFileSaveAsClick, CommandShortCut(kcSaveAs));
+  FSaveAction := NewAction(rsMenuFileSave, aiSave, @MenuFileSaveClick, CommandShortCut(kcSave));
+  MenuFileSave.Action := FSaveAction;
+  FSaveAsAction := NewAction(rsMenuFileSaveAs, aiSaveAs, @MenuFileSaveAsClick, CommandShortCut(kcSaveAs));
+  MenuFileSaveAs.Action := FSaveAsAction;
   // Open Set is also the toolbar's measurements button
   MenuFileMeasurements.Caption := rsMenuFileMeasurements;
   MenuFileMeasurements.ImageIndex := Ord(aiMeasurements);
@@ -824,8 +829,10 @@ begin
   FOpenSetAction := NewAction(rsMenuMeasurementsOpen, aiMeasurements, @MenuFileMeasurementsClick, CommandShortCut(kcOpenMeasurements));
   AddMenuItem(MenuFileMeasurements, FOpenSetAction);
   AddMenuItem(MenuFileMeasurements, NewAction(rsMenuMeasurementsEdit, aiOpen, @MeasurementsEditSet));
-  MenuFilePublish.Action := NewAction(rsMenuFilePublish, aiPublish, @MenuFilePublishClick, CommandShortCut(kcPublish));
-  MenuFileExportDraft.Action := NewAction(rsMenuFileExportDraft, aiExportDraft, @MenuFileExportDraftClick);
+  FPublishAction := NewAction(rsMenuFilePublish, aiPublish, @MenuFilePublishClick, CommandShortCut(kcPublish));
+  MenuFilePublish.Action := FPublishAction;
+  FExportDraftAction := NewAction(rsMenuFileExportDraft, aiExportDraft, @MenuFileExportDraftClick);
+  MenuFileExportDraft.Action := FExportDraftAction;
   MenuFileQuit.Action := NewAction(rsMenuFileQuit, aiQuit, @MenuFileQuitClick, CommandShortCut(kcQuit));
   FUndoAction := NewAction(rsMenuEditUndo, aiUndo, @MenuEditUndoClick, CommandShortCut(kcUndo));
   MenuEditUndo.Action := FUndoAction;
@@ -836,16 +843,20 @@ begin
   AddEditItem(NewAction(rsMenuEditCopy, aiCopy, @EditCopyClick, CommandShortCut(kcCopy)));
   AddEditItem(NewAction(rsMenuEditPaste, aiPaste, @EditPasteClick, CommandShortCut(kcPaste)));
   // The canvas handles the Delete key, so typing in a field can still delete text
-  MenuEditDelete.Action := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
+  FDeleteAction := NewAction(rsMenuEditDelete, aiDelete, @MenuEditDeleteClick);
+  MenuEditDelete.Action := FDeleteAction;
   MenuEdit.AddSeparator;
-  AddMenuItem(MenuEdit, NewAction(rsMenuEditLock, aiLock, @EditLockClick));
-  AddMenuItem(MenuEdit, NewAction(rsMenuEditUnlock, aiUnlock, @EditUnlockClick));
+  FLockAction := NewAction(rsMenuEditLock, aiLock, @EditLockClick);
+  AddMenuItem(MenuEdit, FLockAction);
+  FUnlockAction := NewAction(rsMenuEditUnlock, aiUnlock, @EditUnlockClick);
+  AddMenuItem(MenuEdit, FUnlockAction);
   MenuEdit.AddSeparator;
   AddMenuItem(MenuEdit, NewAction(rsMenuEditMaterials, aiPieceFills, @MaterialsEditClick));
   AddMenuItem(MenuEdit, NewAction(rsMenuEditPreferences, aiPreferences, @PreferencesClick, CommandShortCut(kcPreferences)));
   MenuViewZoomIn.Action := NewAction(rsMenuViewZoomIn, aiZoomIn, @MenuViewZoomInClick, CommandShortCut(kcZoomIn));
   MenuViewZoomOut.Action := NewAction(rsMenuViewZoomOut, aiZoomOut, @MenuViewZoomOutClick, CommandShortCut(kcZoomOut));
-  MenuViewFit.Action := NewAction(rsMenuViewFit, aiFit, @MenuViewFitClick, CommandShortCut(kcFit));
+  FFitAction := NewAction(rsMenuViewFit, aiFit, @MenuViewFitClick, CommandShortCut(kcFit));
+  MenuViewFit.Action := FFitAction;
   MenuViewTrueSize.Action := NewAction(rsMenuViewTrueSize, aiTrueSize, @MenuViewTrueSizeClick, CommandShortCut(kcTrueSize));
   MenuHelpAbout.Action := NewAction(rsMenuHelpAbout, aiAbout, @MenuHelpAboutClick);
   AddButton(FCommandBar, MenuFileNew.Action);
@@ -1386,6 +1397,7 @@ begin
   FAlign.Selection := FCanvas.Selection;
   FProperties.ShowSelection(FCanvas.Selection);
   FGarment.ShowSelection(FCanvas.Selection);
+  UpdateMenus;
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -1614,9 +1626,29 @@ begin
   Caption := Format(rsTitle, [DisplayName, Mark, APP_NAME]);
 end;
 
-// Undo and Redo name the step, in the menu and the tooltip
+// Undo and Redo name the step, in the menu and the tooltip. A new pattern has
+// nothing to save, show or send out, and the selection commands need a
+// selection. Cut, Copy and Paste also work in text fields, so they stay on.
 procedure TMainForm.UpdateMenus;
+var
+  HasObjects, HasSelection: boolean;
+  PieceCount: integer;
 begin
+  HasObjects := FDocument.Pattern.ObjectCount > 0;
+  HasSelection := Length(FCanvas.Selection) > 0;
+  PieceCount := Length(SelectedPieces);
+  FSaveAction.Enabled := FDocument.Modified;
+  FSaveAsAction.Enabled := FDocument.Modified or (FDocument.FileName <> '');
+  FExportDraftAction.Enabled := HasObjects;
+  FPublishAction.Enabled := Length(FDocument.Pattern.PieceList) > 0;
+  FFitAction.Enabled := HasObjects;
+  FDeleteAction.Enabled := HasSelection;
+  FLockAction.Enabled := HasSelection;
+  FUnlockAction.Enabled := HasSelection;
+  FHidePieceAction.Enabled := PieceCount > 0;
+  FBringToFrontAction.Enabled := PieceCount > 0;
+  FSendToBackAction.Enabled := PieceCount > 0;
+  FIsolateAction.Enabled := Assigned(FDocument.Pattern.IsolatedPiece) or (PieceCount = 1);
   FUndoAction.Enabled := FDocument.CanUndo;
   if FDocument.CanUndo then
     FUndoAction.Caption := Format(rsMenuEditUndoWhat, [FDocument.UndoDescription])

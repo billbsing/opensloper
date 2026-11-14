@@ -58,6 +58,9 @@ type
     FStatus: TStatusBar;
     FCommands: TCommandSet;
     FUndoAction, FRedoAction: TAction;
+    // Enabled only while there is something for them to work on
+    FSaveAction, FSaveAsAction, FExportAction, FStopCheckAction: TAction;
+    FDeleteButton, FUpButton, FDownButton, FRenameSizeButton, FDeleteSizeButton, FSizeLeftButton, FSizeRightButton: TButton;
     FRecent: TRecentMenu;
     FBar: TPanel;
     FWatch: TTimer;
@@ -95,6 +98,11 @@ type
     procedure DocumentChanged(Sender: TObject);
     procedure RefreshLater(Data: PtrInt);
     procedure RefreshAll;
+    procedure RefreshCommands;
+    // Typed in the name, notes or a cell, and not yet given to the document
+    function HeaderPending: boolean;
+    function CellPending: boolean;
+    procedure HeaderChange(Sender: TObject);
     procedure PreferencesClick(Sender: TObject);
     procedure AboutClick(Sender: TObject);
     procedure RefreshGrid;
@@ -327,16 +335,17 @@ var
 
 var
   Group, OpenItem: TMenuItem;
-  NewAction, OpenAction, SaveAction, ImportAction, ExportAction, CheckAction: TAction;
+  NewAction, OpenAction, ImportAction, CheckAction: TAction;
 begin
   Bar := TMainMenu.Create(Self);
   Menu := Bar;
   FCommands := TCommandSet.Create(Self, Bar);
   NewAction := FCommands.NewAction(rsMenuNew, aiNew, @NewClick, CommandShortCut(kcNew));
   OpenAction := FCommands.NewAction(rsMenuOpen, aiOpen, @OpenClick, CommandShortCut(kcOpen));
-  SaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, CommandShortCut(kcSave));
+  FSaveAction := FCommands.NewAction(rsMenuSave, aiSave, @SaveClick, CommandShortCut(kcSave));
   ImportAction := FCommands.NewAction(rsMenuImport, aiImport, @ImportClick, CommandShortCut(kcImport));
-  ExportAction := FCommands.NewAction(rsMenuExport, aiExport, @ExportClick, CommandShortCut(kcExportMeasurements));
+  FSaveAsAction := FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, CommandShortCut(kcSaveAs));
+  FExportAction := FCommands.NewAction(rsMenuExport, aiExport, @ExportClick, CommandShortCut(kcExportMeasurements));
   CheckAction := FCommands.NewAction(rsMenuCheck, aiCheckPattern, @CheckPatternClick);
   FUndoAction := FCommands.NewAction(rsMenuUndo, aiUndo, @UndoClick, CommandShortCut(kcUndo));
   FRedoAction := FCommands.NewAction(rsMenuRedo, aiRedo, @RedoClick, CommandShortCut(kcRedo));
@@ -345,14 +354,15 @@ begin
   FCommands.AddMenuItem(Group, NewAction);
   OpenItem := FCommands.AddMenuItem(Group, OpenAction);
   FRecent := TRecentMenu.Create(Self, Group, OpenItem, rlMeasurements, @RecentOpen);
-  FCommands.AddMenuItem(Group, SaveAction);
-  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuSaveAs, aiSaveAs, @SaveAsClick, CommandShortCut(kcSaveAs)));
+  FCommands.AddMenuItem(Group, FSaveAction);
+  FCommands.AddMenuItem(Group, FSaveAsAction);
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, ImportAction);
-  FCommands.AddMenuItem(Group, ExportAction);
+  FCommands.AddMenuItem(Group, FExportAction);
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, CheckAction);
-  FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuStopCheck, aiStopCheck, @StopPatternClick));
+  FStopCheckAction := FCommands.NewAction(rsMenuStopCheck, aiStopCheck, @StopPatternClick);
+  FCommands.AddMenuItem(Group, FStopCheckAction);
   Group.AddSeparator;
   FCommands.AddMenuItem(Group, FCommands.NewAction(rsMenuQuit, aiQuit, @QuitClick, CommandShortCut(kcQuit)));
   Group := AddMenu(rsMenuEdit);
@@ -365,13 +375,13 @@ begin
 
   FCommands.AddButton(NewAction);
   FCommands.AddButton(OpenAction);
-  FCommands.AddButton(SaveAction);
+  FCommands.AddButton(FSaveAction);
   FCommands.AddDivider;
   FCommands.AddButton(FUndoAction);
   FCommands.AddButton(FRedoAction);
   FCommands.AddDivider;
   FCommands.AddButton(ImportAction);
-  FCommands.AddButton(ExportAction);
+  FCommands.AddButton(FExportAction);
   FCommands.AddDivider;
   FCommands.AddButton(CheckAction);
 end;
@@ -398,6 +408,7 @@ var
     Result.Left := Row.ControlCount * 1000;
     Result.Width := AWidth;
     Result.OnEditingDone := @HeaderDone;
+    Result.OnChange := @HeaderChange;
   end;
 
 begin
@@ -439,15 +450,16 @@ begin
   SpaceBetween(FBar);
   FBar.ChildSizing.LeftRightSpacing := ControlGap;
   AddButton(rsAdd, @AddClick);
-  AddButton(rsDelete, @DeleteClick);
-  AddButton(rsUp, @UpClick);
+  FDeleteButton := AddButton(rsDelete, @DeleteClick);
+  FUpButton := AddButton(rsUp, @UpClick);
+  FDownButton := AddButton(rsDown, @DownClick);
   // Three gaps part the measurement buttons from the size buttons
-  AddButton(rsDown, @DownClick).BorderSpacing.Right := ControlGap * 3;
+  FDownButton.BorderSpacing.Right := ControlGap * 3;
   AddButton(rsAddSize, @AddSizeClick);
-  AddButton(rsRenameSize, @RenameSizeClick);
-  AddButton(rsDeleteSize, @DeleteSizeClick);
-  AddButton(rsSizeLeft, @SizeLeftClick);
-  AddButton(rsSizeRight, @SizeRightClick);
+  FRenameSizeButton := AddButton(rsRenameSize, @RenameSizeClick);
+  FDeleteSizeButton := AddButton(rsDeleteSize, @DeleteSizeClick);
+  FSizeLeftButton := AddButton(rsSizeLeft, @SizeLeftClick);
+  FSizeRightButton := AddButton(rsSizeRight, @SizeRightClick);
   FUnitBox := TComboBox.Create(Self);
   FUnitBox.Parent := FBar;
   FUnitBox.Align := alRight;
@@ -792,8 +804,10 @@ end;
 
 procedure TMeasurementsForm.GridSelection(Sender: TObject; aCol, aRow: integer);
 begin
-  if not FRefreshing then
-    ShowEntry(SelectedKey);
+  if FRefreshing then
+    Exit;
+  ShowEntry(SelectedKey);
+  RefreshCommands;
 end;
 
 procedure TMeasurementsForm.GridMouseMove(Sender: TObject; Shift: TShiftState; X, Y: integer);
@@ -989,10 +1003,44 @@ begin
     FUndoAction.Caption := rsMenuUndo;
   SetActionHint(FUndoAction);
   FRedoAction.Enabled := FDocument.CanRedo;
+  RefreshCommands;
   FileTitle := ExtractFileName(FDocument.FileName);
   if FileTitle = '' then
     FileTitle := rsUntitled;
   Caption := Format(rsMeasurementsTitleFile, [FileTitle, MODIFIED_MARK[FDocument.Modified]]);
+end;
+
+function TMeasurementsForm.HeaderPending: boolean;
+begin
+  Result := (FNameEdit.Text <> FDocument.Measurements.Name) or (FNotesEdit.Text <> FDocument.Measurements.Notes);
+end;
+
+function TMeasurementsForm.CellPending: boolean;
+begin
+  Result := Assigned(FGrid.Editor) and (FGrid.Cells[FGrid.Col, FGrid.Row] <> FGrid.Editor.Caption);
+end;
+
+// A new, empty file has nothing to save or export, and the row and size
+// buttons need a cell in a row or a size's column
+procedure TMeasurementsForm.RefreshCommands;
+var
+  Index, Size: integer;
+  Unsaved: boolean;
+begin
+  Unsaved := FDocument.Modified or HeaderPending or CellPending;
+  FSaveAction.Enabled := Unsaved;
+  FSaveAsAction.Enabled := Unsaved or (FDocument.FileName <> '');
+  FExportAction.Enabled := FDocument.Measurements.Count > 0;
+  FStopCheckAction.Enabled := FDocument.PatternFile <> '';
+  Index := RowIndex(FGrid.Row);
+  FDeleteButton.Enabled := Index >= 0;
+  FUpButton.Enabled := Index > 0;
+  FDownButton.Enabled := (Index >= 0) and (Index < FDocument.Measurements.Count - 1);
+  Size := CurrentSize;
+  FRenameSizeButton.Enabled := Size >= 0;
+  FDeleteSizeButton.Enabled := Size >= 0;
+  FSizeLeftButton.Enabled := Size > 0;
+  FSizeRightButton.Enabled := (Size >= 0) and (Size < FDocument.Measurements.SizeCount - 1);
 end;
 
 // A change made while the grid is finishing an edit is drawn once it has
@@ -1072,8 +1120,11 @@ var
   Index: integer;
   Reason: string;
 begin
+  if FRefreshing then
+    Exit;
+  RefreshCommands;
   Index := RowIndex(ARow);
-  if FRefreshing or (Index < 0) or (ACol <> KEY_COLUMN) then
+  if (Index < 0) or (ACol <> KEY_COLUMN) then
     Exit;
   if FDocument.Measurements.CheckKey(Trim(Value), FDocument.Measurements[Index], Reason) then
     ShowStatus('')
@@ -1089,6 +1140,12 @@ begin
     FDocument.SetName(FNameEdit.Text);
   if FNotesEdit.Text <> FDocument.Measurements.Notes then
     FDocument.SetNotes(FNotesEdit.Text);
+end;
+
+procedure TMeasurementsForm.HeaderChange(Sender: TObject);
+begin
+  if not FRefreshing then
+    RefreshCommands;
 end;
 
 procedure TMeasurementsForm.UnitChange(Sender: TObject);
@@ -1117,7 +1174,7 @@ end;
 procedure TMeasurementsForm.WatchTick(Sender: TObject);
 begin
   // Taking in a change now would lose what is being typed
-  if FAnswering or Assigned(FGrid.Editor) and (FGrid.Cells[FGrid.Col, FGrid.Row] <> FGrid.Editor.Caption) then
+  if FAnswering or CellPending then
     Exit;
   if FDocument.CheckPattern then
     ShowStatus(Format(rsPatternReread, [ExtractFileName(FDocument.PatternFile)]));

@@ -45,6 +45,11 @@ Changed, Fixed and Removed under each version.
 - File → Publish… in the design app brings the publish window already showing
   the pattern's layout to the front, rather than opening another each time
   (#18). Only when none shows it is a new one started.
+- Menu and toolbar commands are greyed out while they cannot be used (#24),
+  in all three apps. A new, empty file has nothing to save, export, print or
+  publish; Save waits for a change; and the commands that work on a
+  selection, a measurement row or a size column wait for one. Cut, Copy and
+  Paste stay on, as they also work in text fields.
 
 ### Fixed
 
