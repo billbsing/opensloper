@@ -122,14 +122,10 @@ resourcestring
 implementation
 
 uses
-  LCLType, Sloper.Assistant.Key, Sloper.UI.Automation;
+  LCLType, Sloper.Assistant.Key, Sloper.UI.Automation, Sloper.UI.Spacing;
 
 const
   INPUT_HEIGHT96 = 64;
-  BUTTON_GAP96 = 4;
-  PNG_MEMBER = 'png';
-  SVG_MEMBER = 'svg';
-  PNG_MEDIA_TYPE = 'image/png';
 
 constructor TAssistantWorker.Create(APanel: TAssistantPanel; AConversation: TAssistantConversation; const AQuestion: string);
 begin
@@ -253,11 +249,11 @@ var
     Result.Caption := ACaption;
     Result.AutoSize := True;
     Result.Align := alLeft;
-    Result.BorderSpacing.Right := Scale96ToForm(BUTTON_GAP96);
     Result.OnClick := AHandler;
   end;
 
 begin
+  SpaceChildren(Self);
   FInput := TMemo.Create(Self);
   FInput.Parent := Self;
   FInput.Align := alBottom;
@@ -270,7 +266,7 @@ begin
   Buttons.Align := alBottom;
   Buttons.AutoSize := True;
   Buttons.BevelOuter := bvNone;
-  Buttons.BorderSpacing.Around := Scale96ToForm(BUTTON_GAP96);
+  SpaceBetween(Buttons);
   FNewButton := NewButton(rsAssistantNew, @NewClick);
   FStopButton := NewButton(rsAssistantStop, @StopClick);
   FSendButton := NewButton(rsAssistantSend, @SendClick);
@@ -440,69 +436,31 @@ end;
 function TAssistantPanel.RunTool(const ToolName: string; Input: TJSONObject; out IsError: boolean): TJSONArray;
 var
   Output: TJSONData;
-  Member: TJSONData;
-  Error: TJSONObject;
 begin
   ShowNote(ToolName);
-  IsError := False;
-  Result := TJSONArray.Create;
+  IsError := True;
   if not Assigned(FApi) then
-  begin
-    IsError := True;
-    Result.Add(TJSONObject.Create(['type', 'text', 'text', rsAssistantNoPattern]));
-    Exit;
-  end;
+    Exit(TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', rsAssistantNoPattern])]));
   // A call still pending when the user opened another pattern would act on
   // it with what Claude learned from the one before; the question stops
   if FDocument.Generation <> FGeneration then
   begin
-    IsError := True;
     FConversation.Cancel;
     Append(LineEnding + rsAssistantAnotherPattern + LineEnding);
-    Result.Add(TJSONObject.Create(['type', 'text', 'text', rsAssistantAnotherPattern]));
-    Exit;
+    Exit(TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', rsAssistantAnotherPattern])]));
   end;
   FApi.OnWindowState := FWindowState;
   try
     Output := FApi.CallMethod(ToolName, Input);
     try
-      Member := nil;
-      if Output.JSONType = jtObject then
-        Member := TJSONObject(Output).Find(PNG_MEMBER);
-      if Assigned(Member) and (Member.JSONType = jtString) then
-        Result.Add(TJSONObject.Create(['type', 'image', 'source', TJSONObject.Create(['type', 'base64', 'media_type',
-          PNG_MEDIA_TYPE, 'data', Member.AsString])]))
-      else
-      begin
-        Member := nil;
-        if Output.JSONType = jtObject then
-          Member := TJSONObject(Output).Find(SVG_MEMBER);
-        if Assigned(Member) and (Member.JSONType = jtString) then
-          Result.Add(TJSONObject.Create(['type', 'text', 'text', Member.AsString]))
-        else
-          Result.Add(TJSONObject.Create(['type', 'text', 'text', Output.AsJSON]));
-      end;
+      Result := ToolContent(Output);
+      IsError := False;
     finally
       FreeAndNil(Output);
     end;
   except
-    on Failure: EApiError do
-    begin
-      IsError := True;
-      Error := TJSONObject.Create(['code', Failure.Code, 'message', Failure.Message]);
-      try
-        if (Failure.FieldName <> '') or (Failure.Position > 0) then
-          Error.Add('data', TJSONObject.Create(['field', Failure.FieldName, 'position', Failure.Position]));
-        Result.Add(TJSONObject.Create(['type', 'text', 'text', Error.AsJSON]));
-      finally
-        FreeAndNil(Error);
-      end;
-    end;
     on Failure: Exception do
-    begin
-      IsError := True;
-      Result.Add(TJSONObject.Create(['type', 'text', 'text', Failure.Message]));
-    end;
+      Result := ToolFailureContent(Failure);
   end;
 end;
 

@@ -86,6 +86,10 @@ type
     procedure TestStepLimit;
     // Only the last few images of the draft stay in the history
     procedure TestOldImagesDropped;
+    // A tool's reply as content: a PNG as an image, an SVG as text, else JSON
+    procedure TestToolContent;
+    // A failure as the API's error, the same text the MCP server gives
+    procedure TestToolFailureContent;
     procedure TestSystemPrompt;
     procedure TestKeyFile;
     // A key file that cannot be removed says why, naming the file
@@ -114,7 +118,7 @@ implementation
 
 uses
   Math, {$IFDEF UNIX} BaseUnix, {$ENDIF} ssockets, sslsockets, opensslsockets, Sloper.Core.JSON, Sloper.Assistant.Stream,
-  Sloper.Assistant.Key;
+  Sloper.Assistant.Key, Sloper.API.Rpc, Sloper.API.Server, Sloper.API.MCP;
 
 type
   // Accepts on 127.0.0.1 with a self-signed certificate and answers each
@@ -693,6 +697,64 @@ begin
     FreeAndNil(Last);
   end;
   AssertEquals('so is the history', 'text image image image ', ResultKinds(FConversation.Messages));
+end;
+
+procedure TTestAssistant.TestToolContent;
+var
+  Output: TJSONObject;
+  Content: TJSONArray;
+begin
+  Output := TJSONObject.Create(['png', 'aGk=']);
+  Content := ToolContent(Output);
+  try
+    AssertEquals('image', Content.Objects[0].Get('type', ''));
+    AssertEquals('image/png', Content.Objects[0].Objects['source'].Get('media_type', ''));
+    AssertEquals('aGk=', Content.Objects[0].Objects['source'].Get('data', ''));
+  finally
+    FreeAndNil(Content);
+    FreeAndNil(Output);
+  end;
+  Output := TJSONObject.Create(['svg', '<svg/>']);
+  Content := ToolContent(Output);
+  try
+    AssertEquals('<svg/>', Content.Objects[0].Get('text', ''));
+  finally
+    FreeAndNil(Content);
+    FreeAndNil(Output);
+  end;
+  Output := TJSONObject.Create(['x', 1]);
+  Content := ToolContent(Output);
+  try
+    AssertEquals(Output.AsJSON, Content.Objects[0].Get('text', ''));
+  finally
+    FreeAndNil(Content);
+    FreeAndNil(Output);
+  end;
+end;
+
+procedure TTestAssistant.TestToolFailureContent;
+var
+  Failure: Exception;
+  Content: TJSONArray;
+begin
+  Failure := EApiError.Create(RPC_REFUSED, 'No', 'formula', 3);
+  Content := ToolFailureContent(Failure);
+  try
+    AssertEquals(FailureText(Failure), Content.Objects[0].Get('text', ''));
+    AssertTrue('field and position', Pos('"position" : 3', Content.Objects[0].Get('text', '')) > 0);
+  finally
+    FreeAndNil(Content);
+    FreeAndNil(Failure);
+  end;
+  // Not a refusal: given as an internal error, as the MCP server does
+  Failure := Exception.Create('Boom');
+  Content := ToolFailureContent(Failure);
+  try
+    AssertTrue(Content.Objects[0].Get('text', ''), Pos(IntToStr(RPC_INTERNAL_ERROR), Content.Objects[0].Get('text', '')) > 0);
+  finally
+    FreeAndNil(Content);
+    FreeAndNil(Failure);
+  end;
 end;
 
 procedure TTestAssistant.TestStepLimit;

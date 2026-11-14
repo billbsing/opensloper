@@ -87,6 +87,11 @@ const
 function AssistantTools: TJSONArray;
 // The instructions, formula syntax and object properties
 function AssistantSystemPrompt: string;
+// A method's reply as tool_result content: render's PNG as an image, so
+// Claude sees the draft; its SVG, or any other reply as JSON, as text
+function ToolContent(Output: TJSONData): TJSONArray;
+// A failed call as tool_result content, as the MCP server gives it
+function ToolFailureContent(Failure: Exception): TJSONArray;
 
 resourcestring
   rsAssistantSystem = 'You help a pattern maker draft sewing patterns in OpenSloper, a parametric drafting program. ' +
@@ -192,6 +197,24 @@ begin
       Properties := Properties + IfThen(Properties <> '', '; ', '') + Operation.TypeName + ': ' + Operation.Properties;
   Result := rsAssistantSystem + LineEnding + LineEnding + Format(rsAssistantFormulas, [Functions, Units]) + LineEnding +
     LineEnding + Format(rsAssistantProperties, [Properties]);
+end;
+
+function ToolContent(Output: TJSONData): TJSONArray;
+var
+  Kind: TToolOutputKind;
+  Text: string;
+begin
+  ReadToolOutput(Output, Kind, Text);
+  if Kind = tokImage then
+    Result := TJSONArray.Create([TJSONObject.Create(['type', 'image', 'source', TJSONObject.Create(['type', 'base64',
+      'media_type', TOOL_IMAGE_MIME_TYPE, 'data', Text])])])
+  else
+    Result := TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', Text])]);
+end;
+
+function ToolFailureContent(Failure: Exception): TJSONArray;
+begin
+  Result := TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', FailureText(Failure)])]);
 end;
 
 constructor TAssistantConversation.Create(ATransport: TAssistantTransport);

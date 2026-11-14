@@ -55,6 +55,21 @@ type
 // Every API method as an MCP tool, with a JSON Schema of its parameters
 function McpTools: TJSONArray;
 
+type
+  // What a tool's reply is sent as: render's PNG as an image; its SVG, or
+  // any other reply as JSON, as text
+  TToolOutputKind = (tokImage, tokText);
+
+// How a method's Output goes back to a model, here and in the assistant:
+// Text is the PNG's base64 for an image
+procedure ReadToolOutput(Output: TJSONData; out Kind: TToolOutputKind; out Text: string);
+// A failed call as the API's error (code, message, and field and position
+// when known), so the model reads why; any other exception is an internal error
+function FailureText(Failure: Exception): string;
+
+const
+  TOOL_IMAGE_MIME_TYPE = 'image/png';
+
 resourcestring
   rsMcpInstructions = 'OpenSloper drafts sewing patterns from formulas. Open a pattern with open, or build one from the ' +
     'empty pattern the server starts with, then save it. Objects are given by id or by name. Formulas are in the ' +
@@ -79,7 +94,6 @@ const
   // The render reply members sent as content of their own, not inside JSON
   SVG_MEMBER = 'svg';
   PNG_MEMBER = 'png';
-  PNG_MIME_TYPE = 'image/png';
 
 // Markdown links become their text: an MCP client has no reference pages
 function PlainText(const Text: string): string;
@@ -261,23 +275,37 @@ end;
 
 // What an MCP client shows the model: a PNG as an image, so the model sees
 // the draft; the SVG as it is; anything else as JSON
-function ToolResult(Output: TJSONData): TJSONObject;
+procedure ReadToolOutput(Output: TJSONData; out Kind: TToolOutputKind; out Text: string);
 var
   Member: TJSONData;
+begin
+  Kind := tokText;
+  Text := Output.AsJSON;
+  if Output.JSONType <> jtObject then
+    Exit;
+  Member := TJSONObject(Output).Find(PNG_MEMBER);
+  if Assigned(Member) and (Member.JSONType = jtString) then
+  begin
+    Kind := tokImage;
+    Text := Member.AsString;
+    Exit;
+  end;
+  Member := TJSONObject(Output).Find(SVG_MEMBER);
+  if Assigned(Member) and (Member.JSONType = jtString) then
+    Text := Member.AsString;
+end;
+
+function ToolResult(Output: TJSONData): TJSONObject;
+var
+  Kind: TToolOutputKind;
+  Text: string;
   Item: TJSONObject;
 begin
-  Item := nil;
-  if Output.JSONType = jtObject then
-  begin
-    Member := TJSONObject(Output).Find(PNG_MEMBER);
-    if Assigned(Member) and (Member.JSONType = jtString) then
-      Item := TJSONObject.Create(['type', 'image', 'data', Member.AsString, 'mimeType', PNG_MIME_TYPE]);
-    Member := TJSONObject(Output).Find(SVG_MEMBER);
-    if not Assigned(Item) and Assigned(Member) and (Member.JSONType = jtString) then
-      Item := TJSONObject.Create(['type', 'text', 'text', Member.AsString]);
-  end;
-  if not Assigned(Item) then
-    Item := TJSONObject.Create(['type', 'text', 'text', Output.AsJSON]);
+  ReadToolOutput(Output, Kind, Text);
+  if Kind = tokImage then
+    Item := TJSONObject.Create(['type', 'image', 'data', Text, 'mimeType', TOOL_IMAGE_MIME_TYPE])
+  else
+    Item := TJSONObject.Create(['type', 'text', 'text', Text]);
   Result := TJSONObject.Create(['content', TJSONArray.Create([Item])]);
 end;
 
@@ -299,6 +327,14 @@ begin
   finally
     FreeAndNil(Error);
   end;
+end;
+
+function FailureText(Failure: Exception): string;
+begin
+  if Failure is EApiError then
+    Result := RefusalText(EApiError(Failure).Code, Failure.Message, EApiError(Failure).FieldName, EApiError(Failure).Position)
+  else
+    Result := RefusalText(RPC_INTERNAL_ERROR, Failure.Message, '', 0);
 end;
 
 constructor TMcpServer.Create;
@@ -365,10 +401,8 @@ begin
       Output := FBackend.CallMethod(ToolName, TJSONObject(Arguments));
       Result := ToolResult(Output);
     except
-      on Failure: EApiError do
-        Result := ErrorResult(RefusalText(Failure.Code, Failure.Message, Failure.FieldName, Failure.Position));
       on Failure: Exception do
-        Result := ErrorResult(RefusalText(RPC_INTERNAL_ERROR, Failure.Message, '', 0));
+        Result := ErrorResult(FailureText(Failure));
     end;
   finally
     FreeAndNil(Output);
