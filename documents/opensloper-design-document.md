@@ -986,11 +986,8 @@ Agreed, but not built. Each line is meant to become one issue.
 - **Raising the publish window on Wayland**, which needs an `xdg-activation` token Qt 5 cannot use (see Finding an open window).
 - **Blender export** for fit and drape (see Blender export (3D preview)).
 
-**To try on real hardware** (see also `documents/items-todo.md`)
+**To try on real hardware**
 
-- Tile pages taped together using the overlap diamonds.
-- Print… on macOS, and on Windows with a PDF viewer that has a print command and one without.
-- The Publish… save prompt, with a modified pattern and from a real save.
 - A print with the Leather output profile.
 - Alt-click to cycle coincident lines on a real desktop, as some window managers take it.
 - DXF-AAMA on a real cutting system, checking the layers and file-level text.
