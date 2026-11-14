@@ -292,6 +292,27 @@ begin
     Result := FormulaParam(Params, AName);
 end;
 
+// The words a method's choice parameter takes, as the methods table lists them
+function TableChoices(const Method, AName: string): string;
+var
+  Info: TApiMethod;
+  Param: TApiParam;
+begin
+  Result := '';
+  if FindApiMethod(Method, Info) then
+    for Param in Info.Params do
+      if Param.Name = AName then
+        Exit(Param.Choices);
+end;
+
+// True when the parameter is given, refusing one that is not a number
+function OptionalNumber(Params: TJSONObject; const AName: string; var Value: double): boolean;
+begin
+  Result := Assigned(Params.Find(AName));
+  if Result and not GetJSONNumber(Params, AName, Value) then
+    raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
+end;
+
 function BooleanParam(Params: TJSONObject; const AName: string): boolean;
 begin
   Result := False;
@@ -1387,8 +1408,7 @@ begin
       Added := Pattern.AddProjectPoint(PointName, First, Second, TProjectDirection(Direction), FormulaA, FlagA);
     end;
     else
-      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiUnknownType,
-        [TypeName, 'freePoint, offsetPoint, alongEdgePoint, intersectPoint, circleEdgePoint, projectPoint']));
+      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiUnknownType, [TypeName, TableChoices('add_point', 'type')]));
   end;
   Result := AddedNode(Added);
 end;
@@ -1505,7 +1525,7 @@ begin
       Added := Pattern.AddCurvePath(NodeKeys, Angles, LengthsIn, LengthsOut, Role, EdgeName);
     end;
     else
-      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiUnknownType, [TypeName, 'line, curve, circle, arc, offsetEdge, curvePath']));
+      raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiUnknownType, [TypeName, TableChoices('add_edge', 'type')]));
   end;
   Result := AddedNode(Added);
 end;
@@ -1863,8 +1883,8 @@ begin
     RefuseChange;
   if Assigned(Params.Find('fill')) then
     FDocument.Pattern.SetMaterialFill(Material, TMaterialFill(ChoiceParam(Params, 'fill', MATERIAL_FILL_NAMES)));
-  if Assigned(Params.Find('allowance')) and not (GetJSONNumber(Params, 'allowance', Allowance) and
-    FDocument.Pattern.SetMaterialAllowance(Material, True, Allowance)) then
+  Allowance := 0;
+  if OptionalNumber(Params, 'allowance', Allowance) and not FDocument.Pattern.SetMaterialAllowance(Material, True, Allowance) then
     RefuseChange;
   if Assigned(Params.Find('noAllowance')) and BooleanParam(Params, 'noAllowance') then
     FDocument.Pattern.SetMaterialAllowance(Material, False, 0);
@@ -1872,15 +1892,9 @@ begin
   begin
     NewWidth := Material.Width;
     NewLength := Material.Length;
-    if Assigned(Params.Find('width')) and not GetJSONNumber(Params, 'width', NewWidth) then
-      RefuseChange;
-    if Assigned(Params.Find('length')) then
-    begin
-      if not GetJSONNumber(Params, 'length', NewLength) then
-        RefuseChange;
-    end
+    OptionalNumber(Params, 'width', NewWidth);
     // No width takes the length away too
-    else if NewWidth = 0 then
+    if not OptionalNumber(Params, 'length', NewLength) and (NewWidth = 0) then
       NewLength := 0;
     if not FDocument.Pattern.SetMaterialSize(Material, NewWidth, NewLength) then
       RefuseChange;

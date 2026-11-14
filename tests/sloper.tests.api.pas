@@ -99,6 +99,8 @@ type
     procedure TestRepeatPointUsedInsideTheChange;
     // An input given by an ID that does not exist is refused, never a crash
     procedure TestUnknownIdInputRefused;
+    // The error for an unknown type lists every type the method takes
+    procedure TestUnknownTypeListsAllTypes;
     procedure TestSave;
     procedure TestSaveNeedsAPath;
     procedure TestSaveReplacesOnlyPatterns;
@@ -559,6 +561,14 @@ begin
   AssertEquals(Format(rsApiNoMaterial, ['Nothing']), ErrorText);
   Call('set_material', '{"material": "Main", "length": 500}');
   AssertEquals(rsMaterialLengthWithoutWidth, ErrorText);
+  // A number given as text names the parameter, not the last refusal
+  Call('set_material', '{"material": "Main", "width": "150"}');
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
+  AssertEquals(Format(rsApiMissingParam, ['width']), ErrorText);
+  Call('set_material', '{"material": "Main", "width": 1500, "length": "2m"}');
+  AssertEquals(Format(rsApiMissingParam, ['length']), ErrorText);
+  Call('set_material', '{"material": "Main", "allowance": "10"}');
+  AssertEquals(Format(rsApiMissingParam, ['allowance']), ErrorText);
 end;
 
 procedure TTestAPI.TestFailedCallClosesChange;
@@ -934,6 +944,16 @@ begin
   AssertEquals(Format(rsApiUnknownId, [99999]), ErrorText);
   Call('add_point', '{"type": "offsetPoint", "base": 99999, "mode": "cartesian", "dx": 1, "dy": 1}');
   AssertEquals(Format(rsApiUnknownId, [99999]), ErrorText);
+end;
+
+procedure TTestAPI.TestUnknownTypeListsAllTypes;
+begin
+  Call('add_point', '{"type": "midPoint"}');
+  AssertEquals(RPC_INVALID_PARAMS, ErrorCode);
+  AssertEquals(Format(rsApiUnknownType, ['midPoint', 'freePoint, offsetPoint, alongEdgePoint, betweenPoint, intersectPoint, ' +
+    'circleEdgePoint, circleCirclePoint, projectPoint']), ErrorText);
+  Call('add_edge', '{"type": "spline"}');
+  AssertEquals(Format(rsApiUnknownType, ['spline', 'line, curve, curvePath, circle, arc, offsetEdge']), ErrorText);
 end;
 
 procedure TTestAPI.TestArrangeRefused;
