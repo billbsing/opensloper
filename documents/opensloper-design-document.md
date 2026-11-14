@@ -924,24 +924,7 @@ Everything not built yet, gathered from the sections above so each can become a 
 
 Save, load and undo came before the canvas, so the canvas was built on document commands from the start and saved patterns served as regression tests. The app becomes personally useful at step 9; a community release follows if it proves easy to use.
 
-1. Geometry core with unit tests, no UI (done)
-2. Measurement sets, variables and the formula engine (done)
-3. Dependency graph and evaluator (done)
-4. JSON save and load, undo and redo (done)
-5. Canvas with pan, zoom and snap-inferred point operations (done)
-6. Align and distribute, repeat along an edge (done; the Align tab is hidden, and repeats are made from Tools → Points)
-7. Automation API phase 1, `opensloper-cli serve` (done, render as SVG)
-8. Pieces: detection, seam allowance, grainlines, notches, materials and fills (done)
-9. Publish app with true-scale tiled printing (done; the test page printed through Print… on Linux on 2026-11-14 with the test square true. What is still to be tried by hand is under To try on real hardware)
-10. Measurements app with the catalogue, body figure and Valentina and Seamly2D files (done)
-11. Seams and seam-length checks (done)
-12. SVG and DXF-AAMA export and packing (done)
-13. Garment view (done, then taken out; back 2026-11-13 as the Garment tab, pieces side by side with closed darts and shading, see Garment view)
-14. Layers and draft tabs (done, then taken out; see One canvas)
-15. Transforms (done)
-16. Accessories: circles and arcs, rectangles, rounded corners, offset edges, internal markings, material allowances (done)
-17. Cutting machine output and material sheets (done)
-18. Blender export for 3D preview
+1. Blender export for 3D preview
 
 ### To do
 
