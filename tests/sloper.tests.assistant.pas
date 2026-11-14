@@ -68,6 +68,11 @@ type
     procedure TestRetriesWhenBusy;
     procedure TestBadKey;
     procedure TestCancel;
+    // A question whose first request fails leaves no trace
+    procedure TestFailedQuestionTakenBack;
+    // Stopped after tools ran: the next question joins its last user turn,
+    // saying it was stopped, so Claude does not carry it on
+    procedure TestStoppedQuestionNotCarriedOn;
     procedure TestStepLimit;
     procedure TestSystemPrompt;
     procedure TestKeyFile;
@@ -510,8 +515,7 @@ begin
   AssertFalse(FConversation.Ask('Hello', Problem));
   AssertEquals(rsAssistantNoKey, Problem);
   AssertEquals('not retried', 1, FTransport.Requests.Count);
-  // A failed request adds only the question, which the next one follows
-  AssertEquals(1, FConversation.Messages.Count);
+  AssertEquals('the question is taken back', 0, FConversation.Messages.Count);
 end;
 
 procedure TTestAssistant.TestCancel;
@@ -522,6 +526,57 @@ begin
   FTransport.Reply(200, Start + TextBlock(0, 'Long answer') + Finish('end_turn'));
   AssertFalse(FConversation.Ask('Hello', Problem));
   AssertEquals(rsAssistantStopped, Problem);
+end;
+
+procedure TTestAssistant.TestFailedQuestionTakenBack;
+var
+  Problem: string;
+  Second: TJSONObject;
+  Messages: TJSONArray;
+begin
+  FTransport.CancelOn := 0;
+  FTransport.Reply(200, Start + TextBlock(0, 'Deleting') + Finish('end_turn'));
+  FTransport.Reply(200, Start + TextBlock(0, 'A is at 0, 0') + Finish('end_turn'));
+  AssertFalse(FConversation.Ask('Delete the construction points', Problem));
+  AssertTrue(Problem, FConversation.Ask('Where is A?', Problem));
+  Second := Request(1);
+  try
+    Messages := Second.Arrays['messages'];
+    AssertEquals('only the new question', 1, Messages.Count);
+    AssertEquals('Where is A?', Messages.Objects[0].Get('content', ''));
+  finally
+    FreeAndNil(Second);
+  end;
+end;
+
+procedure TTestAssistant.TestStoppedQuestionNotCarriedOn;
+var
+  Problem: string;
+  Third: TJSONObject;
+  Messages, Content: TJSONArray;
+  Index: integer;
+begin
+  FTransport.CancelOn := 1;
+  FTransport.Reply(200, Start + ToolBlock(0, 'toolu_1', 'evaluate', '{}', '') + Finish('tool_use'));
+  FTransport.Reply(200, Start + TextBlock(0, 'Deleting the rest') + Finish('end_turn'));
+  FTransport.Reply(200, Start + TextBlock(0, 'A is at 0, 0') + Finish('end_turn'));
+  AssertFalse(FConversation.Ask('Delete the construction points', Problem));
+  AssertEquals(rsAssistantStopped, Problem);
+  AssertTrue(Problem, FConversation.Ask('Where is A?', Problem));
+  Third := Request(2);
+  try
+    Messages := Third.Arrays['messages'];
+    AssertEquals('question, tool use, results with the new question', 3, Messages.Count);
+    for Index := 1 to Messages.Count - 1 do
+      AssertTrue('roles alternate', Messages.Objects[Index].Get('role', '') <> Messages.Objects[Index - 1].Get('role', ''));
+    Content := Messages.Objects[2].Arrays['content'];
+    AssertEquals('result, note, question', 3, Content.Count);
+    AssertEquals('tool_result', Content.Objects[0].Get('type', ''));
+    AssertEquals(rsAssistantPreviousStopped, Content.Objects[1].Get('text', ''));
+    AssertEquals('Where is A?', Content.Objects[2].Get('text', ''));
+  finally
+    FreeAndNil(Third);
+  end;
 end;
 
 procedure TTestAssistant.TestStepLimit;

@@ -108,6 +108,8 @@ resourcestring
   rsAssistantTooLong = 'The answer was cut off at its length limit.';
   rsAssistantTooManySteps = 'Claude stopped after %d steps; ask it to continue if it is not finished.';
   rsAssistantStopped = 'Stopped.';
+  rsAssistantPreviousStopped = '(The request above did not finish: the user stopped it, or it failed. Do not carry it ' +
+    'on unless they ask again.)';
   rsAssistantStoppedTool = 'The user stopped this before the tool ran.';
   rsAssistantBadInput = 'The tool''s input was not valid JSON, so it was not run.';
   rsAssistantNoKey = 'The API key was not accepted. Check it in Edit → Preferences.';
@@ -390,22 +392,48 @@ end;
 
 function TAssistantConversation.Ask(const UserText: string; out Problem: string): boolean;
 var
-  Step: integer;
+  Step, Added: integer;
   Assembler: TMessageAssembler;
-  Content, Results: TJSONArray;
+  Content, Results, Joined: TJSONArray;
   StopReason: string;
 begin
   Problem := '';
   FCancelled := False;
-  FMessages.Add(TJSONObject.Create(['role', 'user', 'content', UserText]));
+  // A question that did not finish ends the history on a user turn, its
+  // tools' results, which really ran; the next question joins that turn
+  // saying so, as two user turns in a row would be read as one request
+  Joined := nil;
+  if (FMessages.Count > 0) and (FMessages.Objects[FMessages.Count - 1].Get('role', '') = 'user') and
+    (FMessages.Objects[FMessages.Count - 1].Find('content') is TJSONArray) then
+    Joined := TJSONArray(FMessages.Objects[FMessages.Count - 1].Find('content'));
+  Added := 0;
+  if Assigned(Joined) then
+  begin
+    Joined.Add(TJSONObject.Create(['type', 'text', 'text', rsAssistantPreviousStopped]));
+    Joined.Add(TJSONObject.Create(['type', 'text', 'text', UserText]));
+    Added := 2;
+  end
+  else
+    FMessages.Add(TJSONObject.Create(['role', 'user', 'content', UserText]));
   for Step := 1 to ASSISTANT_MAX_STEPS do
   begin
     Assembler := TMessageAssembler.Create;
     try
       Assembler.OnText := FOnText;
-      // A failed request leaves the history as it was
       if not Exchange(Assembler, Problem) then
+      begin
+        // Nothing was done, so the question is taken back: the history is
+        // as it was, and a question the user stopped is not asked again
+        if (Step = 1) and Assigned(Joined) then
+          while Added > 0 do
+          begin
+            Joined.Delete(Joined.Count - 1);
+            Dec(Added);
+          end
+        else if Step = 1 then
+          FMessages.Delete(FMessages.Count - 1);
         Exit(False);
+      end;
       StopReason := Assembler.StopReason;
       Content := Assembler.TakeContent;
       DropBeforeFallback(Content);
