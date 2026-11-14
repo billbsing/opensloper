@@ -10,6 +10,9 @@ notes here gets the list of its commits since the last release instead
 The layout follows [Keep a Changelog](https://keepachangelog.com): Added,
 Changed, Fixed and Removed under each version.
 
+## 0.3.0
+
+
 ## 0.2.0
 
 ### Added
