@@ -38,6 +38,9 @@ type
     // Nesting deeper than any file needs is refused before parsing, which
     // recurses once a level and would overflow the stack
     procedure TestDeepNestingRefused;
+    // A number past a double's range is refused, and leaves no floating
+    // point exception behind to fail what comes next
+    procedure TestHugeNumberRefused;
     procedure TestTypedAccess;
   end;
 
@@ -167,6 +170,26 @@ begin
   // Brackets in strings, escaped quotes too, are text, not nesting
   AssertTrue(Err, ParseJSONObject('{"a":"\"' + StringOfChar('[', CRASH_DEPTH) + '"}', Obj, Err));
   AssertEquals('"' + StringOfChar('[', CRASH_DEPTH), Obj.Get('a', ''));
+  FreeAndNil(Obj);
+end;
+
+procedure TTestJSON.TestHugeNumberRefused;
+var
+  Obj: TJSONObject;
+  Err: string;
+  Product: double;
+begin
+  AssertFalse(ParseJSONObject('{"view": {"zoom": 1e400}}', Obj, Err));
+  AssertEquals(Format(rsJSONNumberRange, ['1e400']), Err);
+  AssertNull(Obj);
+  AssertFalse(ParseJSONObject('{"a": [-1e400]}', Obj, Err));
+  AssertEquals(Format(rsJSONNumberRange, ['-1e400']), Err);
+  // Next, arithmetic and another file work as they should
+  Product := 1.5;
+  Product := Product * 2;
+  AssertEquals(3.0, Product);
+  AssertTrue(Err, ParseJSONObject('{"a": 1.5, "b": 1e-400}', Obj, Err));
+  AssertEquals('too small reads as 0', 0.0, Obj.Get('b', 1.0));
   FreeAndNil(Obj);
 end;
 

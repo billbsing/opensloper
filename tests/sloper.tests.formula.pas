@@ -55,6 +55,8 @@ type
     procedure TestStoredTokens;
     procedure TestNumberForms;
     procedure TestBadNumber;
+    // Past a double's range: an error at the number, not an exception
+    procedure TestHugeNumber;
     procedure TestNumberSuffixes;
     procedure TestUnexpectedCharacter;
     procedure TestUnexpectedCharacterIsWholeUtf8Char;
@@ -674,6 +676,21 @@ begin
   AssertFalse(FFormula.Evaluate(FContext, V));
   AssertEquals('stored position', 12, FFormula.ErrorPos);
   AssertEquals('display position', 17, FFormula.DisplayErrorPos(FResolver));
+end;
+
+procedure TTestFormulaLexer.TestHugeNumber;
+var
+  Tokens: TFormulaTokenArray;
+  Err: string;
+  ErrPos: integer;
+  Product: double;
+begin
+  AssertFalse(TokenizeFormula('2 + 1e400', ffStored, Tokens, Err, ErrPos));
+  AssertEquals(rsFormulaNumberRange, Err);
+  AssertEquals('at the number', 5, ErrPos);
+  Product := 1.5;
+  Product := Product * 2;
+  AssertEquals('no exception left behind', 3.0, Product);
 end;
 
 procedure TTestFormulaLexer.TestNumberSuffixes;

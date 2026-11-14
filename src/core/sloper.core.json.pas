@@ -38,6 +38,11 @@ type
 
 // Shortest text that reads back as exactly V, with '.' as decimal point
 function FormatJSONFloat(Value: double): string;
+// Reads a number written with '.', whatever the locale. False when it does
+// not parse or is past a double's range, such as 1e400; either way no
+// floating point exception is raised or left pending to fail later work.
+// A number too small reads as 0.
+function TextToFiniteFloat(const Text: string; out Value: double): boolean;
 function JSONFloat(Value: double): TJSONData;
 // Two-space indent, "key": value, members in insertion order, LF line ends
 function JSONToText(Data: TJSONData): string;
@@ -66,6 +71,7 @@ function GetJSONBoolean(Obj: TJSONObject; const Name: string; out Value: boolean
 resourcestring
   rsJSONNotObject = 'The file does not contain a JSON object';
   rsJSONSyntax = 'The file is not valid JSON: %s';
+  rsJSONNumberRange = 'The file has a number too large to use: %s';
   rsJSONTooDeep = 'The file is nested more than %d levels deep, which no OpenSloper file needs';
   rsFileRead = 'Could not read "%s": %s';
   rsFileWrite = 'Could not write "%s": %s';
@@ -73,7 +79,7 @@ resourcestring
 implementation
 
 uses
-  Classes, SysUtils, jsonparser;
+  Classes, SysUtils, Math, jsonparser;
 
 const
   TEMP_SUFFIX = '.tmp';
@@ -227,9 +233,74 @@ begin
   end;
 end;
 
+// Val with floating point exceptions masked and cleared after; Parsed is
+// False for text that is not a number
+function ReadFloat(const Text: string; out Value: double; out Parsed: boolean): boolean;
+var
+  SavedMask: TFPUExceptionMask;
+  Code: integer;
+begin
+  SavedMask := GetExceptionMask;
+  SetExceptionMask(SavedMask + [exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
+  try
+    Val(Text, Value, Code);
+    Parsed := Code = 0;
+    Result := Parsed and not IsNan(Value) and not IsInfinite(Value);
+  finally
+    ClearExceptions(False);
+    SetExceptionMask(SavedMask);
+  end;
+  if not Result then
+    Value := 0;
+end;
+
+function TextToFiniteFloat(const Text: string; out Value: double): boolean;
+var
+  Parsed: boolean;
+begin
+  Result := ReadFloat(Text, Value, Parsed);
+end;
+
+// The first number outside strings that is past a double's range, or ''
+function OutOfRangeNumber(const Text: string): string;
+var
+  Index, Start: integer;
+  InString, Parsed: boolean;
+  Value: double;
+begin
+  Result := '';
+  InString := False;
+  Index := 1;
+  while Index <= Length(Text) do
+  begin
+    if InString then
+      case Text[Index] of
+        '\': Inc(Index);
+        '"': InString := False;
+      end
+    else if Text[Index] = '"' then
+      InString := True
+    else if Text[Index] in ['-', '0'..'9'] then
+    begin
+      Start := Index;
+      while (Index < Length(Text)) and (Text[Index + 1] in ['0'..'9', '-', '+', '.', 'e', 'E']) do
+        Inc(Index);
+      // Only a range failure: a malformed number is the parser's to report
+      Result := Copy(Text, Start, Index - Start + 1);
+      if ReadFloat(Result, Value, Parsed) or not Parsed then
+        Result := ''
+      else
+        Exit;
+    end;
+    Inc(Index);
+  end;
+end;
+
 function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): boolean;
 var
   Data: TJSONData;
+  SavedMask: TFPUExceptionMask;
+  Huge: string;
 begin
   Obj := nil;
   ErrorMessage := '';
@@ -238,14 +309,29 @@ begin
     ErrorMessage := Format(rsJSONTooDeep, [JSON_MAX_DEPTH]);
     Exit(False);
   end;
+  // Read past a double's range, it would leave an overflow pending, raised
+  // by whatever next works with floats, after loading had succeeded
+  Huge := OutOfRangeNumber(Text);
+  if Huge <> '' then
+  begin
+    ErrorMessage := Format(rsJSONNumberRange, [Huge]);
+    Exit(False);
+  end;
+  SavedMask := GetExceptionMask;
+  SetExceptionMask(SavedMask + [exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
   try
-    Data := GetJSON(Text);
-  except
-    on Failure: Exception do
-    begin
-      ErrorMessage := Format(rsJSONSyntax, [Failure.Message]);
-      Exit(False);
+    try
+      Data := GetJSON(Text);
+    except
+      on Failure: Exception do
+      begin
+        ErrorMessage := Format(rsJSONSyntax, [Failure.Message]);
+        Exit(False);
+      end;
     end;
+  finally
+    ClearExceptions(False);
+    SetExceptionMask(SavedMask);
   end;
   if not (Data is TJSONObject) then
   begin

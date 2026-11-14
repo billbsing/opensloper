@@ -69,6 +69,7 @@ function TokenizeFormula(const Text: string; Form: TFormulaTextForm;
 resourcestring
   rsFormulaUnexpectedChar = 'Unexpected character "%s"';
   rsFormulaExpectedDigit = 'Expected a digit';
+  rsFormulaNumberRange = 'This number is too large';
   rsFormulaExpectedProperty = 'Expected a property name after "."';
   rsFormulaExpectedMeasurement = 'Expected a measurement name after "@"';
   rsFormulaExpectedVariable = 'Expected a variable name after "#"';
@@ -78,7 +79,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Sloper.Core.Names;
+  SysUtils, Sloper.Core.Names, Sloper.Core.JSON;
 
 function IsNameStart(Character: char): boolean; inline;
 begin
@@ -210,7 +211,7 @@ var
 
   function ReadNumber(Start: integer): boolean;
   var
-    Code, TokenIndex: integer;
+    TokenIndex: integer;
     Value: double;
     Suffix: TNumberSuffix;
   begin
@@ -241,11 +242,11 @@ var
       while (Position <= Len) and IsDigit(Text[Position]) do
         Inc(Position);
     end;
-    // Val always uses '.' as the decimal separator, whatever the locale
-    Val(Copy(Text, Start, Position - Start), Value, Code);
-    if Code <> 0 then
+    // Its form is checked above, so only its size can fail: past a double's
+    // range, read with no floating point exception, which would fail later work
+    if not TextToFiniteFloat(Copy(Text, Start, Position - Start), Value) then
     begin
-      Fail(rsFormulaExpectedDigit, Start + Code - 1);
+      Fail(rsFormulaNumberRange, Start);
       Exit;
     end;
     if not ReadSuffix(Suffix) then
