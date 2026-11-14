@@ -27,7 +27,7 @@ unit Sloper.Assistant.Http;
 interface
 
 uses
-  Classes, SysUtils;
+  Classes, SysUtils, ssockets;
 
 type
   TAssistantTransport = class
@@ -41,9 +41,15 @@ type
   THttpsTransport = class(TAssistantTransport)
   private
     FKey: string;
+    FUrl: string;
+    FTrustedFile: string;
+    procedure GetSocketHandler(Sender: TObject; const UseSSL: boolean; out AHandler: TSocketHandler);
   public
-    constructor Create(const AKey: string);
+    // Posts to Url, or to MessagesUrl when it is ''
+    constructor Create(const AKey: string; const AUrl: string = '');
     function Post(const Body: string; Sink: TStream; out ErrorText: string; out RetryAfter: integer): integer; override;
+    // A PEM file of the certificates to trust in place of the system's, for tests
+    property TrustedFile: string read FTrustedFile write FTrustedFile;
   end;
 
 // The Messages endpoint: ANTHROPIC_BASE_URL, as the SDKs take it for a proxy, or the API's own
@@ -58,7 +64,7 @@ const
 implementation
 
 uses
-  fphttpclient, opensslsockets;
+  dynlibs, ctypes, fphttpclient, openssl, opensslsockets;
 
 const
   DEFAULT_BASE_URL = 'https://api.anthropic.com';
@@ -71,6 +77,19 @@ const
   HTTP_OK_HIGH = 299;
 
 type
+  // OpenSSL with the server's certificate checked, which FPC 3.2's handler
+  // leaves off: the chain against trusted roots and the name against the
+  // host, both in the handshake, so the key is never sent to a server that
+  // merely claims to be the API
+  TVerifyingSSLHandler = class(TOpenSSLSocketHandler)
+  private
+    FTrustedFile: string;
+  protected
+    function InitContext(NeedCertificate: boolean): boolean; override;
+  public
+    constructor Create; override;
+  end;
+
   // Sends a success to the sink and anything else to a string
   TStatusSplitter = class(TStream)
   private
@@ -106,6 +125,46 @@ begin
   Result := 0;
 end;
 
+type
+  TSslGetSslCtx = function(Ssl: PSSL): PSSL_CTX; cdecl;
+  TSslCtxSetDefaultVerifyPaths = function(Ctx: PSSL_CTX): cint; cdecl;
+  TSslSet1Host = function(Ssl: PSSL; HostName: pansichar): cint; cdecl;
+
+constructor TVerifyingSSLHandler.Create;
+begin
+  inherited Create;
+  VerifyPeerCert := True;
+end;
+
+// After the context is made and before the handshake. OpenSSL 1.1 or later,
+// for SSL_set1_host; without it, or without trusted roots, no connection.
+function TVerifyingSSLHandler.InitContext(NeedCertificate: boolean): boolean;
+var
+  GetSslCtx: TSslGetSslCtx;
+  SetDefaultVerifyPaths: TSslCtxSetDefaultVerifyPaths;
+  Set1Host: TSslSet1Host;
+  Ctx: PSSL_CTX;
+begin
+  Result := inherited InitContext(NeedCertificate);
+  if not Result then
+    Exit;
+  Result := False;
+  if not (Socket is TInetSocket) then
+    Exit;
+  Pointer(GetSslCtx) := GetProcedureAddress(SSLLibHandle, 'SSL_get_SSL_CTX');
+  Pointer(SetDefaultVerifyPaths) := GetProcedureAddress(SSLLibHandle, 'SSL_CTX_set_default_verify_paths');
+  Pointer(Set1Host) := GetProcedureAddress(SSLLibHandle, 'SSL_set1_host');
+  if not Assigned(GetSslCtx) or not Assigned(SetDefaultVerifyPaths) or not Assigned(Set1Host) then
+    Exit;
+  Ctx := GetSslCtx(SSL.FSSL);
+  if FTrustedFile <> '' then
+    Result := SslCtxLoadVerifyLocations(Ctx, FTrustedFile, '') = 1
+  else
+    // The system's roots, or those SSL_CERT_FILE and SSL_CERT_DIR name
+    Result := SetDefaultVerifyPaths(Ctx) = 1;
+  Result := Result and (Set1Host(SSL.FSSL, pansichar(ansistring(TInetSocket(Socket).Host))) = 1);
+end;
+
 function MessagesUrl: string;
 begin
   Result := GetEnvironmentVariable(BASE_URL_ENVIRONMENT);
@@ -116,10 +175,25 @@ begin
   Result := Result + MESSAGES_PATH;
 end;
 
-constructor THttpsTransport.Create(const AKey: string);
+procedure THttpsTransport.GetSocketHandler(Sender: TObject; const UseSSL: boolean; out AHandler: TSocketHandler);
+var
+  Handler: TVerifyingSSLHandler;
+begin
+  AHandler := nil;
+  if not UseSSL then
+    Exit;
+  Handler := TVerifyingSSLHandler.Create;
+  Handler.FTrustedFile := FTrustedFile;
+  AHandler := Handler;
+end;
+
+constructor THttpsTransport.Create(const AKey: string; const AUrl: string);
 begin
   inherited Create;
   FKey := AKey;
+  FUrl := AUrl;
+  if FUrl = '' then
+    FUrl := MessagesUrl;
 end;
 
 function THttpsTransport.Post(const Body: string; Sink: TStream; out ErrorText: string; out RetryAfter: integer): integer;
@@ -136,6 +210,7 @@ begin
   try
     Splitter.FClient := Client;
     Splitter.FSink := Sink;
+    Client.OnGetSocketHandler := @GetSocketHandler;
     Client.IOTimeout := READ_TIMEOUT_MS;
     Client.AddHeader('content-type', 'application/json');
     Client.AddHeader('x-api-key', FKey);
@@ -143,7 +218,7 @@ begin
     Client.AddHeader('anthropic-beta', API_BETAS);
     Client.RequestBody := Request;
     try
-      Client.HTTPMethod('POST', MessagesUrl, Splitter, []);
+      Client.HTTPMethod('POST', FUrl, Splitter, []);
     finally
       Client.RequestBody := nil;
     end;

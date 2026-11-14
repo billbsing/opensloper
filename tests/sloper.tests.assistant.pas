@@ -73,10 +73,144 @@ type
     procedure TestKeyFile;
   end;
 
+  // The HTTPS transport against a TLS server of its own on 127.0.0.1
+  TTestHttpsTransport = class(TOSTestCase)
+  private
+    // Posts to a server with Certificate's pair from tests/tls, trusting
+    // TrustedFile's ('' for the system's); True when it was answered
+    function Answered(const Certificate, TrustedFile: string; out Requests: integer): boolean;
+  published
+    // Refused before the key is sent: no trusted authority signed it
+    procedure TestUntrustedCertificateRefused;
+    procedure TestTrustedCertificateAccepted;
+    // Trusted, but for otherhost.test, not localhost
+    procedure TestCertificateForAnotherHostRefused;
+  end;
+
 implementation
 
 uses
-  Math, {$IFDEF UNIX} BaseUnix, {$ENDIF} Sloper.Core.JSON, Sloper.Assistant.Stream, Sloper.Assistant.Key;
+  Math, {$IFDEF UNIX} BaseUnix, {$ENDIF} ssockets, sslsockets, opensslsockets, Sloper.Core.JSON, Sloper.Assistant.Stream,
+  Sloper.Assistant.Key;
+
+type
+  // Accepts on 127.0.0.1 with a self-signed certificate and answers each
+  // request 200, until stopped
+  TTlsTestServer = class(TThread)
+  private
+    FServer: TInetServer;
+    FPort: word;
+    FCertificate: string;
+    FRequests: integer;
+    procedure CreateHandler(Sender: TObject; out AHandler: TSocketHandler);
+    procedure Connected(Sender: TObject; Data: TSocketStream);
+    procedure Idle(Sender: TObject);
+  protected
+    procedure Execute; override;
+  public
+    // Certificate: the path of a .pem with its .key beside it
+    constructor Create(const Certificate: string);
+    destructor Destroy; override;
+    property Port: word read FPort;
+    property Requests: integer read FRequests;
+  end;
+
+const
+  TLS_TEST_FIRST_PORT = 47100;
+  TLS_TEST_PORT_TRIES = 50;
+  TLS_TEST_IDLE_MS = 50;
+  TLS_TEST_READ_MS = 2000;
+
+// The pair of a test certificate in tests/tls
+function TlsTestFile(const AName: string): string;
+begin
+  Result := ConcatPaths([ExtractFileDir(ExpandFileName(ParamStr(0))), 'tls', AName]);
+end;
+
+constructor TTlsTestServer.Create(const Certificate: string);
+var
+  Try_: integer;
+begin
+  inherited Create(True);
+  FCertificate := Certificate;
+  for Try_ := 0 to TLS_TEST_PORT_TRIES - 1 do
+  try
+    // Bound and listening before the client connects; StartAccepting
+    // would bind only in the thread
+    FServer := TInetServer.Create('127.0.0.1', TLS_TEST_FIRST_PORT + Try_);
+    FServer.ReuseAddress := True;
+    FServer.Listen;
+    FPort := TLS_TEST_FIRST_PORT + Try_;
+    Break;
+  except
+    on ESocketError do
+      FreeAndNil(FServer);
+  end;
+  if not Assigned(FServer) then
+    raise Exception.Create('No free port for the TLS test server');
+  FServer.OnCreateClientSocketHandler := @CreateHandler;
+  FServer.OnConnect := @Connected;
+  FServer.OnIdle := @Idle;
+  FServer.AcceptIdleTimeOut := TLS_TEST_IDLE_MS;
+  Start;
+end;
+
+destructor TTlsTestServer.Destroy;
+begin
+  Terminate;
+  WaitFor;
+  FreeAndNil(FServer);
+  inherited Destroy;
+end;
+
+procedure TTlsTestServer.CreateHandler(Sender: TObject; out AHandler: TSocketHandler);
+var
+  Handler: TOpenSSLSocketHandler;
+begin
+  Handler := TOpenSSLSocketHandler.Create;
+  Handler.CertificateData.Certificate.FileName := FCertificate;
+  Handler.CertificateData.PrivateKey.FileName := ChangeFileExt(FCertificate, '.key');
+  AHandler := Handler;
+end;
+
+procedure TTlsTestServer.Connected(Sender: TObject; Data: TSocketStream);
+const
+  ANSWER = 'HTTP/1.1 200 OK'#13#10'Content-Length: 2'#13#10'Connection: close'#13#10#13#10'{}';
+var
+  Buffer: array[0..4095] of byte;
+  Received: string;
+  Count: integer;
+begin
+  try
+    Inc(FRequests);
+    Data.IOTimeout := TLS_TEST_READ_MS;
+    Received := '';
+    // The request ends with its body, '{}'
+    repeat
+      Count := Data.Read(Buffer, SizeOf(Buffer));
+      if Count > 0 then
+        Received := Received + Copy(PChar(@Buffer[0]), 1, Count);
+    until (Count <= 0) or (Pos(#13#10#13#10, Received) > 0) and Received.EndsWith('}');
+    Data.WriteBuffer(ANSWER[1], Length(ANSWER));
+  finally
+    FreeAndNil(Data);
+  end;
+end;
+
+procedure TTlsTestServer.Idle(Sender: TObject);
+begin
+  if Terminated then
+    FServer.StopAccepting;
+end;
+
+procedure TTlsTestServer.Execute;
+begin
+  try
+    FServer.StartAccepting;
+  except
+    // A failed handshake is the client refusing, which is what is tested
+  end;
+end;
 
 const
   // Bytes per write, so events and lines arrive split
@@ -440,6 +574,61 @@ begin
   end;
 end;
 
+{ TTestHttpsTransport }
+
+function TTestHttpsTransport.Answered(const Certificate, TrustedFile: string; out Requests: integer): boolean;
+var
+  Server: TTlsTestServer;
+  Transport: THttpsTransport;
+  Sink: TStringStream;
+  ErrorText: string;
+  RetryAfter: integer;
+begin
+  Server := TTlsTestServer.Create(TlsTestFile(Certificate));
+  Sink := TStringStream.Create('');
+  Transport := THttpsTransport.Create('test-key', Format('https://localhost:%d/v1/messages', [Server.Port]));
+  try
+    Transport.TrustedFile := TrustedFile;
+    try
+      Result := Transport.Post('{}', Sink, ErrorText, RetryAfter) = 200;
+      AssertEquals('the answer', '{}', Sink.DataString);
+    except
+      on ESocketError do
+        Result := False;
+    end;
+  finally
+    FreeAndNil(Transport);
+    FreeAndNil(Sink);
+    Requests := Server.Requests;
+    FreeAndNil(Server);
+  end;
+end;
+
+procedure TTestHttpsTransport.TestUntrustedCertificateRefused;
+var
+  Requests: integer;
+begin
+  AssertFalse('refused', Answered('localhost.pem', '', Requests));
+  AssertEquals('no request was read', 0, Requests);
+end;
+
+procedure TTestHttpsTransport.TestTrustedCertificateAccepted;
+var
+  Requests: integer;
+begin
+  AssertTrue('answered', Answered('localhost.pem', TlsTestFile('localhost.pem'), Requests));
+  AssertEquals(1, Requests);
+end;
+
+procedure TTestHttpsTransport.TestCertificateForAnotherHostRefused;
+var
+  Requests: integer;
+begin
+  AssertFalse('refused', Answered('otherhost.pem', TlsTestFile('otherhost.pem'), Requests));
+  AssertEquals('no request was read', 0, Requests);
+end;
+
 initialization
   RegisterTest(TTestAssistant);
+  RegisterTest(TTestHttpsTransport);
 end.
