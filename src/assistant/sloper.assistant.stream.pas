@@ -39,6 +39,7 @@ type
     // Each tool_use block's input, as the deltas give it
     FPartialInputs: TStringList;
     FStopReason, FModel, FErrorText: string;
+    FFinished: boolean;
     FInvalidInputs: TStringList;
     FOnText: TAssistantTextEvent;
     procedure StartBlock(Event: TJSONObject);
@@ -55,6 +56,9 @@ type
     // The raw input of a tool_use whose input was not valid JSON, or ''
     function InvalidInput(const ToolUseId: string): string;
     property StopReason: string read FStopReason;
+    // message_stop came: the message is whole. A stream that ends without it
+    // was cut off, and its blocks may be part-written
+    property Finished: boolean read FFinished;
     property Model: string read FModel;
     // An error event's message, or ''
     property ErrorText: string read FErrorText;
@@ -146,6 +150,7 @@ begin
       'content_block_start': StartBlock(Item);
       'content_block_delta': Delta(Item);
       'content_block_stop': StopBlock(Item);
+      'message_stop': FFinished := True;
       'message_delta':
       begin
         Part := Item.Find('delta');

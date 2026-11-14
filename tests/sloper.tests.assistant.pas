@@ -73,6 +73,12 @@ type
     // Stopped after tools ran: the next question joins its last user turn,
     // saying it was stopped, so Claude does not carry it on
     procedure TestStoppedQuestionNotCarriedOn;
+    // A stream that ends before message_stop is a failed request: its part
+    // of a message, a tool_use without a result, never joins the history
+    procedure TestCutOffStreamNotKept;
+    // A stop reason the loop does not know ends the question with the
+    // history whole: its tools are answered as stopped
+    procedure TestUnknownStopReasonKeepsHistoryWhole;
     procedure TestStepLimit;
     procedure TestSystemPrompt;
     procedure TestKeyFile;
@@ -577,6 +583,33 @@ begin
   finally
     FreeAndNil(Third);
   end;
+end;
+
+procedure TTestAssistant.TestCutOffStreamNotKept;
+var
+  Problem: string;
+begin
+  FTransport.Reply(200, Start + TextBlock(0, 'Deleting') + ToolBlock(1, 'toolu_1', 'delete', '{"name"', ': "A"}'));
+  FTransport.Reply(200, Start + TextBlock(0, 'Hi') + Finish('end_turn'));
+  AssertFalse(FConversation.Ask('Delete A', Problem));
+  AssertEquals(rsAssistantCutOff, Problem);
+  AssertEquals('no tool ran', '', FToolCalls);
+  AssertEquals('the question is taken back', 0, FConversation.Messages.Count);
+  AssertTrue(Problem, FConversation.Ask('Hello', Problem));
+end;
+
+procedure TTestAssistant.TestUnknownStopReasonKeepsHistoryWhole;
+var
+  Problem: string;
+  Last: TJSONObject;
+begin
+  FTransport.Reply(200, Start + ToolBlock(0, 'toolu_1', 'evaluate', '{}', '') + Finish('something_new'));
+  AssertTrue(Problem, FConversation.Ask('Check', Problem));
+  AssertEquals('not run', '', FToolCalls);
+  AssertEquals('question, answer, stopped results', 3, FConversation.Messages.Count);
+  Last := FConversation.Messages.Objects[2];
+  AssertEquals('tool_result', Last.Arrays['content'].Objects[0].Get('type', ''));
+  AssertEquals('toolu_1', Last.Arrays['content'].Objects[0].Get('tool_use_id', ''));
 end;
 
 procedure TTestAssistant.TestStepLimit;

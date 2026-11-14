@@ -108,6 +108,7 @@ resourcestring
   rsAssistantTooLong = 'The answer was cut off at its length limit.';
   rsAssistantTooManySteps = 'Claude stopped after %d steps; ask it to continue if it is not finished.';
   rsAssistantStopped = 'Stopped.';
+  rsAssistantCutOff = 'The answer was cut off before it finished; ask again';
   rsAssistantPreviousStopped = '(The request above did not finish: the user stopped it, or it failed. Do not carry it ' +
     'on unless they ask again.)';
   rsAssistantStoppedTool = 'The user stopped this before the tool ran.';
@@ -279,9 +280,11 @@ begin
     end;
     if (Status >= HTTP_OK_LOW) and (Status <= HTTP_OK_HIGH) then
     begin
-      Result := Assembler.ErrorText = '';
-      if not Result then
-        Problem := Assembler.ErrorText;
+      Result := (Assembler.ErrorText = '') and Assembler.Finished;
+      if Assembler.ErrorText <> '' then
+        Problem := Assembler.ErrorText
+      else if not Result then
+        Problem := rsAssistantCutOff;
       Exit;
     end;
     if Status = HTTP_UNAUTHORIZED then
@@ -465,7 +468,16 @@ begin
           Exit(False);
         end;
         else
+        begin
+          // A stop reason this loop does not know: the turn ends, and its
+          // tools, not run, are answered as stopped so the history stays valid
+          Results := StoppedResults(Content);
+          if Results.Count > 0 then
+            FMessages.Add(TJSONObject.Create(['role', 'user', 'content', Results]))
+          else
+            FreeAndNil(Results);
           Exit(True);
+        end;
       end;
     finally
       FreeAndNil(Assembler);
