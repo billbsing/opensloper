@@ -141,6 +141,8 @@ type
     function DoSetText(Params: TJSONObject): TJSONData;
     function DoExport(Params: TJSONObject): TJSONData;
     function DoConvertUnits(Params: TJSONObject): TJSONData;
+    // Runs the method by name, for CallMethod
+    function DispatchMethod(const Method: string; Params: TJSONObject): TJSONData;
   public
     // With a document of its own, empty until open
     constructor Create;
@@ -2422,10 +2424,25 @@ end;
 function TApiServer.CallMethod(const Method: string; Params: TJSONObject): TJSONData;
 var
   Info: TApiMethod;
+  WasOpen: boolean;
 begin
   // In the design window the user may be dragging; only reading waits for nothing
-  if FDocument.ChangeOpen and FindApiMethod(Method, Info) and not Info.ReadOnly then
+  WasOpen := FDocument.ChangeOpen;
+  if WasOpen and FindApiMethod(Method, Info) and not Info.ReadOnly then
     raise EApiError.Create(RPC_REFUSED, rsApiBusy);
+  try
+    Result := DispatchMethod(Method, Params);
+  except
+    // A method that fails after BeginChange, say on a param it reads late,
+    // must not leave its change open: every later edit would be refused
+    if not WasOpen and FDocument.ChangeOpen then
+      FDocument.CancelChange;
+    raise;
+  end;
+end;
+
+function TApiServer.DispatchMethod(const Method: string; Params: TJSONObject): TJSONData;
+begin
   case Method of
     'open': Result := DoOpen(Params);
     'save': Result := DoSave(Params);

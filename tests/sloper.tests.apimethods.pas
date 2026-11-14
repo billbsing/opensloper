@@ -102,7 +102,7 @@ begin
     Count := 0;
     for Line in Lines do
     begin
-      if Line.StartsWith('function TApiServer.CallMethod') then
+      if Line.StartsWith('function TApiServer.DispatchMethod') then
         Inside := True
       else if Inside and (Line = 'end;') then
         Break

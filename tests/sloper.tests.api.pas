@@ -58,6 +58,8 @@ type
     procedure TestRenderHidesRoles;
     procedure TestMaterialMethods;
     procedure TestMaterialRefusals;
+    // A method that fails after opening its change must not leave it open
+    procedure TestFailedCallClosesChange;
     procedure TestPieceMaterialAndFill;
     procedure TestOpen;
     procedure TestInchPattern;
@@ -552,6 +554,28 @@ begin
   AssertEquals(Format(rsApiNoMaterial, ['Nothing']), ErrorText);
   Call('set_material', '{"material": "Main", "length": 500}');
   AssertEquals(rsMaterialLengthWithoutWidth, ErrorText);
+end;
+
+procedure TTestAPI.TestFailedCallClosesChange;
+
+  procedure CheckNotBusy;
+  begin
+    Call('add_point', '{"type": "freePoint", "x": 5, "y": 5}');
+    AssertNull('A later edit is refused: ' + FReply.AsJSON, FReply.Find('error'));
+    Call('undo');
+  end;
+
+begin
+  AddSquare;
+  Call('add_transform', '{"type": "rotate", "pivot": "A", "angle": 90, "sources": ["NoSuchPoint"]}');
+  AssertTrue('The call is refused', ErrorCode <> 0);
+  CheckNotBusy;
+  Call('set_material', '{"material": "Main", "fill": "stripes"}');
+  AssertTrue('The call is refused', ErrorCode <> 0);
+  CheckNotBusy;
+  Call('add_rectangle', '{"corner": "A", "width": 10, "height": 10, "role": "seamline"}');
+  AssertTrue('The call is refused', ErrorCode <> 0);
+  CheckNotBusy;
 end;
 
 procedure TTestAPI.TestPieceMaterialAndFill;
