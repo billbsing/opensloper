@@ -135,6 +135,12 @@ type
     procedure TestTitleEveryPage;
     procedure TestTitleOnOneSheet;
     procedure TestNewLayoutGetsATitle;
+    procedure TestTitleCornerSpots;
+    procedure TestPreviewTitleHidden;
+    procedure TestPreviewCoverLeftOfTiles;
+    procedure TestPreviewTitleOnCover;
+    procedure TestPreviewTitleOnEveryPrintedTile;
+    procedure TestPreviewTitleAboveOneSheet;
     procedure TestFieldValues;
     procedure TestProjectorIsOneDarkSheet;
     procedure TestProjectorSheetFitsThePieces;
@@ -179,7 +185,7 @@ implementation
 uses
   Classes, Math, Sloper.Core.AppPaths, Sloper.Core.JSON, Sloper.Core.Draft, Sloper.Core.Measurements, Sloper.Core.PatternFile, Sloper.Core.PieceDetect,
   Sloper.Output.LayoutDocument, Sloper.Output.LayoutPDF, Sloper.Output.PDFWriter, Sloper.Output.Preview, Sloper.Output.LayoutSVG,
-  Sloper.Core.Note;
+  Sloper.Core.Note, Sloper.Core.Settings, Sloper.Output.TitleBlock;
 
 const
   SIZED_TABLE = '{"format": "measurements", "version": 1, "name": "Block", "sizes": ["36", "38"], ' +
@@ -2219,6 +2225,132 @@ begin
   finally
     FreeAndNil(Document);
   end;
+end;
+
+procedure TTestLayout.TestTitleCornerSpots;
+var
+  Spot: TVec2;
+begin
+  Spot := TitleCornerSpot(tcBottomRight, 210, 297, 5, 50, 20);
+  AssertNear('bottom right x', 155, Spot.X);
+  AssertNear('bottom right y', 272, Spot.Y);
+  Spot := TitleCornerSpot(tcBottomLeft, 210, 297, 5, 50, 20);
+  AssertNear('bottom left x', 5, Spot.X);
+  AssertNear('bottom left y', 272, Spot.Y);
+  Spot := TitleCornerSpot(tcTopRight, 210, 297, 5, 50, 20);
+  AssertNear('top right x', 155, Spot.X);
+  AssertNear('top right y', 5, Spot.Y);
+end;
+
+procedure TTestLayout.TestPreviewTitleHidden;
+var
+  Shapes: TPlacedPieceArray;
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
+  FLayout.Title.Enabled := False;
+  Shapes := FLayout.PlacedPieces;
+  Pages := FLayout.Pages(Shapes, Rows, Columns);
+  AssertEquals('nothing shown', 0, Length(PreviewTitleBoxes(FLayout, Pages, FLayout.FieldValues('', ''))));
+end;
+
+procedure TTestLayout.TestPreviewCoverLeftOfTiles;
+var
+  Shapes: TPlacedPieceArray;
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+  Cover: TRect2;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  Shapes := FLayout.PlacedPieces;
+  Pages := FLayout.Pages(Shapes, Rows, Columns);
+  Cover := PreviewCover(FLayout, Pages);
+  AssertNear('gap before the first column', Pages[0].Area.MinX - PREVIEW_COVER_GAP, Cover.MaxX);
+  AssertNear('level with the first row', Pages[0].Area.MinY, Cover.MinY);
+  AssertNear('a tile wide', Pages[0].Area.MaxX - Pages[0].Area.MinX, Cover.MaxX - Cover.MinX);
+  AssertNear('a tile high', Pages[0].Area.MaxY - Pages[0].Area.MinY, Cover.MaxY - Cover.MinY);
+end;
+
+procedure TTestLayout.TestPreviewTitleOnCover;
+var
+  Shapes: TPlacedPieceArray;
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+  Boxes: TRect2Array;
+  Cover: TRect2;
+  Inset: double;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
+  FLayout.Title.Corner := tcBottomRight;
+  FLayout.Title.EveryPage := False;
+  Shapes := FLayout.PlacedPieces;
+  Pages := FLayout.Pages(Shapes, Rows, Columns);
+  Boxes := PreviewTitleBoxes(FLayout, Pages, FLayout.FieldValues('', ''));
+  AssertEquals('on the cover only', 1, Length(Boxes));
+  Cover := PreviewCover(FLayout, Pages);
+  // The cover's margin is from the paper's edge, the area's is the tiles'
+  Inset := COVER_MARGIN - FLayout.Output.Tiles.Margin;
+  AssertNear('in the right of the cover', Cover.MaxX - Inset, Boxes[0].MaxX);
+  AssertNear('at the bottom of the cover', Cover.MaxY - Inset, Boxes[0].MaxY);
+end;
+
+procedure TTestLayout.TestPreviewTitleOnEveryPrintedTile;
+var
+  Shapes: TPlacedPieceArray;
+  Pages: TTilePageArray;
+  Page: TTilePage;
+  Rows, Columns, Printed: integer;
+  Boxes: TRect2Array;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
+  FLayout.Title.Corner := tcTopRight;
+  FLayout.Title.EveryPage := True;
+  Shapes := FLayout.PlacedPieces;
+  Pages := FLayout.Pages(Shapes, Rows, Columns);
+  Printed := 0;
+  for Page in Pages do
+    if not Page.Blank and not Page.Excluded then
+      Inc(Printed);
+  Boxes := PreviewTitleBoxes(FLayout, Pages, FLayout.FieldValues('', ''));
+  AssertEquals('the cover and each printed tile', 1 + Printed, Length(Boxes));
+  AssertNear('in the top right of the first tile', Pages[0].Area.MaxX - TITLE_PADDING, Boxes[1].MaxX);
+  AssertNear('at its top', Pages[0].Area.MinY + TITLE_PADDING, Boxes[1].MinY);
+end;
+
+procedure TTestLayout.TestPreviewTitleAboveOneSheet;
+var
+  Shapes: TPlacedPieceArray;
+  Pages: TTilePageArray;
+  Rows, Columns: integer;
+  Boxes: TRect2Array;
+  Width, Height: double;
+begin
+  WritePattern;
+  Prepare;
+  FLayout.PlaceNewPieces;
+  FLayout.UseDefaultTitle;
+  FLayout.Output.Kind := okLarge;
+  Shapes := FLayout.PlacedPieces;
+  Pages := FLayout.Pages(Shapes, Rows, Columns);
+  Boxes := PreviewTitleBoxes(FLayout, Pages, FLayout.FieldValues('', ''));
+  AssertEquals('once', 1, Length(Boxes));
+  AssertTrue('measured', TitleBlockSize(FLayout, FLayout.FieldValues('', ''), Width, Height));
+  AssertNear('beside the test square', Pages[0].Area.MinX + INCH_TEST_SQUARE_SIDE * FLayout.Calibration.X + TITLE_GAP, Boxes[0].MinX);
+  AssertNear('in the header', Pages[0].Area.MinY + CHECK_SQUARE_TOP - LARGE_HEADER_HEIGHT, Boxes[0].MinY);
+  AssertNear('its height', Height, Boxes[0].MaxY - Boxes[0].MinY);
+  AssertTrue('above the sheet', Boxes[0].MaxY < Pages[0].Area.MinY);
 end;
 
 procedure TTestLayout.TestFieldValues;

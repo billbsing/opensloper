@@ -30,7 +30,8 @@ a pattern to start a layout for.
     | Pieces | The selected piece (Turn 90°, Flip, Back to tray), Place new pieces, Pack pieces, and the tray of pieces not yet placed |
     | Patterns | The patterns in the layout, each with its measurements and size |
     | Output | What it prints on, the paper, marks, fill and profiles, and the exports |
-    | Notes | The title block and notes on the sheet |
+    | Information Block | The pattern, measurements, date and other details, printed in a page corner |
+    | Notes | Text placed on the pages |
 
 - **Problems**, counted at the left of the status bar at the bottom: anything
   that stops the layout printing, such as a missing pattern, and warnings,

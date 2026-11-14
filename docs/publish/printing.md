@@ -53,15 +53,21 @@ A square that measures 98.5 mm across, printed with no correction, needs
 100 / 98.5 = 1.015 across. The factors belong to your printer, so every layout
 uses them.
 
-## Title block and notes
+## Information block and notes
 
-The Notes tab sets what prints besides the pieces.
+Two tabs set what prints besides the pieces.
 
-- **Title block**: the pattern, measurements, layout name, date, cut list and
-  materials, as you choose, in a corner of the cover, and on every page if you
-  like.
-- **Sheet notes**: text placed on the pages, selected and dragged like a
-  piece. Notes can fill in fields as they print: `{pattern.name}`,
+- **Information Block**: the pattern, measurements, layout name, date, cut
+  list and materials, as you choose, with nothing to type or place. Tick
+  **Show** to print it: in a corner of the cover, and on every page if you
+  like, or beside the test square on a single sheet. The pages show it where
+  it prints; tiled output shows the cover as a sheet to the left of the
+  tiles.
+- **Notes**: text placed on the pages, selected and dragged like a piece.
+  **Add note** puts one below the pieces. Each note has a dotted frame round
+  it on screen, so it is easy to find; click it to show its details on the
+  Notes tab, and **Delete note** to remove it. Notes can fill in fields as
+  they print: `{pattern.name}`,
   `{measurements.name}`, `{date}`, `{page}`, `{pages}`, `{cutlist}` and
   `{materials}`. Each has its own size, line alignment, white box, font, and
   bold or italic, as notes on the pattern do (see

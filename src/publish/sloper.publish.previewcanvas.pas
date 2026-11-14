@@ -31,7 +31,7 @@ interface
 uses
   Classes, SysUtils, Controls, StdCtrls, Graphics, LCLType, BGRABitmap, BGRABitmapTypes, Sloper.Core.Materials, Sloper.Core.Geometry, Sloper.Core.Note,
   Sloper.Core.TextFields, Sloper.Output.Layout,
-  Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling, Sloper.UI.View;
+  Sloper.Output.LayoutDocument, Sloper.Output.Preview, Sloper.Output.Tiling, Sloper.Output.TitleBlock, Sloper.UI.View;
 
 type
   // pmZoomPressed and pmZoomBoxing: Zoom Area's click, and its box being drawn
@@ -45,6 +45,10 @@ type
     FShapes: TPlacedPieceArray;
     FPages: TTilePageArray;
     FRowCount, FColumnCount: integer;
+    // Tiled output prints a cover first, shown left of the tiles
+    FCover: TRect2;
+    // Where the information block prints, in layout space
+    FTitleBoxes: TRect2Array;
     // The selected placement's index, or -1
     FSelected: integer;
     // The selected note's index, or -1
@@ -74,6 +78,10 @@ type
     procedure ZoomBy(Factor: double; X, Y: double);
     procedure DrawZoomBox;
     procedure DrawNotes;
+    procedure DrawCover;
+    procedure DrawTitleBoxes;
+    // The pages, the cover and the blocks, for Fit
+    function ShownBounds(out Bounds: TRect2): boolean;
     procedure DragTo(X, Y: integer);
     procedure TogglePageAt(const At: TVec2);
     procedure DrawPage(const Page: TTilePage);
@@ -120,6 +128,7 @@ resourcestring
   rsPreviewRemove = 'Unplace piece';
   rsPreviewMoveNote = 'Move note';
   rsPreviewDeleteNote = 'Delete note';
+  rsPreviewCover = 'Cover';
   rsPreviewZoomAreaHint = 'Zoom Area: drag a box to zoom to it, click to zoom in, Shift+click to zoom out';
 
 implementation
@@ -133,6 +142,10 @@ const
   CAPTION_HEIGHT = 13;
   LABEL_HEIGHT = 12;
   MIN_NOTE_HEIGHT = 6;
+  // How strongly a note too small to read shows
+  SMALL_TEXT_ALPHA = 60;
+  // Between a note and the frame drawn round it, in pixels
+  NOTE_FRAME_GAP = 2;
   // A click on a scroll bar's arrow moves the view this far
   SCROLL_STEP_PIXELS = 60;
 
@@ -206,6 +219,8 @@ begin
     Exit;
   FShapes := FDocument.Layout.PlacedPieces;
   FPages := FDocument.Layout.Pages(FShapes, FRowCount, FColumnCount);
+  FCover := PreviewCover(FDocument.Layout, FPages);
+  FTitleBoxes := PreviewTitleBoxes(FDocument.Layout, FPages, FDocument.Layout.FieldValues('', ''));
   if FSelected > High(FDocument.Layout.Placements) then
     SetSelected(-1);
   if FSelectedNote > High(FDocument.Layout.Notes) then
@@ -390,7 +405,7 @@ begin
   Bar.Position := Axis.Position;
 end;
 
-// The pages and the margin Fit Pages leaves round them, or just the view when
+// What Fit Pages shows and the margin it leaves round it, or just the view when
 // there are none
 procedure TPreviewCanvas.UpdateScrollBars;
 var
@@ -399,7 +414,7 @@ var
 begin
   if not Assigned(FHorzBar) or not Assigned(FVertBar) or FThumbHeld then
     Exit;
-  if PagesBounds(FPages, Bounds) then
+  if ShownBounds(Bounds) then
   begin
     TopLeft := FView.ToScreen(Vec2(Bounds.MinX, Bounds.MinY));
     BottomRight := FView.ToScreen(Vec2(Bounds.MaxX, Bounds.MaxY));
@@ -671,15 +686,27 @@ var
   Note: TSheetNote;
   DefaultFont: string;
 
-  procedure DrawNote(const Item: TSheetNote; const Ink: TBGRAPixel);
+  procedure DrawNote(const Item: TSheetNote; const Ink: TBGRAPixel; Framed: boolean);
   var
     Lines: TStringArray;
     LineIndex: integer;
+    EmPixels: double;
     Spot, Start, First, Last: TVec2;
     Frame: TRect2;
     Stroke: TLine2;
   begin
     Frame := NoteFrameBounds(Item, Values);
+    if Framed then
+    begin
+      // On screen only, so a note can be found and picked
+      First := FView.ToScreen(Vec2(Frame.MinX, Frame.MinY));
+      Last := FView.ToScreen(Vec2(Frame.MaxX, Frame.MaxY));
+      if not (Ink = SelectedInk) then
+        FBitmap.PenStyle := psDot;
+      FBitmap.RectangleAntialias(First.X - NOTE_FRAME_GAP, First.Y - NOTE_FRAME_GAP, Last.X + NOTE_FRAME_GAP, Last.Y + NOTE_FRAME_GAP,
+        Ink, 1);
+      FBitmap.PenStyle := psSolid;
+    end;
     if (Item.Leader <> nlNone) and LeaderStart(Frame, Item.Tip, Start) then
     begin
       for Stroke in LeaderStrokes(Start, Item.Tip, Item.Leader) do
@@ -700,13 +727,23 @@ var
       Last := FView.ToScreen(Vec2(Frame.MaxX, Frame.MaxY));
       FBitmap.FillRectAntialias(First.X, First.Y, Last.X, Last.Y, PaperInk);
     end;
+    // The font is the note's size and its lines a line height apart, as the
+    // PDF and the design canvas have them; too small to read, it is a tint
+    EmPixels := Item.Size * POINTS_TO_MM * FView.Scale;
+    if EmPixels < MIN_NOTE_HEIGHT then
+    begin
+      First := FView.ToScreen(Vec2(Frame.MinX, Frame.MinY));
+      Last := FView.ToScreen(Vec2(Frame.MaxX, Frame.MaxY));
+      FBitmap.FillRectAntialias(First.X, First.Y, Last.X, Last.Y, BGRA(Ink.red, Ink.green, Ink.blue, SMALL_TEXT_ALPHA));
+      Exit;
+    end;
     Lines := TextLines(ExpandFields(Item.Text, Values));
-    FBitmap.FontHeight := Max(MIN_NOTE_HEIGHT, Round(LineHeight(Item.Size) * FView.Scale));
+    FBitmap.FontHeight := Round(EmPixels);
     UseNoteFont(FBitmap, Item.Style, DefaultFont);
     for LineIndex := 0 to High(Lines) do
     begin
       Spot := FView.ToScreen(Vec2(NoteLineLeft(Item, Values, Lines[LineIndex]), Item.Y));
-      FBitmap.TextOut(Spot.X, Spot.Y + LineIndex * FBitmap.FontHeight, Lines[LineIndex], Ink);
+      FBitmap.TextOut(Spot.X, Spot.Y + LineIndex * LineHeight(Item.Size) * FView.Scale, Lines[LineIndex], Ink);
     end;
   end;
 
@@ -715,13 +752,73 @@ begin
   DefaultFont := FBitmap.FontName;
   for Shape in FShapes do
     for Note in Shape.Notes do
-      DrawNote(Note, PieceInk);
+      DrawNote(Note, PieceInk, False);
   for Index := 0 to High(FDocument.Layout.Notes) do
     if Index = FSelectedNote then
-      DrawNote(FDocument.Layout.Notes[Index], SelectedInk)
+      DrawNote(FDocument.Layout.Notes[Index], SelectedInk, True)
     else
-      DrawNote(FDocument.Layout.Notes[Index], PieceInk);
+      DrawNote(FDocument.Layout.Notes[Index], PieceInk, True);
   UseNoteFont(FBitmap, Default(TTextStyle), DefaultFont);
+end;
+
+// Only its sheet: what else the cover holds is not edited here
+procedure TPreviewCanvas.DrawCover;
+var
+  TopLeft, BottomRight: TVec2;
+begin
+  TopLeft := FView.ToScreen(Vec2(FCover.MinX, FCover.MinY));
+  BottomRight := FView.ToScreen(Vec2(FCover.MaxX, FCover.MaxY));
+  FBitmap.FillRectAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, PaperInk);
+  FBitmap.RectangleAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, EdgeInk, 1);
+  FBitmap.FontHeight := CAPTION_HEIGHT;
+  FBitmap.TextOut(TopLeft.X + 4, TopLeft.Y + 2, rsPreviewCover, EdgeInk);
+end;
+
+// As the PDF prints it: lines in a ruled box, on white
+procedure TPreviewCanvas.DrawTitleBoxes;
+var
+  Box: TRect2;
+  Lines: TStringArray;
+  TopLeft, BottomRight: TVec2;
+  LineIndex: integer;
+begin
+  Lines := nil;
+  // Text too small to read would overflow the box at the smallest font
+  if TITLE_TEXT_SIZE * POINTS_TO_MM * FView.Scale >= MIN_NOTE_HEIGHT then
+    Lines := FDocument.Layout.TitleLines(FDocument.Layout.FieldValues('', ''));
+  FBitmap.FontHeight := Round(TITLE_TEXT_SIZE * POINTS_TO_MM * FView.Scale);
+  for Box in FTitleBoxes do
+  begin
+    TopLeft := FView.ToScreen(Vec2(Box.MinX, Box.MinY));
+    BottomRight := FView.ToScreen(Vec2(Box.MaxX, Box.MaxY));
+    FBitmap.FillRectAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, PaperInk);
+    FBitmap.RectangleAntialias(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y, PieceInk, 1);
+    for LineIndex := 0 to High(Lines) do
+      FBitmap.TextOut(TopLeft.X + TITLE_PADDING * FView.Scale, TopLeft.Y + (TITLE_PADDING + LineIndex * LineHeight(TITLE_TEXT_SIZE)) * FView.Scale,
+        Lines[LineIndex], PieceInk);
+  end;
+end;
+
+function TPreviewCanvas.ShownBounds(out Bounds: TRect2): boolean;
+var
+  Box: TRect2;
+
+  procedure Take(const Area: TRect2);
+  begin
+    Bounds.MinX := Min(Bounds.MinX, Area.MinX);
+    Bounds.MinY := Min(Bounds.MinY, Area.MinY);
+    Bounds.MaxX := Max(Bounds.MaxX, Area.MaxX);
+    Bounds.MaxY := Max(Bounds.MaxY, Area.MaxY);
+  end;
+
+begin
+  Result := PagesBounds(FPages, Bounds);
+  if not Result then
+    Exit;
+  if Assigned(FDocument) and (FDocument.Layout.Output.Kind = okTiled) then
+    Take(FCover);
+  for Box in FTitleBoxes do
+    Take(Box);
 end;
 
 procedure TPreviewCanvas.Paint;
@@ -732,13 +829,15 @@ var
 begin
   if (FBitmap.Width <> ClientWidth) or (FBitmap.Height <> ClientHeight) then
     FBitmap.SetSize(Max(ClientWidth, 1), Max(ClientHeight, 1));
-  if FNeedsFit and PagesBounds(FPages, Whole) then
+  if FNeedsFit and ShownBounds(Whole) then
   begin
     FView.Fit(Whole, ClientWidth, ClientHeight, FIT_MARGIN);
     FNeedsFit := False;
   end;
   FBitmap.Fill(Desk);
   FBitmap.FontQuality := fqFineAntialiasing;
+  if Assigned(FDocument) and (FDocument.Layout.Output.Kind = okTiled) then
+    DrawCover;
   // Used pages last, so their overlaps with blank ones stay white
   for Page in FPages do
     if Page.Blank then
@@ -752,7 +851,11 @@ begin
   for Shape in FShapes do
     DrawShape(Shape);
   if Assigned(FDocument) then
+  begin
     DrawNotes;
+    // Over the pieces, as it clears what is under it in a tile's corner
+    DrawTitleBoxes;
+  end;
   if FMode = pmZoomBoxing then
     DrawZoomBox;
   FBitmap.Draw(Canvas, 0, 0, True);

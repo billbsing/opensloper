@@ -49,10 +49,9 @@ implementation
 
 uses
   SysUtils, Math, Classes, Sloper.Core.Geometry, Sloper.Core.Materials, Sloper.Core.Settings, Sloper.Core.Draft, Sloper.Core.Note,
-  Sloper.Output.PDFWriter, Sloper.Output.Tiling;
+  Sloper.Output.PDFWriter, Sloper.Output.Tiling, Sloper.Output.TitleBlock;
 
 const
-  COVER_MARGIN = 15;
   TEST_SQUARE_SIDE = METRIC_TEST_SQUARE_SIDE;
   LETTER_TEST_SQUARE_SIDE = INCH_TEST_SQUARE_SIDE;
   MAP_CELL = 12;
@@ -70,18 +69,12 @@ const
   HATCH_SPACING = 6;
   HATCH_GRAY = 0.6;
   HALF_CIRCLE_STEPS = 16;
-  CHECK_SQUARE_TOP = 27;
-  TITLE_GAP = 10;
-  TITLE_TEXT_SIZE = 9;
-  TITLE_PADDING = 2;
   PROJECTOR_CUT_WIDTH = 1.5;
   PROJECTOR_SEAM_WIDTH = 0.7;
   PROJECTOR_MARK_WIDTH = 1;
   PROJECTOR_LABEL_SIZE = 28;
   // Room for the header, when there is little or nothing below it
   MIN_PROJECTOR_WIDTH = 130;
-  // Room for the title, reminder and test square above a large sheet
-  LARGE_HEADER_HEIGHT = 140;
 
 type
   TLayoutPrinter = class
@@ -110,7 +103,6 @@ type
     procedure DrawMark(const Page: TTilePage; const Centre: TVec2; Inward: double);
     function PageValues: TFieldValues;
     procedure DrawTitle(Left, Top: double; Boxed: boolean);
-    procedure MeasureTitle(out AWidth, AHeight: double);
     procedure DrawTitleInCorner(PageWidth, PageHeight, Inset: double);
     procedure DrawNotes(const Page: TTilePage);
     procedure DrawMarks(const Page: TTilePage);
@@ -267,19 +259,6 @@ begin
   Result := FLayout.FieldValues(IntToStr(FPageNumber), IntToStr(FPageCount));
 end;
 
-procedure TLayoutPrinter.MeasureTitle(out AWidth, AHeight: double);
-var
-  Lines: TStringArray;
-  Line: string;
-begin
-  Lines := FLayout.TitleLines(PageValues);
-  AWidth := 0;
-  for Line in Lines do
-    AWidth := Max(AWidth, TextWidth(Line, TITLE_TEXT_SIZE));
-  AWidth := AWidth + 2 * TITLE_PADDING;
-  AHeight := Length(Lines) * LineHeight(TITLE_TEXT_SIZE) + 2 * TITLE_PADDING;
-end;
-
 // Boxed clears what is under it, for a corner of a tile
 procedure TLayoutPrinter.DrawTitle(Left, Top: double; Boxed: boolean);
 var
@@ -288,12 +267,9 @@ var
   Index: integer;
   Box: TRect2;
 begin
-  if not FLayout.Title.Enabled then
+  if not TitleBlockSize(FLayout, PageValues, BoxWidth, BoxHeight) then
     Exit;
   Lines := FLayout.TitleLines(PageValues);
-  if Length(Lines) = 0 then
-    Exit;
-  MeasureTitle(BoxWidth, BoxHeight);
   Box.MinX := Left;
   Box.MinY := Top;
   Box.MaxX := Left + BoxWidth;
@@ -317,29 +293,13 @@ end;
 
 procedure TLayoutPrinter.DrawTitleInCorner(PageWidth, PageHeight, Inset: double);
 var
-  BoxWidth, BoxHeight, Left, Top: double;
+  BoxWidth, BoxHeight: double;
+  Spot: TVec2;
 begin
-  if not FLayout.Title.Enabled then
+  if not TitleBlockSize(FLayout, PageValues, BoxWidth, BoxHeight) then
     Exit;
-  MeasureTitle(BoxWidth, BoxHeight);
-  case FLayout.Title.Corner of
-    tcBottomLeft:
-    begin
-      Left := Inset;
-      Top := PageHeight - Inset - BoxHeight;
-    end;
-    tcTopRight:
-    begin
-      Left := PageWidth - Inset - BoxWidth;
-      Top := Inset;
-    end;
-    else
-    begin
-      Left := PageWidth - Inset - BoxWidth;
-      Top := PageHeight - Inset - BoxHeight;
-    end;
-  end;
-  DrawTitle(Left, Top, True);
+  Spot := TitleCornerSpot(FLayout.Title.Corner, PageWidth, PageHeight, Inset, BoxWidth, BoxHeight);
+  DrawTitle(Spot.X, Spot.Y, True);
 end;
 
 // A white box goes under the text in the paper's colour, which on a

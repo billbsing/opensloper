@@ -37,7 +37,7 @@ type
     FPreview: TPreviewCanvas;
     // The side tabs; the rows being built go into FRowParent
     FTabs: TAccordion;
-    FPiecesSide, FSide, FNotesSide, FRowParent: TWinControl;
+    FPiecesSide, FSide, FInfoSide, FNotesSide, FRowParent: TWinControl;
     FColumn: TPanel;
     FTitleBox, FEveryPageBox: TCheckBox;
     FFieldBoxes: array[0..5] of TCheckBox;
@@ -119,6 +119,7 @@ type
     procedure StatusMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
     procedure RefreshTray;
     procedure RefreshNotesTab;
+    procedure BuildInfoTab;
     procedure BuildNotesTab;
     function AddCheck(const ACaption: string): TCheckBox;
     procedure TitleChange(Sender: TObject);
@@ -212,7 +213,6 @@ resourcestring
   rsArrange = 'Arrange';
   rsContent = 'Content';
   rsExportGroup = 'Print and Export';
-  rsSheetNotes = 'Sheet Notes';
   rsTrayEmpty = 'Every piece is placed';
   rsTrayNoPieces = 'No pieces to place';
   rsRemove = 'Back to tray';
@@ -245,8 +245,9 @@ resourcestring
   rsPaperWidth = 'Paper width (mm)';
   rsPaperHeight = 'Paper height (mm)';
   rsTabNotes = 'Notes';
-  rsTitleBlock = 'Title Block';
-  rsShowTitleBlock = 'Show the title block';
+  rsTabInfo = 'Information Block';
+  rsShowTitleBlock = 'Show';
+  rsChooseNote = 'Click a note on the pages to change it.';
   rsEveryPage = 'On every page';
   rsCorner = 'Corner';
   rsCornerBottomRight = 'Bottom right';
@@ -352,6 +353,9 @@ const
   MAX_PAPER_SIDE = 2000;
   NOTE_FIELD_CAPTIONS: array[0..5] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldMaterials);
   MODIFIED_MARK: array[boolean] of string = ('', '*');
+  // The side panel's sections, by the key their choice is saved under
+  INFO_SECTION = 'info';
+  NOTES_SECTION = 'notes';
 
 constructor TPublishForm.Create(AOwner: TComponent);
 var
@@ -393,7 +397,8 @@ begin
   FPiecesSide := FTabs.AddSection('pieces', rsTabPieces);
   FPatternsSide := FTabs.AddSection('patterns', rsTabPatterns);
   FSide := FTabs.AddSection('output', rsTabOutput);
-  FNotesSide := FTabs.AddSection('notes', rsTabNotes);
+  FInfoSide := FTabs.AddSection(INFO_SECTION, rsTabInfo);
+  FNotesSide := FTabs.AddSection(NOTES_SECTION, rsTabNotes);
   // The preview and its scroll bars share a panel, so the bars stay beside it
   PreviewPanel := TPanel.Create(Self);
   PreviewPanel.Parent := Self;
@@ -422,6 +427,8 @@ begin
   FOutputScroll := ScrollingRows(FSide);
   FRowParent := FOutputScroll;
   BuildSide;
+  FRowParent := ScrollingRows(FInfoSide);
+  BuildInfoTab;
   FRowParent := ScrollingRows(FNotesSide);
   BuildNotesTab;
   FTabs.ActiveKey := UserPublishTab;
@@ -574,11 +581,12 @@ begin
   PlaceRow(Result);
 end;
 
-procedure TPublishForm.BuildNotesTab;
+// Plain lines from the layout and its patterns, in a page corner, with
+// nothing to type or place
+procedure TPublishForm.BuildInfoTab;
 var
   Index: integer;
 begin
-  BeginGroup(rsTitleBlock);
   FTitleBox := AddCheck(rsShowTitleBlock);
   for Index := 0 to High(FFieldBoxes) do
     FFieldBoxes[Index] := AddCheck(NOTE_FIELD_CAPTIONS[Index]);
@@ -592,8 +600,13 @@ begin
   FCornerBox.Items.Add(rsCornerBottomLeft);
   FCornerBox.Items.Add(rsCornerTopRight);
   FCornerBox.OnChange := @TitleChange;
-  BeginGroup(rsSheetNotes);
+end;
+
+// The selected note's details; a note is chosen on the pages
+procedure TPublishForm.BuildNotesTab;
+begin
   AddButton(rsAddNote, @AddNoteClick);
+  AddLabel(rsChooseNote).WordWrap := True;
   AddLabel(rsSheetNote);
   FNoteMemo := TMemo.Create(Self);
   FNoteMemo.Height := NOTE_MEMO_HEIGHT;
@@ -622,7 +635,6 @@ begin
   FNoteItalicCheck := AddCheck(rsNoteItalic);
   FNoteItalicCheck.OnChange := @NoteChange;
   FDeleteNoteButton := AddButton(rsDeleteNote, @DeleteNoteClick);
-  EndGroup;
 end;
 
 procedure TPublishForm.RefreshNotesTab;
@@ -1119,8 +1131,11 @@ begin
   RefreshControls;
 end;
 
+// A note picked on the pages opens its details
 procedure TPublishForm.SelectionChanged(Sender: TObject);
 begin
+  if FPreview.SelectedNote >= 0 then
+    FTabs.ActiveKey := NOTES_SECTION;
   RefreshControls;
 end;
 

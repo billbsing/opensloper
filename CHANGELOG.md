@@ -50,6 +50,11 @@ Changed, Fixed and Removed under each version.
   publish; Save waits for a change; and the commands that work on a
   selection, a measurement row or a size column wait for one. Cut, Copy and
   Paste stay on, as they also work in text fields.
+- The publish app's Notes tab is two (#14): Information Block, the title
+  block renamed, whose Show box turns it on, and Notes. The pages show the
+  information block where it prints, with the cover drawn left of the tiles.
+  Sheet notes have a frame round them on screen, so they are easy to find,
+  and clicking one opens its details on the Notes tab.
 
 ### Fixed
 
@@ -63,6 +68,8 @@ Changed, Fixed and Removed under each version.
 - The Preferences dialog sizes itself to its contents once shown, within the
   screen, and each tab scrolls when the screen is too small (#12); with a
   larger font the bottom of the Design tab was cut off.
+- The publish preview drew sheet notes a quarter larger than they print, and
+  their lines further apart.
 
 ## 0.1.0
 
