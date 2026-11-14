@@ -869,7 +869,7 @@ The Garment tab is the quick, flat look at the finished pieces; Blender is for f
 
 ### Command line
 
-`opensloper-cli` is built on the LCL-free core and ConsoleTools; its commands are on the generated Command line page. `check` exits with 0 for no problems, 1 for problems and 2 for a usage or file error, so it works in tests and CI.
+`opensloper-cli` is built on the LCL-free core and ConsoleTools; its commands are on the generated Command line page. `check` exits with 0 for no problems, 1 for problems and 2 for a usage or file error, so it works in tests and CI. The commands are in `Sloper.CLI.Commands`, whose `RunCli` takes the arguments as a list and writes to the text files it is given; the program only passes its parameters, `Output` and `StdErr`. Tests run commands through it with both caught in streams (`Sloper.Tests.CLI`), on copies of the example patterns, checking exit codes, what is printed and the files written, with no built program needed (decided 2026-11-14). `serve` keeps to standard input and output, and `--help` prints through ConsoleTools to standard output, so neither is tested that way.
 
 ### Automation API
 

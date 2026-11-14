@@ -73,6 +73,7 @@ uses
   Sloper.Tests.Fragment,
   Sloper.Tests.Materials,
   Sloper.Tests.MaterialNeeded,
+  Sloper.Tests.CLI,
   Sloper.Tests.Circles,
   Sloper.Tests.Accessories,
   Sloper.Tests.Markers,

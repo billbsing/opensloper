@@ -396,6 +396,11 @@
         <UnitName Value="Sloper.Tests.MaterialNeeded"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.cli.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.CLI"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.circles.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Circles"/>

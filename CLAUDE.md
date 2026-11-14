@@ -15,7 +15,7 @@ The full design is in `documents/opensloper-design-document.md`. Read it before 
 - `src/design/` — `opensloper-design`, the main design app, with its main form (`Sloper.Design.MainForm`), as the measurements and publish apps keep theirs.
 - `src/measurements/` — `opensloper-measurements`, which edits measurement files and size tables. Keep it thin, as `src/ui`.
 - `src/publish/` — `opensloper-publish`, layouts and printing.
-- `src/cli/` — `opensloper-cli` (export, export-draft, layout, check, measurements, serve, doc), built on the core and ConsoleTools. Its commands and options are tables in `Sloper.CLI.Arguments`, which build the parser and the CLI reference page.
+- `src/cli/` — `opensloper-cli` (export, export-draft, layout, pack, materials, check, measurements, serve, doc), built on the core and ConsoleTools. Its commands and options are tables in `Sloper.CLI.Arguments`, which build the parser and the CLI reference page. The commands run in `Sloper.CLI.Commands` (`RunCli`), writing to the text files given, so `Sloper.Tests.CLI` runs them in the test program; a new command gets a test there.
 - `src/docs/` — code that writes the generated reference pages, the file format schemas and the Python API client (`opensloper.py`) of the user documentation (`opensloper-cli doc TOPIC`). Doc generation code goes here.
 - `src/packages/` — git submodules (Clipper2, BGRABitmap, ConsoleTools). Do not edit code in here; changes go upstream.
 - `resources/` — branding: app icons and the API logo (SVG), for builds, docs and other resources; `make-icons.sh` regenerates the apps' `.ico` files after an SVG changes, and `linux/` holds the `.desktop` entries.
