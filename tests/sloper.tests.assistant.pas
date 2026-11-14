@@ -112,12 +112,15 @@ type
     procedure TestChangedKeySent;
     // Abort, from another thread, ends a read the server never answers
     procedure TestAbortEndsAStalledRead;
+    // A server that resets the connection fails the request; OpenSSL's
+    // closing write to it must not raise SIGPIPE, ending the program
+    procedure TestServerResetFails;
   end;
 
 implementation
 
 uses
-  Math, {$IFDEF UNIX} BaseUnix, {$ENDIF} ssockets, sslsockets, opensslsockets, Sloper.Core.JSON, Sloper.Assistant.Stream,
+  Math, {$IFDEF UNIX} BaseUnix, {$ENDIF} Sockets, ssockets, sslsockets, opensslsockets, Sloper.Core.JSON, Sloper.Assistant.Stream,
   Sloper.Assistant.Key, Sloper.API.Rpc, Sloper.API.Server, Sloper.API.MCP;
 
 type
@@ -130,7 +133,7 @@ type
     FCertificate: string;
     FRequests: integer;
     FLastRequest: string;
-    FStall: boolean;
+    FStall, FCloseEarly: boolean;
     procedure CreateHandler(Sender: TObject; out AHandler: TSocketHandler);
     procedure Connected(Sender: TObject; Data: TSocketStream);
     procedure Idle(Sender: TObject);
@@ -145,6 +148,8 @@ type
     property Requests: integer read FRequests;
     // The last request as it came, headers and body
     property LastRequest: string read FLastRequest;
+    // Read the request, then reset the connection without answering
+    property CloseEarly: boolean read FCloseEarly write FCloseEarly;
   end;
 
 const
@@ -213,6 +218,7 @@ var
   Buffer: array[0..4095] of byte;
   Received: string;
   Count: integer;
+  Linger: TLinger;
 begin
   try
     Inc(FRequests);
@@ -225,6 +231,16 @@ begin
         Received := Received + Copy(PChar(@Buffer[0]), 1, Count);
     until (Count <= 0) or (Pos(#13#10#13#10, Received) > 0) and Received.EndsWith('}');
     FLastRequest := Received;
+    // A reset, as a proxy dropping the connection gives: no TLS close, and
+    // the socket closed with linger 0
+    if FCloseEarly then
+    begin
+      Linger.l_onoff := 1;
+      Linger.l_linger := 0;
+      fpSetSockOpt(Data.Handle, SOL_SOCKET, SO_LINGER, @Linger, SizeOf(Linger));
+      CloseSocket(Data.Handle);
+      Exit;
+    end;
     while FStall and not Terminated do
       Sleep(TLS_TEST_IDLE_MS);
     if not FStall then
@@ -983,6 +999,35 @@ begin
       Poster.WaitFor;
     FreeAndNil(Poster);
     FreeAndNil(Transport);
+    FreeAndNil(Server);
+  end;
+end;
+
+procedure TTestHttpsTransport.TestServerResetFails;
+var
+  Server: TTlsTestServer;
+  Transport: THttpsTransport;
+  Sink: TStringStream;
+  ErrorText: string;
+  RetryAfter: integer;
+  Failed: boolean;
+begin
+  Server := TTlsTestServer.Create(TlsTestFile('localhost.pem'));
+  Server.CloseEarly := True;
+  Sink := TStringStream.Create('');
+  Transport := THttpsTransport.Create('key', Format('https://localhost:%d/v1/messages', [Server.Port]));
+  try
+    Transport.TrustedFile := TlsTestFile('localhost.pem');
+    Failed := False;
+    try
+      Transport.Post('{}', Sink, ErrorText, RetryAfter);
+    except
+      Failed := True;
+    end;
+    AssertTrue('the request failed, and the program goes on', Failed);
+  finally
+    FreeAndNil(Transport);
+    FreeAndNil(Sink);
     FreeAndNil(Server);
   end;
 end;

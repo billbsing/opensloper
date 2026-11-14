@@ -81,7 +81,25 @@ const
 implementation
 
 uses
-  dynlibs, ctypes, Sockets, SysConst, fphttpclient, openssl, opensslsockets;
+  {$IFDEF UNIX} BaseUnix, {$ENDIF} dynlibs, ctypes, Sockets, SysConst, fphttpclient, openssl, opensslsockets;
+
+// A write to a connection the server has reset raises SIGPIPE, which ends
+// the program, and OpenSSL writes to the socket itself, so no send flag can
+// prevent it; once ignored, the write fails with EPIPE and the request with
+// it. For the whole program, as Qt's networking does, once the first
+// transport is made, so only programs with the assistant change.
+procedure IgnoreBrokenPipes;
+{$IFDEF UNIX}
+var
+  Action: SigActionRec;
+{$ENDIF}
+begin
+  {$IFDEF UNIX}
+  Action := Default(SigActionRec);
+  Action.sa_handler := SigActionHandler(SIG_IGN);
+  fpSigAction(SIGPIPE, @Action, nil);
+  {$ENDIF}
+end;
 
 const
   DEFAULT_BASE_URL = 'https://api.anthropic.com';
@@ -278,6 +296,7 @@ end;
 constructor THttpsTransport.Create(const AKey: string; const AUrl: string);
 begin
   inherited Create;
+  IgnoreBrokenPipes;
   FLock := TCriticalSection.Create;
   FKey := AKey;
   FUrl := AUrl;
