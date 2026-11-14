@@ -91,6 +91,10 @@ type
     procedure TestFitInPatternUnit;
     procedure TestFitOnlyForPieceMaterial;
     procedure TestSizeText;
+    procedure TestFitFollowsGrainline;
+    procedure TestFitAtAnAngle;
+    procedure TestNoGrainlineFitsAsDrawn;
+    procedure TestFoldAlongOrAcrossGrain;
   end;
 
 implementation
@@ -765,6 +769,60 @@ begin
   AssertEquals('150 cm roll', MaterialSizeText(Main, 'cm'));
   AssertTrue(FPattern.SetMaterialSize(Main, 150, 72.5));
   AssertEquals('150 × 72.5 cm', MaterialSizeText(Main, 'cm'));
+end;
+
+// 200 by 50 cuts 220 by 70; with its grainline across, it lies 70 across
+procedure TTestMaterials.TestFitFollowsGrainline;
+var
+  Piece: TPieceObject;
+begin
+  Piece := AddPanel('Front', 0, 200, 50);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 100, 0));
+  AssertEquals('grain up', 1, Length(FitProblems));
+  AssertTrue(FPattern.LastError, FPattern.SetGrainAngle(Piece, '0'));
+  AssertEquals('grain across the panel', 0, Length(FitProblems));
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 300, 200));
+  AssertEquals('too long along the grain', 1, Length(FitProblems));
+  AssertEquals(Format(rsCheckLargerThanSheet, ['Front', '70 mm', '220 mm', 'Main', '300 mm', '200 mm']), FitProblems[0]);
+end;
+
+// A 100 square with a 10 allowance on the bias: its 120 diagonal goes across
+procedure TTestMaterials.TestFitAtAnAngle;
+var
+  Piece: TPieceObject;
+begin
+  Piece := AddSquare('Collar', 0);
+  AssertTrue(FPattern.LastError, FPattern.SetGrainAngle(Piece, '45'));
+  FPattern.Evaluate;
+  AssertPointsNear('the diagonal both ways', Vec2(120 * Sqrt(2), 120 * Sqrt(2)), Piece.GrainExtent);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 150, 0));
+  AssertEquals(1, Length(FitProblems));
+end;
+
+procedure TTestMaterials.TestNoGrainlineFitsAsDrawn;
+var
+  Piece: TPieceObject;
+begin
+  Piece := AddPanel('Front', 0, 200, 50);
+  AssertTrue(FPattern.LastError, FPattern.SetGrainAngle(Piece, '0'));
+  FPattern.ClearGrain(Piece);
+  FPattern.Evaluate;
+  AssertPointsNear('as drawn', Vec2(220, 70), Piece.GrainExtent);
+end;
+
+procedure TTestMaterials.TestFoldAlongOrAcrossGrain;
+var
+  Piece: TPieceObject;
+begin
+  Piece := AddSquare('Back', 0);
+  AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, FRightEdge));
+  FPattern.Evaluate;
+  AssertTrue('the right edge runs up, as the grain', Piece.GrainShape.FoldAlongGrain);
+  AssertPointsNear('opened out across', Vec2(220, 120), Piece.GrainExtent);
+  AssertTrue(FPattern.LastError, FPattern.SetGrainAngle(Piece, '0'));
+  FPattern.Evaluate;
+  AssertFalse('across the grain', Piece.GrainShape.FoldAlongGrain);
+  AssertPointsNear('turned, opened out along', Vec2(120, 220), Piece.GrainExtent);
 end;
 
 initialization

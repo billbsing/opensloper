@@ -26,7 +26,7 @@ unit Sloper.Output.Packing;
 interface
 
 uses
-  Sloper.Output.Layout;
+  Sloper.Core.Geometry, Sloper.Output.Layout;
 
 const
   PACK_GAP = 10;
@@ -43,8 +43,21 @@ type
     Pages: integer;
   end;
 
+  // Where PackBoxes put a box: its top left, and whether it is a quarter turn
+  // round; Fits is False for a box with no room
+  TBoxSpot = record
+    X, Y: double;
+    Turned, Fits: boolean;
+  end;
+
+  TBoxSpotArray = array of TBoxSpot;
+
 // Places any new copies first. Failing pieces stay in the tray.
 function PackLayout(Layout: TLayout): TPackResult;
+// Packs boxes as Pack Pieces does, longest side first, PACK_GAP apart, within
+// Limit across and Depth down, around the boxes in Placed. Turns lets a box
+// try a quarter turn. The spots are in the order of Sizes (X wide, Y high).
+function PackBoxes(const Sizes: TVec2Array; Limit, Depth: double; Turns: boolean; const Placed: array of TRect2): TBoxSpotArray;
 
 resourcestring
   rsPackProjector = 'Pieces cannot be packed for a projector, as the layout has no material width';
@@ -55,7 +68,7 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Math, Sloper.Core.Geometry, Sloper.Output.Tiling;
+  SysUtils, Math, Sloper.Output.Tiling;
 
 const
   // The window's drag grid, so packed pieces can be lined up by hand
@@ -182,7 +195,8 @@ end;
 
 // Items that fit, in Spots; returns how many did not. Depth is how far down
 // pieces can go, and Turns says whether a quarter turn may be tried.
-function PackInto(const Items: TPackItemArray; Limit: double; out Spots: TPackSpotArray; Depth: double = Infinity; Turns: boolean = True): integer;
+function PackInto(const Items: TPackItemArray; Limit: double; out Spots: TPackSpotArray; Depth: double = Infinity; Turns: boolean = True;
+  const Start: TPackBoxArray = nil): integer;
 var
   Item: TPackItem;
   Boxes: TPackBoxArray;
@@ -194,7 +208,7 @@ var
 begin
   Result := 0;
   Spots := nil;
-  Boxes := nil;
+  Boxes := Copy(Start);
   for Item in Items do
   begin
     Candidates(Boxes, Xs, Ys);
@@ -376,6 +390,47 @@ begin
   Layout.Output.ExcludedPages := nil;
   Result.Done := True;
   Result.Count := Length(Spots);
+end;
+
+function PackBoxes(const Sizes: TVec2Array; Limit, Depth: double; Turns: boolean; const Placed: array of TRect2): TBoxSpotArray;
+var
+  Items: TPackItemArray;
+  Item: TPackItem;
+  Spots: TPackSpotArray;
+  Spot: TPackSpot;
+  Start: TPackBoxArray;
+  Index, Place: integer;
+begin
+  Items := nil;
+  for Index := 0 to High(Sizes) do
+  begin
+    Item.Placement := Index;
+    Item.Width := Sizes[Index].X;
+    Item.Height := Sizes[Index].Y;
+    Place := Length(Items);
+    while (Place > 0) and ComesFirst(Item, Items[Place - 1]) do
+      Dec(Place);
+    Insert(Item, Items, Place);
+  end;
+  Start := nil;
+  SetLength(Start, Length(Placed));
+  for Index := 0 to High(Placed) do
+  begin
+    Start[Index].MinX := Placed[Index].MinX;
+    Start[Index].MinY := Placed[Index].MinY;
+    Start[Index].MaxX := Placed[Index].MaxX;
+    Start[Index].MaxY := Placed[Index].MaxY;
+  end;
+  PackInto(Items, Limit, Spots, Depth, Turns, Start);
+  Result := nil;
+  SetLength(Result, Length(Sizes));
+  for Spot in Spots do
+  begin
+    Result[Spot.Placement].X := Spot.X;
+    Result[Spot.Placement].Y := Spot.Y;
+    Result[Spot.Placement].Turned := Spot.Turned;
+    Result[Spot.Placement].Fits := True;
+  end;
 end;
 
 end.

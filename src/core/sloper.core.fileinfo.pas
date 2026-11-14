@@ -462,7 +462,7 @@ begin
   M('titleBlock', mkGroup, rsFileLayoutTitleBlock);
   M('titleBlock.corner', mkChoice, rsFileTitleCorner, 'bottomRight, bottomLeft, topRight');
   M('titleBlock.fields[]', mkChoice, rsFileTitleFields, Joined([FIELD_PATTERN_NAME, FIELD_MEASUREMENTS_NAME, FIELD_LAYOUT_NAME,
-    FIELD_DATE, FIELD_CUT_LIST, FIELD_MATERIALS]));
+    FIELD_DATE, FIELD_CUT_LIST, FIELD_MATERIALS, FIELD_MATERIAL_NEEDED]));
   M('titleBlock.everyPage', mkFlag, rsFileTitleEveryPage);
 end;
 

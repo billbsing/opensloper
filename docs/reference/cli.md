@@ -62,6 +62,14 @@ Pack a layout's pieces and rewrite the layout file
 opensloper-cli pack LAYOUT
 ```
 
+### materials
+
+Estimate how much of each material a layout's patterns, or one pattern, need to cut
+
+```
+opensloper-cli materials LAYOUT|PATTERN [--json]
+```
+
 ### serve
 
 Answer JSON-RPC 2.0 on stdin and stdout, one message per line, as the Automation API and as an MCP server
@@ -88,7 +96,7 @@ opensloper-cli doc
 | `-m`, `--measurements` | file | Measurement file (.slm); default: the one the pattern names |
 | `-s`, `--size` | size | check, layout: the size to use from a size table, default the first; measurements: the size to list or set |
 | `-d`, `--description` | text | measurements set: the description; default: keep the one it has |
-| `--json` |  | check: print every computed value as JSON; measurements list: print the file |
+| `--json` |  | check: print every computed value as JSON; materials: print the estimate, in mm; measurements list: print the file |
 | `-o`, `--output` | file | layout, export, export-draft, doc: the file to write |
 | `--format` | format | export: pdf, svg, dxf or machine-dxf; default: the extension of --output, or pdf. export-draft: svg or png; default: the extension of --output, or svg |
 | `--profile` | name | export: a machine profile from the settings, in place of the layout's |
@@ -103,7 +111,7 @@ After the command, in this order; each command takes the ones it needs.
 
 | Argument | Description |
 | --- | --- |
-| `pattern` | Pattern file (.sloper), layout file (.slayout) to export, for measurements: list, set or missing, or for doc: the topic |
+| `pattern` | Pattern file (.sloper), layout file (.slayout) to export or estimate, for measurements: list, set or missing, or for doc: the topic |
 | `file` | measurements: the measurement file (.slm) |
 | `key` | measurements set: the key; measurements missing: the pattern file |
 | `value` | measurements set: the value in mm |

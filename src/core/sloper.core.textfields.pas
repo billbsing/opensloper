@@ -38,6 +38,8 @@ const
   FIELD_DATE = 'date';
   FIELD_CUT_LIST = 'cutlist';
   FIELD_MATERIALS = 'materials';
+  // Filled in by layouts only, from the material needed
+  FIELD_MATERIAL_NEEDED = 'materialneeded';
   POINTS_TO_MM = 25.4 / 72;
 
 type
@@ -47,7 +49,7 @@ type
 
   // What fields stand for in text; an empty value leaves the field as typed
   TFieldValues = record
-    PatternName, MeasurementsName, LayoutName, Date, Page, Pages, CutList, Materials: string;
+    PatternName, MeasurementsName, LayoutName, Date, Page, Pages, CutList, Materials, MaterialNeeded: string;
   end;
 
 // Text with its known {fields} filled in
@@ -104,6 +106,7 @@ begin
   Fill(FIELD_PAGES, Values.Pages);
   Fill(FIELD_CUT_LIST, Values.CutList);
   Fill(FIELD_MATERIALS, Values.Materials);
+  Fill(FIELD_MATERIAL_NEEDED, Values.MaterialNeeded);
 end;
 
 function TextLines(const Text: string): TStringArray;

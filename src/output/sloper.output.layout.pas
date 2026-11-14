@@ -199,6 +199,9 @@ type
   private
     FSources: TLayoutSourceList;
     FNextId: integer;
+    // The material needed, worked out again only when the files loaded change,
+    // as title blocks ask for it on every page
+    FNeedKey, FNeedSummary: string;
     function ResolvePath(const Stored: string): string;
     procedure LoadSource(Source: TLayoutSource);
     function NewPlacement(const Item: TUnplacedCopy; out Piece: TPieceObject): TPlacement;
@@ -278,6 +281,11 @@ type
     function ActiveOutputProfile: TOutputProfile;
     // Whether the piece is on the material the layout is limited to, if any
     function InMaterial(Source: TLayoutSource; Piece: TPieceObject): boolean;
+    // A material layout limited to one material takes that material's size
+    // from the first pattern that gives it one; True when that changed it
+    function TakeMaterialSize: boolean;
+    // MaterialNeedSummary of the layout's patterns
+    function MaterialNeeded: string;
     // How wide a sheet pieces can be laid across; large format and material only
     function UsableWidth: double;
     // For a material sheet, how much of it the pieces take; '' for other kinds
@@ -335,6 +343,7 @@ resourcestring
   rsTitleDate = 'Date: %s';
   rsTitleCutList = 'Cut list: %s';
   rsTitleMaterials = 'Materials: %s';
+  rsTitleMaterialNeeded = 'Material needed: %s';
   rsLayoutOffSheet = '%s runs off the sheet';
   rsLayoutPastSheet = '%s runs past the %s by %s mm sheet';
   rsLayoutPastWidth = '%s is wider than the %s mm material';
@@ -353,7 +362,7 @@ implementation
 
 uses
   Classes, Math, StrUtils, crc, fpjson, Clipper, Clipper.Core, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.EvalTypes,
-  Sloper.Core.PatternFile, Sloper.Output.Fonts;
+  Sloper.Core.PatternFile, Sloper.Core.Units, Sloper.Output.Fonts, Sloper.Output.MaterialNeeded;
 
 const
   CORNER_NAMES: array[TTitleCorner] of string = ('bottomRight', 'bottomLeft', 'topRight');
@@ -571,6 +580,23 @@ begin
       Result.Materials := Result.Materials + Source.Pattern.MaterialNames;
     end;
   end;
+  Result.MaterialNeeded := MaterialNeeded;
+end;
+
+function TLayout.MaterialNeeded: string;
+var
+  Source: TLayoutSource;
+  Key: string;
+begin
+  Key := '';
+  for Source in FSources do
+    Key := Key + Source.PatternFile + #0 + Source.Size + #0 + Source.LoadedStamp + #0 + IntToHex(PtrUInt(Source.Pattern)) + #1;
+  if Key <> FNeedKey then
+  begin
+    FNeedSummary := MaterialNeedSummary(LayoutMaterialNeeds(Self));
+    FNeedKey := Key;
+  end;
+  Result := FNeedSummary;
 end;
 
 function TLayout.TitleLines(const Values: TFieldValues): TStringArray;
@@ -587,6 +613,7 @@ begin
       FIELD_DATE: Line := Format(rsTitleDate, [Values.Date]);
       FIELD_CUT_LIST: Line := Format(rsTitleCutList, [Values.CutList]);
       FIELD_MATERIALS: Line := Format(rsTitleMaterials, [Values.Materials]);
+      FIELD_MATERIAL_NEEDED: Line := Format(rsTitleMaterialNeeded, [Values.MaterialNeeded]);
       else
         Continue;
     end;
@@ -1549,6 +1576,34 @@ begin
     Exit(True);
   Material := Source.Pattern.MaterialOf(Piece);
   Result := Assigned(Material) and SameName(Material.Name, Output.Material);
+end;
+
+function TLayout.TakeMaterialSize: boolean;
+var
+  Source: TLayoutSource;
+  Material: TPatternMaterial;
+  Scale, Width, Length: double;
+begin
+  Result := False;
+  if (Output.Kind <> okMaterial) or (Output.Material = '') then
+    Exit;
+  for Source in FSources do
+  begin
+    if not Assigned(Source.Pattern) then
+      Continue;
+    Material := Source.Pattern.FindMaterialNamed(Output.Material);
+    if not Assigned(Material) or (Material.Width <= 0) then
+      Continue;
+    Scale := MILLIMETRES_PER_UNIT[Source.Pattern.Units];
+    Width := Material.Width * Scale;
+    Length := Material.Length * Scale;
+    Result := not SameValue(Output.MaterialWidth, Width) or not SameValue(Output.MaterialLength, Length) or
+      (Output.AllowTurns <> Material.AllowTurns);
+    Output.MaterialWidth := Width;
+    Output.MaterialLength := Length;
+    Output.AllowTurns := Material.AllowTurns;
+    Exit;
+  end;
 end;
 
 function TLayout.UsableWidth: double;

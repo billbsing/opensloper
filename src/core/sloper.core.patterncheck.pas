@@ -153,7 +153,7 @@ begin
 end;
 
 // Each valid piece on a material with a size, measured as it is cut (see
-// TPieceObject.CutExtent), with across along the material's width
+// TPieceObject.GrainExtent), with across along the material's width
 procedure AddMaterialFitProblems(Pattern: TPattern; var Problems: TStringArray);
 var
   Index: integer;
@@ -178,7 +178,7 @@ begin
     Material := Pattern.MaterialOf(Piece);
     if not Assigned(Material) or (Material.Width <= 0) then
       Continue;
-    Extent := Piece.CutExtent;
+    Extent := Piece.GrainExtent;
     if FitsMaterial(Extent.X, Extent.Y, Material.Width * Scale, Material.Length * Scale, Material.AllowTurns) then
       Continue;
     if (Material.Length > 0) and Material.AllowTurns then

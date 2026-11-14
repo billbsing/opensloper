@@ -63,6 +63,19 @@ type
   // gkPoints runs it between two points
   TGrainKind = (gkNone, gkAngle, gkPoints);
 
+  // A piece as it lies on material, its grainline along the length (see
+  // TPieceObject.GrainShape)
+  TGrainShape = record
+    // The cutting line as drafted: for a piece on a fold, the half laid
+    // against the material's fold
+    Half: TVec2Array;
+    // Half and, on a fold, its mirror image: the whole piece's points, for
+    // its extent
+    Whole: TVec2Array;
+    // On a fold that runs along the grain, so it can go on the material's fold
+    FoldAlongGrain: boolean;
+  end;
+
   // On a point, or at the formula "notchN.position": mm from the edge's start
   TPieceNotch = record
     PointKey, EdgeKey: string;
@@ -219,10 +232,13 @@ type
     // Last good line of the fold, along its edge
     property FoldLine: TLine2 read FFoldLine;
     function OnFold: boolean;
-    // How far the cutting line reaches across (X) and down (Y), opened out to
-    // the whole piece when it is on a fold, as it is cut from material folded
-    // double or laid flat
-    function CutExtent: TVec2;
+    // The cutting line turned so the grainline points up, as the piece lies
+    // on material with its grain along the length; as drawn with no grainline
+    function GrainShape: TGrainShape;
+    // How far the whole piece, turned by its grain, reaches across (X) and
+    // along (Y) the material: opened out when it is on a fold, which needs
+    // the same width as cutting it on material folded double
+    function GrainExtent: TVec2;
     // The material it is cut from. While the pattern's first material has no ID,
     // '' is that material; once it has, '' is no material.
     property MaterialKey: string read FMaterialKey write FMaterialKey;
@@ -259,6 +275,9 @@ const
   GRAIN_SHARE = 0.6;
   GRAIN_HEAD_LENGTH = 10;
   GRAIN_HEAD_SPREAD = 155;
+  // How far, in degrees, a fold may run from the grain and still go on the
+  // material's fold
+  FOLD_GRAIN_TOLERANCE = 1;
   NOTCH_LENGTH = 6;
   FOLD_DEPTH = 20;
   FOLD_INSET = 0.15;
@@ -851,28 +870,35 @@ begin
   Result := FFoldEdgeKey <> '';
 end;
 
-function TPieceObject.CutExtent: TVec2;
+function TPieceObject.GrainShape: TGrainShape;
 var
-  Lowest, Highest, Point: TVec2;
-
-  procedure Reach(const Spot: TVec2);
-  begin
-    Lowest := Vec2(Min(Lowest.X, Spot.X), Min(Lowest.Y, Spot.Y));
-    Highest := Vec2(Max(Highest.X, Spot.X), Max(Highest.Y, Spot.Y));
-  end;
-
+  Turn: double;
+  Index: integer;
+  Fold: TLine2;
 begin
-  if Length(FCutLine) = 0 then
-    Exit(Vec2(0, 0));
-  Lowest := FCutLine[0];
-  Highest := FCutLine[0];
-  for Point in FCutLine do
-  begin
-    Reach(Point);
-    if OnFold then
-      Reach(MirrorPoint(Point, FFoldLine.P1, FFoldLine.P2));
-  end;
-  Result := Highest - Lowest;
+  Result := Default(TGrainShape);
+  Turn := 0;
+  if FGrainKind <> gkNone then
+    Turn := 90 - FGrainline.Angle;
+  SetLength(Result.Half, Length(FCutLine));
+  for Index := 0 to High(FCutLine) do
+    Result.Half[Index] := RotatePoint(FCutLine[Index], Vec2(0, 0), Turn);
+  Result.Whole := Copy(Result.Half);
+  if not OnFold then
+    Exit;
+  Fold := Line2(RotatePoint(FFoldLine.P1, Vec2(0, 0), Turn), RotatePoint(FFoldLine.P2, Vec2(0, 0), Turn));
+  Result.FoldAlongGrain := Abs(Fold.P1.X - Fold.P2.X) <= Fold.Length * Sin(DegToRad(FOLD_GRAIN_TOLERANCE));
+  SetLength(Result.Whole, 2 * Length(Result.Half));
+  for Index := 0 to High(Result.Half) do
+    Result.Whole[Length(Result.Half) + Index] := MirrorPoint(Result.Half[Index], Fold.P1, Fold.P2);
+end;
+
+function TPieceObject.GrainExtent: TVec2;
+var
+  Shape: TGrainShape;
+begin
+  Shape := GrainShape;
+  Result := PointsExtent(Shape.Whole);
 end;
 
 function TPieceObject.CutCaption(Whole: boolean): string;

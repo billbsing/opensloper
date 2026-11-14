@@ -29,6 +29,7 @@ a pattern to start a layout for.
     | --- | --- |
     | Pieces | The selected piece (Turn 90°, Flip, Back to tray), Place new pieces, Pack pieces, and the tray of pieces not yet placed |
     | Patterns | The patterns in the layout, each with its measurements and size |
+    | Materials | How much of each material the patterns need, and notes on it (see [Material needed](printing.md#material-needed)) |
     | Output | What it prints on, the paper, marks, fill and profiles, and the exports |
     | Information Block | The pattern, measurements, date and other details, printed in a page corner |
     | Notes | Text placed on the pages |

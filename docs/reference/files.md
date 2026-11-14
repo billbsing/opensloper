@@ -221,7 +221,7 @@ Version 1. JSON Schema: [layout.schema.json](schemas/layout.schema.json).
 | `sheetNotes[].italic` | true or false |  | Whether it is italic |
 | `titleBlock` | group |  | The title block; no title block when left out |
 | `titleBlock.corner` | one of: `bottomRight`, `bottomLeft`, `topRight` |  | The corner of the page it sits in |
-| `titleBlock.fields[]` | list, each one of: `pattern.name`, `measurements.name`, `layout.name`, `date`, `cutlist`, `materials` |  | What it shows, in order |
+| `titleBlock.fields[]` | list, each one of: `pattern.name`, `measurements.name`, `layout.name`, `date`, `cutlist`, `materials`, `materialneeded` |  | What it shows, in order |
 | `titleBlock.everyPage` | true or false |  | Whether it is on every page, not only the first |
 
 ### Example

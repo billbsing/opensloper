@@ -26,7 +26,7 @@ unit Sloper.Publish.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, fpjson, Sloper.Core.TextFields,
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Grids, fpjson, Sloper.Core.TextFields,
   Sloper.Core.Note, Sloper.API.AppLink, Sloper.Output.Layout, Sloper.Output.LayoutDocument, Sloper.Output.LayoutExport,
   Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu, Sloper.UI.Accordion, Sloper.UI.SavePrompt;
 
@@ -40,7 +40,7 @@ type
     FPiecesSide, FSide, FInfoSide, FNotesSide, FRowParent: TWinControl;
     FColumn: TPanel;
     FTitleBox, FEveryPageBox: TCheckBox;
-    FFieldBoxes: array[0..5] of TCheckBox;
+    FFieldBoxes: array[0..6] of TCheckBox;
     FCornerBox: TComboBox;
     FNoteMemo: TMemo;
     FNoteSizeEdit: TFloatSpinEdit;
@@ -49,6 +49,10 @@ type
     FDeleteNoteButton: TButton;
     FStatus: TStatusBar;
     FPatternsSide: TWinControl;
+    // The Materials tab: what each material needs, and notes on it
+    FMaterialsSide: TWinControl;
+    FNeedGrid: TStringGrid;
+    FNeedNotes: TMemo;
     FOutputScroll: TScrollBox;
     FKindBox, FPaperBox, FMarksBox, FFillBox, FProfileBox, FOutputProfileBox, FMaterialBox, FSizeBox: TComboBox;
     FAllowTurnsBox: TCheckBox;
@@ -89,6 +93,8 @@ type
     procedure BuildMenu;
     procedure BuildPiecesTab;
     procedure BuildPatternsTab;
+    procedure BuildMaterialsTab;
+    procedure RefreshMaterialsTab;
     function CurrentSource: TLayoutSource;
     procedure RefreshPatternsTab;
     procedure RefreshProfiles;
@@ -219,6 +225,17 @@ resourcestring
   rsTabPieces = 'Pieces';
   rsTabOutput = 'Output';
   rsTabPatterns = 'Patterns';
+  rsTabMaterials = 'Materials';
+  rsNeedMaterial = 'Material';
+  rsNeedSize = 'Size';
+  rsNeedCopies = 'Pieces';
+  rsNeedNeeded = 'Needed';
+  rsNeedNotes = 'Notes';
+  rsNeedHow = 'Every piece of the patterns is counted with its cut count, whatever is placed on the sheet. Each lies with its ' +
+    'grainline along the material. A roll is cut folded in half lengthwise: pieces on a fold go on the fold, and a mirrored ' +
+    'pair is cut from both layers at once. A sheet is cut single layer. Pieces are packed by their bounding boxes, 10 mm ' +
+    'apart, so this is an estimate on the generous side. Sizes are set in the design app''s Materials window.';
+  rsNeedNothing = 'No pieces';
   rsPatternsLabel = 'Patterns in This Layout';
   rsAddPattern = 'Add pattern...';
   rsRemovePattern = 'Remove pattern';
@@ -258,6 +275,7 @@ resourcestring
   rsFieldLayout = 'Layout name';
   rsFieldCutList = 'Cut list';
   rsFieldMaterials = 'Materials';
+  rsFieldMaterialNeeded = 'Material needed';
   rsFieldDate = 'Date';
   rsSheetNote = 'Sheet note';
   rsNoteSize = 'Text size (pt)';
@@ -271,7 +289,7 @@ resourcestring
   rsNoteItalic = 'Italic';
   rsAddNote = 'Add note';
   rsDeleteNote = 'Delete note';
-  rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages} {cutlist} {materials}';
+  rsNoteHelp = 'Fields: {pattern.name} {measurements.name} {date} {page} {pages} {cutlist} {materials} {materialneeded}';
   rsNewNote = 'New note';
   rsChangeTitle = 'Change title block';
   rsChangeNote = 'Change note';
@@ -325,7 +343,7 @@ uses
   Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Spacing, Sloper.UI.FontBox,
   Sloper.UI.About, Sloper.UI.Preferences,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Printing, Sloper.Output.Tiling,
-  Sloper.Publish.PrintDialog, Sloper.Core.JSON, Sloper.API.Endpoint;
+  Sloper.Publish.PrintDialog, Sloper.Core.JSON, Sloper.API.Endpoint, Sloper.Output.MaterialNeeded;
 
 const
   SIDE_WIDTH = 340;
@@ -334,7 +352,8 @@ const
   MAX_NOTE_SIZE = 200;
   NOTE_MEMO_HEIGHT = 110;
   // In the order of FFieldBoxes
-  TITLE_FIELDS: array[0..5] of string = (FIELD_PATTERN_NAME, FIELD_MEASUREMENTS_NAME, FIELD_LAYOUT_NAME, FIELD_DATE, FIELD_CUT_LIST, FIELD_MATERIALS);
+  TITLE_FIELDS: array[0..6] of string = (FIELD_PATTERN_NAME, FIELD_MEASUREMENTS_NAME, FIELD_LAYOUT_NAME, FIELD_DATE, FIELD_CUT_LIST, FIELD_MATERIALS,
+    FIELD_MATERIAL_NEEDED);
   SIDE_ROW_STEP = 100;
   // The status bar's panels: the problems count, then messages
   PANEL_PROBLEMS = 0;
@@ -351,11 +370,14 @@ const
   PAPER_NAMES: array[0..3] of string = ('A4', 'A3', 'Letter', CUSTOM_PAPER);
   PATTERN_LIST_HEIGHT = 120;
   MAX_PAPER_SIDE = 2000;
-  NOTE_FIELD_CAPTIONS: array[0..5] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldMaterials);
+  NOTE_FIELD_CAPTIONS: array[0..6] of string = (rsFieldPattern, rsFieldMeasurements, rsFieldLayout, rsFieldDate, rsFieldCutList, rsFieldMaterials,
+    rsFieldMaterialNeeded);
   MODIFIED_MARK: array[boolean] of string = ('', '*');
   // The side panel's sections, by the key their choice is saved under
   INFO_SECTION = 'info';
   NOTES_SECTION = 'notes';
+  MATERIALS_SECTION = 'materials';
+  NEED_GRID_HEIGHT = 140;
 
 constructor TPublishForm.Create(AOwner: TComponent);
 var
@@ -396,6 +418,7 @@ begin
   FTabs.Align := alClient;
   FPiecesSide := FTabs.AddSection('pieces', rsTabPieces);
   FPatternsSide := FTabs.AddSection('patterns', rsTabPatterns);
+  FMaterialsSide := FTabs.AddSection(MATERIALS_SECTION, rsTabMaterials);
   FSide := FTabs.AddSection('output', rsTabOutput);
   FInfoSide := FTabs.AddSection(INFO_SECTION, rsTabInfo);
   FNotesSide := FTabs.AddSection(NOTES_SECTION, rsTabNotes);
@@ -424,6 +447,8 @@ begin
   BuildPiecesTab;
   FRowParent := FPatternsSide;
   BuildPatternsTab;
+  FRowParent := FMaterialsSide;
+  BuildMaterialsTab;
   FOutputScroll := ScrollingRows(FSide);
   FRowParent := FOutputScroll;
   BuildSide;
@@ -865,6 +890,70 @@ begin
   FSizeBox.Style := csDropDownList;
   FSizeBox.OnChange := @SizeChange;
   EndGroup;
+end;
+
+// What each material in the layout's patterns needs, worked out from every
+// piece whatever is placed (see Sloper.Output.MaterialNeeded)
+procedure TPublishForm.BuildMaterialsTab;
+var
+  Notes: TLabel;
+begin
+  FNeedGrid := TStringGrid.Create(Self);
+  PlaceRow(FNeedGrid);
+  FNeedGrid.Height := NEED_GRID_HEIGHT;
+  FNeedGrid.FixedCols := 0;
+  FNeedGrid.RowCount := 1;
+  FNeedGrid.ColCount := 4;
+  FNeedGrid.Options := FNeedGrid.Options + [goRowSelect, goColSizing] - [goEditing, goRangeSelect];
+  FNeedGrid.Cells[0, 0] := rsNeedMaterial;
+  FNeedGrid.Cells[1, 0] := rsNeedSize;
+  FNeedGrid.Cells[2, 0] := rsNeedCopies;
+  FNeedGrid.Cells[3, 0] := rsNeedNeeded;
+  Notes := AddLabel(rsNeedNotes);
+  Notes.BorderSpacing.Top := ControlGap;
+  FNeedNotes := TMemo.Create(Self);
+  PlaceRow(FNeedNotes);
+  FNeedNotes.Align := alClient;
+  FNeedNotes.ReadOnly := True;
+  FNeedNotes.ScrollBars := ssAutoVertical;
+  FNeedNotes.WordWrap := True;
+end;
+
+procedure TPublishForm.RefreshMaterialsTab;
+var
+  Needs: TMaterialNeedArray;
+  Index: integer;
+  Note: string;
+begin
+  Needs := LayoutMaterialNeeds(FDocument.Layout);
+  FNeedGrid.RowCount := Max(Length(Needs), 1) + 1;
+  if Length(Needs) = 0 then
+  begin
+    FNeedGrid.Cells[0, 1] := rsNeedNothing;
+    FNeedGrid.Cells[1, 1] := '';
+    FNeedGrid.Cells[2, 1] := '';
+    FNeedGrid.Cells[3, 1] := '';
+  end;
+  for Index := 0 to High(Needs) do
+  begin
+    FNeedGrid.Cells[0, Index + 1] := Needs[Index].Name;
+    FNeedGrid.Cells[1, Index + 1] := MaterialNeedSize(Needs[Index]);
+    FNeedGrid.Cells[2, Index + 1] := IntToStr(Needs[Index].Copies);
+    FNeedGrid.Cells[3, Index + 1] := MaterialNeedText(Needs[Index]);
+  end;
+  FNeedGrid.AutoSizeColumns;
+  FNeedNotes.Lines.BeginUpdate;
+  try
+    FNeedNotes.Lines.Clear;
+    for Index := 0 to High(Needs) do
+      for Note in Needs[Index].Notes do
+        FNeedNotes.Lines.Add(Note);
+    if FNeedNotes.Lines.Count > 0 then
+      FNeedNotes.Lines.Add('');
+    FNeedNotes.Lines.Add(rsNeedHow);
+  finally
+    FNeedNotes.Lines.EndUpdate;
+  end;
 end;
 
 function TPublishForm.CurrentSource: TLayoutSource;
@@ -1314,6 +1403,7 @@ begin
     FAllowTurnsBox.Checked := Layout.Output.AllowTurns;
     FAllowTurnsBox.Enabled := Layout.Output.Kind = okMaterial;
     RefreshPatternsTab;
+    RefreshMaterialsTab;
     FMarginEdit.Value := Layout.Output.Tiles.Margin;
     FOverlapEdit.Value := Layout.Output.Tiles.Overlap;
     RefreshNotesTab;
@@ -1411,6 +1501,9 @@ begin
   end;
   FDocument.BeginChange(rsChangeSettings);
   FDocument.Layout.Output := Output;
+  // Choosing a material, or a material sheet, starts from that material's size
+  if (Output.Material <> Before.Material) or (Output.Kind <> Before.Kind) then
+    FDocument.Layout.TakeMaterialSize;
   FDocument.EndChange('paper');
   FPreview.ZoomToFit;
 end;

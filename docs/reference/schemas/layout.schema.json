@@ -264,7 +264,8 @@
               "layout.name",
               "date",
               "cutlist",
-              "materials"
+              "materials",
+              "materialneeded"
             ]
           }
         },

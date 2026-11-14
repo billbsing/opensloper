@@ -58,7 +58,7 @@ uses them.
 Two tabs set what prints besides the pieces.
 
 - **Information Block**: the pattern, measurements, layout name, date, cut
-  list and materials, as you choose, with nothing to type or place. Tick
+  list, materials and material needed, as you choose, with nothing to type or place. Tick
   **Show** to print it: in a corner of the cover, and on every page if you
   like, or beside the test square on a single sheet. The pages show it where
   it prints; tiled output shows the cover as a sheet to the left of the
@@ -68,9 +68,39 @@ Two tabs set what prints besides the pieces.
   it on screen, so it is easy to find; click it to show its details on the
   Notes tab, and **Delete note** to remove it. Notes can fill in fields as
   they print: `{pattern.name}`,
-  `{measurements.name}`, `{date}`, `{page}`, `{pages}`, `{cutlist}` and
-  `{materials}`. Each has its own size, line alignment, white box, font, and
+  `{measurements.name}`, `{date}`, `{page}`, `{pages}`, `{cutlist}`,
+  `{materials}` and `{materialneeded}`. Each has its own size, line alignment, white box, font, and
   bold or italic, as notes on the pattern do (see
   [Notes and callouts](../design/notes.md#fonts)).
 
 Notes written on the pieces in the design app print with their pieces.
+
+## Material needed
+
+The **Materials** tab says how much of each material to buy, from the size
+each material has in the design app's Materials window: a width for a roll,
+or a width and length for a sheet. It lists every material the patterns use,
+with its size, how many pieces are cut from it, and how much is needed. The
+information block's **Material needed** line and the `{materialneeded}`
+field print the same, such as "Main: 100 cm of a 150 cm roll".
+
+It counts every piece in the patterns with its cut count, whether or not it
+is placed on the sheet, and lays each with its grainline along the material,
+however the paper layout turns it.
+
+- A **roll** is cut folded in half lengthwise. Pieces cut on a fold go on
+  the fold, and a mirrored pair (cut 2 mirrored) is cut from both layers at
+  once. A piece wider than half the roll is cut unfolded, after the rest.
+- A **sheet** is cut single layer, and the tab says how many sheets.
+- With **no size**, it gives the area of the pieces and the narrowest roll
+  they fit.
+
+Pieces are packed by the rectangles round them, 10 mm apart, so the answer
+is on the generous side. Notes under the list say which pieces are cut
+unfolded, which do not fit at all, and when two patterns give a material
+different sizes. `opensloper-cli materials` prints the same from the command
+line.
+
+When an output of the **Material sheet** kind is limited to one material,
+choosing that material fills in its width and length, which you can still
+change.

@@ -111,6 +111,8 @@ function AngleBetween(const A, B: TVec2): double;
 function RotatePoint(const P, Pivot: TVec2; AngleDeg: double): TVec2;
 // Mirror P across the infinite line through A and B
 function MirrorPoint(const P, A, B: TVec2): TVec2;
+// How far the points reach across (X) and down (Y); 0 for none
+function PointsExtent(const Points: TVec2Array): TVec2;
 
 // Intersection of two lines. Without Extend a line is limited to its ends
 // (within DEFAULT_TOLERANCE). False when parallel or not crossing.
@@ -359,6 +361,22 @@ begin
   SinCos(DegToRad(AngleDeg), S, C);
   D := P - Pivot;
   Result := Vec2(Pivot.X + D.X * C + D.Y * S, Pivot.Y - D.X * S + D.Y * C);
+end;
+
+function PointsExtent(const Points: TVec2Array): TVec2;
+var
+  Point, Lowest, Highest: TVec2;
+begin
+  if Length(Points) = 0 then
+    Exit(Vec2(0, 0));
+  Lowest := Points[0];
+  Highest := Points[0];
+  for Point in Points do
+  begin
+    Lowest := Vec2(Min(Lowest.X, Point.X), Min(Lowest.Y, Point.Y));
+    Highest := Vec2(Max(Highest.X, Point.X), Max(Highest.Y, Point.Y));
+  end;
+  Result := Highest - Lowest;
 end;
 
 function MirrorPoint(const P, A, B: TVec2): TVec2;

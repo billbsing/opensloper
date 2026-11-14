@@ -46,6 +46,7 @@ uses
   Sloper.Output.Layout,
   Sloper.Output.LayoutExport,
   Sloper.Output.Packing,
+  Sloper.Output.MaterialNeeded,
   Sloper.API.MCP,
   Sloper.API.Connection;
 
@@ -82,6 +83,9 @@ resourcestring
   rsDraftFormat = 'export-draft writes svg or png, not "%s"';
   rsDraftWidth = 'The width must be a whole number of pixels, such as 1600';
   rsWarning = 'Warning: %s';
+  // Material, size, what is needed, pieces
+  rsMaterialsEntry = '%s%s: %s (%d pieces)';
+  rsMaterialsNone = 'No pieces';
 
   // False, with a message, when FileName does not exist; the load messages
   // would otherwise name it several times
@@ -357,6 +361,86 @@ resourcestring
         WriteLn(Format(rsPacked, [Outcome.Count, LayoutFile]));
       if Outcome.LeftOut > 0 then
         WriteLn(StdErr, Format(rsPackLeftOut, [Outcome.LeftOut]));
+      Result := 0;
+    finally
+      FreeAndNil(Layout);
+    end;
+  end;
+
+  // A pattern is estimated alone, as a layout of it would be
+  function RunMaterials(const FileName: string; AsJSON: boolean): integer;
+  const
+    KIND_NAMES: array[TMaterialNeedKind] of string = ('none', 'roll', 'sheet');
+  var
+    Layout: TLayout;
+    Needs: TMaterialNeedArray;
+    Need: TMaterialNeed;
+    Note, Size, Err: string;
+    Report, Item: TJSONObject;
+    List, Notes: TJSONArray;
+  begin
+    if not CheckFileExists(FileName) then
+      Exit(EXIT_FAILURE);
+    Layout := TLayout.Create;
+    try
+      if ExtractFileExt(FileName) = LAYOUT_EXTENSION then
+      begin
+        if not Layout.LoadFromFile(FileName, Err) then
+        begin
+          WriteLn(StdErr, Format(rsLoadFailed, [FileName, Err]));
+          Exit(EXIT_FAILURE);
+        end;
+      end
+      else
+      begin
+        Layout.FileName := ChangeFileExt(ExpandFileName(FileName), LAYOUT_EXTENSION);
+        Layout.AddSource(ExtractFileName(FileName), '', '');
+      end;
+      Layout.LoadSources;
+      Needs := LayoutMaterialNeeds(Layout);
+      if AsJSON then
+      begin
+        Report := TJSONObject.Create;
+        try
+          List := TJSONArray.Create;
+          Report.Add('materials', List);
+          for Need in Needs do
+          begin
+            Item := TJSONObject.Create;
+            List.Add(Item);
+            Item.Add('name', Need.Name);
+            Item.Add('kind', KIND_NAMES[Need.Kind]);
+            Item.Add('width', JSONFloat(Need.Width));
+            Item.Add('length', JSONFloat(Need.Length));
+            Item.Add('allowTurns', Need.AllowTurns);
+            Item.Add('pieces', Need.Copies);
+            Item.Add('area', JSONFloat(Need.Area));
+            Item.Add('needed', JSONFloat(Need.Needed));
+            Item.Add('unfolded', JSONFloat(Need.Unfolded));
+            Item.Add('sheets', Need.Sheets);
+            Item.Add('narrowestRoll', JSONFloat(Need.NarrowestRoll));
+            Notes := TJSONArray.Create;
+            Item.Add('notes', Notes);
+            for Note in Need.Notes do
+              Notes.Add(Note);
+          end;
+          Write(JSONToText(Report));
+        finally
+          FreeAndNil(Report);
+        end;
+        Exit(0);
+      end;
+      if Length(Needs) = 0 then
+        WriteLn(rsMaterialsNone);
+      for Need in Needs do
+      begin
+        Size := MaterialNeedSize(Need);
+        if Size <> '' then
+          Size := ', ' + Size;
+        WriteLn(Format(rsMaterialsEntry, [Need.Name, Size, MaterialNeedText(Need), Need.Copies]));
+        for Note in Need.Notes do
+          WriteLn('  ', Note);
+      end;
       Result := 0;
     finally
       FreeAndNil(Layout);
@@ -642,6 +726,8 @@ begin
         Parser.GetOptionValueAsString('output'))
     else if CommandName = 'pack' then
       ExitCode := RunPack(PatternFile)
+    else if CommandName = 'materials' then
+      ExitCode := RunMaterials(PatternFile, Parser.IsOption('json'))
     else if CommandName = 'export-draft' then
       ExitCode := RunExportDraft(PatternFile, Parser.GetOptionValueAsString('measurements'), Parser.GetOptionValueAsString('size'),
         Parser.GetOptionValueAsString('output'), Parser.GetOptionValueAsString('upto'), Parser.GetOptionValueAsString('format'),
