@@ -50,10 +50,12 @@ resourcestring
 implementation
 
 uses
-  SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Spin, ButtonPanel, Sloper.UI.Spacing;
+  SysUtils, Math, Forms, Controls, StdCtrls, ExtCtrls, Spin, ButtonPanel, Sloper.UI.Spacing;
 
 const
   DIALOG_WIDTH = 460;
+  // Before the dialog is fitted to its contents when shown
+  DIALOG_HEIGHT = 320;
   MAX_COPIES = 99;
   // At least the cover and one page, for the cover to be printed apart
   MIN_PAGES_TO_SPLIT = 2;
@@ -71,9 +73,16 @@ type
     FPrinterBox: TComboBox;
     FCopiesEdit: TSpinEdit;
     FPagesGroup: TRadioGroup;
+    FButtons: TButtonPanel;
     FNextTop: integer;
+    // The control stacked last, whose bottom the dialog is sized to show
+    FLast: TControl;
     function AddLabel(const ACaption: string): TLabel;
     procedure Stack(Control: TControl);
+    // Sizes the dialog to its contents
+    procedure FitContents;
+  protected
+    procedure DoShow; override;
   public
     constructor Create(AOwner: TComponent; Layout: TLayout); reintroduce;
     function Request: TPrintRequest;
@@ -89,6 +98,7 @@ begin
   Control.BorderSpacing.Left := ControlGap;
   Control.BorderSpacing.Right := ControlGap;
   Control.BorderSpacing.Top := ControlGap;
+  FLast := Control;
 end;
 
 function TLayoutPrintDialog.AddLabel(const ACaption: string): TLabel;
@@ -101,7 +111,6 @@ end;
 
 constructor TLayoutPrintDialog.Create(AOwner: TComponent; Layout: TLayout);
 var
-  Buttons: TButtonPanel;
   DefaultPrinter, PrinterName: string;
   PageCount: integer;
 begin
@@ -109,13 +118,13 @@ begin
   Caption := rsPrintTitle;
   Position := poOwnerFormCenter;
   BorderStyle := bsDialog;
-  Width := DIALOG_WIDTH;
-  AutoSize := True;
-  Buttons := TButtonPanel.Create(Self);
-  Buttons.Parent := Self;
-  Buttons.ShowButtons := [pbOK, pbCancel];
-  SpaceButtons(Buttons);
-  Buttons.OKButton.Caption := rsPrintButton;
+  Width := Scale96ToForm(DIALOG_WIDTH);
+  Height := Scale96ToForm(DIALOG_HEIGHT);
+  FButtons := TButtonPanel.Create(Self);
+  FButtons.Parent := Self;
+  FButtons.ShowButtons := [pbOK, pbCancel];
+  SpaceButtons(FButtons);
+  FButtons.OKButton.Caption := rsPrintButton;
   if CanChoosePrintOptions then
   begin
     AddLabel(rsPrintPrinter);
@@ -158,6 +167,36 @@ begin
   end
   else
     AddLabel(rsPrintWindowsNote).BorderSpacing.Bottom := ControlGap;
+end;
+
+// The sizes are only known once the controls are laid out with the real font,
+// which can be larger than the screen resolution alone gives, so the form is
+// not autosized: it measured the wrapped notes before they were wrapped. The
+// width comes first, since wrapped notes are taller in a narrower dialog.
+procedure TLayoutPrintDialog.FitContents;
+var
+  PreferredWidth, PreferredHeight, Room: integer;
+begin
+  if Assigned(FPagesGroup) then
+  begin
+    PreferredWidth := 0;
+    PreferredHeight := 0;
+    FPagesGroup.GetPreferredSize(PreferredWidth, PreferredHeight, True);
+    Width := Width + Max(0, PreferredWidth - FPagesGroup.Width);
+    // Laid out again at the new width before the notes are measured
+    DisableAutoSizing;
+    EnableAutoSizing;
+  end;
+  Room := FButtons.Top - FButtons.BorderSpacing.Around - FButtons.BorderSpacing.Top;
+  ClientHeight := ClientHeight + FLast.Top + FLast.Height + FLast.BorderSpacing.Around + FLast.BorderSpacing.Bottom - Room;
+end;
+
+// Only a shown dialog is laid out, so it is fitted here and centred again
+procedure TLayoutPrintDialog.DoShow;
+begin
+  inherited DoShow;
+  FitContents;
+  MoveToDefaultPosition;
 end;
 
 function TLayoutPrintDialog.Request: TPrintRequest;
