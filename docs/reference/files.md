@@ -43,6 +43,9 @@ Version 1. JSON Schema: [pattern.schema.json](schemas/pattern.schema.json).
 | `materials[].color` | text | yes | Its colour, as #RRGGBB |
 | `materials[].fill` | one of: `tint`, `hatch` |  | How its pieces are filled on screen and in print |
 | `materials[].allowance` | number |  | The seam allowance of its pieces, in the pattern's unit, when it has its own |
+| `materials[].width` | number |  | How wide it is, in the pattern's unit; a width alone is a roll. Pieces wider are problems |
+| `materials[].length` | number |  | How long a sheet of it is, in the pattern's unit, with a width; left out for a roll |
+| `materials[].allowTurns` | true or false |  | Whether pieces may lie a quarter turn round on it, for material with no grain |
 | `view` | group |  | How the design app last showed the pattern; not part of undo |
 | `view.zoom` | number |  | The zoom |
 | `view.centre[]` | list, each number |  | The point in the middle of the window, as x and y in mm |

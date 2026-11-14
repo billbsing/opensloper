@@ -524,7 +524,7 @@ Lists the materials and the cut list.
 
 No parameters.
 
-Returns: `materials`, each with `id`, `name`, `color`, `fill` and `allowance`, and the `cutList`.
+Returns: `materials`, each with `id`, `name`, `color`, `fill`, and `allowance`, `width`, `length` and `allowTurns` when set, and the `cutList`.
 
 ### `add_material`
 
@@ -551,7 +551,7 @@ Returns: The materials and the cut list, as `list_materials` gives them.
 
 ### `set_material`
 
-Changes a material's colour, fill or seam allowance.
+Changes a material's colour, fill, seam allowance or size. Pieces that cannot fit its size are problems.
 
 | Parameter | Value | Required | Description |
 | --- | --- | --- | --- |
@@ -560,6 +560,9 @@ Changes a material's colour, fill or seam allowance.
 | `fill` | one of: `tint`, `hatch` |  | How pieces of it are filled |
 | `allowance` | number |  | A seam allowance for pieces of it, in the pattern's unit |
 | `noAllowance` | true or false |  | Takes its seam allowance away |
+| `width` | number |  | Its width in the pattern's unit, 0 for none, which takes the length away too; a width alone is a roll |
+| `length` | number |  | The length of a sheet of it in the pattern's unit, with a width; 0 for a roll |
+| `allowTurns` | true or false |  | Whether pieces may lie a quarter turn round on it, for material with no grain |
 
 Returns: The materials and the cut list, as `list_materials` gives them.
 

@@ -67,6 +67,9 @@ type
     // Goes on a piece when it takes the material; it does not follow later
     // changes, so the piece can be set by hand
     function SetAllowance(Material: TPatternMaterial; HasAllowance: boolean; Allowance: double): boolean;
+    // In the pattern's unit, 0 for none; a length needs a width
+    function SetSize(Material: TPatternMaterial; AWidth, ALength: double): boolean;
+    procedure SetAllowTurns(Material: TPatternMaterial; Allow: boolean);
     procedure SetFill(Material: TPatternMaterial; AFill: TMaterialFill);
     // Refused for the last material and for one that pieces use
     function Delete(Material: TPatternMaterial): boolean;
@@ -94,6 +97,8 @@ type
 
 // The material's allowance as formula text, always with a decimal point
 function MaterialAllowanceText(Material: TPatternMaterial): string;
+// "150 × 200 cm", "150 cm roll", or '' for no size
+function MaterialSizeText(Material: TPatternMaterial; const UnitName: string): string;
 
 resourcestring
   rsPatternMaterialTaken = 'There is already a material called %s';
@@ -106,11 +111,17 @@ resourcestring
   rsPatternCutEntryMirrored = '%s ×%d mirrored';
   rsPatternCutGroup = '%s: %s';
   rsPatternNoMaterial = 'No material';
+  // Width, length, unit
+  rsMaterialSheetSize = '%s × %s %s';
+  // Width, unit
+  rsMaterialRollSize = '%s %s roll';
+  rsMaterialNegativeSize = 'A material''s width and length cannot be negative';
+  rsMaterialLengthWithoutWidth = 'A material needs a width before a length: a width alone is a roll, both a sheet';
 
 implementation
 
 uses
-  Sloper.Core.Names;
+  Sloper.Core.Names, Sloper.Core.JSON;
 
 const
   CUT_LIST_ENTRY_GAP = ', ';
@@ -124,6 +135,16 @@ begin
   Formats := DefaultFormatSettings;
   Formats.DecimalSeparator := '.';
   Result := FloatToStr(Material.Allowance, Formats);
+end;
+
+function MaterialSizeText(Material: TPatternMaterial; const UnitName: string): string;
+begin
+  if Material.Width <= 0 then
+    Result := ''
+  else if Material.Length > 0 then
+    Result := Format(rsMaterialSheetSize, [FormatJSONFloat(Material.Width), FormatJSONFloat(Material.Length), UnitName])
+  else
+    Result := Format(rsMaterialRollSize, [FormatJSONFloat(Material.Width), UnitName]);
 end;
 
 constructor TPatternMaterials.Create(const AHost: TMaterialsHost);
@@ -263,6 +284,24 @@ begin
   Material.HasAllowance := HasAllowance;
   Material.Allowance := Allowance;
   Result := True;
+end;
+
+function TPatternMaterials.SetSize(Material: TPatternMaterial; AWidth, ALength: double): boolean;
+begin
+  if (AWidth < 0) or (ALength < 0) then
+    Exit(FHost.Refuse(rsMaterialNegativeSize));
+  if (AWidth = 0) and (ALength > 0) then
+    Exit(FHost.Refuse(rsMaterialLengthWithoutWidth));
+  MakeExplicit;
+  Material.Width := AWidth;
+  Material.Length := ALength;
+  Result := True;
+end;
+
+procedure TPatternMaterials.SetAllowTurns(Material: TPatternMaterial; Allow: boolean);
+begin
+  MakeExplicit;
+  Material.AllowTurns := Allow;
 end;
 
 function TPatternMaterials.SetColor(Material: TPatternMaterial; const AColor: string): boolean;

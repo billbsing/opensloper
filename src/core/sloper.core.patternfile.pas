@@ -735,6 +735,12 @@ begin
       Item.Add('fill', MATERIAL_FILL_NAMES[Ord(Pattern.Materials[Index].Fill)]);
       if Pattern.Materials[Index].HasAllowance then
         Item.Add('allowance', JSONFloat(Pattern.Materials[Index].Allowance));
+      if Pattern.Materials[Index].Width > 0 then
+        Item.Add('width', JSONFloat(Pattern.Materials[Index].Width));
+      if Pattern.Materials[Index].Length > 0 then
+        Item.Add('length', JSONFloat(Pattern.Materials[Index].Length));
+      if Pattern.Materials[Index].AllowTurns then
+        Item.Add('allowTurns', True);
     end;
   except
     FreeAndNil(Result);
@@ -1994,6 +2000,13 @@ begin
         Exit(Missing('allowance'));
       Material.HasAllowance := True;
     end;
+    if Assigned(Item.Find('width')) and (not GetJSONNumber(Item, 'width', Material.Width) or (Material.Width < 0)) then
+      Exit(Missing('width'));
+    if Assigned(Item.Find('length')) and (not GetJSONNumber(Item, 'length', Material.Length) or (Material.Length < 0) or
+      (Material.Width = 0)) then
+      Exit(Missing('length'));
+    if Assigned(Item.Find('allowTurns')) and not GetJSONBoolean(Item, 'allowTurns', Material.AllowTurns) then
+      Exit(Missing('allowTurns'));
   end;
   Result := True;
 end;

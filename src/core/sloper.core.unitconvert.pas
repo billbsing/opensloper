@@ -750,6 +750,8 @@ begin
     Material := Pattern.Materials[Index];
     if Material.HasAllowance then
       Material.Allowance := ConvertedNumber(Material.Allowance, 1, FromUnits, ToUnits);
+    Material.Width := ConvertedNumber(Material.Width, 1, FromUnits, ToUnits);
+    Material.Length := ConvertedNumber(Material.Length, 1, FromUnits, ToUnits);
   end;
   Pattern.Units := ToUnits;
   Result := True;

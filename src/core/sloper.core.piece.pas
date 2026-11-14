@@ -219,6 +219,10 @@ type
     // Last good line of the fold, along its edge
     property FoldLine: TLine2 read FFoldLine;
     function OnFold: boolean;
+    // How far the cutting line reaches across (X) and down (Y), opened out to
+    // the whole piece when it is on a fold, as it is cut from material folded
+    // double or laid flat
+    function CutExtent: TVec2;
     // The material it is cut from. While the pattern's first material has no ID,
     // '' is that material; once it has, '' is no material.
     property MaterialKey: string read FMaterialKey write FMaterialKey;
@@ -845,6 +849,30 @@ end;
 function TPieceObject.OnFold: boolean;
 begin
   Result := FFoldEdgeKey <> '';
+end;
+
+function TPieceObject.CutExtent: TVec2;
+var
+  Lowest, Highest, Point: TVec2;
+
+  procedure Reach(const Spot: TVec2);
+  begin
+    Lowest := Vec2(Min(Lowest.X, Spot.X), Min(Lowest.Y, Spot.Y));
+    Highest := Vec2(Max(Highest.X, Spot.X), Max(Highest.Y, Spot.Y));
+  end;
+
+begin
+  if Length(FCutLine) = 0 then
+    Exit(Vec2(0, 0));
+  Lowest := FCutLine[0];
+  Highest := FCutLine[0];
+  for Point in FCutLine do
+  begin
+    Reach(Point);
+    if OnFold then
+      Reach(MirrorPoint(Point, FFoldLine.P1, FFoldLine.P2));
+  end;
+  Result := Highest - Lowest;
 end;
 
 function TPieceObject.CutCaption(Whole: boolean): string;

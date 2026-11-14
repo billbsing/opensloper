@@ -61,6 +61,7 @@ type
     procedure TestConvertRefusesUndecided;
     procedure TestConvertRefusesSameUnit;
     procedure TestMaterialAllowanceConverted;
+    procedure TestMaterialSizeConverted;
     procedure TestGeometryDoesNotMove;
     procedure TestRoundTrip;
     procedure TestRegressionPatterns;
@@ -291,6 +292,15 @@ begin
   FPattern.Materials[0].Allowance := 15;
   Convert(Ord(muCentimetre));
   AssertNear('1.5 cm', 1.5, FPattern.Materials[0].Allowance);
+end;
+
+procedure TTestUnitConvert.TestMaterialSizeConverted;
+begin
+  FPattern.Materials[0].Width := 1500;
+  FPattern.Materials[0].Length := 700;
+  Convert(Ord(muCentimetre));
+  AssertNear('150 cm', 150, FPattern.Materials[0].Width);
+  AssertNear('70 cm', 70, FPattern.Materials[0].Length);
 end;
 
 // Something of every kind, in whole millimetres, so a conversion to cm

@@ -610,6 +610,13 @@ Pieces are coloured by the material they are cut from, so colour carries meaning
 
 **The list.** Each pattern has materials with an ID, a name (its own namespace), a colour, a fill style (tint or hatching) and an optional default allowance. They are ordinary objects: adding, renaming, recolouring and deleting are undo steps. New ones are named `Material`, `Material2` and take the first unused palette colour. The last material cannot be deleted, nor one that pieces use.
 
+**Size** (decided 2026-11-14, issue #19). A material can have a width and a length, in the pattern's unit like its allowance and converted with it: a width alone is a roll (fabric off the bolt), both a sheet (a board, a remnant), neither (the default) no size and no check. A length without a width is refused, and taking the width away takes the length too. `allowTurns` is for material with no grain (felt, foam, most leather boards), as on a publish material sheet.
+
+- **Fit check.** Each valid piece on a sized material is measured as the publish app would cut it: the cutting line, opened out when it is on a fold (cutting on fabric folded double needs the same width), with the draft's across along the material's width and its down along its length, the way a new piece's grainline points and the way a material sheet lays pieces at no turn. A piece wider than a roll, or past either side of a sheet, is a problem ("Front is 152 cm across, wider than Main at 140 cm"); with `allowTurns` only if it fits neither way. As for seam lengths, the piece's state does not change: the problem is listed, counted, and reported by `check`, the CLI and the API (`AddMaterialFitProblems` in `Sloper.Core.PatternCheck`, `TPieceObject.CutExtent`, `FitsMaterial`).
+- **One piece at a time.** Whether all the pieces fit on one sheet together needs packing, which the publish app does (see Material needed under the roadmap); the design app checks only what can never be cut.
+- **File and API.** `width`, `length` (left out when 0) and `allowTurns` (left out when false) on each material; `set_material` takes them (a width of 0 takes the length away too) and `list_materials` reports them.
+- **Editing.** The Materials dialog has Width and Length fields under the allowance, with the pattern's unit and empty for none, and an Allow quarter turns box, each one undo step; the list shows the size ("150 × 200 cm", "150 cm roll").
+
 **Assignment.** Each piece is on a material and takes its fill from it, with an optional per-piece colour or fill override. A piece with no material is drawn unfilled and reported. A piece takes the material's allowance when it goes on that material, and does not follow later changes, so it can still be set by hand.
 
 **Starting out.** A new pattern has one material, Main, which has no ID and is not written to the file until the list is first changed, so simple files stay simple and existing IDs do not move. The first change gives Main an ID and puts every piece on it; until then a piece's empty material means Main, and afterwards it means none. Captions and DXF text name the material only once the materials are explicit.
@@ -962,7 +969,7 @@ Agreed, but not built. Each line is meant to become one issue.
 **Publish app**
 
 - **A window for output and machine profiles**, which are edited in the settings file for now.
-- **Material needed**: the area and minimum width and length a design needs, the length to buy for a given material width, and a warning when it cannot be cut from one piece.
+- **Material needed** (issue #19, phase 2): a material layout filtered to one material starts from that material's size (see Materials), its own fields becoming an override; and per material, the length to buy at its width (packed to that width) or the sheets needed, as a list and a `{materialneeded}` field.
 - **True-shape nesting** for Pack Pieces, in place of bounding boxes.
 - **G-code export**, for CNC machines.
 - **Raising the publish window on Wayland**, which needs an `xdg-activation` token Qt 5 cannot use (see Finding an open window).
@@ -996,7 +1003,7 @@ Ideas worth keeping that are deliberately outside the roadmap. Each is added onl
 | Scaled body figure | The measurements app's figure scaled to the entered values, so unusual proportions and likely typos stand out |
 | ISO 8559-1 check | Check catalogue definitions against the standard and add clause references, if the project gains traction |
 | Spread tool | Generates the chain of rotations for slash and spread in one step; see Transforms |
-| Fabric textures and properties | Image textures (e.g. a photo of the actual fabric) for fills and the Blender export; fabric width and nap direction for automatic layout |
+| Fabric textures and properties | Image textures (e.g. a photo of the actual fabric) for fills and the Blender export; nap direction for automatic layout (width is a material's size) |
 | Leather hides | A hide's outline drawn or traced from a photo, with flaws marked as areas to avoid. Bounding boxes cannot honour an irregular outline, so packing on a hide needs true shapes; until then pieces are placed by hand and checked against the outline. See Open questions |
 | Client library | A searchable SQLite library of clients, measurements and patterns (see File format and storage) |
 | Materials app | An app like the measurements app that keeps a list of materials and their specifications, for the design and publish apps to use |

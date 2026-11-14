@@ -1780,6 +1780,12 @@ begin
       Item.Add('fill', MATERIAL_FILL_NAMES[Ord(Material.Fill)]);
       if Material.HasAllowance then
         Item.Add('allowance', ReportFloat(Material.Allowance));
+      if Material.Width > 0 then
+        Item.Add('width', ReportFloat(Material.Width));
+      if Material.Length > 0 then
+        Item.Add('length', ReportFloat(Material.Length));
+      if Material.AllowTurns then
+        Item.Add('allowTurns', True);
     end;
     Reply.Add('cutList', FDocument.Pattern.CutList);
   except
@@ -1818,7 +1824,7 @@ end;
 function TApiServer.DoSetMaterial(Params: TJSONObject): TJSONData;
 var
   Material: TPatternMaterial;
-  Allowance: double;
+  Allowance, NewWidth, NewLength: double;
 begin
   Material := FindMaterialParam(Params, 'material');
   BeginChange(rsApiMaterials);
@@ -1831,6 +1837,25 @@ begin
     RefuseChange;
   if Assigned(Params.Find('noAllowance')) and BooleanParam(Params, 'noAllowance') then
     FDocument.Pattern.SetMaterialAllowance(Material, False, 0);
+  if Assigned(Params.Find('width')) or Assigned(Params.Find('length')) then
+  begin
+    NewWidth := Material.Width;
+    NewLength := Material.Length;
+    if Assigned(Params.Find('width')) and not GetJSONNumber(Params, 'width', NewWidth) then
+      RefuseChange;
+    if Assigned(Params.Find('length')) then
+    begin
+      if not GetJSONNumber(Params, 'length', NewLength) then
+        RefuseChange;
+    end
+    // No width takes the length away too
+    else if NewWidth = 0 then
+      NewLength := 0;
+    if not FDocument.Pattern.SetMaterialSize(Material, NewWidth, NewLength) then
+      RefuseChange;
+  end;
+  if Assigned(Params.Find('allowTurns')) then
+    FDocument.Pattern.SetMaterialAllowTurns(Material, BooleanParam(Params, 'allowTurns'));
   EndChange;
   Result := MaterialsToJSON;
 end;

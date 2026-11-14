@@ -945,7 +945,8 @@ class OpenSloper:
         """Lists the materials and the cut list.
 
         Returns:
-            `materials`, each with `id`, `name`, `color`, `fill` and `allowance`, and the `cutList`.
+            `materials`, each with `id`, `name`, `color`, `fill`, and `allowance`, `width`, `length`
+            and `allowTurns` when set, and the `cutList`.
         """
         return self._send("list_materials")
 
@@ -995,8 +996,12 @@ class OpenSloper:
         fill: Literal["tint", "hatch"] | None = None,
         allowance: float | None = None,
         noAllowance: bool | None = None,
+        width: float | None = None,
+        length: float | None = None,
+        allowTurns: bool | None = None,
     ) -> Any:
-        """Changes a material's colour, fill or seam allowance.
+        """Changes a material's colour, fill, seam allowance or size. Pieces that cannot fit its
+        size are problems.
 
         Args:
             material: The material, by ID or name.
@@ -1004,6 +1009,11 @@ class OpenSloper:
             fill: How pieces of it are filled.
             allowance: A seam allowance for pieces of it, in the pattern's unit.
             noAllowance: Takes its seam allowance away.
+            width: Its width in the pattern's unit, 0 for none, which takes the length away too; a
+                width alone is a roll.
+            length: The length of a sheet of it in the pattern's unit, with a width; 0 for a roll.
+            allowTurns: Whether pieces may lie a quarter turn round on it, for material with no
+                grain.
 
         Returns:
             The materials and the cut list, as `list_materials` gives them.
@@ -1014,6 +1024,9 @@ class OpenSloper:
             "fill": fill,
             "allowance": allowance,
             "noAllowance": noAllowance,
+            "width": width,
+            "length": length,
+            "allowTurns": allowTurns,
         })
 
     def delete_material(self, material: int | str) -> Any:

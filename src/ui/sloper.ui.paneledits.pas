@@ -35,7 +35,7 @@ type
   // The Measurements tab's columns, in order
   TMeasurementColumn = (mcKey, mcValue, mcDescription);
   // The fields of the Materials dialog
-  TMaterialField = (mfName, mfColor, mfFill, mfAllowance);
+  TMaterialField = (mfName, mfColor, mfFill, mfAllowance, mfWidth, mfLength, mfAllowTurns);
 
   // A measurement edited in the panel and not yet saved
   TPendingMeasurement = record
@@ -79,8 +79,9 @@ function ParseMeasurementValue(const Text: string; out Value: double): boolean;
 function MeasurementsSavedText(const Changes: TMeasurementChangeArray; const FileName: string): string;
 
 // Sets a field of the pattern's material at Index as one undo step: a name,
-// a #RRGGBB colour, a fill as in pattern files (tint or hatch), or an
-// allowance in the pattern's unit, empty for none. Text the field already
+// a #RRGGBB colour, a fill as in pattern files (tint or hatch), an allowance,
+// width or length in the pattern's unit, empty for none, or true or false for
+// quarter turns. No width takes the length away too. Text the field already
 // holds makes no step. False refuses it, with Reason saying why.
 function CommitMaterialField(Document: TPatternDocument; Index: integer; Field: TMaterialField; const Text: string;
   out Reason: string): boolean;
@@ -117,6 +118,10 @@ resourcestring
   rsPanelRecolorMaterial = 'Change material colour';
   rsPanelMaterialFill = 'Change material fill';
   rsPanelMaterialAllowance = 'Change material allowance';
+  rsPanelBadSize = 'The size must be a number, such as 1500 or 150, or empty for none';
+  rsPanelBadTurns = 'Quarter turns must be true or false';
+  rsPanelMaterialSize = 'Change material size';
+  rsPanelMaterialTurns = 'Change material turns';
 
 implementation
 
@@ -126,7 +131,8 @@ uses
 const
   MAX_MEASUREMENT_VALUE = 1e12;
   MATERIAL_FIELD_DESCRIPTIONS: array[TMaterialField] of string = (rsPanelRenameMaterial, rsPanelRecolorMaterial, rsPanelMaterialFill,
-    rsPanelMaterialAllowance);
+    rsPanelMaterialAllowance, rsPanelMaterialSize, rsPanelMaterialSize, rsPanelMaterialTurns);
+  TURNS_TEXT: array[boolean] of string = ('false', 'true');
 
 function CommitVariableCell(Document: TPatternDocument; const Key: string; Column: TVariableColumn; const Text: string;
   out Reason: string; out ErrorPos: integer): boolean;
@@ -188,6 +194,14 @@ begin
     mfAllowance:
       if Material.HasAllowance then
         Result := FormatJSONFloat(Material.Allowance);
+    mfWidth:
+      if Material.Width > 0 then
+        Result := FormatJSONFloat(Material.Width);
+    mfLength:
+      if Material.Length > 0 then
+        Result := FormatJSONFloat(Material.Length);
+    mfAllowTurns:
+      Result := TURNS_TEXT[Material.AllowTurns];
   end;
 end;
 
@@ -199,6 +213,7 @@ var
   Value: double;
   Fill: TMaterialFill;
   FillIndex: integer;
+  Turns: boolean;
 begin
   Reason := '';
   if (Index < 0) or (Index >= Document.Pattern.MaterialCount) then
@@ -211,6 +226,7 @@ begin
     Exit(True);
   Value := 0;
   Fill := ffTint;
+  Turns := False;
   // Checked before the change, so a refusal leaves no trace
   case Field of
     mfColor:
@@ -227,6 +243,14 @@ begin
     mfAllowance:
       if (Entry <> '') and not ParseMeasurementValue(Entry, Value) then
         Reason := rsPanelBadAllowance;
+    mfWidth, mfLength:
+      if (Entry <> '') and not ParseMeasurementValue(Entry, Value) then
+        Reason := rsPanelBadSize;
+    mfAllowTurns:
+      if SameText(Entry, TURNS_TEXT[True]) then
+        Turns := True
+      else if not SameText(Entry, TURNS_TEXT[False]) then
+        Reason := rsPanelBadTurns;
   end;
   if Reason <> '' then
     Exit(False);
@@ -244,6 +268,18 @@ begin
     end;
     mfAllowance:
       Result := Document.Pattern.SetMaterialAllowance(Material, Entry <> '', Value);
+    mfWidth:
+      if Value = 0 then
+        Result := Document.Pattern.SetMaterialSize(Material, 0, 0)
+      else
+        Result := Document.Pattern.SetMaterialSize(Material, Value, Material.Length);
+    mfLength:
+      Result := Document.Pattern.SetMaterialSize(Material, Material.Width, Value);
+    mfAllowTurns:
+    begin
+      Document.Pattern.SetMaterialAllowTurns(Material, Turns);
+      Result := True;
+    end;
     else
       Result := False;
   end;

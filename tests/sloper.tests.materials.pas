@@ -30,7 +30,11 @@ type
   TTestMaterials = class(TOSTestCase)
   private
     FPattern, FLoaded: TPattern;
+    // The panel's right edge, for a fold
+    FRightEdge: string;
     function AddSquare(const PieceName: string; Left: double): TPieceObject;
+    function AddPanel(const PieceName: string; Left, Width, Height: double): TPieceObject;
+    function FitProblems: TStringArray;
     function Reloaded: TPattern;
   protected
     procedure SetUp; override;
@@ -73,13 +77,27 @@ type
     procedure TestSVGLeavesNoMaterialUnfilled;
     procedure TestSVGLabelNamesMaterial;
     procedure TestSettingsKeepFillsToggle;
+    procedure TestSizeRoundTrip;
+    procedure TestNoSizeWritesNothing;
+    procedure TestSizeRefusesNegative;
+    procedure TestSizeRefusesLengthWithoutWidth;
+    procedure TestFitsMaterial;
+    procedure TestNoSizeNoFitProblem;
+    procedure TestPieceWiderThanRoll;
+    procedure TestRollWithTurns;
+    procedure TestPieceLargerThanSheet;
+    procedure TestSheetWithTurns;
+    procedure TestFoldPieceOpensOut;
+    procedure TestFitInPatternUnit;
+    procedure TestFitOnlyForPieceMaterial;
+    procedure TestSizeText;
   end;
 
 implementation
 
 uses
   Math, Sloper.Core.Draft, Sloper.Core.PatternCheck, Sloper.Core.PatternFile, Sloper.Core.PieceDetect, Sloper.Core.Settings,
-  Sloper.Document.PatternDocument, Sloper.Output.DraftSVG, Sloper.UI.ObjectList, Sloper.Core.PatternMaterials;
+  Sloper.Document.PatternDocument, Sloper.Output.DraftSVG, Sloper.UI.ObjectList, Sloper.Core.PatternMaterials, Sloper.Core.Units;
 
 const
   SQUARE_SIZE = 100;
@@ -99,6 +117,12 @@ begin
 end;
 
 function TTestMaterials.AddSquare(const PieceName: string; Left: double): TPieceObject;
+begin
+  Result := AddPanel(PieceName, Left, SQUARE_SIZE, SQUARE_SIZE);
+end;
+
+// A rectangle Width across and Height down from (Left, 0), with a 10 allowance
+function TTestMaterials.AddPanel(const PieceName: string; Left, Width, Height: double): TPieceObject;
 var
   Corners: array[0..3] of TFreePoint;
   Path: TPiecePath;
@@ -109,14 +133,25 @@ begin
   for Index := 0 to 3 do
   begin
     NumberText := PieceName + 'p' + IntToStr(Index);
-    Corners[Index] := FPattern.AddFreePoint(NumberText, FloatToStr(Left + SQUARE_SIZE * Ord(Index in [1, 2])), FloatToStr(SQUARE_SIZE * Ord(Index in [2, 3])));
+    Corners[Index] := FPattern.AddFreePoint(NumberText, FloatToStr(Left + Width * Ord(Index in [1, 2])), FloatToStr(Height * Ord(Index in [2, 3])));
   end;
   for Index := 0 to 3 do
-    FPattern.AddLine(Corners[Index].Key, Corners[(Index + 1) mod 4].Key, erOutline);
+    if Index = 1 then
+      FRightEdge := FPattern.AddLine(Corners[Index].Key, Corners[(Index + 1) mod 4].Key, erOutline).Key
+    else
+      FPattern.AddLine(Corners[Index].Key, Corners[(Index + 1) mod 4].Key, erOutline);
   FPattern.Evaluate;
-  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(Left + SQUARE_SIZE / 2, SQUARE_SIZE / 2), Path, Reason));
+  AssertTrue(Reason, DetectPiecePath(FPattern, Vec2(Left + Width / 2, Height / 2), Path, Reason));
   Result := FPattern.AddPiece(PieceName, Path, '10');
   FPattern.Evaluate;
+end;
+
+function TTestMaterials.FitProblems: TStringArray;
+var
+  Blocked: integer;
+begin
+  FPattern.Evaluate;
+  Result := PatternProblems(FPattern, Blocked);
 end;
 
 function TTestMaterials.Reloaded: TPattern;
@@ -577,6 +612,159 @@ begin
   finally
     FreeAndNil(Settings);
   end;
+end;
+
+procedure TTestMaterials.TestSizeRoundTrip;
+var
+  Board: TPatternMaterial;
+begin
+  Board := FPattern.AddMaterial('Board');
+  AssertTrue(FPattern.LastError, FPattern.SetMaterialSize(Board, 1500, 700));
+  FPattern.SetMaterialAllowTurns(Board, True);
+  AssertTrue(FPattern.LastError, FPattern.SetMaterialSize(FPattern.Materials[0], 1400, 0));
+  Reloaded;
+  AssertEquals(1500, FLoaded.Materials[1].Width, 1e-9);
+  AssertEquals(700, FLoaded.Materials[1].Length, 1e-9);
+  AssertTrue(FLoaded.Materials[1].AllowTurns);
+  AssertEquals('a roll', 1400, FLoaded.Materials[0].Width, 1e-9);
+  AssertEquals(0, FLoaded.Materials[0].Length, 1e-9);
+  AssertFalse(FLoaded.Materials[0].AllowTurns);
+  AssertEquals(SavePatternToText(FPattern), SavePatternToText(FLoaded));
+end;
+
+procedure TTestMaterials.TestNoSizeWritesNothing;
+var
+  Text: string;
+begin
+  FPattern.AddMaterial('Lining');
+  Text := SavePatternToText(FPattern);
+  AssertEquals('no width', 0, Pos('"width"', Text));
+  AssertEquals('no length', 0, Pos('"length"', Text));
+  AssertEquals('no turns', 0, Pos('"allowTurns"', Text));
+end;
+
+procedure TTestMaterials.TestSizeRefusesNegative;
+begin
+  AssertFalse(FPattern.SetMaterialSize(FPattern.Materials[0], -1, 0));
+  AssertEquals(rsMaterialNegativeSize, FPattern.LastError);
+  AssertFalse(FPattern.SetMaterialSize(FPattern.Materials[0], 100, -1));
+  AssertEquals(0, FPattern.Materials[0].Width, 1e-9);
+end;
+
+procedure TTestMaterials.TestSizeRefusesLengthWithoutWidth;
+begin
+  AssertFalse(FPattern.SetMaterialSize(FPattern.Materials[0], 0, 500));
+  AssertEquals(rsMaterialLengthWithoutWidth, FPattern.LastError);
+end;
+
+procedure TTestMaterials.TestFitsMaterial;
+begin
+  AssertTrue('no size', FitsMaterial(5000, 5000, 0, 0, False));
+  AssertTrue('roll', FitsMaterial(100, 5000, 100, 0, False));
+  AssertFalse('wider than the roll', FitsMaterial(101, 50, 100, 0, False));
+  AssertTrue('turned onto the roll', FitsMaterial(101, 50, 100, 0, True));
+  AssertTrue('sheet', FitsMaterial(100, 200, 100, 200, False));
+  AssertFalse('longer than the sheet', FitsMaterial(100, 201, 100, 200, False));
+  AssertFalse('across the sheet', FitsMaterial(200, 100, 100, 200, False));
+  AssertTrue('turned onto the sheet', FitsMaterial(200, 100, 100, 200, True));
+  AssertFalse('too big either way', FitsMaterial(150, 250, 100, 200, True));
+end;
+
+procedure TTestMaterials.TestNoSizeNoFitProblem;
+begin
+  AddPanel('Front', 0, 5000, 5000);
+  AssertEquals(0, Length(FitProblems));
+end;
+
+// 200 by 50 with a 10 allowance cuts 220 across and 70 down
+procedure TTestMaterials.TestPieceWiderThanRoll;
+begin
+  AddPanel('Front', 0, 200, 50);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 220, 0));
+  AssertEquals('just fits', 0, Length(FitProblems));
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 200, 0));
+  AssertEquals(1, Length(FitProblems));
+  AssertEquals(Format(rsCheckWiderThanRoll, ['Front', '220 mm', 'Main', '200 mm']), FitProblems[0]);
+end;
+
+procedure TTestMaterials.TestRollWithTurns;
+begin
+  AddPanel('Front', 0, 200, 50);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 100, 0));
+  FPattern.SetMaterialAllowTurns(FPattern.Materials[0], True);
+  AssertEquals('fits turned', 0, Length(FitProblems));
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 60, 0));
+  AssertEquals(1, Length(FitProblems));
+  AssertEquals(Format(rsCheckWiderThanRollTurned, ['Front', '220 mm', '70 mm', 'Main', '60 mm']), FitProblems[0]);
+end;
+
+procedure TTestMaterials.TestPieceLargerThanSheet;
+begin
+  AddPanel('Front', 0, 200, 50);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 300, 70));
+  AssertEquals('fits', 0, Length(FitProblems));
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 300, 60));
+  AssertEquals(1, Length(FitProblems));
+  AssertEquals(Format(rsCheckLargerThanSheet, ['Front', '220 mm', '70 mm', 'Main', '300 mm', '60 mm']), FitProblems[0]);
+end;
+
+procedure TTestMaterials.TestSheetWithTurns;
+begin
+  AddPanel('Front', 0, 200, 50);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 100, 300));
+  AssertEquals('across the sheet', 1, Length(FitProblems));
+  FPattern.SetMaterialAllowTurns(FPattern.Materials[0], True);
+  AssertEquals('fits turned', 0, Length(FitProblems));
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 100, 200));
+  AssertEquals(1, Length(FitProblems));
+  AssertEquals(Format(rsCheckLargerThanSheetTurned, ['Front', '220 mm', '70 mm', 'Main', '100 mm', '200 mm']), FitProblems[0]);
+end;
+
+// Folded on its right edge, a 100 square opens out to 2 * (10 + 100) across
+procedure TTestMaterials.TestFoldPieceOpensOut;
+var
+  Piece: TPieceObject;
+begin
+  Piece := AddSquare('Back', 0);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 200, 0));
+  AssertEquals('half fits', 0, Length(FitProblems));
+  AssertTrue(FPattern.LastError, FPattern.SetFoldEdge(Piece, FRightEdge));
+  AssertEquals(1, Length(FitProblems));
+  AssertEquals(Format(rsCheckWiderThanRoll, ['Back', '220 mm', 'Main', '200 mm']), FitProblems[0]);
+end;
+
+// A cm pattern: the square is 100 cm with a 10 cm allowance, 120 cm across
+procedure TTestMaterials.TestFitInPatternUnit;
+begin
+  FPattern.Units := muCentimetre;
+  AddSquare('Front', 0);
+  AssertTrue(FPattern.SetMaterialSize(FPattern.Materials[0], 115, 0));
+  AssertEquals(1, Length(FitProblems));
+  AssertEquals(Format(rsCheckWiderThanRoll, ['Front', '120 cm', 'Main', '115 cm']), FitProblems[0]);
+end;
+
+procedure TTestMaterials.TestFitOnlyForPieceMaterial;
+var
+  Lining: TPatternMaterial;
+begin
+  AddSquare('Front', 0);
+  Lining := FPattern.AddMaterial('Lining');
+  AssertTrue(FPattern.SetMaterialSize(Lining, 50, 0));
+  AssertEquals('Front is on Main', 0, Length(FitProblems));
+  FPattern.SetPieceMaterial(TPieceObject(FPattern.FindObject('Front')), Lining);
+  AssertEquals(1, Length(FitProblems));
+end;
+
+procedure TTestMaterials.TestSizeText;
+var
+  Main: TPatternMaterial;
+begin
+  Main := FPattern.Materials[0];
+  AssertEquals('none', '', MaterialSizeText(Main, 'cm'));
+  AssertTrue(FPattern.SetMaterialSize(Main, 150, 0));
+  AssertEquals('150 cm roll', MaterialSizeText(Main, 'cm'));
+  AssertTrue(FPattern.SetMaterialSize(Main, 150, 72.5));
+  AssertEquals('150 × 72.5 cm', MaterialSizeText(Main, 'cm'));
 end;
 
 initialization

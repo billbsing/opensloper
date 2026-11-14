@@ -60,6 +60,7 @@ type
     procedure TestMeasurementFileChanged;
     procedure TestParseValue;
     procedure TestMaterialFieldsAreSteps;
+    procedure TestMaterialSizeFields;
     procedure TestMaterialUnchangedMakesNoStep;
     procedure TestMaterialRefusals;
     procedure TestMaterialAddAndDelete;
@@ -68,7 +69,7 @@ type
 implementation
 
 uses
-  SysUtils, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.JSON;
+  SysUtils, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.JSON, Sloper.Core.PatternMaterials;
 
 procedure TTestPanelEdits.SetUp;
 begin
@@ -435,6 +436,28 @@ begin
   AssertTrue('undo', FDocument.Undo);
   AssertEquals('another', '', MaterialFieldText(FDocument, 0, mfAllowance));
   AssertEquals('fill still set', 'hatch', MaterialFieldText(FDocument, 0, mfFill));
+end;
+
+procedure TTestPanelEdits.TestMaterialSizeFields;
+var
+  Reason: string;
+begin
+  AssertFalse('a length needs a width', CommitMaterialField(FDocument, 0, mfLength, '700', Reason));
+  AssertEquals(rsMaterialLengthWithoutWidth, Reason);
+  AssertFalse(CommitMaterialField(FDocument, 0, mfWidth, 'wide', Reason));
+  AssertEquals(rsPanelBadSize, Reason);
+  AssertTrue(Reason, CommitMaterialField(FDocument, 0, mfWidth, '1500', Reason));
+  AssertEquals('Change material size', FDocument.UndoDescription);
+  AssertTrue(Reason, CommitMaterialField(FDocument, 0, mfLength, '700', Reason));
+  AssertEquals('1500', MaterialFieldText(FDocument, 0, mfWidth));
+  AssertEquals('700', MaterialFieldText(FDocument, 0, mfLength));
+  AssertTrue(Reason, CommitMaterialField(FDocument, 0, mfAllowTurns, 'true', Reason));
+  AssertEquals('true', MaterialFieldText(FDocument, 0, mfAllowTurns));
+  AssertTrue(Reason, CommitMaterialField(FDocument, 0, mfWidth, '', Reason));
+  AssertEquals('no width', '', MaterialFieldText(FDocument, 0, mfWidth));
+  AssertEquals('no width clears the length', '', MaterialFieldText(FDocument, 0, mfLength));
+  AssertTrue('undo', FDocument.Undo);
+  AssertEquals('one step back', '700', MaterialFieldText(FDocument, 0, mfLength));
 end;
 
 procedure TTestPanelEdits.TestMaterialUnchangedMakesNoStep;

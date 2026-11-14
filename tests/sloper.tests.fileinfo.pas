@@ -56,7 +56,7 @@ const
     ' {"id": 14, "type": "line", "start": 11, "end": 2, "role": "outline"},' +
     ' {"id": 15, "type": "piece", "name": "P", "path": [{"edge": 12, "reversed": false}, {"edge": 13, "reversed": false},' +
     ' {"edge": 14, "reversed": false}], "allowance": "1", "grainline": {"angle": "90"}, "cut": {"count": 1, "mirrored": false}}],' +
-    ' "materials": [{"id": 3, "name": "Main", "color": "#5B8DB8", "fill": "hatch", "allowance": 1.5}],' +
+    ' "materials": [{"id": 3, "name": "Main", "color": "#5B8DB8", "fill": "hatch", "allowance": 1.5, "width": 1400, "length": 900, "allowTurns": true}],' +
     ' "view": {"zoom": 1.5, "centre": [120, -200], "hiddenRoles": ["construction"], "hideAnnotations": true,' +
     ' "hiddenPieces": [15], "isolate": 15, "pieceOrder": [15]}}';
   FULL_MEASUREMENTS =

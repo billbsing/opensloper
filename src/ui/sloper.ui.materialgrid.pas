@@ -18,7 +18,7 @@
 
 // The read-only list of a pattern's materials that the Materials tab and the
 // Materials dialog share: a swatch drawn in the material's colour and fill,
-// then name, fill and allowance. Rows are the pattern's materials in order,
+// then name, fill, allowance and size. Rows are the pattern's materials in order,
 // so a row is found again by its index after undo replaces them.
 unit Sloper.UI.MaterialGrid;
 
@@ -63,21 +63,24 @@ resourcestring
   rsMaterialFillTint = 'Tint';
   rsMaterialFillHatch = 'Hatching';
   rsMaterialAllowance = 'Allowance';
+  rsMaterialSize = 'Size';
 
 implementation
 
 uses
-  Math, Forms, Sloper.Core.JSON;
+  Math, Forms, Sloper.Core.JSON, Sloper.Core.Units, Sloper.Core.PatternMaterials;
 
 const
   COLUMN_COLOUR = 0;
   COLUMN_NAME = 1;
   COLUMN_FILL = 2;
   COLUMN_ALLOWANCE = 3;
+  COLUMN_SIZE = 4;
   COLOUR_WIDTH96 = 64;
   NAME_WIDTH96 = 130;
   FILL_WIDTH96 = 90;
   ALLOWANCE_WIDTH96 = 90;
+  SIZE_WIDTH96 = 120;
   // Between hatching lines in a swatch, at 96 pixels per inch
   SWATCH_HATCH_GAP96 = 6;
 
@@ -171,6 +174,7 @@ begin
   AddColumn(rsMaterialName, NAME_WIDTH96);
   AddColumn(rsMaterialFill, FILL_WIDTH96);
   AddColumn(rsMaterialAllowance, ALLOWANCE_WIDTH96);
+  AddColumn(rsMaterialSize, SIZE_WIDTH96);
 end;
 
 procedure TMaterialGrid.ShowMaterials(APattern: TPattern);
@@ -199,6 +203,7 @@ begin
             Cells[COLUMN_ALLOWANCE, Index + 1] := FormatJSONFloat(Material.Allowance)
           else
             Cells[COLUMN_ALLOWANCE, Index + 1] := '';
+          Cells[COLUMN_SIZE, Index + 1] := MaterialSizeText(Material, MEASURE_UNIT_NAMES[FPattern.Units]);
         end;
       end;
     finally

@@ -17,9 +17,9 @@
 }
 
 // The Materials dialog: the pattern's materials on the left, with New and
-// Delete, and the selected one's name, colour, fill and allowance on the
-// right. Each change is its own undo step, made at once so the canvas behind
-// follows, so the dialog has only Close. A name or allowance commits on Enter
+// Delete, and the selected one's name, colour, fill, allowance and size on
+// the right. Each change is its own undo step, made at once so the canvas behind
+// follows, so the dialog has only Close. A typed field commits on Enter
 // or on leaving the field, and Escape puts it back; a refused one keeps its
 // text, in red, with the reason under the fields. The dialog is modal, so the
 // main window's Undo and Redo shortcuts cannot reach it: it handles them
@@ -41,10 +41,12 @@ type
     FGrid: TMaterialGrid;
     FLeft: TPanel;
     FFields: TPanel;
-    FNameEdit, FAllowanceEdit: TEdit;
+    FNameEdit, FAllowanceEdit, FWidthEdit, FLengthEdit: TEdit;
     FSwatch: TPaintBox;
     FFillBox: TComboBox;
-    FUnitLabel, FReason: TLabel;
+    FTurnsBox: TCheckBox;
+    FUnitLabels: array of TLabel;
+    FReason: TLabel;
     FDeleteButton, FColourButton: TButton;
     // While fields are filled from the pattern, so it reads as no edit
     FShowing: boolean;
@@ -63,6 +65,9 @@ type
     procedure ColourClick(Sender: TObject);
     procedure SwatchPaint(Sender: TObject);
     procedure FillChange(Sender: TObject);
+    procedure TurnsClick(Sender: TObject);
+    function IsTyped(Control: TWinControl): boolean;
+    procedure ClearRefused;
     procedure EditKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
     procedure EditExit(Sender: TObject);
     function HasUncommittedTyping: boolean;
@@ -88,6 +93,12 @@ resourcestring
   rsMaterialsFill = '&Fill';
   rsMaterialsAllowance = '&Allowance';
   rsMaterialsAllowanceHint = 'The seam allowance a piece takes when it goes on this material; empty for none';
+  rsMaterialsWidth = '&Width';
+  rsMaterialsWidthHint = 'How wide the material is; empty for no size. A piece wider than this is a problem';
+  rsMaterialsLength = '&Length';
+  rsMaterialsLengthHint = 'How long a sheet of it is, with a width; empty for a roll';
+  rsMaterialsTurns = 'Allow &quarter turns (no grain)';
+  rsMaterialsTurnsHint = 'Pieces may lie a quarter turn round on it, as on felt, foam or most leather boards';
   rsMaterialsClose = 'Close';
 
 implementation
@@ -97,7 +108,7 @@ uses
 
 const
   DIALOG_WIDTH96 = 640;
-  DIALOG_HEIGHT96 = 380;
+  DIALOG_HEIGHT96 = 500;
   DEFAULT_SPLIT96 = 300;
   MIN_SPLIT96 = 160;
   FIELDS_WIDTH96 = 260;
@@ -210,6 +221,7 @@ end;
 procedure TMaterialsDialog.BuildFields;
 var
   Row: TPanel;
+  UnitLabel: TLabel;
 
   function AddRow: TPanel;
   begin
@@ -229,6 +241,23 @@ var
     Result.Top := Host.ControlCount * 100;
     Result.OnKeyDown := @EditKeyDown;
     Result.OnExit := @EditExit;
+  end;
+
+  // A field with the pattern's unit after it
+  function AddLength(const ACaption, AHint: string): TEdit;
+  begin
+    AddCaption(FFields, ACaption);
+    Row := AddRow;
+    UnitLabel := TLabel.Create(Self);
+    UnitLabel.Parent := Row;
+    UnitLabel.Align := alRight;
+    UnitLabel.Layout := tlCenter;
+    UnitLabel.BorderSpacing.Left := ControlGap;
+    Insert(UnitLabel, FUnitLabels, Length(FUnitLabels));
+    Result := AddEdit(Row);
+    Result.Align := alClient;
+    Result.Hint := AHint;
+    Result.ShowHint := True;
   end;
 
 begin
@@ -269,17 +298,18 @@ begin
   FFillBox.Items.Add(MaterialFillCaption(ffHatch));
   FFillBox.OnChange := @FillChange;
 
-  AddCaption(FFields, rsMaterialsAllowance);
-  Row := AddRow;
-  FUnitLabel := TLabel.Create(Self);
-  FUnitLabel.Parent := Row;
-  FUnitLabel.Align := alRight;
-  FUnitLabel.Layout := tlCenter;
-  FUnitLabel.BorderSpacing.Left := ControlGap;
-  FAllowanceEdit := AddEdit(Row);
-  FAllowanceEdit.Align := alClient;
-  FAllowanceEdit.Hint := rsMaterialsAllowanceHint;
-  FAllowanceEdit.ShowHint := True;
+  FAllowanceEdit := AddLength(rsMaterialsAllowance, rsMaterialsAllowanceHint);
+  FWidthEdit := AddLength(rsMaterialsWidth, rsMaterialsWidthHint);
+  FLengthEdit := AddLength(rsMaterialsLength, rsMaterialsLengthHint);
+  FTurnsBox := TCheckBox.Create(Self);
+  FTurnsBox.Parent := FFields;
+  FTurnsBox.Align := alTop;
+  FTurnsBox.Top := FFields.ControlCount * 100;
+  FTurnsBox.BorderSpacing.Top := ControlGap;
+  FTurnsBox.Caption := rsMaterialsTurns;
+  FTurnsBox.Hint := rsMaterialsTurnsHint;
+  FTurnsBox.ShowHint := True;
+  FTurnsBox.OnClick := @TurnsClick;
 
   FReason := AddCaption(FFields, '');
   FReason.WordWrap := True;
@@ -320,6 +350,7 @@ procedure TMaterialsDialog.ShowFields;
 var
   Index: integer;
   Has: boolean;
+  UnitLabel: TLabel;
 begin
   Index := Current;
   Has := Index >= 0;
@@ -327,13 +358,22 @@ begin
   try
     FFields.Enabled := Has;
     FDeleteButton.Enabled := Has and (FDocument.Pattern.MaterialCount > 1);
-    FUnitLabel.Caption := MEASURE_UNIT_NAMES[FDocument.Pattern.Units];
+    for UnitLabel in FUnitLabels do
+      UnitLabel.Caption := MEASURE_UNIT_NAMES[FDocument.Pattern.Units];
     ShowField(FNameEdit, mfName);
     ShowField(FAllowanceEdit, mfAllowance);
+    ShowField(FWidthEdit, mfWidth);
+    ShowField(FLengthEdit, mfLength);
     if Has then
-      FFillBox.ItemIndex := Ord(FDocument.Pattern.Materials[Index].Fill)
+    begin
+      FFillBox.ItemIndex := Ord(FDocument.Pattern.Materials[Index].Fill);
+      FTurnsBox.Checked := FDocument.Pattern.Materials[Index].AllowTurns;
+    end
     else
+    begin
       FFillBox.ItemIndex := -1;
+      FTurnsBox.Checked := False;
+    end;
   finally
     FShowing := False;
   end;
@@ -375,8 +415,7 @@ begin
   if FGrid.Filling then
     Exit;
   // A refused value belonged to the material that was selected
-  FNameEdit.Color := clDefault;
-  FAllowanceEdit.Color := clDefault;
+  ClearRefused;
   ShowReason('');
   ShowFields;
 end;
@@ -449,12 +488,35 @@ begin
     Commit(mfFill, MATERIAL_FILL_NAMES[FFillBox.ItemIndex], nil);
 end;
 
+procedure TMaterialsDialog.TurnsClick(Sender: TObject);
+begin
+  Commit(mfAllowTurns, BoolToStr(FTurnsBox.Checked, 'true', 'false'), nil);
+end;
+
 function FieldOf(Dialog: TMaterialsDialog; Edit: TObject): TMaterialField;
 begin
   if Edit = Dialog.FNameEdit then
     Result := mfName
+  else if Edit = Dialog.FWidthEdit then
+    Result := mfWidth
+  else if Edit = Dialog.FLengthEdit then
+    Result := mfLength
   else
     Result := mfAllowance;
+end;
+
+// One of the fields that are typed into
+function TMaterialsDialog.IsTyped(Control: TWinControl): boolean;
+begin
+  Result := (Control = FNameEdit) or (Control = FAllowanceEdit) or (Control = FWidthEdit) or (Control = FLengthEdit);
+end;
+
+procedure TMaterialsDialog.ClearRefused;
+begin
+  FNameEdit.Color := clDefault;
+  FAllowanceEdit.Color := clDefault;
+  FWidthEdit.Color := clDefault;
+  FLengthEdit.Color := clDefault;
 end;
 
 procedure TMaterialsDialog.EditKeyDown(Sender: TObject; var Key: word; Shift: TShiftState);
@@ -495,7 +557,7 @@ var
   Edit: TEdit;
 begin
   Result := False;
-  if (ActiveControl <> FNameEdit) and (ActiveControl <> FAllowanceEdit) then
+  if not IsTyped(ActiveControl) then
     Exit;
   Edit := TEdit(ActiveControl);
   Result := (Edit.Color = REFUSED_PAPER) or (Edit.Text <> MaterialFieldText(FDocument, Current, FieldOf(Self, Edit)));
@@ -507,8 +569,7 @@ procedure TMaterialsDialog.FormKeyDown(Sender: TObject; var Key: word; Shift: TS
 begin
   if (Key <> VK_Z) or not (ssModifier in Shift) or (ssAlt in Shift) or HasUncommittedTyping then
     Exit;
-  FNameEdit.Color := clDefault;
-  FAllowanceEdit.Color := clDefault;
+  ClearRefused;
   ShowReason('');
   if ssShift in Shift then
     FDocument.Redo

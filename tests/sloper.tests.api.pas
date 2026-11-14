@@ -523,6 +523,15 @@ begin
   AssertEquals('Silk', List.Objects[1].Get('name', ''));
   AssertEquals('#112233', List.Objects[1].Get('color', ''));
   AssertEquals('tint', List.Objects[1].Get('fill', ''));
+  Call('set_material', '{"material": "Silk", "width": 1400, "length": 600, "allowTurns": true}');
+  List := TJSONArray(Answer.Find('materials'));
+  AssertEquals(1400, List.Objects[1].Get('width', 0.0), 1e-9);
+  AssertEquals(600, List.Objects[1].Get('length', 0.0), 1e-9);
+  AssertTrue(List.Objects[1].Get('allowTurns', False));
+  AssertFalse('Main has no size', Assigned(List.Objects[0].Find('width')));
+  Call('set_material', '{"material": "Silk", "width": 0}');
+  List := TJSONArray(Answer.Find('materials'));
+  AssertFalse('no width clears the length', Assigned(List.Objects[1].Find('length')));
   Call('delete_material', '{"material": "Silk"}');
   AssertEquals(1, TJSONArray(Answer.Find('materials')).Count);
   Call('undo');
@@ -541,6 +550,8 @@ begin
   AssertEquals(Format(rsPatternMaterialBadColor, ['blue']), ErrorText);
   Call('rename_material', '{"material": "Nothing", "name": "X"}');
   AssertEquals(Format(rsApiNoMaterial, ['Nothing']), ErrorText);
+  Call('set_material', '{"material": "Main", "length": 500}');
+  AssertEquals(rsMaterialLengthWithoutWidth, ErrorText);
 end;
 
 procedure TTestAPI.TestPieceMaterialAndFill;

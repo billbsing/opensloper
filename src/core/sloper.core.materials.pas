@@ -55,6 +55,10 @@ type
     // The seam allowance a piece takes when it goes on this material
     HasAllowance: boolean;
     Allowance: double;
+    // In the pattern's unit, 0 for none: a width alone is a roll, both a sheet
+    Width, Length: double;
+    // For material with no grain, whose pieces may lie a quarter turn round
+    AllowTurns: boolean;
   end;
 
   TPatternMaterialList = specialize TObjectList<TPatternMaterial>;
@@ -80,6 +84,9 @@ function MaterialHatchAngle(Index: integer): double;
 // Parallel lines across a closed polygon, Spacing apart at Angle degrees, on
 // fixed rows so they stay put as the polygon changes
 function HatchLines(const Polygon: TVec2Array; Spacing, Angle: double): TLine2Array;
+// Whether a piece Across by Down fits a material Width by Length, as a roll
+// when Length is 0 and always with no Width; turned too with AllowTurns
+function FitsMaterial(Across, Down, Width, Length: double; AllowTurns: boolean): boolean;
 
 implementation
 
@@ -205,6 +212,17 @@ begin
       Inc(Pair, 2);
     end;
   end;
+end;
+
+function FitsMaterial(Across, Down, Width, Length: double; AllowTurns: boolean): boolean;
+
+  function Fits(Wide, Long: double): boolean;
+  begin
+    Result := (Wide <= Width + DEFAULT_TOLERANCE) and ((Length <= 0) or (Long <= Length + DEFAULT_TOLERANCE));
+  end;
+
+begin
+  Result := (Width <= 0) or Fits(Across, Down) or (AllowTurns and Fits(Down, Across));
 end;
 
 end.

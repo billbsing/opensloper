@@ -434,6 +434,10 @@ type
     // A material's allowance goes on a piece when it takes the material; it does not
     // follow later changes, so the piece can be set by hand
     function SetMaterialAllowance(Material: TPatternMaterial; HasAllowance: boolean; Allowance: double): boolean;
+    // A material's width and length, in the pattern's unit and 0 for none: a
+    // width alone is a roll, both a sheet. Pieces that cannot fit are problems.
+    function SetMaterialSize(Material: TPatternMaterial; AWidth, ALength: double): boolean;
+    procedure SetMaterialAllowTurns(Material: TPatternMaterial; Allow: boolean);
     procedure SetMaterialFill(Material: TPatternMaterial; AFill: TMaterialFill);
     // Refused for the last material and for one that pieces use
     function DeleteMaterial(Material: TPatternMaterial): boolean;
@@ -924,6 +928,16 @@ end;
 function TPattern.SetMaterialAllowance(Material: TPatternMaterial; HasAllowance: boolean; Allowance: double): boolean;
 begin
   Result := FMaterialSet.SetAllowance(Material, HasAllowance, Allowance);
+end;
+
+function TPattern.SetMaterialSize(Material: TPatternMaterial; AWidth, ALength: double): boolean;
+begin
+  Result := FMaterialSet.SetSize(Material, AWidth, ALength);
+end;
+
+procedure TPattern.SetMaterialAllowTurns(Material: TPatternMaterial; Allow: boolean);
+begin
+  FMaterialSet.SetAllowTurns(Material, Allow);
 end;
 
 function TPattern.SetMaterialColor(Material: TPatternMaterial; const AColor: string): boolean;

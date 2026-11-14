@@ -79,6 +79,9 @@ resourcestring
   rsFileMaterialColor = 'Its colour, as #RRGGBB';
   rsFileMaterialFill = 'How its pieces are filled on screen and in print';
   rsFileMaterialAllowance = 'The seam allowance of its pieces, in the pattern''s unit, when it has its own';
+  rsFileMaterialWidth = 'How wide it is, in the pattern''s unit; a width alone is a roll. Pieces wider are problems';
+  rsFileMaterialLength = 'How long a sheet of it is, in the pattern''s unit, with a width; left out for a roll';
+  rsFileMaterialAllowTurns = 'Whether pieces may lie a quarter turn round on it, for material with no grain';
   rsFilePatternView = 'How the design app last showed the pattern; not part of undo';
   rsFileViewZoom = 'The zoom';
   rsFileViewCentre = 'The point in the middle of the window, as x and y in mm';
@@ -384,6 +387,9 @@ begin
   R('materials[].color', mkText, rsFileMaterialColor);
   M('materials[].fill', mkChoice, rsFileMaterialFill, Joined(MATERIAL_FILL_NAMES));
   M('materials[].allowance', mkSize, rsFileMaterialAllowance);
+  M('materials[].width', mkSize, rsFileMaterialWidth);
+  M('materials[].length', mkSize, rsFileMaterialLength);
+  M('materials[].allowTurns', mkFlag, rsFileMaterialAllowTurns);
   M('view', mkGroup, rsFilePatternView);
   M('view.zoom', mkSize, rsFileViewZoom);
   M('view.centre[]', mkSize, rsFileViewCentre);

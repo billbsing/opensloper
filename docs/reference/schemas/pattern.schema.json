@@ -104,6 +104,18 @@
           "allowance": {
             "description": "The seam allowance of its pieces, in the pattern's unit, when it has its own",
             "type": "number"
+          },
+          "width": {
+            "description": "How wide it is, in the pattern's unit; a width alone is a roll. Pieces wider are problems",
+            "type": "number"
+          },
+          "length": {
+            "description": "How long a sheet of it is, in the pattern's unit, with a width; left out for a roll",
+            "type": "number"
+          },
+          "allowTurns": {
+            "description": "Whether pieces may lie a quarter turn round on it, for material with no grain",
+            "type": "boolean"
           }
         },
         "required": [

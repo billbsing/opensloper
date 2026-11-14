@@ -239,7 +239,7 @@ resourcestring
   rsApiFillStyle = 'How it is filled';
 
   rsApiListMaterials = 'Lists the materials and the cut list.';
-  rsApiListMaterialsReturns = '`materials`, each with `id`, `name`, `color`, `fill` and `allowance`, and the `cutList`';
+  rsApiListMaterialsReturns = '`materials`, each with `id`, `name`, `color`, `fill`, and `allowance`, `width`, `length` and `allowTurns` when set, and the `cutList`';
   rsApiAddMaterial = 'Adds a material.';
   rsApiMaterialName = 'Its name; by default the next free one';
   rsApiMaterialColor = 'Its colour, as #rrggbb';
@@ -247,9 +247,12 @@ resourcestring
   rsApiRenameMaterial = 'Renames a material.';
   rsApiMaterial = 'The material, by ID or name';
   rsApiMaterialNewName = 'The new name';
-  rsApiSetMaterial = 'Changes a material''s colour, fill or seam allowance.';
+  rsApiSetMaterial = 'Changes a material''s colour, fill, seam allowance or size. Pieces that cannot fit its size are problems.';
   rsApiMaterialAllowance = 'A seam allowance for pieces of it, in the pattern''s unit';
   rsApiMaterialNoAllowance = 'Takes its seam allowance away';
+  rsApiMaterialWidth = 'Its width in the pattern''s unit, 0 for none, which takes the length away too; a width alone is a roll';
+  rsApiMaterialLength = 'The length of a sheet of it in the pattern''s unit, with a width; 0 for a roll';
+  rsApiMaterialAllowTurns = 'Whether pieces may lie a quarter turn round on it, for material with no grain';
   rsApiDeleteMaterial = 'Deletes a material; its pieces are left with none.';
 
   rsApiAddSeam = 'Adds a seam: two runs of piece edges sewn together, whose lengths are checked.';
@@ -569,6 +572,9 @@ begin
   P('fill', apChoice, False, rsApiMaterialFill, Joined(MATERIAL_FILL_NAMES));
   P('allowance', apNumber, False, rsApiMaterialAllowance);
   P('noAllowance', apFlag, False, rsApiMaterialNoAllowance);
+  P('width', apNumber, False, rsApiMaterialWidth);
+  P('length', apNumber, False, rsApiMaterialLength);
+  P('allowTurns', apFlag, False, rsApiMaterialAllowTurns);
   Method('delete_material', agMaterials, rsApiDeleteMaterial, rsApiReturnsMaterials);
   P('material', apMaterial, True, rsApiMaterial);
   // Seams

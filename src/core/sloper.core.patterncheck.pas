@@ -58,12 +58,16 @@ resourcestring
   rsCheckMarkerLoose = '%s has a marker but is in no piece, so it does not print';
   rsCheckSeam = '%s: side A is %s mm and side B %s mm, %s mm from the expected %s mm';
   rsCheckNoteLoose = '%s is marked to print but lies in no piece, so it does not print in layouts';
+  rsCheckWiderThanRoll = '%s is %s across, wider than %s at %s';
+  rsCheckWiderThanRollTurned = '%s is %s across and %s down, wider than %s at %s either way';
+  rsCheckLargerThanSheet = '%s is %s by %s, larger than %s at %s by %s';
+  rsCheckLargerThanSheetTurned = '%s is %s by %s, larger than %s at %s by %s either way';
 
 implementation
 
 uses
   Classes, Math, Sloper.Core.JSON, Sloper.Core.Evaluator, Sloper.Core.PatternFile, Sloper.Core.Variables, Sloper.Core.Draft, Sloper.Core.Geometry,
-  Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note;
+  Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note, Sloper.Core.Materials, Sloper.Core.Units;
 
 const
   // Reported values are rounded to this many decimals of a millimetre: far
@@ -148,6 +152,50 @@ begin
   end;
 end;
 
+// Each valid piece on a material with a size, measured as it is cut (see
+// TPieceObject.CutExtent), with across along the material's width
+procedure AddMaterialFitProblems(Pattern: TPattern; var Problems: TStringArray);
+var
+  Index: integer;
+  Piece: TPieceObject;
+  Material: TPatternMaterial;
+  Extent: TVec2;
+  Scale: double;
+  Problem: string;
+
+  function Shown(Value: double): string;
+  begin
+    Result := LengthWithUnit(Value, Pattern.Units);
+  end;
+
+begin
+  Scale := MILLIMETRES_PER_UNIT[Pattern.Units];
+  for Index := 0 to Pattern.ObjectCount - 1 do
+  begin
+    if not (Pattern.Objects[Index] is TPieceObject) or (Pattern.Objects[Index].State <> esValid) then
+      Continue;
+    Piece := TPieceObject(Pattern.Objects[Index]);
+    Material := Pattern.MaterialOf(Piece);
+    if not Assigned(Material) or (Material.Width <= 0) then
+      Continue;
+    Extent := Piece.CutExtent;
+    if FitsMaterial(Extent.X, Extent.Y, Material.Width * Scale, Material.Length * Scale, Material.AllowTurns) then
+      Continue;
+    if (Material.Length > 0) and Material.AllowTurns then
+      Problem := Format(rsCheckLargerThanSheetTurned, [Piece.DisplayName, Shown(Extent.X), Shown(Extent.Y), Material.Name,
+        Shown(Material.Width * Scale), Shown(Material.Length * Scale)])
+    else if Material.Length > 0 then
+      Problem := Format(rsCheckLargerThanSheet, [Piece.DisplayName, Shown(Extent.X), Shown(Extent.Y), Material.Name,
+        Shown(Material.Width * Scale), Shown(Material.Length * Scale)])
+    else if Material.AllowTurns then
+      Problem := Format(rsCheckWiderThanRollTurned, [Piece.DisplayName, Shown(Extent.X), Shown(Extent.Y), Material.Name,
+        Shown(Material.Width * Scale)])
+    else
+      Problem := Format(rsCheckWiderThanRoll, [Piece.DisplayName, Shown(Extent.X), Material.Name, Shown(Material.Width * Scale)]);
+    Insert(Problem, Problems, Length(Problems));
+  end;
+end;
+
 function PatternProblems(Pattern: TPattern; out BlockedCount: integer): TStringArray;
 var
   Node: TEvalNode;
@@ -189,6 +237,7 @@ begin
       SetLength(Result, Length(Result) + 1);
       Result[High(Result)] := Format(rsCheckNoMaterial, [Pattern.Objects[Index].DisplayName]);
     end;
+  AddMaterialFitProblems(Pattern, Result);
   AddMarkingLineProblems(Pattern, Result);
   for Index := 0 to Pattern.ObjectCount - 1 do
     if (Pattern.Objects[Index] is TNoteObject) and TNoteObject(Pattern.Objects[Index]).Print and (Pattern.Objects[Index].State = esValid) and

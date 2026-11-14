@@ -52,6 +52,16 @@ deletes materials, switches one between a tint and hatching, and can give one
 a seam allowance: new pieces start with the first material's. Each change is
 one undo step and shows at once on the canvas.
 
+A material can also have a size, in the pattern's unit. A width alone is a
+roll, such as fabric 150 cm wide; a width and a length are a sheet, such as a
+board or a remnant. A piece that cannot be cut from it is listed under
+Problems. A piece is measured by its cutting line, opened out if it is cut on a
+fold. Its width on the canvas goes across the material and its height along it,
+as the publish app lays pieces on a material sheet. For material with no grain,
+such as felt or foam, tick Allow quarter turns, and a piece also fits if it
+fits turned. Only one piece at a time is checked: whether they all fit
+together is for the publish app's layout.
+
 ## Markings
 
 Points and lines inside a piece can be marked on it: a point with a marker
