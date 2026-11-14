@@ -286,6 +286,11 @@
         <UnitName Value="Sloper.Tests.Automation"/>
       </Unit>
       <Unit>
+        <Filename Value="sloper.tests.applink.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Sloper.Tests.AppLink"/>
+      </Unit>
+      <Unit>
         <Filename Value="sloper.tests.assistant.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Sloper.Tests.Assistant"/>

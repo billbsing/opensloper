@@ -29,7 +29,7 @@ unit Sloper.Tests.Automation;
 interface
 
 uses
-  SysUtils, fpcunit, testregistry, fpjson, Sloper.Tests.TestCase, Sloper.Document.PatternDocument, Sloper.API.Server,
+  SysUtils, fpcunit, testregistry, fpjson, Sloper.Tests.TestCase, Sloper.Document.PatternDocument, Sloper.API.Server, Sloper.API.Rpc,
   Sloper.API.Listener, Sloper.API.Connection;
 
 type

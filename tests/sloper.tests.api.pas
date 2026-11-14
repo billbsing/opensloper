@@ -23,7 +23,7 @@ unit Sloper.Tests.API;
 interface
 
 uses
-  SysUtils, fpcunit, testregistry, fpjson, Sloper.Tests.TestCase, Sloper.API.Server;
+  SysUtils, fpcunit, testregistry, fpjson, Sloper.Tests.TestCase, Sloper.API.Server, Sloper.API.Rpc;
 
 type
   TTestAPI = class(TOSTestCase)

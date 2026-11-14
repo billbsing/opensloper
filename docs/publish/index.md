@@ -10,7 +10,9 @@ layout is saved as a `.slayout` file.
 In the design app, File → Publish… (++ctrl+p++) opens the publish app with the
 pattern's layout, the file of the same name ending `.slayout`, or starts a new
 one with every piece placed. It reads the saved pattern, so an unsaved pattern
-is saved first, and a changed one asks whether to save.
+is saved first, and a changed one asks whether to save. If a publish window
+already shows that layout, Publish… brings it to the front instead of opening
+another.
 
 You can also open the publish app on its own: File → Open… takes a layout, or
 a pattern to start a layout for.

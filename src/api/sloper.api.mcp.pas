@@ -28,7 +28,7 @@ unit Sloper.API.MCP;
 interface
 
 uses
-  SysUtils, fpjson, Sloper.API.Server;
+  SysUtils, fpjson, Sloper.API.Server, Sloper.API.Rpc;
 
 type
   TMcpServer = class

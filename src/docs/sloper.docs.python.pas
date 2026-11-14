@@ -38,7 +38,7 @@ function PythonClient: string;
 implementation
 
 uses
-  SysUtils, StrUtils, Sloper.API.Server, Sloper.API.Methods;
+  SysUtils, StrUtils, Sloper.API.Server, Sloper.API.Rpc, Sloper.API.Methods;
 
 const
   REFERENCE_URL = 'https://billbsing.github.io/opensloper/reference/';

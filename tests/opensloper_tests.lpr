@@ -96,6 +96,7 @@ uses
   Sloper.Tests.MCP,
   Sloper.Tests.DraftPNG,
   Sloper.Tests.Automation,
+  Sloper.Tests.AppLink,
   Sloper.Tests.Assistant,
   Sloper.Tests.Garment,
   Sloper.Tests.PieceView,

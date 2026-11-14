@@ -44,7 +44,7 @@ type
 implementation
 
 uses
-  SysUtils, Classes, fpjson, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note, Sloper.API.Server,
+  SysUtils, Classes, fpjson, Sloper.Core.JSON, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Core.Note, Sloper.API.Server, Sloper.API.Rpc,
   Sloper.API.Methods;
 
 const

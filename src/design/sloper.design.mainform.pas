@@ -242,7 +242,8 @@ uses
   Math, process, Graphics, Clipbrd, Sloper.UI.Icons, Sloper.Core.JSON, Sloper.Output.DraftSVG,
   Sloper.Core.Seam, Sloper.Core.SeamSuggest, Sloper.Core.Version, Sloper.UI.About,
   Sloper.Core.AppPaths, Sloper.Core.Measurements, Sloper.Core.Units, Sloper.Core.UnitConvert,
-  Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout, Sloper.Core.Evaluator, Sloper.API.Server;
+  Sloper.Core.PatternCheck, Sloper.Core.RecentFiles, Sloper.Output.Layout, Sloper.Core.Evaluator, Sloper.API.Server,
+  Sloper.API.Endpoint, Sloper.API.AppLink;
 
 const
   MARKING_ICONS: array[TMarkingKind] of TAppIcon = (aiHole, aiPlacement, aiStitchHoles);
@@ -1831,10 +1832,14 @@ begin
   end;
 end;
 
+// A publish window already showing the pattern's layout comes to the front;
+// only when none does is another started
 procedure TMainForm.MenuFilePublishClick(Sender: TObject);
 var
   ProgramFile: string;
   Process: TProcess;
+  Params: TJSONObject;
+  Shown: boolean;
 begin
   ProgramFile := TAppPaths.PublishProgram;
   if ProgramFile = '' then
@@ -1855,6 +1860,15 @@ begin
       mrCancel:
         Exit;
     end;
+  // A new layout is named after its pattern before it is saved
+  Params := TJSONObject.Create([APP_LINK_LAYOUT_PARAM, ExpandFileName(ChangeFileExt(FDocument.FileName, LAYOUT_EXTENSION))]);
+  try
+    Shown := SendToApp(PUBLISH_KIND, APP_LINK_SHOW, Params);
+  finally
+    FreeAndNil(Params);
+  end;
+  if Shown then
+    Exit;
   Process := TProcess.Create(nil);
   try
     Process.Executable := ProgramFile;

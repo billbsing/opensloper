@@ -26,8 +26,8 @@ unit Sloper.Publish.MainForm;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, Sloper.Core.TextFields, Sloper.Core.Note,
-  Sloper.Output.Layout, Sloper.Output.LayoutDocument,
+  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, ComCtrls, Menus, Spin, Dialogs, ActnList, fpjson, Sloper.Core.TextFields,
+  Sloper.Core.Note, Sloper.API.AppLink, Sloper.Output.Layout, Sloper.Output.LayoutDocument,
   Sloper.Publish.PreviewCanvas, Sloper.UI.Commands, Sloper.Core.Shortcuts, Sloper.UI.RecentMenu, Sloper.UI.Accordion, Sloper.UI.SavePrompt;
 
 type
@@ -72,6 +72,8 @@ type
     FPrintButton: TButton;
     FRecent: TRecentMenu;
     FWatch: TTimer;
+    // Where the design window's Publish… finds this window
+    FAppLink: TAppLink;
     FRefreshing: boolean;
     // Rows stack in the order their Top says, so each takes the next one
     FNextRowTop: integer;
@@ -105,6 +107,8 @@ type
     procedure PreferencesClick(Sender: TObject);
     procedure AboutClick(Sender: TObject);
     procedure WatchTick(Sender: TObject);
+    // Comes to the front when asked to show the layout open here
+    function AppLinkMessage(const Method: string; Params: TJSONObject): boolean;
     procedure RefreshProblems;
     procedure StatusResize(Sender: TObject);
     procedure StatusMouseMove(Sender: TObject; Shift: TShiftState; X, Y: integer);
@@ -316,7 +320,7 @@ uses
   Sloper.Core.Settings, Sloper.UI.IconSet, Sloper.UI.Spacing, Sloper.UI.FontBox,
   Sloper.UI.About, Sloper.UI.Preferences, Sloper.Output.LayoutExport,
   Sloper.Output.LayoutPDF, Sloper.Output.Packing, Sloper.Output.Preview, Sloper.Output.Printing, Sloper.Output.Tiling,
-  Sloper.Publish.PrintDialog;
+  Sloper.Publish.PrintDialog, Sloper.Core.JSON, Sloper.API.Endpoint;
 
 const
   SIDE_WIDTH = 340;
@@ -349,6 +353,7 @@ constructor TPublishForm.Create(AOwner: TComponent);
 var
   PreviewPanel: TPanel;
   HorzBar, VertBar: TScrollBar;
+  Reason: string;
 begin
   inherited CreateNew(AOwner);
   Caption := rsPublishTitle;
@@ -422,10 +427,13 @@ begin
   FWatch.OnTimer := @WatchTick;
   if (ParamCount >= 1) and FileExists(ParamStr(1)) then
     OpenPath(ParamStr(1));
+  // Without it, Publish… opens another window rather than this one
+  FAppLink := TAppLink.Start(PUBLISH_KIND, @AppLinkMessage, True, Reason);
 end;
 
 destructor TPublishForm.Destroy;
 begin
+  FreeAndNil(FAppLink);
   FreeAndNil(FDocument);
   inherited Destroy;
 end;
@@ -1389,6 +1397,21 @@ begin
   end;
   FPreview.Selected := -1;
   FPreview.ZoomToFit;
+end;
+
+function TPublishForm.AppLinkMessage(const Method: string; Params: TJSONObject): boolean;
+var
+  LayoutFile: string;
+begin
+  Result := (Method = APP_LINK_SHOW) and GetJSONString(Params, APP_LINK_LAYOUT_PARAM, LayoutFile) and
+    (FDocument.Layout.FileName <> '') and SameFileName(ExpandFileName(FDocument.Layout.FileName), ExpandFileName(LayoutFile));
+  if not Result then
+    Exit;
+  if WindowState = wsMinimized then
+    WindowState := wsNormal;
+  Application.Restore;
+  ShowOnTop;
+  Application.BringToFront;
 end;
 
 procedure TPublishForm.RecentOpen(Sender: TObject; const FileName: string);

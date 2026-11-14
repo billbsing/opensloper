@@ -30,17 +30,7 @@ unit Sloper.API.Server;
 interface
 
 uses
-  SysUtils, fpjson, Sloper.Core.Evaluator, Sloper.Core.Materials, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Document.PatternDocument;
-
-const
-  // JSON-RPC 2.0's own codes
-  RPC_PARSE_ERROR = -32700;
-  RPC_INVALID_REQUEST = -32600;
-  RPC_METHOD_NOT_FOUND = -32601;
-  RPC_INVALID_PARAMS = -32602;
-  RPC_INTERNAL_ERROR = -32603;
-  // The call was understood and refused
-  RPC_REFUSED = -32000;
+  SysUtils, fpjson, Sloper.API.Rpc, Sloper.Core.Evaluator, Sloper.Core.Materials, Sloper.Core.Piece, Sloper.Core.Seam, Sloper.Document.PatternDocument;
 
 type
   EApiError = class(Exception)
@@ -171,12 +161,6 @@ type
 
 // An object as a selection lists it: its id, name and type
 function NodeReference(Node: TEvalNode): TJSONObject;
-
-// A JSON-RPC response on one line: the result, which it takes over, or an
-// error with the field and position it names
-function RpcResultResponse(Id, Output: TJSONData): string;
-function RpcErrorResponse(Id: TJSONData; Code: integer; const AMessage: string; const FieldName: string = '';
-  APosition: integer = 0): string;
 
 resourcestring
   rsApiNotRequest = 'The request must be a JSON-RPC 2.0 object with a method';
@@ -2476,50 +2460,6 @@ begin
     'ui_state': Result := DoWindowState;
     else
       raise EApiError.Create(RPC_METHOD_NOT_FOUND, Format(rsApiNoMethod, [Method]));
-  end;
-end;
-
-function RpcResultResponse(Id, Output: TJSONData): string;
-var
-  Response: TJSONObject;
-begin
-  Response := TJSONObject.Create;
-  try
-    Response.Add('jsonrpc', '2.0');
-    Response.Add('id', Id.Clone);
-    Response.Add('result', Output);
-    Result := Response.AsJSON;
-  finally
-    FreeAndNil(Response);
-  end;
-end;
-
-function RpcErrorResponse(Id: TJSONData; Code: integer; const AMessage: string; const FieldName: string;
-  APosition: integer): string;
-var
-  Response, Error, Data: TJSONObject;
-begin
-  Response := TJSONObject.Create;
-  try
-    Response.Add('jsonrpc', '2.0');
-    if Assigned(Id) then
-      Response.Add('id', Id.Clone)
-    else
-      Response.Add('id', TJSONNull.Create);
-    Error := TJSONObject.Create;
-    Response.Add('error', Error);
-    Error.Add('code', Code);
-    Error.Add('message', AMessage);
-    if (FieldName <> '') or (APosition > 0) then
-    begin
-      Data := TJSONObject.Create;
-      Error.Add('data', Data);
-      Data.Add('field', FieldName);
-      Data.Add('position', APosition);
-    end;
-    Result := Response.AsJSON;
-  finally
-    FreeAndNil(Response);
   end;
 end;
 

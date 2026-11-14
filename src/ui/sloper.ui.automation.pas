@@ -28,7 +28,7 @@ unit Sloper.UI.Automation;
 interface
 
 uses
-  Classes, SysUtils, Sloper.Document.PatternDocument, Sloper.API.Server, Sloper.API.Listener;
+  Classes, SysUtils, Sloper.Document.PatternDocument, Sloper.API.Server, Sloper.API.Rpc, Sloper.API.Listener;
 
 type
   TAutomationState = (asOff, asListening, asConnected);

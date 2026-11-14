@@ -42,6 +42,9 @@ Changed, Fixed and Removed under each version.
   `test`, `build`, `check`, `format`, `docs`, `package` and `release` in place
   of `run-tests.sh`, `build.sh`, `check-standards.sh`, `format.sh`,
   `build-docs.sh`, `package.sh` and `release-notes.sh` (#22).
+- File → Publish… in the design app brings the publish window already showing
+  the pattern's layout to the front, rather than opening another each time
+  (#18). Only when none shows it is a new one started.
 
 ### Fixed
 

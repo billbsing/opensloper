@@ -17,8 +17,9 @@
 }
 
 // Where a design window in automation mode listens, and how a client finds it
-// and proves it may connect. Each window writes an endpoint file in a private
-// run folder: its socket (a Unix domain socket on Linux and macOS, a loopback
+// and proves it may connect. The apps' link to each other (Sloper.API.AppLink)
+// listens the same way, under another kind of endpoint. Each window writes an
+// endpoint file in a private run folder: its socket (a Unix domain socket on Linux and macOS, a loopback
 // port on Windows) and a token of 32 random bytes, new at each start. Only
 // the user can read the folder, so only the user's own programs can present
 // the token; the user never sees or types it. Messages are JSON-RPC, one a
@@ -41,6 +42,10 @@ const
   AUTOMATION_LINE_LIMIT = 256 * 1024 * 1024;
   // Windows listens here, never on every interface
   AUTOMATION_HOST = '127.0.0.1';
+  // The kinds of endpoint, which start their files' names: a design window
+  // in automation mode, and a publish window listening for the other apps
+  AUTOMATION_KIND = 'automation';
+  PUBLISH_KIND = 'publish';
 
 type
   TAutomationEndpoint = record
@@ -84,14 +89,21 @@ function PrepareAutomationFolder(out Folder, ErrorMessage: string): boolean;
 function NewAutomationToken(out Token, ErrorMessage: string): boolean;
 // Compares in a time that does not depend on where they differ
 function SameToken(const Given, Expected: string): boolean;
-// The paths this process uses in Folder
-function AutomationEndpointFor(const Folder: string; APid: integer): TAutomationEndpoint;
+// The paths this process uses in Folder for an endpoint of Kind
+function AutomationEndpointFor(const Folder: string; APid: integer; const Kind: string = AUTOMATION_KIND): TAutomationEndpoint;
 // Readable by the user only
 function WriteAutomationEndpoint(const Endpoint: TAutomationEndpoint; out ErrorMessage: string): boolean;
-// The windows listening now, as their files say, newest first
-function ReadAutomationEndpoints: TAutomationEndpointArray;
+// The windows listening now with an endpoint of Kind, as their files say, newest first
+function ReadAutomationEndpoints(const Kind: string = AUTOMATION_KIND): TAutomationEndpointArray;
+// Removes the files of a window that closed without tidying up, once nothing
+// answers there
+procedure RemoveAutomationEndpoint(const Endpoint: TAutomationEndpoint);
 // Raises ESocketError when nothing listens there
 function ConnectAutomation(const Endpoint: TAutomationEndpoint): TSocketStream;
+// Sends the endpoint's token as the first request; True when the window admits
+// the client within TimeoutMs. Raises ESocketError or EStreamError when the
+// window has gone.
+function AuthenticateAt(Lines: TSocketLines; const Endpoint: TAutomationEndpoint; TimeoutMs: integer): boolean;
 
 resourcestring
   rsAutomationFolder = 'The folder %s cannot be made private to you, so automation stays off';
@@ -106,7 +118,7 @@ uses
 const
   ENDPOINT_FORMAT = 'opensloperAutomation';
   ENDPOINT_VERSION = 1;
-  ENDPOINT_PREFIX = 'automation-';
+  KIND_SEPARATOR = '-';
   ENDPOINT_EXTENSION = '.json';
   SOCKET_EXTENSION = '.sock';
   TOKEN_BYTES = 32;
@@ -300,13 +312,13 @@ begin
   Result := Difference = 0;
 end;
 
-function AutomationEndpointFor(const Folder: string; APid: integer): TAutomationEndpoint;
+function AutomationEndpointFor(const Folder: string; APid: integer; const Kind: string): TAutomationEndpoint;
 begin
   Result := Default(TAutomationEndpoint);
   Result.Pid := APid;
-  Result.InfoPath := ConcatPaths([Folder, ENDPOINT_PREFIX + IntToStr(APid) + ENDPOINT_EXTENSION]);
+  Result.InfoPath := ConcatPaths([Folder, Kind + KIND_SEPARATOR + IntToStr(APid) + ENDPOINT_EXTENSION]);
   {$IFDEF UNIX}
-  Result.SocketPath := ConcatPaths([Folder, ENDPOINT_PREFIX + IntToStr(APid) + SOCKET_EXTENSION]);
+  Result.SocketPath := ConcatPaths([Folder, Kind + KIND_SEPARATOR + IntToStr(APid) + SOCKET_EXTENSION]);
   {$ENDIF}
 end;
 
@@ -347,7 +359,7 @@ begin
   end;
 end;
 
-function ReadAutomationEndpoints: TAutomationEndpointArray;
+function ReadAutomationEndpoints(const Kind: string): TAutomationEndpointArray;
 var
   Found: TSearchRec;
   Folder: string;
@@ -358,7 +370,7 @@ begin
   Result := nil;
   Ages := nil;
   Folder := AutomationFolder;
-  if FindFirst(ConcatPaths([Folder, ENDPOINT_PREFIX + '*' + ENDPOINT_EXTENSION]), faAnyFile, Found) = 0 then
+  if FindFirst(ConcatPaths([Folder, Kind + KIND_SEPARATOR + '*' + ENDPOINT_EXTENSION]), faAnyFile, Found) = 0 then
   try
     repeat
       if not ReadEndpoint(ConcatPaths([Folder, Found.Name]), Endpoint) then
@@ -375,6 +387,14 @@ begin
   end;
 end;
 
+procedure RemoveAutomationEndpoint(const Endpoint: TAutomationEndpoint);
+begin
+  DeleteFile(Endpoint.InfoPath);
+  {$IFDEF UNIX}
+  DeleteFile(Endpoint.SocketPath);
+  {$ENDIF}
+end;
+
 function ConnectAutomation(const Endpoint: TAutomationEndpoint): TSocketStream;
 begin
   {$IFDEF UNIX}
@@ -382,6 +402,27 @@ begin
   {$ELSE}
   Result := TInetSocket.Create(AUTOMATION_HOST, Endpoint.Port);
   {$ENDIF}
+end;
+
+function AuthenticateAt(Lines: TSocketLines; const Endpoint: TAutomationEndpoint; TimeoutMs: integer): boolean;
+var
+  Request, Reply: TJSONObject;
+  Line, Err: string;
+begin
+  Result := False;
+  Request := TJSONObject.Create(['jsonrpc', '2.0', 'id', 0, 'method', AUTOMATION_AUTH_METHOD, 'params',
+    TJSONObject.Create([AUTOMATION_TOKEN_PARAM, Endpoint.Token])]);
+  try
+    Lines.WriteLine(Request.AsJSON);
+  finally
+    FreeAndNil(Request);
+  end;
+  if (Lines.ReadLine(TimeoutMs, AUTOMATION_LINE_LIMIT, Line) = lrLine) and ParseJSONObject(Line, Reply, Err) then
+  try
+    Result := Assigned(Reply.Find('result'));
+  finally
+    FreeAndNil(Reply);
+  end;
 end;
 
 end.

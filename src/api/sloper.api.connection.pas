@@ -27,7 +27,7 @@ unit Sloper.API.Connection;
 interface
 
 uses
-  SysUtils, fpjson, Sloper.API.Server, Sloper.API.Endpoint;
+  SysUtils, fpjson, Sloper.API.Server, Sloper.API.Rpc, Sloper.API.Endpoint;
 
 type
   TApiConnection = class(TApiBackend)
@@ -80,10 +80,6 @@ begin
 end;
 
 function TApiConnection.TryEndpoint(const Endpoint: TAutomationEndpoint): boolean;
-var
-  Request: TJSONObject;
-  Reply: TJSONObject;
-  Line, Err: string;
 begin
   Result := False;
   try
@@ -93,23 +89,11 @@ begin
     on Exception do
       Exit;
   end;
-  Request := TJSONObject.Create(['jsonrpc', '2.0', 'id', 0, 'method', AUTOMATION_AUTH_METHOD, 'params',
-    TJSONObject.Create([AUTOMATION_TOKEN_PARAM, Endpoint.Token])]);
   try
-    try
-      FLines.WriteLine(Request.AsJSON);
-      if (FLines.ReadLine(AUTH_REPLY_MS, AUTOMATION_LINE_LIMIT, Line) = lrLine) and ParseJSONObject(Line, Reply, Err) then
-      try
-        Result := Assigned(Reply.Find('result'));
-      finally
-        FreeAndNil(Reply);
-      end;
-    except
-      on Exception do
-        Result := False;
-    end;
-  finally
-    FreeAndNil(Request);
+    Result := AuthenticateAt(FLines, Endpoint, AUTH_REPLY_MS);
+  except
+    on Exception do
+      Result := False;
   end;
   if not Result then
     Drop;

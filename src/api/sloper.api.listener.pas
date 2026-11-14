@@ -60,9 +60,10 @@ type
   public
     // Listening, its endpoint file written; nil with a message when it could
     // not start. Synchronized runs the handlers on the main thread, as the
-    // window needs; tests call them on the listener's thread.
+    // window needs; tests call them on the listener's thread. Kind names the
+    // endpoint, so clients looking for automation find only those windows.
     class function Start(AOnRequest: TAutomationRequestEvent; AOnClient: TAutomationClientEvent; ASynchronized: boolean;
-      out ErrorMessage: string): TAutomationListener;
+      out ErrorMessage: string; const Kind: string = AUTOMATION_KIND): TAutomationListener;
     // Stops listening and removes the endpoint
     destructor Destroy; override;
     // Closes the connection to the client after the reply being sent, if any
@@ -78,7 +79,7 @@ resourcestring
 implementation
 
 uses
-  fpjson, Sockets, {$IFDEF UNIX} BaseUnix, {$ENDIF} Sloper.Core.JSON, Sloper.API.Server;
+  fpjson, Sockets, {$IFDEF UNIX} BaseUnix, {$ENDIF} Sloper.Core.JSON, Sloper.API.Rpc;
 
 const
   // How often the thread looks up from waiting, to stop or drop a client; ms
@@ -93,7 +94,7 @@ const
   {$ENDIF}
 
 class function TAutomationListener.Start(AOnRequest: TAutomationRequestEvent; AOnClient: TAutomationClientEvent;
-  ASynchronized: boolean; out ErrorMessage: string): TAutomationListener;
+  ASynchronized: boolean; out ErrorMessage: string; const Kind: string): TAutomationListener;
 var
   Folder: string;
   Place: TAutomationEndpoint;
@@ -106,7 +107,7 @@ begin
   Result := nil;
   if not PrepareAutomationFolder(Folder, ErrorMessage) then
     Exit;
-  Place := AutomationEndpointFor(Folder, GetProcessID);
+  Place := AutomationEndpointFor(Folder, GetProcessID, Kind);
   if not NewAutomationToken(Place.Token, ErrorMessage) then
     Exit;
   Server := nil;
@@ -167,10 +168,7 @@ begin
   // progress finishes first
   WaitFor;
   FreeAndNil(FServer);
-  DeleteFile(FEndpoint.InfoPath);
-  {$IFDEF UNIX}
-  DeleteFile(FEndpoint.SocketPath);
-  {$ENDIF}
+  RemoveAutomationEndpoint(FEndpoint);
   inherited Destroy;
 end;
 

@@ -60,7 +60,7 @@ type
 implementation
 
 uses
-  SysUtils, Sloper.Core.JSON, Sloper.Core.Version, Sloper.API.Server, Sloper.API.Methods;
+  SysUtils, Sloper.Core.JSON, Sloper.Core.Version, Sloper.API.Server, Sloper.API.Rpc, Sloper.API.Methods;
 
 procedure TTestMCP.SetUp;
 begin

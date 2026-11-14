@@ -198,7 +198,7 @@ implementation
 
 uses
   SysUtils, StrUtils, Sloper.Core.Formula, Sloper.Core.FormulaLexer, Sloper.Core.Units, Sloper.Core.OperationInfo, Sloper.Core.FileInfo,
-  Sloper.Core.PatternFile, Sloper.Core.Shortcuts, Sloper.API.Server, Sloper.API.Methods, Sloper.CLI.Arguments, Sloper.Docs.Schema,
+  Sloper.Core.PatternFile, Sloper.Core.Shortcuts, Sloper.API.Server, Sloper.API.Rpc, Sloper.API.Methods, Sloper.CLI.Arguments, Sloper.Docs.Schema,
   Sloper.Docs.Python;
 
 const
