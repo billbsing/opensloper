@@ -2505,6 +2505,15 @@ begin
   end;
 end;
 
+// Reply, or '' when the request has no id
+function ReplyIfAsked(Id: TJSONData; const Reply: string): string;
+begin
+  if Assigned(Id) then
+    Result := Reply
+  else
+    Result := '';
+end;
+
 function TApiServer.HandleLine(const Line: string): string;
 var
   Request: TJSONObject;
@@ -2517,11 +2526,13 @@ begin
     Exit(RpcErrorResponse(nil, RPC_PARSE_ERROR, Err));
   try
     Id := Request.Find('id');
+    // A line without an id gets no reply, even malformed: serve --connect
+    // reads none, and would take one as the answer to its next request
     if not GetJSONString(Request, 'method', Method) then
-      Exit(RpcErrorResponse(Id, RPC_INVALID_REQUEST, rsApiNotRequest));
+      Exit(ReplyIfAsked(Id, RpcErrorResponse(Id, RPC_INVALID_REQUEST, rsApiNotRequest)));
     ParamsData := Request.Find('params');
     if Assigned(ParamsData) and (ParamsData.JSONType <> jtObject) then
-      Exit(RpcErrorResponse(Id, RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['params'])));
+      Exit(ReplyIfAsked(Id, RpcErrorResponse(Id, RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['params']))));
     // Methods read members straight from it, so a request without any gets an empty one
     if not Assigned(ParamsData) then
     begin

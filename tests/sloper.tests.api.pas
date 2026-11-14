@@ -1026,6 +1026,10 @@ begin
   // Not even when it fails: an MCP client sends notifications the API does not know
   AssertEquals('unknown method', '', FServer.HandleLine('{"jsonrpc": "2.0", "method": "notifications/initialized"}'));
   AssertEquals('refused', '', FServer.HandleLine('{"jsonrpc": "2.0", "method": "get_object", "params": {"name": "nothing"}}'));
+  // Nor when it is malformed: serve --connect reads no reply to a line without
+  // an id, so one sent would be taken as the answer to the next request
+  AssertEquals('params not an object', '', FServer.HandleLine('{"jsonrpc": "2.0", "method": "render", "params": [1]}'));
+  AssertEquals('no method', '', FServer.HandleLine('{"jsonrpc": "2.0", "params": {}}'));
 end;
 
 procedure TTestAPI.TestIdIsEchoed;
