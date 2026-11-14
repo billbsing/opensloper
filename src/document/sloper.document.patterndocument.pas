@@ -180,6 +180,9 @@ type
     // changed.
     function EndChange(const MergeKey: string = ''): boolean;
     procedure CancelChange;
+    // Gives the open change another description, for a change begun before
+    // its caller knew what it would be
+    procedure RenameChange(const Description: string);
     // EndChange when Success, else CancelChange; for wrapping one edit:
     // Commit(Pattern.Rename(...))
     function Commit(Success: boolean; const MergeKey: string = ''): boolean;
@@ -797,6 +800,13 @@ begin
     ApplySnapshot(FChangeBefore);
     Notify([dcPattern, dcObjectsReplaced]);
   end;
+end;
+
+procedure TPatternDocument.RenameChange(const Description: string);
+begin
+  if not FChangeOpen then
+    raise EDocumentError.Create(rsDocumentNoChange);
+  FChangeDescription := Description;
 end;
 
 function TPatternDocument.Commit(Success: boolean; const MergeKey: string): boolean;

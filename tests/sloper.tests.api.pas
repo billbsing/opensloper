@@ -94,6 +94,9 @@ type
     procedure TestArrangeRefused;
     procedure TestAddRepeat;
     procedure TestRepeatPointAsAnInput;
+    // A repeat point takes its ID inside the call's change: a call that fails
+    // leaves the pattern as it was, undo takes the ID back, and copying gives none
+    procedure TestRepeatPointUsedInsideTheChange;
     procedure TestSave;
     procedure TestSaveNeedsAPath;
     procedure TestSaveReplacesOnlyPatterns;
@@ -894,6 +897,27 @@ begin
   Call('add_repeat', '{"name": "Btn", "a": "P", "b": "Q", "count": "4", "ends": "include"}');
   Call('add_point', '{"type": "betweenPoint", "name": "R", "a": "Btn[2]", "b": "Q", "mode": "ratio", "value": "0.5"}');
   AssertNear('x', 200, ObjectNamed('R').Get('x', 0.0));
+end;
+
+procedure TTestAPI.TestRepeatPointUsedInsideTheChange;
+var
+  Before: string;
+begin
+  OpenTestPattern;
+  Call('add_point', '{"type": "freePoint", "name": "P", "x": "0", "y": "0"}');
+  Call('add_point', '{"type": "freePoint", "name": "Q", "x": "300", "y": "0"}');
+  Call('add_repeat', '{"name": "Btn", "a": "P", "b": "Q", "count": "4", "ends": "include"}');
+  Before := SavePatternToText(FServer.Document.Pattern, False);
+  Call('add_edge', '{"type": "line", "start": "Btn[2]", "end": "Typo"}');
+  AssertEquals(RPC_REFUSED, ErrorCode);
+  AssertEquals('a failed call changes nothing', Before, SavePatternToText(FServer.Document.Pattern, False));
+  Call('add_edge', '{"type": "line", "start": "Btn[2]", "end": "Q"}');
+  AssertNull('the edge is added: ' + FReply.AsJSON, FReply.Find('error'));
+  Call('undo');
+  AssertEquals('undo takes the ID back', Before, SavePatternToText(FServer.Document.Pattern, False));
+  Call('copy_objects', '{"objects": ["Btn[2]", "Q"]}');
+  AssertTrue('copied: ' + FReply.AsJSON, Answer.Get('fragment', '') <> '');
+  AssertEquals('copying changes nothing', Before, SavePatternToText(FServer.Document.Pattern, False));
 end;
 
 procedure TTestAPI.TestArrangeRefused;

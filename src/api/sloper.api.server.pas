@@ -65,6 +65,9 @@ type
     FOpensFiles: boolean;
     FOnConfirmWrite: TApiConfirmWrite;
     FOnWindowState: TApiWindowState;
+    // The call's change was opened by Reference, to give a repeat point its
+    // ID; the method's own BeginChange takes it over
+    FEarlyChange: boolean;
     // Opens a change on the document, refusing while the user has one open;
     // CheckLocks as in TPatternDocument.BeginChange
     procedure BeginChange(const Description: string; CheckLocks: boolean = True);
@@ -78,7 +81,7 @@ type
     function ProblemsResult(WithReport: boolean): TJSONObject;
     // Cancels the open change and raises the pattern's reason for refusing it
     procedure RefuseChange;
-    function Reference(Params: TJSONObject; const AName: string): string;
+    function Reference(Params: TJSONObject; const AName: string; Use: boolean = True): string;
     function AddedNode(Node: TEvalNode): TJSONData;
     function DoOpen(Params: TJSONObject): TJSONData;
     function DoSave(Params: TJSONObject): TJSONData;
@@ -86,7 +89,7 @@ type
     function DoMissingMeasurements: TJSONData;
     function DoAddRepeat(Params: TJSONObject): TJSONData;
     function DoArrange(Params: TJSONObject): TJSONData;
-    function ReferenceList(Params: TJSONObject; const AName: string): TStringArray;
+    function ReferenceList(Params: TJSONObject; const AName: string; Use: boolean = True): TStringArray;
     // Selects it, refusing one the set does not have; empty leaves it alone
     procedure UseSize(const Size: string);
     function DoSetMeasurement(Params: TJSONObject): TJSONData;
@@ -551,6 +554,13 @@ end;
 
 procedure TApiServer.BeginChange(const Description: string; CheckLocks: boolean);
 begin
+  // Opened checking locks, which only a change to the whole pattern skips
+  if FEarlyChange then
+  begin
+    FEarlyChange := False;
+    FDocument.RenameChange(FChangePrefix + Description);
+    Exit;
+  end;
   if FDocument.ChangeOpen then
     raise EApiError.Create(RPC_REFUSED, rsApiBusy);
   FDocument.BeginChange(FChangePrefix + Description, CheckLocks);
@@ -589,8 +599,10 @@ begin
   raise EApiError.Create(RPC_REFUSED, Reason, FieldName, Position);
 end;
 
-// The ID of an input given as a number, or as an object's name
-function TApiServer.Reference(Params: TJSONObject; const AName: string): string;
+// The ID of an input given as a number, or as an object's name. A repeat
+// point not used before takes an ID, which changes the pattern, so when Use
+// is set and no change is open the call's change is opened here.
+function TApiServer.Reference(Params: TJSONObject; const AName: string; Use: boolean): string;
 var
   Id: integer;
   TargetName: string;
@@ -603,6 +615,14 @@ begin
   Target := FDocument.Pattern.FindObject(TargetName);
   if not Assigned(Target) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiUnknownName, [TargetName]));
+  Result := Target.Key;
+  if not Use or not (Target is TRepeatPoint) or not TRepeatPoint(Target).IsVirtual then
+    Exit;
+  if not FDocument.ChangeOpen then
+  begin
+    FDocument.BeginChange(FChangePrefix);
+    FEarlyChange := True;
+  end;
   Result := FDocument.Pattern.UsePoint(Target.Key);
 end;
 
@@ -748,7 +768,7 @@ begin
 end;
 
 // Each item is an ID or a name
-function TApiServer.ReferenceList(Params: TJSONObject; const AName: string): TStringArray;
+function TApiServer.ReferenceList(Params: TJSONObject; const AName: string; Use: boolean): TStringArray;
 var
   List: TJSONData;
   Index: integer;
@@ -764,7 +784,7 @@ begin
     begin
       Holder.Clear;
       Holder.Add(AName, List.Items[Index].Clone);
-      Insert(Reference(Holder, AName), Result, Length(Result));
+      Insert(Reference(Holder, AName, Use), Result, Length(Result));
     end;
   finally
     FreeAndNil(Holder);
@@ -2114,7 +2134,8 @@ var
 begin
   if not Assigned(Params) or not Assigned(Params.Find('objects')) then
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, ['objects']));
-  Copied := CopyFragment(FDocument.Pattern, ReferenceList(Params, 'objects'));
+  // Reading only: a repeat point is copied as it is, without taking an ID
+  Copied := CopyFragment(FDocument.Pattern, ReferenceList(Params, 'objects', False));
   if Copied.Text = '' then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiCannotCopy, [string.Join(', ', Copied.LeftOut)]));
   Result := TJSONObject.Create;
@@ -2430,14 +2451,22 @@ begin
   WasOpen := FDocument.ChangeOpen;
   if WasOpen and FindApiMethod(Method, Info) and not Info.ReadOnly then
     raise EApiError.Create(RPC_REFUSED, rsApiBusy);
+  FEarlyChange := False;
   try
-    Result := DispatchMethod(Method, Params);
-  except
-    // A method that fails after BeginChange, say on a param it reads late,
-    // must not leave its change open: every later edit would be refused
-    if not WasOpen and FDocument.ChangeOpen then
-      FDocument.CancelChange;
-    raise;
+    try
+      Result := DispatchMethod(Method, Params);
+      // Opened by Reference for a method that then changed nothing
+      if FEarlyChange then
+        FDocument.CancelChange;
+    except
+      // A method that fails after BeginChange, say on a param it reads late,
+      // must not leave its change open: every later edit would be refused
+      if not WasOpen and FDocument.ChangeOpen then
+        FDocument.CancelChange;
+      raise;
+    end;
+  finally
+    FEarlyChange := False;
   end;
 end;
 
