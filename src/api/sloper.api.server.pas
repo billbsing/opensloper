@@ -68,6 +68,8 @@ type
     // The call's change was opened by Reference, to give a repeat point its
     // ID; the method's own BeginChange takes it over
     FEarlyChange: boolean;
+    // The document's Generation when the client last heard from it
+    FGeneration: integer;
     // Opens a change on the document, refusing while the user has one open;
     // CheckLocks as in TPatternDocument.BeginChange
     procedure BeginChange(const Description: string; CheckLocks: boolean = True);
@@ -234,6 +236,8 @@ resourcestring
   rsApiBusy = 'The window is in the middle of a change; try again when the user has finished';
   rsApiOpenInWindow = 'Patterns are opened in the design window, not through the API; this works on the pattern open there';
   rsApiWriteDeclined = 'The user did not allow writing %s';
+  rsApiPatternReplaced = 'Another pattern is open now, so IDs and names from before may mean other objects; ' +
+    'look again with ui_state and list_objects';
   rsApiExportExists = '%s already exists; give "overwrite": true to replace it';
   rsApiNoWindow = 'ui_state needs the design window: start it with --automation and run opensloper-cli serve --connect';
   rsApiBadMarks = 'Parameter "marks" must be a list of objects with an "id" or "name", a "field", a "token" and a "role"';
@@ -565,6 +569,7 @@ begin
   FDocument := ADocument;
   FOwnsDocument := False;
   FOpensFiles := True;
+  FGeneration := FDocument.Generation;
 end;
 
 destructor TApiServer.Destroy;
@@ -2479,6 +2484,13 @@ var
   WasOpen: boolean;
 begin
   // In the design window the user may be dragging; only reading waits for nothing
+  // New or Open in the window: what the client knows is about another
+  // pattern, so it is told once, before a name or ID is taken to mean anything
+  if FDocument.Generation <> FGeneration then
+  begin
+    FGeneration := FDocument.Generation;
+    raise EApiError.Create(RPC_REFUSED, rsApiPatternReplaced);
+  end;
   WasOpen := FDocument.ChangeOpen;
   if WasOpen and FindApiMethod(Method, Info) and not Info.ReadOnly then
     raise EApiError.Create(RPC_REFUSED, rsApiBusy);
@@ -2498,6 +2510,8 @@ begin
     end;
   finally
     FEarlyChange := False;
+    // The call's own open or new pattern is known to the client
+    FGeneration := FDocument.Generation;
   end;
 end;
 

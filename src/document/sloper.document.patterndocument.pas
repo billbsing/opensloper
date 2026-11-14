@@ -105,6 +105,7 @@ type
     FCheckLocks: boolean;
     FLockedBefore: array of TLockedDefinition;
     FChangeRefused: boolean;
+    FGeneration: integer;
     FListeners: array of TDocumentListener;
     FClock: TDocumentClock;
     FUndoLimit: integer;
@@ -210,6 +211,9 @@ type
     property FileName: string read FFileName;
     property Modified: boolean read GetModified;
     property ChangeOpen: boolean read FChangeOpen;
+    // Counts the patterns the document has held: New and Open add one, so a
+    // client that learned IDs and names can tell they belong to another
+    property Generation: integer read FGeneration;
     // The last change ended was undone because it changed a locked object
     property ChangeRefused: boolean read FChangeRefused;
     property CanUndo: boolean read GetCanUndo;
@@ -454,6 +458,7 @@ begin
   FMeasurementsChanged := False;
   FPattern.MeasurementFile := MeasurementFileFor(FFileName);
   FPattern.Evaluate;
+  Inc(FGeneration);
   Notify([dcPattern, dcObjectsReplaced, dcMeasurements, dcHistory, dcFile]);
 end;
 
@@ -498,6 +503,7 @@ begin
   FMeasurementsChanged := False;
   FPattern.MeasurementFile := MeasurementFileFor(FFileName);
   FPattern.Evaluate;
+  Inc(FGeneration);
   Notify([dcPattern, dcObjectsReplaced, dcMeasurements, dcHistory, dcFile]);
   Result := True;
 end;

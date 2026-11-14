@@ -48,6 +48,8 @@ type
     procedure TearDown; override;
   published
     procedure TestChangeIsOneStep;
+    // Generation changes when New or Open replaces the pattern, not on edits
+    procedure TestGenerationCountsPatterns;
     procedure TestUndoRedoRestoresExactly;
     procedure TestRedoKeepsIds;
     procedure TestUndoneIdNotReused;
@@ -145,6 +147,28 @@ end;
 function TTestDocument.PointX(const AName: string): double;
 begin
   Result := TPointObject(FDocument.Pattern.FindObject(AName)).Position.X;
+end;
+
+procedure TTestDocument.TestGenerationCountsPatterns;
+var
+  Start: integer;
+  Err, Path: string;
+begin
+  Start := FDocument.Generation;
+  AddPoint('A', '10');
+  FDocument.Undo;
+  AssertEquals('edits and undo keep it', Start, FDocument.Generation);
+  FDocument.NewPattern(FDocument.Pattern.Units);
+  AssertEquals('new', Start + 1, FDocument.Generation);
+  AddPoint('A', '10');
+  Path := ConcatPaths([FFolder, 'generation.sloper']);
+  AssertTrue(Err, FDocument.SaveToFile(Path, Err));
+  AssertEquals('saving keeps it', Start + 1, FDocument.Generation);
+  AssertTrue(Err, FDocument.LoadFromFile(Path, Err));
+  AssertEquals('open', Start + 2, FDocument.Generation);
+  AssertFalse(FDocument.LoadFromFile(ConcatPaths([FFolder, 'missing.sloper']), Err));
+  AssertEquals('a failed open keeps it', Start + 2, FDocument.Generation);
+  DeleteFile(Path);
 end;
 
 procedure TTestDocument.AddPoint(const AName, X: string);

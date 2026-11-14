@@ -67,10 +67,14 @@ type
     FWorker: TAssistantWorker;
     // The worker answered and is ending; freed before the next question
     FWorkerDone: boolean;
+    // The document's Generation the conversation began on; New or Open in
+    // the window ends the conversation, whose IDs belong to that pattern
+    FGeneration: integer;
     FTranscript, FInput: TMemo;
     FSendButton, FStopButton, FNewButton: TButton;
     FWindowState: TApiWindowState;
     procedure SetDocument(Value: TPatternDocument);
+    procedure MakeApi;
     procedure SendClick(Sender: TObject);
     procedure StopClick(Sender: TObject);
     procedure NewClick(Sender: TObject);
@@ -109,6 +113,9 @@ resourcestring
   rsAssistantTool = '  › %s';
   rsAssistantProblem = '(%s)';
   rsAssistantNoPattern = 'No pattern is open';
+  rsAssistantAnotherPattern = 'Another pattern is open now, so this question was stopped: what Claude knew was about the ' +
+    'pattern open before.';
+  rsAssistantNewForPattern = '(Another pattern is open, so this is a new conversation.)';
 
 implementation
 
@@ -289,16 +296,21 @@ begin
   if Value = FDocument then
     Exit;
   StopWorker;
-  FreeAndNil(FApi);
   FDocument := Value;
-  if Assigned(FDocument) then
-  begin
-    FApi := TApiServer.CreateFor(FDocument);
-    FApi.ChangePrefix := rsClaudeChange;
-    FApi.OpensFiles := False;
-    FApi.OnConfirmWrite := @ConfirmWrite;
-  end;
+  MakeApi;
   UpdateButtons;
+end;
+
+// The API server for the document, starting from its pattern as it is now
+procedure TAssistantPanel.MakeApi;
+begin
+  FreeAndNil(FApi);
+  if not Assigned(FDocument) then
+    Exit;
+  FApi := TApiServer.CreateFor(FDocument);
+  FApi.ChangePrefix := rsClaudeChange;
+  FApi.OpensFiles := False;
+  FApi.OnConfirmWrite := @ConfirmWrite;
 end;
 
 function TAssistantPanel.ConfirmWrite(const Path: string): boolean;
@@ -354,8 +366,17 @@ begin
   end;
   // Made again when the key changes; the conversation goes with it
   StopWorker;
+  if Assigned(FConversation) and (FGeneration <> FDocument.Generation) then
+  begin
+    FreeAndNil(FConversation);
+    Append(LineEnding + LineEnding + rsAssistantNewForPattern);
+  end;
   if not Assigned(FConversation) then
+  begin
     FConversation := TAssistantConversation.Create(THttpsTransport.Create(Key));
+    FGeneration := FDocument.Generation;
+    MakeApi;
+  end;
   FInput.Clear;
   Append(LineEnding + LineEnding + Format(rsAssistantYou, [Question]) + LineEnding + LineEnding + rsAssistantClaude);
   FWorkerDone := False;
@@ -426,6 +447,16 @@ begin
   begin
     IsError := True;
     Result.Add(TJSONObject.Create(['type', 'text', 'text', rsAssistantNoPattern]));
+    Exit;
+  end;
+  // A call still pending when the user opened another pattern would act on
+  // it with what Claude learned from the one before; the question stops
+  if FDocument.Generation <> FGeneration then
+  begin
+    IsError := True;
+    FConversation.Cancel;
+    Append(LineEnding + rsAssistantAnotherPattern + LineEnding);
+    Result.Add(TJSONObject.Create(['type', 'text', 'text', rsAssistantAnotherPattern]));
     Exit;
   end;
   FApi.OnWindowState := FWindowState;

@@ -65,6 +65,9 @@ type
     procedure TestNotificationPassesThrough;
     procedure TestMcpThroughConnection;
     procedure TestBusyWhileUserEdits;
+    // After New or Open in the window, the next call is told, since the IDs
+    // and names it knows belong to the pattern that was open before
+    procedure TestAnotherPatternIsReported;
     procedure TestWritesAsked;
     procedure TestOpenRefusedInWindow;
     procedure TestWindowState;
@@ -320,6 +323,19 @@ begin
   finally
     FDocument.CancelChange;
   end;
+end;
+
+procedure TTestAutomation.TestAnotherPatternIsReported;
+var
+  Reply: string;
+begin
+  Listen;
+  Call('add_variable', '{"name": "ease", "formula": "12"}');
+  FDocument.NewPattern(FDocument.Pattern.Units);
+  Reply := Call('get_object', '{"name": "ease"}');
+  AssertTrue(Reply, Reply.StartsWith('error ' + IntToStr(RPC_REFUSED)));
+  AssertTrue(Reply, Pos(rsApiPatternReplaced, Reply) > 0);
+  AssertFalse('then calls go on', Call('list_objects').StartsWith('error'));
 end;
 
 procedure TTestAutomation.TestWritesAsked;
