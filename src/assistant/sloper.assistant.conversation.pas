@@ -211,6 +211,8 @@ end;
 procedure TAssistantConversation.Cancel;
 begin
   FCancelled := True;
+  // A request waiting on the server ends now, not when data next comes
+  FTransport.Abort;
 end;
 
 procedure TAssistantConversation.Clear;
@@ -271,7 +273,11 @@ begin
         end;
         on Failure: Exception do
         begin
-          Problem := Format(rsAssistantNetwork, [Failure.Message]);
+          // Stop shuts the connection down, which fails the request
+          if FCancelled then
+            Problem := rsAssistantStopped
+          else
+            Problem := Format(rsAssistantNetwork, [Failure.Message]);
           Exit(False);
         end;
       end;
@@ -301,6 +307,11 @@ begin
         Wait(RetryAfter * MS_PER_SECOND)
       else
         Wait(FRetryDelayMs shl Attempt);
+      if FCancelled then
+      begin
+        Problem := rsAssistantStopped;
+        Exit(False);
+      end;
       Continue;
     end;
     // The API's own message says what was wrong

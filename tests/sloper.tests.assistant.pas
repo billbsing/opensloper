@@ -53,6 +53,8 @@ type
     FShown: string;
     function RunTool(const ToolName: string; Input: TJSONObject; out IsError: boolean): TJSONArray;
     procedure Shown(const Text: string);
+    // An OnNote that presses Stop
+    procedure StopOnNote(const Text: string);
     function Request(Index: integer): TJSONObject;
   protected
     procedure SetUp; override;
@@ -66,6 +68,8 @@ type
     procedure TestRefusalRunsNoTools;
     procedure TestFallbackEcho;
     procedure TestRetriesWhenBusy;
+    // Stop while waiting to retry sends no further request
+    procedure TestStopDuringRetryWait;
     procedure TestBadKey;
     procedure TestCancel;
     // A question whose first request fails leaves no trace
@@ -98,6 +102,8 @@ type
     procedure TestCertificateForAnotherHostRefused;
     // A key changed after the transport was made is the one sent
     procedure TestChangedKeySent;
+    // Abort, from another thread, ends a read the server never answers
+    procedure TestAbortEndsAStalledRead;
   end;
 
 implementation
@@ -116,14 +122,16 @@ type
     FCertificate: string;
     FRequests: integer;
     FLastRequest: string;
+    FStall: boolean;
     procedure CreateHandler(Sender: TObject; out AHandler: TSocketHandler);
     procedure Connected(Sender: TObject; Data: TSocketStream);
     procedure Idle(Sender: TObject);
   protected
     procedure Execute; override;
   public
-    // Certificate: the path of a .pem with its .key beside it
-    constructor Create(const Certificate: string);
+    // Certificate: the path of a .pem with its .key beside it. Stall: read
+    // the request and never answer, until stopped
+    constructor Create(const Certificate: string; Stall: boolean = False);
     destructor Destroy; override;
     property Port: word read FPort;
     property Requests: integer read FRequests;
@@ -143,12 +151,13 @@ begin
   Result := ConcatPaths([ExtractFileDir(ExpandFileName(ParamStr(0))), 'tls', AName]);
 end;
 
-constructor TTlsTestServer.Create(const Certificate: string);
+constructor TTlsTestServer.Create(const Certificate: string; Stall: boolean);
 var
   Try_: integer;
 begin
   inherited Create(True);
   FCertificate := Certificate;
+  FStall := Stall;
   for Try_ := 0 to TLS_TEST_PORT_TRIES - 1 do
   try
     // Bound and listening before the client connects; StartAccepting
@@ -208,7 +217,10 @@ begin
         Received := Received + Copy(PChar(@Buffer[0]), 1, Count);
     until (Count <= 0) or (Pos(#13#10#13#10, Received) > 0) and Received.EndsWith('}');
     FLastRequest := Received;
-    Data.WriteBuffer(ANSWER[1], Length(ANSWER));
+    while FStall and not Terminated do
+      Sleep(TLS_TEST_IDLE_MS);
+    if not FStall then
+      Data.WriteBuffer(ANSWER[1], Length(ANSWER));
   finally
     FreeAndNil(Data);
   end;
@@ -519,6 +531,23 @@ begin
   AssertEquals('asked twice', 2, FTransport.Requests.Count);
 end;
 
+procedure TTestAssistant.StopOnNote(const Text: string);
+begin
+  FConversation.Cancel;
+end;
+
+procedure TTestAssistant.TestStopDuringRetryWait;
+var
+  Problem: string;
+begin
+  FConversation.OnNote := @StopOnNote;
+  FTransport.Reply(529, '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}');
+  FTransport.Reply(200, Start + TextBlock(0, 'Hi') + Finish('end_turn'));
+  AssertFalse(FConversation.Ask('Hello', Problem));
+  AssertEquals(rsAssistantStopped, Problem);
+  AssertEquals('asked once', 1, FTransport.Requests.Count);
+end;
+
 procedure TTestAssistant.TestBadKey;
 var
   Problem: string;
@@ -742,6 +771,79 @@ begin
   finally
     FreeAndNil(Transport);
     FreeAndNil(Sink);
+    FreeAndNil(Server);
+  end;
+end;
+
+type
+  // Runs one Post, noting how it ended
+  TPostThread = class(TThread)
+  private
+    FTransport: THttpsTransport;
+    FFailed: boolean;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(ATransport: THttpsTransport);
+    property Failed: boolean read FFailed;
+  end;
+
+constructor TPostThread.Create(ATransport: THttpsTransport);
+begin
+  FTransport := ATransport;
+  inherited Create(False);
+end;
+
+procedure TPostThread.Execute;
+var
+  Sink: TStringStream;
+  ErrorText: string;
+  RetryAfter: integer;
+begin
+  Sink := TStringStream.Create('');
+  try
+    try
+      FTransport.Post('{}', Sink, ErrorText, RetryAfter);
+    except
+      FFailed := True;
+    end;
+  finally
+    FreeAndNil(Sink);
+  end;
+end;
+
+procedure TTestHttpsTransport.TestAbortEndsAStalledRead;
+const
+  STALL_MS = 300;
+  // Far less than the transport's minute of read timeout
+  ABORT_LIMIT_MS = 3000;
+var
+  Server: TTlsTestServer;
+  Transport: THttpsTransport;
+  Poster: TPostThread;
+  Waited: integer;
+begin
+  Server := TTlsTestServer.Create(TlsTestFile('localhost.pem'), True);
+  Transport := THttpsTransport.Create('key', Format('https://localhost:%d/v1/messages', [Server.Port]));
+  Poster := nil;
+  try
+    Transport.TrustedFile := TlsTestFile('localhost.pem');
+    Poster := TPostThread.Create(Transport);
+    Sleep(STALL_MS);
+    Transport.Abort;
+    Waited := 0;
+    while not Poster.Finished and (Waited < ABORT_LIMIT_MS) do
+    begin
+      Sleep(TLS_TEST_IDLE_MS);
+      Inc(Waited, TLS_TEST_IDLE_MS);
+    end;
+    AssertTrue('the read ended', Poster.Finished);
+    AssertTrue('as a failure', Poster.Failed);
+  finally
+    if Assigned(Poster) then
+      Poster.WaitFor;
+    FreeAndNil(Poster);
+    FreeAndNil(Transport);
     FreeAndNil(Server);
   end;
 end;

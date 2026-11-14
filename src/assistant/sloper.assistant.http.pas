@@ -27,7 +27,7 @@ unit Sloper.Assistant.Http;
 interface
 
 uses
-  Classes, SysUtils, ssockets;
+  Classes, SysUtils, SyncObjs, ssockets;
 
 type
   TAssistantTransport = class
@@ -36,6 +36,8 @@ type
     // else is read whole into ErrorText. RetryAfter is the server's wait in
     // seconds, or 0. Raises on a network failure, and EAbort from the sink.
     function Post(const Body: string; Sink: TStream; out ErrorText: string; out RetryAfter: integer): integer; virtual; abstract;
+    // From another thread: ends a Post in progress, which then raises
+    procedure Abort; virtual;
   end;
 
   THttpsTransport = class(TAssistantTransport)
@@ -43,11 +45,24 @@ type
     FKey: string;
     FUrl: string;
     FTrustedFile: string;
+    // The connection Post is using, for Abort; FLock guards it, as Abort
+    // comes from another thread
+    FLock: TCriticalSection;
+    FActive: TSocketHandler;
+    // Abort came during this Post
+    FAborted: boolean;
+    function Aborted: boolean;
     procedure GetSocketHandler(Sender: TObject; const UseSSL: boolean; out AHandler: TSocketHandler);
+    // Called as the connection's handler is freed, before its socket closes
+    procedure Forget(Handler: TSocketHandler);
   public
     // Posts to Url, or to MessagesUrl when it is ''
     constructor Create(const AKey: string; const AUrl: string = '');
+    destructor Destroy; override;
     function Post(const Body: string; Sink: TStream; out ErrorText: string; out RetryAfter: integer): integer; override;
+    // Shuts the connection's socket down, so a read waiting on a server that
+    // has gone quiet ends now rather than at the read timeout
+    procedure Abort; override;
     // A PEM file of the certificates to trust in place of the system's, for tests
     property TrustedFile: string read FTrustedFile write FTrustedFile;
     // Read at each Post; not while one runs
@@ -66,7 +81,7 @@ const
 implementation
 
 uses
-  dynlibs, ctypes, fphttpclient, openssl, opensslsockets;
+  dynlibs, ctypes, Sockets, SysConst, fphttpclient, openssl, opensslsockets;
 
 const
   DEFAULT_BASE_URL = 'https://api.anthropic.com';
@@ -86,10 +101,20 @@ type
   TVerifyingSSLHandler = class(TOpenSSLSocketHandler)
   private
     FTrustedFile: string;
+    FOwner: THttpsTransport;
   protected
     function InitContext(NeedCertificate: boolean): boolean; override;
   public
     constructor Create; override;
+    destructor Destroy; override;
+  end;
+
+  // A plain connection, to an ANTHROPIC_BASE_URL without TLS, that Abort can end
+  TPlainHandler = class(TSocketHandler)
+  private
+    FOwner: THttpsTransport;
+  public
+    destructor Destroy; override;
   end;
 
   // Sends a success to the sink and anything else to a string
@@ -138,6 +163,20 @@ begin
   VerifyPeerCert := True;
 end;
 
+destructor TVerifyingSSLHandler.Destroy;
+begin
+  if Assigned(FOwner) then
+    FOwner.Forget(Self);
+  inherited Destroy;
+end;
+
+destructor TPlainHandler.Destroy;
+begin
+  if Assigned(FOwner) then
+    FOwner.Forget(Self);
+  inherited Destroy;
+end;
+
 // After the context is made and before the handshake. OpenSSL 1.1 or later,
 // for SSL_set1_host; without it, or without trusted roots, no connection.
 function TVerifyingSSLHandler.InitContext(NeedCertificate: boolean): boolean;
@@ -167,6 +206,10 @@ begin
   Result := Result and (Set1Host(SSL.FSSL, pansichar(ansistring(TInetSocket(Socket).Host))) = 1);
 end;
 
+procedure TAssistantTransport.Abort;
+begin
+end;
+
 function MessagesUrl: string;
 begin
   Result := GetEnvironmentVariable(BASE_URL_ENVIRONMENT);
@@ -179,23 +222,83 @@ end;
 
 procedure THttpsTransport.GetSocketHandler(Sender: TObject; const UseSSL: boolean; out AHandler: TSocketHandler);
 var
-  Handler: TVerifyingSSLHandler;
+  Secure: TVerifyingSSLHandler;
+  Plain: TPlainHandler;
 begin
-  AHandler := nil;
-  if not UseSSL then
-    Exit;
-  Handler := TVerifyingSSLHandler.Create;
-  Handler.FTrustedFile := FTrustedFile;
-  AHandler := Handler;
+  if UseSSL then
+  begin
+    Secure := TVerifyingSSLHandler.Create;
+    Secure.FTrustedFile := FTrustedFile;
+    Secure.FOwner := Self;
+    AHandler := Secure;
+  end
+  else
+  begin
+    Plain := TPlainHandler.Create;
+    Plain.FOwner := Self;
+    AHandler := Plain;
+  end;
+  FLock.Enter;
+  try
+    FActive := AHandler;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure THttpsTransport.Forget(Handler: TSocketHandler);
+begin
+  FLock.Enter;
+  try
+    if FActive = Handler then
+      FActive := nil;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+// The socket is still open: a handler is freed before its socket is closed,
+// and Forget waits for the lock. Only reading is shut down, which wakes the
+// read; writing stays open, since OpenSSL's closing write to a socket shut
+// both ways would raise SIGPIPE and end the program
+procedure THttpsTransport.Abort;
+const
+  SHUT_READING = 0;
+begin
+  FLock.Enter;
+  try
+    FAborted := True;
+    if Assigned(FActive) and Assigned(FActive.Socket) then
+      fpShutdown(FActive.Socket.Handle, SHUT_READING);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 constructor THttpsTransport.Create(const AKey: string; const AUrl: string);
 begin
   inherited Create;
+  FLock := TCriticalSection.Create;
   FKey := AKey;
   FUrl := AUrl;
   if FUrl = '' then
     FUrl := MessagesUrl;
+end;
+
+function THttpsTransport.Aborted: boolean;
+begin
+  FLock.Enter;
+  try
+    Result := FAborted;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+destructor THttpsTransport.Destroy;
+begin
+  FreeAndNil(FLock);
+  inherited Destroy;
 end;
 
 function THttpsTransport.Post(const Body: string; Sink: TStream; out ErrorText: string; out RetryAfter: integer): integer;
@@ -206,6 +309,12 @@ var
 begin
   ErrorText := '';
   RetryAfter := 0;
+  FLock.Enter;
+  try
+    FAborted := False;
+  finally
+    FLock.Leave;
+  end;
   Client := TFPHTTPClient.Create(nil);
   Splitter := TStatusSplitter.Create;
   Request := TStringStream.Create(Body);
@@ -220,10 +329,19 @@ begin
     Client.AddHeader('anthropic-beta', API_BETAS);
     Client.RequestBody := Request;
     try
-      Client.HTTPMethod('POST', FUrl, Splitter, []);
+      try
+        Client.HTTPMethod('POST', FUrl, Splitter, []);
+      except
+        if Aborted then
+          raise EAbort.Create(SAbortError);
+        raise;
+      end;
     finally
       Client.RequestBody := nil;
     end;
+    // A read ended by Abort looks to the client like the end of the response
+    if Aborted then
+      raise EAbort.Create(SAbortError);
     Result := Client.ResponseStatusCode;
     ErrorText := Splitter.FError;
     RetryAfter := StrToIntDef(Client.GetHeader(Client.ResponseHeaders, 'retry-after'), 0);
