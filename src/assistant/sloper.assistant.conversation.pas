@@ -47,6 +47,7 @@ type
     FOnTool: TAssistantToolEvent;
     FOnNote: TAssistantNoteEvent;
     function RequestBody: string;
+    procedure DropOldImages;
     // One request, retried while the API is busy; False with a message
     function Exchange(Assembler: TMessageAssembler; out Problem: string): boolean;
     function RunTools(Content: TJSONArray; Assembler: TMessageAssembler): TJSONArray;
@@ -79,6 +80,8 @@ const
   ASSISTANT_MAX_TOKENS = 64000;
   // Requests one question may make before it stops and asks the user
   ASSISTANT_MAX_STEPS = 40;
+  // Images of the draft kept in the history; Claude can render again
+  ASSISTANT_KEPT_IMAGES = 3;
 
 // The Automation API methods as tools for the Messages API
 function AssistantTools: TJSONArray;
@@ -109,6 +112,7 @@ resourcestring
   rsAssistantTooManySteps = 'Claude stopped after %d steps; ask it to continue if it is not finished.';
   rsAssistantStopped = 'Stopped.';
   rsAssistantCutOff = 'The answer was cut off before it finished; ask again';
+  rsAssistantImageDropped = '(An earlier image of the draft, dropped to save space; render again to see it.)';
   rsAssistantPreviousStopped = '(The request above did not finish: the user stopped it, or it failed. Do not carry it ' +
     'on unless they ask again.)';
   rsAssistantStoppedTool = 'The user stopped this before the tool ran.';
@@ -229,12 +233,48 @@ begin
   Body := TJSONObject.Create(['model', ASSISTANT_MODEL, 'max_tokens', ASSISTANT_MAX_TOKENS, 'stream', True, 'system',
     FSystem, 'output_config', TJSONObject.Create(['effort', ASSISTANT_EFFORT]), 'cache_control',
     TJSONObject.Create(['type', 'ephemeral']), 'fallbacks', 'default']);
+  // Lent to the body, not copied: the history holds every image so far
+  Body.Add('tools', FTools);
+  Body.Add('messages', FMessages);
   try
-    Body.Add('tools', FTools.Clone);
-    Body.Add('messages', FMessages.Clone);
     Result := Body.AsJSON;
   finally
+    Body.Extract('messages');
+    Body.Extract('tools');
     FreeAndNil(Body);
+  end;
+end;
+
+// Each image of the draft is sent again with every later request, so only
+// the last few stay; older ones become a note. Done as an image is added,
+// so the cached start of the history changes only then.
+procedure TAssistantConversation.DropOldImages;
+var
+  Kept, Index, Block, Item: integer;
+  Content, Inner: TJSONArray;
+begin
+  Kept := 0;
+  for Index := FMessages.Count - 1 downto 0 do
+  begin
+    if not (FMessages.Objects[Index].Find('content') is TJSONArray) then
+      Continue;
+    Content := FMessages.Objects[Index].Arrays['content'];
+    for Block := Content.Count - 1 downto 0 do
+    begin
+      if (Content.Items[Block].JSONType <> jtObject) or (Content.Objects[Block].Get('type', '') <> 'tool_result') or not
+        (Content.Objects[Block].Find('content') is TJSONArray) then
+        Continue;
+      Inner := Content.Objects[Block].Arrays['content'];
+      for Item := Inner.Count - 1 downto 0 do
+        if (Inner.Items[Item].JSONType = jtObject) and (Inner.Objects[Item].Get('type', '') = 'image') then
+          if Kept < ASSISTANT_KEPT_IMAGES then
+            Inc(Kept)
+          else
+          begin
+            Inner.Delete(Item);
+            Inner.Insert(Item, TJSONObject.Create(['type', 'text', 'text', rsAssistantImageDropped]));
+          end;
+    end;
   end;
 end;
 
@@ -457,6 +497,7 @@ begin
         begin
           Results := RunTools(Content, Assembler);
           FMessages.Add(TJSONObject.Create(['role', 'user', 'content', Results]));
+          DropOldImages;
           if FCancelled then
           begin
             Problem := rsAssistantStopped;

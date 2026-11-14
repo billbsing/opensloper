@@ -84,6 +84,8 @@ type
     // history whole: its tools are answered as stopped
     procedure TestUnknownStopReasonKeepsHistoryWhole;
     procedure TestStepLimit;
+    // Only the last few images of the draft stay in the history
+    procedure TestOldImagesDropped;
     procedure TestSystemPrompt;
     procedure TestKeyFile;
     // A key file that cannot be removed says why, naming the file
@@ -361,7 +363,11 @@ function TTestAssistant.RunTool(const ToolName: string; Input: TJSONObject; out 
 begin
   FToolCalls := FToolCalls + ToolName + Input.AsJSON + ';';
   IsError := ToolName = 'fails';
-  Result := TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', 'done ' + ToolName])]);
+  if ToolName = 'render' then
+    Result := TJSONArray.Create([TJSONObject.Create(['type', 'image', 'source', TJSONObject.Create(['type', 'base64',
+      'media_type', 'image/png', 'data', 'png' + IntToStr(Length(FToolCalls))])])])
+  else
+    Result := TJSONArray.Create([TJSONObject.Create(['type', 'text', 'text', 'done ' + ToolName])]);
 end;
 
 procedure TTestAssistant.Shown(const Text: string);
@@ -647,6 +653,46 @@ begin
   Last := FConversation.Messages.Objects[2];
   AssertEquals('tool_result', Last.Arrays['content'].Objects[0].Get('type', ''));
   AssertEquals('toolu_1', Last.Arrays['content'].Objects[0].Get('tool_use_id', ''));
+end;
+
+// The tool_result contents of a request's messages, in order, as their types
+function ResultKinds(Messages: TJSONArray): string;
+var
+  Content, Inner: TJSONArray;
+  Index, Block: integer;
+begin
+  Result := '';
+  for Index := 0 to Messages.Count - 1 do
+  begin
+    if not (Messages.Objects[Index].Find('content') is TJSONArray) then
+      Continue;
+    Content := Messages.Objects[Index].Arrays['content'];
+    for Block := 0 to Content.Count - 1 do
+      if Content.Objects[Block].Get('type', '') = 'tool_result' then
+      begin
+        Inner := Content.Objects[Block].Arrays['content'];
+        Result := Result + Inner.Objects[0].Get('type', '') + ' ';
+      end;
+  end;
+end;
+
+procedure TTestAssistant.TestOldImagesDropped;
+var
+  Problem: string;
+  Index: integer;
+  Last: TJSONObject;
+begin
+  for Index := 1 to 4 do
+    FTransport.Reply(200, Start + ToolBlock(0, 'toolu_' + IntToStr(Index), 'render', '{}', '') + Finish('tool_use'));
+  FTransport.Reply(200, Start + TextBlock(0, 'Looks right') + Finish('end_turn'));
+  AssertTrue(Problem, FConversation.Ask('Draw it four times', Problem));
+  Last := Request(4);
+  try
+    AssertEquals('the first image dropped', 'text image image image ', ResultKinds(Last.Arrays['messages']));
+  finally
+    FreeAndNil(Last);
+  end;
+  AssertEquals('so is the history', 'text image image image ', ResultKinds(FConversation.Messages));
 end;
 
 procedure TTestAssistant.TestStepLimit;
