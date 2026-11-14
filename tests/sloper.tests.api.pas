@@ -97,6 +97,8 @@ type
     // A repeat point takes its ID inside the call's change: a call that fails
     // leaves the pattern as it was, undo takes the ID back, and copying gives none
     procedure TestRepeatPointUsedInsideTheChange;
+    // An input given by an ID that does not exist is refused, never a crash
+    procedure TestUnknownIdInputRefused;
     procedure TestSave;
     procedure TestSaveNeedsAPath;
     procedure TestSaveReplacesOnlyPatterns;
@@ -918,6 +920,20 @@ begin
   Call('copy_objects', '{"objects": ["Btn[2]", "Q"]}');
   AssertTrue('copied: ' + FReply.AsJSON, Answer.Get('fragment', '') <> '');
   AssertEquals('copying changes nothing', Before, SavePatternToText(FServer.Document.Pattern, False));
+end;
+
+procedure TTestAPI.TestUnknownIdInputRefused;
+begin
+  AddSquare;
+  Call('create_piece', '{"x": 50, "y": 50, "name": "Front"}');
+  Call('set_edge_allowance', '{"name": "Front", "edge": 99999, "allowance": 5}');
+  AssertEquals(RPC_REFUSED, ErrorCode);
+  AssertEquals(Format(rsApiUnknownId, [99999]), ErrorText);
+  Call('add_edge', '{"type": "offsetEdge", "edge": "Line_A_B", "distance": 5, "side": "inside", "piece": 99999}');
+  AssertEquals(RPC_REFUSED, ErrorCode);
+  AssertEquals(Format(rsApiUnknownId, [99999]), ErrorText);
+  Call('add_point', '{"type": "offsetPoint", "base": 99999, "mode": "cartesian", "dx": 1, "dy": 1}');
+  AssertEquals(Format(rsApiUnknownId, [99999]), ErrorText);
 end;
 
 procedure TTestAPI.TestArrangeRefused;

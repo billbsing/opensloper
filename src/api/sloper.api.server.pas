@@ -609,10 +609,19 @@ var
   Target: TDraftObject;
 begin
   if GetJSONInteger(Params, AName, Id) then
-    Exit(IntToStr(Id));
-  if not GetJSONString(Params, AName, TargetName) then
+  begin
+    // Checked here, so a method can rely on the node being there; one of the
+    // wrong kind is the pattern's to refuse, with a reason
+    if not Assigned(FDocument.Pattern.FindNode(IntToStr(Id))) then
+      raise EApiError.Create(RPC_REFUSED, Format(rsApiUnknownId, [Id]));
+    if not (FDocument.Pattern.FindNode(IntToStr(Id)) is TDraftObject) then
+      Exit(IntToStr(Id));
+    Target := TDraftObject(FDocument.Pattern.FindNode(IntToStr(Id)));
+  end
+  else if GetJSONString(Params, AName, TargetName) then
+    Target := FDocument.Pattern.FindObject(TargetName)
+  else
     raise EApiError.Create(RPC_INVALID_PARAMS, Format(rsApiMissingParam, [AName]));
-  Target := FDocument.Pattern.FindObject(TargetName);
   if not Assigned(Target) then
     raise EApiError.Create(RPC_REFUSED, Format(rsApiUnknownName, [TargetName]));
   Result := Target.Key;
