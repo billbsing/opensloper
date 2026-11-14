@@ -656,6 +656,7 @@ for my $file (@ARGV) {
 
   # Uses clauses: layering and Sloper.Core.CodePage first in programs
   my $first_uses = 1;
+  my $uses_windows = 0;
   while ($code =~ /\buses\b(.*?);/gsi) {
     my ($list, $at) = ($1, $-[0]);
     my @units = map { s/\s+in\s+.*//sr =~ s/^\s+|\s+$//gr } split /,/, $list;
@@ -666,6 +667,7 @@ for my $file (@ARGV) {
     }
     $first_uses = 0;
     for my $unit (@units) {
+      $uses_windows = 1 if lc($unit) eq 'windows';
       report('error', $file, line_of($code, $at), "$dir must not use the LCL unit $unit")
         if $no_lcl{$dir} && $lcl{lc $unit} && !($in_thirdparty && $thirdparty{lc $unit});
       if ($allowed{$dir} && $unit =~ /^Sloper\.(\w+)\./i) {
@@ -690,6 +692,15 @@ for my $file (@ARGV) {
     my $before = substr($code, 0, $pos);
     next if $1 eq '=' && $before =~ /:\s*[\w.]+\s*$/;
     report('error', $file, line_of($code, $pos), 'test references with Assigned(), not a comparison with nil');
+  }
+
+  # The Windows unit's GetEnvironmentVariable(PChar, PChar, DWord) hides the
+  # SysUtils one where both are used, which only a Windows build reports
+  if ($uses_windows) {
+    while ($code =~ /(?<![\w.])GetEnvironmentVariable\s*\(/gi) {
+      report('error', $file, line_of($code, $-[0]),
+        'call SysUtils.GetEnvironmentVariable in a unit that uses Windows, whose own GetEnvironmentVariable hides it');
+    }
   }
 
   # Shortcuts use ssModifier

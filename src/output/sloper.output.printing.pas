@@ -113,7 +113,7 @@ function ToolPath(const AName: string): string;
 var
   Usual: string;
 begin
-  Result := ExeSearch(AName, GetEnvironmentVariable('PATH'));
+  Result := ExeSearch(AName, SysUtils.GetEnvironmentVariable('PATH'));
   Usual := PathDelim + ConcatPaths([CUPS_PROGRAM_DIRS[0], CUPS_PROGRAM_DIRS[1], AName]);
   if (Result = '') and FileExists(Usual) then
     Result := Usual;
