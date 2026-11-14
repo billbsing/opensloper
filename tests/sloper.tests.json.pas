@@ -213,6 +213,12 @@ var
   D: double;
   I: integer;
 begin
+  AssertTrue(ParseJSONObject('{"big": 4294967297}', Obj, Msg));
+  try
+    AssertFalse('past 32 bits, not cut down to 1', GetJSONInteger(Obj, 'big', I));
+  finally
+    FreeAndNil(Obj);
+  end;
   AssertTrue(ParseJSONObject('{"s": "x", "n": 2.5, "i": 3, "b": true}', Obj, Msg));
   try
     AssertTrue(GetJSONString(Obj, 's', S));

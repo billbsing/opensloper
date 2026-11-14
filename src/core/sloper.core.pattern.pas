@@ -593,7 +593,7 @@ resourcestring
 implementation
 
 uses
-  Math, StrUtils, Sloper.Core.Names, Sloper.Core.TypeChange, Sloper.Core.PointMerge;
+  Math, StrUtils, Sloper.Core.JSON, Sloper.Core.Names, Sloper.Core.TypeChange, Sloper.Core.PointMerge;
 
 const
   CHAIN_TOLERANCE = 0.01;
@@ -882,7 +882,18 @@ begin
 end;
 
 function TPattern.TakeId: string;
+var
+  Candidate: integer;
 begin
+  // Past the highest ID a file may hold, which only a file made to sit there
+  // reaches: the lowest free ID, so the saved file still opens
+  if FNextId > JSON_MAX_ID then
+  begin
+    Candidate := 1;
+    while Assigned(FindNode(IntToStr(Candidate))) or Assigned(FindMaterial(IntToStr(Candidate))) do
+      Inc(Candidate);
+    Exit(IntToStr(Candidate));
+  end;
   Result := IntToStr(FNextId);
   Inc(FNextId);
 end;

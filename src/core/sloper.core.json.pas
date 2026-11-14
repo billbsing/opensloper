@@ -52,6 +52,9 @@ const
   // the parser recurses once a level, so text nested far deeper, from a file
   // made to, would overflow the stack and end the program
   JSON_MAX_DEPTH = 256;
+  // The highest ID a file may hold, one below MaxInt so the counter above it
+  // never overflows
+  JSON_MAX_ID = High(integer) - 1;
 
 // Parses Text, which must hold a JSON object. The caller frees Obj.
 function ParseJSONObject(const Text: string; out Obj: TJSONObject; out ErrorMessage: string): boolean;
@@ -66,6 +69,8 @@ function WriteTextFileAtomic(const FileName, Text: string; out ErrorMessage: str
 function GetJSONString(Obj: TJSONObject; const Name: string; out Value: string): boolean;
 function GetJSONNumber(Obj: TJSONObject; const Name: string; out Value: double): boolean;
 function GetJSONInteger(Obj: TJSONObject; const Name: string; out Value: integer): boolean;
+// An object's ID: a whole number from 1 to JSON_MAX_ID
+function GetJSONId(Obj: TJSONObject; const Name: string; out Value: integer): boolean;
 function GetJSONBoolean(Obj: TJSONObject; const Name: string; out Value: boolean): boolean;
 
 resourcestring
@@ -438,9 +443,16 @@ var
 begin
   Value := 0;
   Data := Obj.Find(Name);
-  Result := Assigned(Data) and (Data.JSONType = jtNumber) and not (Data is TJSONFloatNumber);
+  // Only 32 bits: the parser keeps larger whole numbers as 64-bit types,
+  // which AsInteger would cut down, so 4294967297 would read as 1
+  Result := Data is TJSONIntegerNumber;
   if Result then
     Value := Data.AsInteger;
+end;
+
+function GetJSONId(Obj: TJSONObject; const Name: string; out Value: integer): boolean;
+begin
+  Result := GetJSONInteger(Obj, Name, Value) and (Value >= 1) and (Value <= JSON_MAX_ID);
 end;
 
 function GetJSONBoolean(Obj: TJSONObject; const Name: string; out Value: boolean): boolean;

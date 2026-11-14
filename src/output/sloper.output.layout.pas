@@ -209,6 +209,8 @@ type
     procedure AddOverlapProblems(var Problems: TLayoutProblemArray);
     procedure AddFontProblems(var Problems: TLayoutProblemArray);
     function PageIsExcluded(const Caption: string): boolean;
+    // The lowest ID no source has, once the counter is past JSON_MAX_ID
+    function LowestFreeSourceId: integer;
   public
     Name: string;
     // Where the layout is saved; relative paths start from its folder
@@ -636,12 +638,34 @@ begin
   System.Delete(Notes, Index, 1);
 end;
 
+function TLayout.LowestFreeSourceId: integer;
+var
+  Source: TLayoutSource;
+  Taken: boolean;
+begin
+  Result := 1;
+  repeat
+    Taken := False;
+    for Source in FSources do
+      if Source.Id = Result then
+        Taken := True;
+    if Taken then
+      Inc(Result);
+  until not Taken;
+end;
+
 function TLayout.AddSource(const APatternFile, AMeasurementFile, ASize: string): TLayoutSource;
 begin
   Result := TLayoutSource.Create;
   FSources.Add(Result);
-  Result.Id := FNextId;
-  Inc(FNextId);
+  // Past the highest ID a file may hold, as for pattern IDs: the lowest free
+  if FNextId > JSON_MAX_ID then
+    Result.Id := LowestFreeSourceId
+  else
+  begin
+    Result.Id := FNextId;
+    Inc(FNextId);
+  end;
   Result.PatternFile := APatternFile;
   Result.MeasurementFile := AMeasurementFile;
   Result.Size := ASize;
@@ -1050,7 +1074,7 @@ begin
       if Data.Items[Index].JSONType <> jtObject then
         Exit(Fail(Format(rsLayoutList, ['sources'])));
       Item := TJSONObject(Data.Items[Index]);
-      if not GetJSONInteger(Item, 'id', Id) or (Id < 1) or Assigned(FindSourceById(FSources, Id)) or not GetJSONString(Item, 'pattern', TextValue) then
+      if not GetJSONId(Item, 'id', Id) or Assigned(FindSourceById(FSources, Id)) or not GetJSONString(Item, 'pattern', TextValue) then
         Exit(Fail(Format(rsLayoutBadSource, [Index + 1])));
       Source := TLayoutSource.Create;
       FSources.Add(Source);

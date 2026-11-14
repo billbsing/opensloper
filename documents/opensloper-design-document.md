@@ -346,7 +346,7 @@ References are stored as IDs and shown as names, so renaming an object changes o
 
 **IDs.** Positive integers from one counter per pattern file, shared by every kind of object: variables, points, edges, pieces, materials and annotations. The kind is in the object's `type`, so the ID has no prefix.
 
-- The counter is saved as `nextId` and only goes up, so an ID that has been saved is never reused: not after deleting, undoing, saving or reopening. This matters beyond the file: layouts refer to pieces by ID, and a reused ID would quietly put a different piece in an old one's place.
+- The counter is saved as `nextId` and only goes up, so an ID that has been saved is never reused: not after deleting, undoing, saving or reopening. This matters beyond the file: layouts refer to pieces by ID, and a reused ID would quietly put a different piece in an old one's place. IDs in files are whole numbers from 1 to `JSON_MAX_ID` (MaxInt − 1), read only as 32-bit integers so a larger one is refused rather than cut down to another object's; the one exception to the rule is a file made to sit at that limit, where a new object takes the lowest free ID so the saved file still opens (2026-11-14).
 - IDs are unique within one file. Pasted and imported objects get fresh IDs, with references inside the pasted group remapped.
 - UUIDs were rejected: they are only needed across files, and would make every stored formula long and hard to read.
 

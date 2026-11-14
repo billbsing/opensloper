@@ -1157,7 +1157,7 @@ var
   Value: integer;
 begin
   Id := '';
-  if not GetJSONInteger(Item, 'id', Value) or (Value < 1) then
+  if not GetJSONId(Item, 'id', Value) then
     Exit(False);
   Id := MapKey(Value);
   Result := not Assigned(FPattern.FindNode(Id)) and not Assigned(FPattern.FindMaterial(Id));
@@ -2019,7 +2019,7 @@ procedure TPatternLoader.RetireDraftIds(Data: TJSONData);
   var
     Value: integer;
   begin
-    if (Item.JSONType = jtObject) and GetJSONInteger(TJSONObject(Item), 'id', Value) then
+    if (Item.JSONType = jtObject) and GetJSONId(TJSONObject(Item), 'id', Value) then
       FPattern.NextId := Math.Max(FPattern.NextId, Value + 1);
   end;
 

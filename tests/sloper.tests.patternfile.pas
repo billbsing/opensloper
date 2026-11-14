@@ -51,6 +51,11 @@ type
     procedure TestLoadKeepsBadFormula;
     procedure TestNewIdsAfterLoad;
     procedure TestNextIdKept;
+    // The highest ID a file may hold leaves room for the counter above it,
+    // and a pattern that reaches it still saves a file that opens again
+    procedure TestHighestIds;
+    // An ID past 32 bits is refused, not cut down to another object's
+    procedure TestIdPast32BitsRefused;
     procedure TestHeaderErrors;
     procedure TestObjectErrors;
     procedure TestFailedLoadEmptiesPattern;
@@ -355,6 +360,35 @@ begin
   AssertEquals(rsPatternFileBadNextId, Err);
   AssertFalse('not a number', LoadPatternFromText(FLoaded, '{"format": "pattern", "version": 1, "nextId": "7"}', Err));
   AssertEquals(rsPatternFileBadNextId, Err);
+end;
+
+procedure TTestPatternFile.TestHighestIds;
+var
+  Saved, Err: string;
+begin
+  AssertFalse('MaxInt leaves no room above it', LoadPatternFromText(FLoaded,
+    PatternWithObjects('[{"id": 2147483647, "type": "freePoint", "name": "A", "x": "0", "y": "0"}]'), Err));
+  AssertTrue(Err, LoadPatternFromText(FLoaded,
+    PatternWithObjects('[{"id": 2147483646, "type": "freePoint", "name": "A", "x": "0", "y": "0"}]'), Err));
+  AssertEquals(MaxInt, FLoaded.NextId);
+  // With no ID left above, a new object takes the lowest free one
+  AssertEquals('1', FLoaded.AddFreePoint('B', '1', '0').Key);
+  AssertEquals('2', FLoaded.AddFreePoint('C', '2', '0').Key);
+  AssertEquals('the counter stays', MaxInt, FLoaded.NextId);
+  Saved := SavePatternToText(FLoaded);
+  AssertTrue(Err, LoadPatternFromText(FPattern, Saved, Err));
+  AssertEquals(3, FPattern.ObjectCount);
+end;
+
+procedure TTestPatternFile.TestIdPast32BitsRefused;
+var
+  Err: string;
+begin
+  AssertFalse('an ID', LoadPatternFromText(FLoaded,
+    PatternWithObjects('[{"id": 4294967297, "type": "freePoint", "name": "A", "x": "0", "y": "0"}]'), Err));
+  AssertFalse('a reference, which would read as 1', LoadPatternFromText(FLoaded,
+    PatternWithObjects('[{"id": 1, "type": "freePoint", "name": "A", "x": "0", "y": "0"}, ' +
+    '{"id": 2, "type": "offsetPoint", "name": "B", "base": 4294967297, "mode": "cartesian", "dx": "1", "dy": "0"}]'), Err));
 end;
 
 procedure TTestPatternFile.TestHeaderErrors;
