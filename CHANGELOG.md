@@ -35,6 +35,17 @@ Changed, Fixed and Removed under each version.
   the font, SVG names it, and PDF embeds it from its TrueType file, cut down to
   the letters used. A font that cannot be embedded prints in the default font,
   with a warning.
+- Materials have a size and the material needed is worked out (#19). A
+  material can have a width (a roll) or a width and length (a sheet), and can
+  allow quarter turns when it has no grain. A piece too big to cut from its
+  material is a problem in the design app, `check`, the CLI and the API, each
+  piece measured along its grainline. The publish app works out how much of
+  each material the layout's patterns take, a roll cut folded in half
+  lengthwise and a sheet single layer, and shows it on a new Materials tab, in
+  the information block's Material needed line and the `{materialneeded}`
+  field; `opensloper-cli materials` prints it. Choosing a material for a
+  material sheet takes that material's size. The Automation API's
+  `set_material` takes `width`, `length` and `allowTurns`.
 
 ### Changed
 
